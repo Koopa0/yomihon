@@ -80,6 +80,13 @@ type PreferenceOption struct {
 // shortcuts, which the ? key also lists in a panel over any page, get the same
 // treatment: a heading of their own rather than a list sitting under nothing.
 //
+// On a wide window the page is a bench of two columns: the choices down the
+// left, and beside them a sheet of reading set in whatever the choices say,
+// which stays in view while the column scrolls (see preferenceSheet). On a
+// narrower one the sheet stands above the choices and scrolls away with the
+// page. The choices come first in the document either way, so the order a
+// keyboard meets them in is the order they are read in.
+//
 // Where scripting is running, that same form is the ground rather than the
 // path. Each option carries what a reader of the page other than the server
 // needs to keep a choice as it is picked — the address to come back to, what
@@ -93,34 +100,69 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 		<main id="_y-main" tabindex="-1" class="y-prefs">
 			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
 			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
-			<form method="post" action="/preferences" data-prefs data-prefs-settings={ v.Settings }>
-				for _, field := range v.Fields {
-					@preferenceField(field)
-				}
-				<input type="hidden" name="next" value={ v.ReturnTo }/>
-				<button class="y-prefs__apply y-prefs__fallback" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
-			</form>
-			if v.Reading != "" {
-				// The way back, for the reader whose choices are kept as they
-				// pick them and who therefore never presses the control above.
-				<a class="y-prefs__return" href={ templ.URL(v.Reading) }>{ wording.PrefReturn.In(c.Lang) }</a>
-			}
-			<section class="y-prefs__shortcuts">
-				<h2>{ wording.PrefKeyboardShortcutsTitle.In(c.Lang) }</h2>
-				@layouts.KeyboardKeys(c.Lang)
-			</section>
-			@preferenceReset(v.ReturnTo, c.Lang)
-			<footer class="y-prefs__storage">
-				<h2>{ wording.PrefStorageTitle.In(c.Lang) }</h2>
-				<ul>
-					<li>{ wording.PrefStorageCookies.In(c.Lang) }</li>
-					<li>{ wording.PrefStorageLocal.In(c.Lang) }</li>
-					<li>{ wording.PrefStorageSession.In(c.Lang) }</li>
-				</ul>
-				<p>{ wording.PrefStorageNote.In(c.Lang) }</p>
-			</footer>
+			<div class="y-prefs__bench">
+				<div class="y-prefs__controls">
+					<form method="post" action="/preferences" data-prefs data-prefs-settings={ v.Settings }>
+						for _, field := range v.Fields {
+							@preferenceField(field)
+						}
+						<input type="hidden" name="next" value={ v.ReturnTo }/>
+						<button class="y-prefs__apply y-prefs__fallback" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
+					</form>
+					if v.Reading != "" {
+						// The way back, for the reader whose choices are kept as they
+						// pick them and who therefore never presses the control above.
+						<a class="y-prefs__return" href={ templ.URL(v.Reading) }>{ wording.PrefReturn.In(c.Lang) }</a>
+					}
+					@preferenceReset(v.ReturnTo, c.Lang)
+					<section class="y-prefs__shortcuts">
+						<h2>{ wording.PrefKeyboardShortcutsTitle.In(c.Lang) }</h2>
+						@layouts.KeyboardKeys(c.Lang)
+					</section>
+					<footer class="y-prefs__storage">
+						<h2>{ wording.PrefStorageTitle.In(c.Lang) }</h2>
+						<ul>
+							<li>{ wording.PrefStorageCookies.In(c.Lang) }</li>
+							<li>{ wording.PrefStorageLocal.In(c.Lang) }</li>
+							<li>{ wording.PrefStorageSession.In(c.Lang) }</li>
+						</ul>
+						<p>{ wording.PrefStorageNote.In(c.Lang) }</p>
+					</footer>
+				</div>
+				@preferenceSheet(c.Lang)
+			</div>
 		</main>
 	}
+}
+
+// preferenceSheet is a piece of reading set beside the choices: a section's
+// heading with the buttons a note draws beside one, and a paragraph with code in
+// it. It is not a picture of a note but a note's own markup under a note's own
+// classes, so the stylesheet that sets the reading sets it too, from the same
+// attributes on the root. A choice picked above moves the root, and the sheet
+// moves with it in the same frame, with nothing written to keep it in step;
+// where no script runs it shows the choices the page was drawn with, which are
+// the ones a note would be drawn with as well.
+//
+// It is hidden from assistive technology and holds nothing that takes focus.
+// What it shows is how the reading looks, which the words of the choices
+// already say to a reader who cannot see it; read out, it would be a paragraph
+// about starting a server in the middle of the settings. The buttons beside the
+// heading are therefore drawn as words and not as controls: they answer the
+// pointer the way a note's do, and do nothing.
+templ preferenceSheet(lang wording.Lang) {
+	<div class="y-prefs__sheet" lang={ lang.Tag() } aria-hidden="true">
+		<div class="y-prose">
+			<div class="y-sect">
+				<div data-level="2">{ wording.PrefSampleHeading.In(lang) }</div>
+				<div class="y-margin">
+					<span class="y-margin__act" data-text={ wording.QuestionControl.In(lang) }></span>
+					<span class="y-margin__act" data-text={ wording.ThoughtDoor.In(lang) }></span>
+				</div>
+			</div>
+			<p>{ wording.PrefSampleOpen.In(lang) }<code>{ wording.PrefSampleAddress.In(lang) }</code>{ wording.PrefSampleMiddle.In(lang) }<code>{ wording.PrefSampleKey.In(lang) }</code>{ wording.PrefSampleClose.In(lang) }</p>
+		</div>
+	</div>
 }
 
 // preferenceField is one choice, grouped under the heading that names it. It

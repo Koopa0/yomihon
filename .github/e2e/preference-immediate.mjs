@@ -377,7 +377,11 @@ try {
   }
 
   // ── The paper: another one laid, then the default again ─────────────────
-  // Every paper stores a value, stone included, for the same reason.
+  // Every paper stores a value, stone included, for the same reason. The paper
+  // is a daytime choice and its row is put away while the theme picked above
+  // is the night lamp, so the light theme is picked first to bring it back.
+  await pick(page, 'theme', 'light');
+  await page.waitForTimeout(200);
   const postedBeforePaper = posted.length;
   await pick(page, 'paper', 'washi');
   await page.waitForTimeout(200);

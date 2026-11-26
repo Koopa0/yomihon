@@ -36,6 +36,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 
 	want := map[string][]string{
 		"--measure-answer": {"720px"},
+		"--measure-bench":  {"1084px"},
 		"--measure-list":   {"884px"},
 		"--measure-read":   {"660px", "700px", "740px", "calc(var(--fs-ed-17) * 31)"},
 	}
@@ -63,42 +64,48 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 // TestEveryPageShellTakesItsOwnMeasure holds the other direction: a shell whose
 // box stopped resolving from a measure — moved to a character count, say, or to
 // a literal — would leave both of the other tests green while the reader got a
-// different line.
+// different line. The settings page is the one shell with two: the bench
+// where its two columns fit side by side, and the reading measure where they
+// stack.
 func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 	t.Parallel()
 
 	shells := []struct {
-		class   string
-		measure string
+		class    string
+		measures []string
 	}{
-		{class: ".y-article", measure: "var(--measure-read)"},
-		{class: ".y-healthpage", measure: "var(--measure-list)"},
-		{class: ".y-home", measure: "var(--measure-list)"},
-		{class: ".y-prefs", measure: "var(--measure-read)"},
-		{class: ".y-recovery", measure: "var(--measure-read)"},
-		{class: ".y-searchpage", measure: "var(--measure-list)"},
-		{class: ".y-syl", measure: "var(--measure-read)"},
+		{class: ".y-article", measures: []string{"var(--measure-read)"}},
+		{class: ".y-healthpage", measures: []string{"var(--measure-list)"}},
+		{class: ".y-home", measures: []string{"var(--measure-list)"}},
+		{class: ".y-prefs", measures: []string{"var(--measure-read)", "var(--measure-bench)"}},
+		{class: ".y-recovery", measures: []string{"var(--measure-read)"}},
+		{class: ".y-searchpage", measures: []string{"var(--measure-list)"}},
+		{class: ".y-syl", measures: []string{"var(--measure-read)"}},
 	}
 
 	rules := componentRules(t)
 	for _, shell := range shells {
 		t.Run(shell.class, func(t *testing.T) {
 			t.Parallel()
-			found := false
+			taken := map[string]bool{}
 			for _, rule := range rules {
 				if !selectorNames(rule.selector, shell.class) {
 					continue
 				}
 				for _, value := range rule.values("max-width") {
-					found = true
-					if !strings.Contains(value, shell.measure) {
-						t.Errorf("rule %q gives %s a max-width of %q, want one resolving from %s",
-							rule.selector, shell.class, value, shell.measure)
+					measure := slices.IndexFunc(shell.measures, func(m string) bool { return strings.Contains(value, m) })
+					if measure < 0 {
+						t.Errorf("rule %q gives %s a max-width of %q, want one resolving from %v",
+							rule.selector, shell.class, value, shell.measures)
+						continue
 					}
+					taken[shell.measures[measure]] = true
 				}
 			}
-			if !found {
-				t.Errorf("no rule in components.css gives %s a max-width, so its line length is whatever its container is", shell.class)
+			for _, measure := range shell.measures {
+				if !taken[measure] {
+					t.Errorf("no rule in components.css gives %s a max-width resolving from %s, so at that width its line length is whatever its container is", shell.class, measure)
+				}
 			}
 		})
 	}

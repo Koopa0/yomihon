@@ -1853,8 +1853,10 @@ html[data-js][data-arrival='kept'] .y-main {
 /* Latin set on a 30px line, where the article says it is not Han, kana or
    Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
    keeps it: the safe line is the default and the open one has to be earned by
-   a positive tag. */
-.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose {
+   a positive tag. The settings page's sheet of reading is tagged with the
+   interface's language and takes the same line by the same rule. */
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose,
+.y-prefs__sheet[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose {
   line-height: var(--lh-latin);
 }
 
@@ -8119,45 +8121,139 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   text-decoration: underline;
 }
 
-/* The reading choices, one page: a column of sections named by a small
-   heading, not boxes cut by a title — the rest of the interface separates a
-   group of controls by space and a label, never a frame, and this page had
-   been the one place that drew one. The sentence under each heading — what
-   the choice changes, and what it leaves alone — is the part that earns a
-   heading of its own. The sections sit inside one form, which is what
-   applies them where nothing else can, so what a reader picks across the
-   column is applied together. No rail down the side, because the page is
-   reached from whatever was being read and gives it straight back. */
+/* The reading choices, one page, laid out as the Atelier's bench: the choices
+   in a column of their own on the left, and beside them a sheet of reading
+   that the choices are drawn on as they are made. Each choice is a row named
+   by its own words, not a box cut by a title — the rest of the interface
+   separates a group of controls by space and a label, never a frame. The
+   sentence under each name — what the choice changes, and what it leaves
+   alone — is the part that earns a row of its own. The rows sit inside one
+   form, which is what applies them where nothing else can, so what a reader
+   picks down the column is applied together. No rail down the side, because
+   the page is reached from whatever was being read and gives it straight
+   back. */
 .y-prefs__lede {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
-  line-height: var(--lh-read);
+  line-height: round(calc(var(--lh-read) * 1em), 1px);
   margin: var(--sp-4) 0 0;
 }
 
-/* Each choice is one row: its name and what it changes on the left, the
-   control on the right, and a faint hairline between one choice and the next,
-   so the eye runs down the names and across to the setting. The words are the
-   interface's own, so they are set in its face rather than the reading one.
-   A phone has no room for two columns and stacks them.
+/* The page takes the bench measure only where the two columns fit beside each
+   other. Below that it is the reading shell it shares with a note, and the
+   sheet stands above the choices instead of beside them. */
+@media (min-width: 1081px) {
+  .y-prefs {
+    max-width: calc(var(--measure-bench) + 2 * var(--gutter-read));
+  }
+}
+
+.y-prefs__bench {
+  display: grid;
+  gap: var(--sp-6);
+  margin-top: var(--sp-6);
+}
+
+.y-prefs__controls {
+  min-width: 0;
+}
+
+/* Stacked, the sheet comes first on the screen and second in the document: it
+   holds nothing to press or read out, so only the eye meets it first. */
+.y-prefs__sheet {
+  order: -1;
+}
+
+@media (min-width: 1081px) {
+  .y-prefs__bench {
+    align-items: start;
+    column-gap: var(--sp-7);
+    grid-template-columns: var(--bench-choices) minmax(0, 1fr);
+  }
+
+  /* Beside the column, the sheet stays in view while the column scrolls, so a
+     choice at the foot of the page is still seen on the reading it changes. */
+  .y-prefs__sheet {
+    order: 0;
+    position: sticky;
+    top: calc(var(--hdr-h) + var(--sp-6));
+  }
+}
+
+/* The sheet is a piece of a note on the paper a note is read on: the same
+   ground, the same column classes and the same root attributes, so the
+   stylesheet that sets the reading sets it too. Only its edge and its lift are
+   its own, which is what says it is a sheet lying on the page. */
+.y-prefs__sheet {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+}
+
+@media (max-width: 720px) {
+  .y-prefs__sheet {
+    padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  }
+}
+
+/* The buttons beside a section, as a note draws them on a window wide enough
+   to set them in its margin with a pointer that can rest: gone until the
+   pointer rests on the section, when the reader chose that. A narrower window
+   or a touch screen draws them whatever the choice, here as on a note. */
+@media (min-width: 1321px) and (pointer: fine) {
+  :root[data-sectionbuttons='hover'] .y-prefs__sheet .y-margin__act {
+    opacity: 0;
+    transition: opacity var(--dur-base) linear;
+  }
+
+  :root[data-sectionbuttons='hover'] .y-prefs__sheet .y-sect:hover .y-margin__act {
+    opacity: 1;
+    transition-delay: var(--dur-hover-wait);
+  }
+}
+
+/* The column opens on the double rule a threshold takes, a firm hairline over
+   a finer one, and every choice closes on a hairline of its own. */
+.y-prefs__controls > form[data-prefs] {
+  padding-top: var(--sp-1);
+  position: relative;
+}
+
+.y-prefs__controls > form[data-prefs]::before {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-block-start: 0;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Each choice is one row: its name on the left and the control on the same
+   line at the right, so the eye runs down the names and across to the
+   setting, and the sentence under both, as wide as the column. The words are
+   the interface's own, so they are set in its face rather than the reading
+   one. A phone has no room for both on one line and stacks them.
 
    The legend is floated, which is the one thing that makes a fieldset's legend
    an ordinary box the grid can place; left to the browser it is drawn in the
    fieldset's frame, above the grid. */
 .y-preffield {
+  align-items: center;
   border: 0;
-  border-top: 1px solid var(--line-faint);
-  column-gap: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+  column-gap: var(--sp-5);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   margin: 0;
   min-width: 0;
-  padding: var(--sp-4) 0;
-}
-
-.y-prefs__lede + form > .y-preffield:first-child {
-  margin-top: var(--sp-5);
+  padding: var(--sp-3) 0;
 }
 
 .y-preffield legend {
@@ -8167,6 +8263,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   grid-column: 1;
+  grid-row: 1;
   line-height: 1.25rem;
   margin: 0;
   padding: 0;
@@ -8176,26 +8273,34 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  grid-column: 1;
+  grid-column: 1 / -1;
   line-height: 1.25rem;
   margin: var(--sp-1) 0 0;
 }
 
+/* The options are one segmented control: a hairline round the group and
+   between its members, the chosen one on the tonal ground in a heavier word —
+   the control a folder's order is chosen with. Each segment is still a radio,
+   so the form posts it, the arrow keys move along it, and a reader running no
+   script gets the same control. The radio is drawn as nothing but the
+   segment's own box, which is where its focus ring falls. */
 .y-preffield__options {
-  align-self: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
   grid-column: 2;
-  grid-row: 1 / span 2;
-  justify-content: flex-end;
+  grid-row: 1;
+  justify-self: end;
   margin: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .y-preffield > .y-prefs__apply {
-  align-self: center;
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
+  justify-self: end;
   margin: 0;
 }
 
@@ -8208,7 +8313,6 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-preffield > .y-prefs__apply {
     grid-column: 1;
     grid-row: auto;
-    justify-content: flex-start;
     justify-self: start;
     margin-top: var(--sp-3);
   }
@@ -8216,22 +8320,88 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
 .y-preffield__options label {
   align-items: center;
-  color: var(--fg);
+  color: var(--fg-muted);
   cursor: pointer;
-  display: flex;
-  font-size: var(--fs-14);
-  gap: var(--sp-2);
+  display: inline-flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  min-height: var(--control-h);
   min-width: 0;
+  padding: 0 var(--sp-3);
+  position: relative;
+  white-space: nowrap;
+}
+
+.y-preffield__options label + label {
+  border-inline-start: 1px solid var(--line);
+}
+
+.y-preffield__options label:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.y-preffield__options label:has(:checked) {
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
 }
 
 .y-preffield__options input {
-  accent-color: var(--fg);
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
-  flex: none;
-  height: 14px;
+  height: 100%;
+  inset: 0;
   margin: 0;
-  width: 14px;
+  position: absolute;
+  width: 100%;
 }
+
+.y-preffield__options input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* The sizes and the faces say themselves: each size is named a step larger
+   than the one before, and each face is named in that face. The steps are the
+   interface's own, so the names hold still while the reading they choose
+   grows. */
+.y-preffield[data-pref-field='textsize'] input[value='l'] + span {
+  font-size: var(--fs-14);
+}
+
+.y-preffield[data-pref-field='textsize'] input[value='xl'] + span {
+  font-size: var(--fs-16);
+}
+
+.y-preffield[data-pref-field='font'] input[value='serif'] + span {
+  font-family: var(--font-serif);
+}
+
+.y-preffield[data-pref-field='font'] input[value='kai'] + span {
+  font-family: var(--font-kai);
+  /* Kaiti draws its strokes smaller in the em than the other two faces, so its
+     name is set a step up to stand as tall as theirs. */
+  font-size: var(--fs-14);
+}
+
+/* The paper is a daytime choice, so its row goes while the choice above it
+   is the night lamp, or the system's dark. It answers the theme as picked in
+   the form rather than as stored, so it moves the moment the theme does, with
+   no script to move it. */
+.y-prefs form:has([data-pref-field='theme'] input[value='dark']:checked) [data-pref-field='paper'] {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .y-prefs form:has([data-pref-field='theme'] input[value='system']:checked) [data-pref-field='paper'] {
+    display: none;
+  }
+}
+
 /* A choice the browser would not keep says so under its own options, and takes
    up no room on a page where nothing has gone wrong — an empty block box is
    zero-height, so only its margin has to go. */
@@ -8239,9 +8409,10 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   grid-column: 1 / -1;
   margin: var(--sp-3) 0 0;
 }
-/* The submit sits below the panels it applies rather than inside any one of
-   them, because it belongs to all of them: a button inside a panel would read
-   as that panel's, which is what it used to be and what discarded the rest. */
+
+/* The submit sits below the rows it applies rather than inside any one of
+   them, because it belongs to all of them: a button inside a row would read
+   as that row's, which is what it used to be and what discarded the rest. */
 .y-prefs__apply {
   background: transparent;
   border: 1px solid var(--border-strong);
@@ -8287,57 +8458,60 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   background: var(--overlay);
 }
 
-/* The keys this interface answers to, named as a section like the choices
-   above it: a reader who reaches this page already asked how the interface
-   behaves, so the list the header's own help popover carries earns the same
-   heading here rather than sitting under nothing. */
-.y-prefs__shortcuts {
-  border-top: 1px solid var(--line-faint);
-  margin: var(--sp-5) 0 0;
-  padding: var(--sp-5) 0;
+/* The keys this interface answers to and what this browser is holding are
+   sections of the page rather than choices, headed as the Atelier heads a
+   group: a small heading over the double rule. */
+.y-prefs__shortcuts,
+.y-prefs__storage {
+  margin: var(--sp-7) 0 0;
 }
 
-.y-prefs__shortcuts h2 {
-  color: var(--fg);
+.y-prefs__shortcuts h2,
+.y-prefs__storage h2 {
+  color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.25rem;
   margin: 0;
+  padding-bottom: var(--sp-3);
+  position: relative;
+}
+
+.y-prefs__shortcuts h2::after,
+.y-prefs__storage h2::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
 }
 
 .y-prefs__shortcuts .y-kbdhelp__list {
   margin: var(--sp-4) 0 0;
 }
 
-/* What this browser is holding, listed by the page that puts it there. */
-.y-prefs__storage {
-  border-top: 1px solid var(--border);
-  margin: 42px 0 0;
-  padding-top: var(--sp-5);
-}
-
-.y-prefs__storage h2 {
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  margin: 0;
-}
-
+/* What this browser is holding, listed by the page that puts it there: one
+   row to a place, as the choices are. */
 .y-prefs__storage ul {
-  display: grid;
-  gap: var(--sp-2);
   list-style: none;
-  margin: var(--sp-3) 0 0;
+  margin: 0;
   padding: 0;
 }
 
 .y-prefs__storage li {
+  border-bottom: 1px solid var(--line);
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  line-height: 1.6;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.25rem;
   overflow-wrap: anywhere;
+  padding: var(--sp-3) 0;
 }
 
 .y-prefs__storage p {
