@@ -24,7 +24,10 @@ const maxFormBytes = 4096
 // request's, without its cancellation. A change the server has received is made
 // even when the page that sent it has gone, a page left as its words were sent
 // or a fetch the browser gave up on, since what the reader wrote is theirs to
-// keep; its waits for the locks are bounded by confdir.LockWait all the same.
+// keep. Each of its waits for a lock is bounded by confdir.LockWait on its own:
+// the vault's, and the ledger's for each line it records. Its wait for a change
+// of this process already under way, which machinemarks makes one at a time, is
+// not bounded.
 func writeContext(r *http.Request) context.Context {
 	return context.WithoutCancel(r.Context())
 }

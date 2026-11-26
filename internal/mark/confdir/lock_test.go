@@ -390,6 +390,31 @@ func TestTheClaimsOfOneProcessAreLetThroughInTheOrderTheyWereMade(t *testing.T) 
 	})
 }
 
+// A claim whose lock file cannot be opened, here because a folder stands at its
+// name, gives its place in this process's queue back: once the name is free, a
+// claim that waits for nothing gets the lock.
+func TestAClaimWhoseLockCannotBeOpenedGivesItsTurnBack(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	if err := os.Mkdir(dir.Join("list.lock"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 0); err == nil {
+		_ = lock.Release() //nolint:errcheck // the failure below is the report
+		t.Fatal("Acquire opened a folder as its lock file")
+	}
+	if err := os.Remove(dir.Join("list.lock")); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
+	if err != nil {
+		t.Fatalf("Acquire after a claim that could not open the lock = %v, want the lock at once", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+}
+
 func TestOnlyOneHolderIsInsideAtATime(t *testing.T) {
 	t.Parallel()
 	dir := homeIn(t)

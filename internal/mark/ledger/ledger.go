@@ -333,10 +333,10 @@ func (l *Ledger) Carry(ctx context.Context, from confdir.Dir) (bool, error) {
 		if asideErr := l.setAside(lines(aside)); asideErr != nil {
 			return asideErr
 		}
-		l.forget()
 		if replaceErr := confdir.Replace(l.dir, fileName, theirs); replaceErr != nil {
 			return fmt.Errorf("carry the earlier ledger: %w", replaceErr)
 		}
+		l.forget()
 		carried = true
 		return nil
 	})
@@ -442,7 +442,11 @@ func (l *Ledger) readAside(st *state, asideFile look) error {
 	for _, raw := range st.changed {
 		inLedger[string(raw)] = true
 	}
-	for _, raw := range lines(aside) {
+	// A last line with no newline is one a compaction is still appending, or
+	// one a crash cut short as it appended: either way the line it copies is in
+	// the ledger still, and counted there, and the next setAside ends it on a
+	// line of its own before it adds anything.
+	for _, raw := range lines(ended(aside)) {
 		if !inLedger[string(raw)] {
 			st.aside++
 		}
@@ -457,6 +461,11 @@ func (l *Ledger) readAside(st *state, asideFile look) error {
 	}
 	st.asideFile = asideFile
 	return nil
+}
+
+// ended is data up to the end of its last newline: its lines that are whole.
+func ended(data []byte) []byte {
+	return data[:bytes.LastIndexByte(data, '\n')+1]
 }
 
 // lookAside looks at the file of the lines set aside.
@@ -584,7 +593,12 @@ func (l *Ledger) compactIfLong() {
 }
 
 // compact sets aside the lines that were changed and installs what compacted
-// keeps. The caller holds the lock.
+// keeps. The caller holds the lock. What this process holds is let go only once
+// the new ledger is installed: until then a reader of this process is answered
+// from it and does not open the ledger the rename replaces, which on Windows
+// would refuse the rename. A look tells the new file from the old by its
+// identity, but on Windows it reads that identity by the name, so there letting
+// go is what says the old one is gone; Carry does the same.
 func (l *Ledger) compact() error {
 	st, err := l.load()
 	if err != nil {
@@ -594,10 +608,10 @@ func (l *Ledger) compact() error {
 		return asideErr
 	}
 	data := compacted(&st)
-	l.forget()
 	if err = confdir.Replace(l.dir, fileName, data); err != nil {
 		return fmt.Errorf("compact the ledger: %w", err)
 	}
+	l.forget()
 	return nil
 }
 

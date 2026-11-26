@@ -100,3 +100,85 @@ func TestAWaitForAnotherProcesssLockEndsWithItsContext(t *testing.T) {
 		}
 	})
 }
+
+// A claim at the head of this process's queue, waiting for a lock another
+// process holds, gives up: its context is cancelled, or its wait runs out. The
+// claim queued behind it then takes its place and gets the lock the moment the
+// other process lets go, within the 50ms a poll may take to see it.
+func TestAClaimBehindOneThatGivesUpAtTheHeadGetsTheLock(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		wait time.Duration
+		// cancelAt is when the head claim's context is cancelled; zero is never.
+		cancelAt time.Duration
+		want     error
+	}{
+		{name: "cancelled", wait: time.Minute, cancelAt: 100 * time.Millisecond, want: context.Canceled},
+		{name: "out of time", wait: 100 * time.Millisecond, want: ErrLocked},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				dir, err := Home(At(t.TempDir()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = makeDurably(dir.path); err != nil {
+					t.Fatal(err)
+				}
+				holder, err := openLock(dir, "x.lock")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = holder.Close() }) //nolint:errcheck // the test is over
+				if taken, lockErr := tryLock(holder); lockErr != nil || !taken {
+					t.Fatalf("take the lock as another process would = %v, %v", taken, lockErr)
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				if tt.cancelAt > 0 {
+					time.AfterFunc(tt.cancelAt, cancel)
+				}
+				head := make(chan error, 1)
+				go func() {
+					lock, acquireErr := Acquire(ctx, dir, "x.lock", tt.wait)
+					if acquireErr == nil {
+						acquireErr = errors.Join(errors.New("the head took a lock another process holds"), lock.Release())
+					}
+					head <- acquireErr
+				}()
+				time.Sleep(10 * time.Millisecond)
+				type taken struct {
+					at  time.Time
+					err error
+				}
+				behind := make(chan taken, 1)
+				go func() {
+					lock, acquireErr := Acquire(t.Context(), dir, "x.lock", time.Minute)
+					at := time.Now()
+					if acquireErr == nil {
+						acquireErr = lock.Release()
+					}
+					behind <- taken{at, acquireErr}
+				}()
+				if err := <-head; !errors.Is(err, tt.want) {
+					t.Fatalf("the head claim = %v, want %v", err, tt.want)
+				}
+				time.Sleep(time.Second)
+				if err := unlock(holder); err != nil {
+					t.Fatal(err)
+				}
+				freed := time.Now()
+				got := <-behind
+				if got.err != nil {
+					t.Fatalf("the claim behind the one that gave up = %v, want the lock", got.err)
+				}
+				if late := got.at.Sub(freed); late > 50*time.Millisecond {
+					t.Errorf("the claim behind got the lock %v after it came free, want within 50ms", late)
+				}
+			})
+		})
+	}
+}

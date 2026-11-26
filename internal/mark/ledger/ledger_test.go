@@ -806,6 +806,117 @@ func TestALedgerSeesLinesSetAsideByAnotherThatLeftTheLedgerAsItWas(t *testing.T)
 	}
 }
 
+// A reader that reads the file of the lines set aside while a compaction is
+// still appending a changed line to it counts that line once: it is whole in the
+// ledger still, and half written in the file beside it. What it read is not
+// held as the count once the append has ended.
+func TestALineSetAsideHalfWayIsCountedOnce(t *testing.T) {
+	t.Parallel()
+	dir := vaultDir(t)
+	l, _ := open(t, dir)
+	record(t, l, markEvent("a", "s", "m1", "first"))
+	record(t, l, markEvent("a", "s", "m2", "second"))
+	changedLedger := bytes.Replace(fileOf(t, dir, fileName), []byte("first"), []byte("FIRST"), 1)
+	writeFile(t, dir, fileName, changedLedger)
+	if _, changed := events(t, l); changed != 1 {
+		t.Fatalf("a ledger with one changed line reads %d changed, want 1", changed)
+	}
+	line := lines(changedLedger)[0]
+	writeFile(t, dir, damagedName, line[:len(line)/2])
+	for read := range 2 {
+		if _, changed := events(t, l); changed != 1 {
+			t.Errorf("read %d while the line is half set aside: %d changed, want 1", read, changed)
+		}
+	}
+	writeFile(t, dir, damagedName, append(bytes.Clone(line), '\n'))
+	if _, changed := events(t, l); changed != 1 {
+		t.Errorf("once the line is set aside whole: %d changed, want 1", changed)
+	}
+}
+
+// A compaction and a carry leave what this process holds of the ledger in place
+// until the new ledger is installed, so a reader of this process that reads
+// meanwhile is answered from it and does not open the ledger the rename is
+// replacing, which on Windows would refuse the rename. Here the install is
+// refused before it begins, by a directory that cannot be written to, and what
+// was held is held still.
+func TestWhatIsHeldStaysUntilANewLedgerIsInstalled(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("a folder's mode does not stop a file being made in it on Windows")
+	}
+	for _, tt := range []struct {
+		name    string
+		ledger  func(t *testing.T, l *Ledger, dir confdir.Dir)
+		install func(t *testing.T, l *Ledger) error
+	}{
+		{
+			name: "a compaction",
+			ledger: func(t *testing.T, l *Ledger, _ confdir.Dir) {
+				t.Helper()
+				record(t, l, markEvent("a", "s", "m1", "old"))
+				record(t, l, markEvent("a", "s", "m1", "new"))
+			},
+			install: func(t *testing.T, l *Ledger) error {
+				t.Helper()
+				return l.Compact(t.Context())
+			},
+		},
+		{
+			name: "a carry",
+			ledger: func(t *testing.T, _ *Ledger, dir confdir.Dir) {
+				t.Helper()
+				writeFile(t, dir, fileName, nil)
+				// The lock file is made now, so that what the directory refuses
+				// below is the install and not the lock.
+				lock, err := confdir.Acquire(t.Context(), dir, lockName, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = lock.Release(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			install: func(t *testing.T, l *Ledger) error {
+				t.Helper()
+				from := vaultDir(t)
+				earlier, _ := open(t, from)
+				record(t, earlier, markEvent("a", "s", "m1", "earlier"))
+				_, err := l.Carry(t.Context(), from)
+				return err
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := vaultDir(t)
+			l, _ := open(t, dir)
+			tt.ledger(t, l, dir)
+			events(t, l)
+			if err := os.Chmod(dir.Path(), 0o500); err != nil { // #nosec G302 -- the test's own temporary directory
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+					t.Errorf("restore the directory's mode: %v", err)
+				}
+			})
+			if err := os.WriteFile(dir.Join("probe"), nil, 0o600); err == nil {
+				t.Skip("this user writes in a directory it may not write in (a privileged user), so the fixture shows nothing")
+			}
+			if err := tt.install(t, l); err == nil {
+				t.Fatalf("%s into a directory that cannot be written to = nil, want the install refused", tt.name)
+			}
+			l.mu.Lock()
+			held := l.read.info != nil
+			l.mu.Unlock()
+			if !held {
+				t.Errorf("%s that could not install a new ledger dropped what this process held of the old one", tt.name)
+			}
+		})
+	}
+}
+
 // Goroutines that share one ledger, and ledgers that share one directory as two
 // processes do, each record without losing or doubling a line or a seq, while
 // compactions drop the lines that newer ones supersede among them, and while
