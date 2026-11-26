@@ -1893,10 +1893,14 @@ html[data-js][data-arrival='kept'] .y-main {
    Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
    keeps it: the safe line is the default and the open one has to be earned by
    a positive tag. The settings page's sheet of reading is tagged with the
-   interface's language and takes the same line by the same rule. */
+   interface's language and takes the same line by the same rule. The factor is
+   rounded to a whole pixel here and the length is what the column's blocks
+   inherit: 17px on 1.7647 is 29.98px once laid out, and 19px and 21px come to
+   33.53px and 37.06px, a fraction every paragraph would add to the height
+   above a restored reading place. */
 .y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose,
 .y-prefs__sheet[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose {
-  line-height: var(--lh-latin);
+  line-height: round(calc(var(--lh-latin) * 1em), 1px);
 }
 
 /* The column is sized for Han: thirty-eight characters of it at the reading

@@ -14,15 +14,19 @@
 // type word, the excerpt's source line, a list's markers, a footnote's mark)
 // is still text at 4.5:1 or more in light and in dark, and grows with the
 // reader's text size. An excerpt's headings never outrank the section that
-// holds them.
+// holds them. A note in English, set on the Latin line, keeps the same whole
+// pixel at every text size: the factor the Latin line is written in would come
+// to 33.53px at 大, so the line is rounded, and so is every block it holds.
 //
-// Env: YOMIHON_BASE, PAGE_PATH and MUTATE (MUTATE=list prints the modes).
+// Env: YOMIHON_BASE, PAGE_PATH, LATIN_PAGE_PATH and MUTATE (MUTATE=list prints
+// the modes).
 import { chromium } from 'playwright-core';
 
 import { arrived } from './support/arrival.mjs';
 import { baseUrl as BASE } from './support/base.mjs';
 
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/prose-type.md';
+const LATIN_PAGE = process.env.LATIN_PAGE_PATH || '/notes/Notes/prose-type-latin.md';
 const MUTATE = process.env.MUTATE || '';
 
 // The sizes are written out, not read from the stylesheet: a lock that took
@@ -38,6 +42,8 @@ const MODES = {
   'fractional-heading-line': css(".y-prose [data-level='2']{line-height:1.42 !important}", 'lines'),
   // A callout's words on a line of 1.86 that is not rounded.
   'fractional-callout-line': css('.y-prose .callout-body{line-height:1.86 !important}', 'lines'),
+  // The Latin line written as the bare factor again, which is 33.53px at 大.
+  'fractional-latin-line': css('.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose{line-height:1.7647 !important}', 'latin-lines'),
   // Code in a sentence on the hover's wash instead of the code ground.
   'code-on-wash': css('.y-prose :not(pre) > code{background:var(--wash) !important}', 'code'),
   // Code in a sentence drawn with an edge.
@@ -116,7 +122,7 @@ try {
       return route.fulfill({ response, body: `${original}\n${mode.css}\n` });
     });
   };
-  const at = async ({ width = 1280, theme = 'light', size = '' }, fn) => {
+  const at = async ({ width = 1280, theme = 'light', size = '', path = PAGE, end = 'PROSE-END' }, fn) => {
     const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce' });
     await context.addCookies([
       { name: 'yomihon_rail', value: 'collapsed', url: BASE },
@@ -126,11 +132,11 @@ try {
     const page = await context.newPage();
     try {
       await plant(page);
-      const response = await page.goto(BASE + PAGE, { waitUntil: 'load' });
-      if (response?.status() !== 200) broken(`${PAGE} answered ${response?.status()}, want 200`);
+      const response = await page.goto(BASE + path, { waitUntil: 'load' });
+      if (response?.status() !== 200) broken(`${path} answered ${response?.status()}, want 200`);
       await page.evaluate(() => document.fonts.ready);
       await arrived(page);
-      if (!(await page.content()).includes('PROSE-END')) broken('the fixture page did not arrive whole');
+      if (!(await page.content()).includes(end)) broken('the fixture page did not arrive whole');
       if (size && (await page.evaluate(() => document.documentElement.dataset.textsize)) !== size) broken(`the page did not take the text size ${size}`);
       return await fn(page);
     } finally {
@@ -178,6 +184,44 @@ try {
       });
     }
     console.log('prose-type: every line in the column is a whole pixel tall at all three text sizes');
+  }
+
+  // A note in English is set on the Latin line, and that line is a whole pixel
+  // too: every block that holds text computes to whole pixels in its line and
+  // in its height, at every text size. The factor the line is written in comes
+  // to a fraction at 大 and 特大, and a restored place drifts by it.
+  if (runs('latin-lines')) {
+    for (const size of ['', 'l', 'xl']) {
+      await at({ size, path: LATIN_PAGE, end: 'LATIN-END' }, async (page) => {
+        const read = await page.evaluate(() => {
+          const article = document.querySelector('.y-article');
+          const latin = article.matches('[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko))');
+          const blocks = [...article.querySelectorAll('.y-prose *')].filter((element) => {
+            if (element.closest('.y-margin') || getComputedStyle(element).display === 'inline') return false;
+            return [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+          });
+          return {
+            latin,
+            lang: article.getAttribute('lang'),
+            blocks: blocks.map((element) => ({
+              what: `${element.tagName.toLowerCase()}.${element.className}`,
+              line: getComputedStyle(element).lineHeight,
+              height: element.getBoundingClientRect().height,
+            })),
+          };
+        });
+        if (!read.latin) broken(`${LATIN_PAGE} is tagged ${JSON.stringify(read.lang)}, which is not positively Latin, so the Latin line is not in play`);
+        if (read.blocks.length < 20) broken(`only ${read.blocks.length} blocks were read`);
+        const whole = (px) => Math.abs(px - Math.round(px)) <= 0.001;
+        for (const { what, line, height } of read.blocks) {
+          if (!line.endsWith('px') || !whole(Number.parseFloat(line))) fire('latin-lines', `at size ${size || 'm'} ${what} in an English note is set on a ${line} line, want a whole pixel`);
+          // A cell's height carries its collapsed border's half pixels, which is
+          // the table's geometry and not the line it is set on.
+          if (!/^t[dh]\./.test(what) && !whole(height)) fire('latin-lines', `at size ${size || 'm'} ${what} in an English note is ${height}px tall, want a whole pixel`);
+        }
+      });
+    }
+    console.log('prose-type: every block of a note in English is set on a whole-pixel line, and is a whole pixel tall, at all three text sizes');
   }
 
   // Code in a sentence: the code ground, no edge, no joined glyphs.
