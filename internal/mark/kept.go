@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
@@ -48,9 +49,28 @@ type Kept struct {
 	mu     sync.Mutex
 	folder *machinefile.Folder
 	marks  *machinemarks.Marks
-	// said is what the log last said of the state of the files, so that a state
-	// that stays is said once and not at every page.
-	said string
+	// said is what the log last said of each topic of the state of the files, so
+	// that a state that stays is said once and not at every page.
+	said map[string]string
+	// mendedAt is when the last mend began, and now the clock, for tests.
+	mendedAt time.Time
+	now      func() time.Time
+}
+
+// SetClock gives the marks a clock, for tests, so that a test moves time on
+// without waiting. Nil is the clock.
+func (k *Kept) SetClock(now func() time.Time) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.now = now
+}
+
+// clock is the time now. It is called with k.mu held.
+func (k *Kept) clock() time.Time {
+	if k.now != nil {
+		return k.now()
+	}
+	return time.Now()
 }
 
 // OpenKept names the marks of the vault source holds. It reads and writes
@@ -86,9 +106,17 @@ func (k *Kept) Marks() (*machinemarks.Marks, error) {
 
 // View reads the marks of every machine, which writes nothing and makes no
 // folder.
+//
+// Where the reader folder cannot be entered, because it is a link or not a
+// folder, the view holds no mark of the vault and the earlier file's marks are
+// what Pending lists, so that the reader still sees the marks they have; the
+// writes are refused, and Mend says so to the log.
 func (k *Kept) View() (*machinemarks.View, error) {
 	marks, err := k.Marks()
 	if err != nil {
+		if errors.Is(err, machinefile.ErrLink) || errors.Is(err, machinefile.ErrNotAFolder) {
+			return machinemarks.LegacyView(), nil
+		}
 		return nil, err
 	}
 	return marks.View()
@@ -183,42 +211,62 @@ func (k *Kept) Questions() ([]Mark, error) {
 	return out, nil
 }
 
+// mendEvery is the least time between two mends in one process. A page that
+// reads the marks is drawn many times a minute, and each mend reads every
+// machine file; the marks git takes out of the working tree are put back at the
+// next page after this long, not at each page.
+const mendEvery = 5 * time.Second
+
 // Mend puts back, without being asked and without a word to the reader, what git
 // took out of this machine's file before it was committed: the marks the local
 // backup holds and the vault does not. It is called as a page that reads the
-// marks is drawn, and writes only when something is missing and the reader folder
-// can be written to; a page that finds nothing missing writes nothing. What it
-// cannot mend, a file another program changed or that cannot be read, is left as
-// it is and said to the log, once for as long as it stays so: the reader is not
-// told of it here.
+// marks is drawn, at most once in mendEvery, and writes only when something is
+// missing and the reader folder can be written to; a page that finds nothing
+// missing writes nothing, so a page that reads the marks writes into the vault
+// only here. What it cannot mend, a file another program changed or that cannot
+// be read, is left as it is and said to the log, once for as long as it stays
+// so: the reader is not told of it here.
 func (k *Kept) Mend() {
-	view, err := k.View()
-	if err != nil {
-		k.say(fmt.Sprintf("unreadable: %v", err), "the reader's marks cannot be read", "error", err)
+	k.mu.Lock()
+	now := k.clock()
+	if !k.mendedAt.IsZero() && now.Sub(k.mendedAt) < mendEvery {
+		k.mu.Unlock()
 		return
 	}
-	k.say(edgeState(view), "the reader's marks have a state this machine cannot show or use",
+	k.mendedAt = now
+	k.mu.Unlock()
+
+	marks, err := k.Marks()
+	if err != nil {
+		k.say("folder", fmt.Sprintf("unusable: %v", err), "the reader folder cannot be used: the marks shown are those of the earlier file, and none is kept", "error", err)
+		return
+	}
+	k.say("folder", "", "")
+	view, err := marks.View()
+	if err != nil {
+		k.say("read", fmt.Sprintf("unreadable: %v", err), "the reader's marks cannot be read", "error", err)
+		return
+	}
+	k.say("read", "", "")
+	k.say("files", edgeState(view), "the reader's marks have a state this machine cannot show or use",
 		"other_computers_damaged", view.Damaged(), "own_damaged", view.DamagedOwn(),
 		"unreadable_files", view.Unreadable(), "own_file_unreadable", view.OwnUnreadable(),
 		"later_format_lines", view.Newer(), "earlier_file_skipped", view.LegacySkipped(),
 		"ledger_changed", view.LedgerChanged(), "configuration_copied", view.NewIDUnsaid())
 	missing := view.Missing()
 	if missing == 0 {
+		k.say("missing", "", "")
 		return
 	}
 	if why := k.Writable(); why != WritableOK {
-		k.log.Warn("marks are missing from the vault and cannot be put back: the reader folder cannot be written to", "missing", missing, "why", why)
-		return
-	}
-	marks, err := k.Marks()
-	if err != nil {
-		k.log.Warn("marks are missing from the vault and cannot be put back", "missing", missing, "error", err)
+		k.say("missing", "unwritable:"+why, "marks are missing from the vault and cannot be put back: the reader folder cannot be written to", "missing", missing, "why", why)
 		return
 	}
 	if _, err = marks.Restore(); err != nil {
-		k.log.Warn("marks are missing from the vault and could not be put back", "missing", missing, "error", err)
+		k.say("missing", "failed:"+err.Error(), "marks are missing from the vault and could not be put back", "missing", missing, "error", err)
 		return
 	}
+	k.say("missing", "", "")
 	k.log.Info("put back marks that were no longer in the vault", "marks", missing)
 }
 
@@ -231,12 +279,15 @@ func edgeState(v *machinemarks.View) string {
 	return fmt.Sprintf("%d/%d/%d/%d/%d/%d/%t/%t", v.Damaged(), v.DamagedOwn(), v.Unreadable(), v.Newer(), v.LegacySkipped(), v.LedgerChanged(), v.OwnUnreadable(), v.NewIDUnsaid())
 }
 
-// say logs a state of the files at Warn the first time it is seen and again only
+// say logs a state of one topic at Warn the first time it is seen and again only
 // when it changes; an empty state is none and is not said.
-func (k *Kept) say(state, msg string, args ...any) {
+func (k *Kept) say(topic, state, msg string, args ...any) {
 	k.mu.Lock()
-	changed := k.said != state
-	k.said = state
+	changed := k.said[topic] != state
+	if k.said == nil {
+		k.said = map[string]string{}
+	}
+	k.said[topic] = state
 	k.mu.Unlock()
 	if changed && state != "" {
 		k.log.Warn(msg, args...)

@@ -210,10 +210,13 @@ func (m *Marks) Delete(id string, base Seen, edit *Edit, gate Gate) (Result, err
 	}
 	return m.change(func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
-		if !ok || r.heads[0].Mark.Deleted || withheld(v, id, gate) {
+		if !ok || r.coveredHead(base).Mark.Deleted || withheld(v, id, gate) {
 			return nil, ErrGone
 		}
-		mark := r.heads[0].Mark
+		// What is deleted is the value the page read, which the base says: a
+		// value another computer wrote that the page never read is not the page's
+		// to delete, and is still a value of the mark after.
+		mark := r.coveredHead(base).Mark
 		mark.Deleted = true
 		return &proposal{mark: mark, base: base, edit: edit}, nil
 	})
@@ -353,6 +356,11 @@ func (m *Marks) run(takeIn bool, plan func(*view) (*proposal, error)) (Result, e
 		return m.locked(takeIn, plan, &res)
 	})
 	res.Total = time.Since(start)
+	if errors.Is(err, ErrNotInVault) {
+		// The change is in the ledger, which is the commit point: the caller is
+		// told what the change is, with the failure, and decides what to say.
+		return res, err
+	}
 	if err != nil {
 		return Result{Timing: res.Timing}, err
 	}

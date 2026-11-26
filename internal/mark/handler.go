@@ -347,6 +347,7 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 	admit := func(m *machinemarks.Mark) bool { return h.places.HasPlace(m.Path, m.Anchor) }
 	out, err := marks.Toggle(&candidate, same, admit, h.kept.gate)
+	err = h.landed(err, "mark a question")
 	switch {
 	case err == nil:
 		// Marked is whether the section is marked now: a question made by

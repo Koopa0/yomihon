@@ -32,7 +32,11 @@ explicit ruling from the maintainer on the issue.
    thing yomihon writes in the vault is the reader's own highlights, thoughts
    and questions, in `reader-notes/.yomihon/marks/<machine id>.jsonl`: one file
    for each computer, written by that computer alone, so that git carries them.
-   The scan never lists `reader-notes/`, so a mark is never read as a note. The
+   The scan never lists `reader-notes/`, so a mark is never read as a note. A
+   read creates nothing there; the one write a page's GET can make is to put
+   back, into this computer's own file and at most every few seconds, marks that
+   git took out of it before they were committed.
+   The
    rest of the reader's state (bookmarks, the local backup, caches) lives in the
    platform's configuration directory, outside the vault. `internal/mark` is the
    only package allowed to write at all, and inside a vault only through

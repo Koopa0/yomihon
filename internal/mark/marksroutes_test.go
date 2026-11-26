@@ -44,12 +44,32 @@ func (n mkNotes) Reading(rel string, _ wording.Lang) (mark.Page, bool) {
 	return mark.Page{Text: text, Identity: mkHash}, ok
 }
 
+// mkRigNotes is the notes of a rig, which can make something happen as one is read.
+type mkRigNotes struct {
+	mkNotes
+
+	rig *mkRig
+}
+
+func (n *mkRigNotes) Reading(rel string, lang wording.Lang) (mark.Page, bool) {
+	n.rig.mu.Lock()
+	hook := n.rig.onReading
+	n.rig.onReading = nil
+	n.rig.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return n.mkNotes.Reading(rel, lang)
+}
+
 func (n mkNotes) Units(string) (mainLine, branches []string, ok bool) { return nil, nil, false }
 
 func (n mkNotes) Rows(string) (planned int, rows []string, ok bool) { return 0, nil, false }
 
 // mkRig is one computer: a vault folder, its own configuration directory, and the
-// routes over them. hidden is the path the gate withholds, if any.
+// routes over them. hidden is the path a gate that refuses it would hide, if any;
+// the reading server passes no such gate, and the tests that set one hold the
+// engine's.
 type mkRig struct {
 	t      *testing.T
 	root   string
@@ -59,6 +79,10 @@ type mkRig struct {
 	mux    *http.ServeMux
 	mu     sync.Mutex
 	hidden string
+	// onReading, when set, is called once, the next time a note is read to place a
+	// mark: a write reads it after it has been let in and before it records
+	// anything, which is the moment a test makes the vault refuse the file.
+	onReading func()
 }
 
 func newMkRig(t *testing.T) *mkRig {
@@ -92,7 +116,7 @@ func (r *mkRig) open() {
 	r.kept = mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), gate)
 	r.t.Cleanup(func() { _ = r.kept.Close() }) //nolint:errcheck // the test is over
 	r.mux = http.NewServeMux()
-	notes := mkNotes{mkNote: mkText, mkSecret: mkText}
+	notes := &mkRigNotes{mkNotes: mkNotes{mkNote: mkText, mkSecret: mkText}, rig: r}
 	mark.NewHandler(store, r.kept, notes, slog.New(slog.DiscardHandler)).Register(r.mux)
 }
 
@@ -424,9 +448,12 @@ func TestMkGetAnswersTheMarkAndWhatThePageHasRead(t *testing.T) {
 	}
 }
 
-// A mark the gate withholds is answered exactly as one that was never there, by
+// The reading server's own gate lets every mark through (the reader is the owner,
+// on the loopback, reading their own marks), so this holds the engine's gate as
+// a caller that is not the reader would set it: a mark the gate refuses is
+// answered exactly as one that was never there, by
 // every route that takes an id: the same status and the same bytes.
-func TestMkAWithheldMarkAnswersExactlyLikeAMissingOne(t *testing.T) {
+func TestMkAMarkAGateRefusesAnswersExactlyLikeAMissingOne(t *testing.T) {
 	t.Parallel()
 	r := newMkRig(t)
 	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkSecret+`","body":"a private thought"}`)
@@ -584,7 +611,7 @@ func TestMkEveryRefusalHasItsReason(t *testing.T) {
 	}
 
 	// A late send of an edit that a newer send of the same edit is written over.
-	edit := mkDecode[mkAnswer](t, r.do(http.MethodPatch, "/mark/"+thought.ID, `{"seen":`+mkSeenJSON(t, changed.Seen)+`,"edit":{"id":"tab-1","seq":2},"body":"newest words"}`))
+	mkStatus(t, r.do(http.MethodPatch, "/mark/"+thought.ID, `{"seen":`+mkSeenJSON(t, changed.Seen)+`,"edit":{"id":"tab-1","seq":2},"body":"newest words"}`), http.StatusOK)
 	late := r.do(http.MethodPatch, "/mark/"+thought.ID, `{"seen":`+mkSeenJSON(t, changed.Seen)+`,"edit":{"id":"tab-1","seq":1},"body":"older words"}`)
 	mkStatus(t, late, http.StatusConflict)
 	if got := mkDecode[mkConflict](t, late); got.Reason != "superseded" || len(got.Seen) != 0 {
@@ -601,7 +628,6 @@ func TestMkEveryRefusalHasItsReason(t *testing.T) {
 	now := mkDecode[mkAnswer](t, last)
 	deleted := r.do(http.MethodDelete, "/mark/"+thought.ID, `{"seen":`+mkSeenJSON(t, now.Seen)+`}`)
 	mkStatus(t, deleted, http.StatusOK)
-	_ = edit
 	for _, request := range []struct{ method, body string }{
 		{http.MethodDelete, `{"seen":` + mkSeenJSON(t, now.Seen) + `}`},
 		{http.MethodPatch, `{"seen":` + mkSeenJSON(t, now.Seen) + `,"body":"into a deleted mark"}`},

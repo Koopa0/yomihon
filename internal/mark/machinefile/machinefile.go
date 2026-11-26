@@ -38,6 +38,11 @@ import (
 // they are constants so that the guard can read, at each call that makes or
 // enters a folder, which one it is.
 const (
+	// readerFolder is spelled exactly: a folder that differs from it only in case
+	// is the same folder where the filesystem does not tell them apart, and the
+	// author's own where it does, which is never written in. The scan leaves out
+	// every spelling (internal/vault.ReaderFolder), so it never reads what is
+	// written here.
 	readerFolder  = "reader-notes"
 	yomihonFolder = ".yomihon"
 	marksFolder   = "marks"

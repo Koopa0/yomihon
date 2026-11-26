@@ -133,7 +133,7 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusOK
 		}
 	}
-	if err != nil {
+	if err = h.landed(err, "keep a mark"); err != nil {
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
@@ -163,13 +163,18 @@ func askedForWhatKindHolds(m *machinemarks.Mark) error {
 }
 
 // sameAct reports whether a mark that is there already is the same act of the
-// reader's as b: one kind in one place with the same words and, for a question,
-// the same reason of their own, and not one that was resolved, which asking again
+// reader's as b: one kind in one place, which for a passage is the words and the
+// words around them, with the same reason of their own for a question, and not one that was resolved, which asking again
 // opens anew. Words that differ are a new mark: nothing the reader wrote is
 // answered with an earlier mark that says something else.
 func sameAct(a, b *machinemarks.Mark) bool {
-	return a.Kind == b.Kind && a.Path == b.Path && a.Anchor == b.Anchor && a.Quote == b.Quote &&
-		a.Body == b.Body && a.Resolved.IsZero()
+	if a.Kind != b.Kind || a.Path != b.Path || a.Anchor != b.Anchor || a.Quote != b.Quote ||
+		a.Body != b.Body || !a.Resolved.IsZero() {
+		return false
+	}
+	// The same words in another place are another mark: the words around them are
+	// what tell the places apart.
+	return a.Quote == "" || (a.Before == b.Before && a.After == b.After)
 }
 
 // standsIn reports whether m can be kept in the note page is: the anchor is a
@@ -265,11 +270,15 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if entry.Deleted() {
+	// The change is made on the value the page read, which its seen says, and not
+	// on the newest there is: a value that another computer wrote and the page
+	// never showed is not the page's to copy over what it showed.
+	page := pageValue(entry, *request.Seen)
+	if entry.Deleted() || page.Mark.Deleted {
 		h.refuse(w, r, machinemarks.ErrGone, "change a mark")
 		return
 	}
-	was := entry.Mark()
+	was := page.Mark
 	next, err := revised(&was, &request, time.Now())
 	if err != nil {
 		h.refuse(w, r, err, "change a mark")
@@ -281,11 +290,11 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := marks.Put(&next, *request.Seen, request.Edit, h.kept.gate)
-	if err != nil {
+	if err = h.landed(err, "change a mark"); err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
 	}
-	h.send(w, r, http.StatusOK, &next, res.Seen, lang)
+	h.sendNow(w, r, http.StatusOK, &next, res.Seen, lang)
 }
 
 // revised is the mark m with what a request changes of it, which only a mark of
@@ -349,13 +358,13 @@ func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := marks.Delete(entry.Mark().ID, *request.Seen, request.Edit, h.kept.gate)
-	if err != nil {
+	if err = h.landed(err, "delete a mark"); err != nil {
 		h.refuse(w, r, err, "delete a mark")
 		return
 	}
-	gone := entry.Mark()
+	gone := pageValue(entry, *request.Seen).Mark
 	gone.Deleted = true
-	h.send(w, r, http.StatusOK, &gone, res.Seen, lang)
+	h.sendNow(w, r, http.StatusOK, &gone, res.Seen, lang)
 }
 
 // putBack puts a mark that was deleted back, as it was deleted: its words are
@@ -383,9 +392,13 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	current := entry.Mark()
-	if !entry.Deleted() {
-		h.send(w, r, http.StatusOK, &current, entry.Seen, lang)
+	// What is put back is the value the page read deleted, which its seen says.
+	// A page that read a value that is not deleted has nothing to put back, and is
+	// answered with the mark as it is now.
+	current := pageValue(entry, *request.Seen).Mark
+	if !current.Deleted {
+		shown := entry.Mark()
+		h.send(w, r, http.StatusOK, &shown, entry.Seen, lang)
 		return
 	}
 	marks, err := h.kept.Marks()
@@ -395,11 +408,52 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 	}
 	current.Deleted = false
 	res, err := marks.Put(&current, *request.Seen, request.Edit, h.kept.gate)
-	if err != nil {
+	if err = h.landed(err, "put a mark back"); err != nil {
 		h.refuse(w, r, err, "put a mark back")
 		return
 	}
-	h.send(w, r, http.StatusOK, &current, res.Seen, lang)
+	h.sendNow(w, r, http.StatusOK, &current, res.Seen, lang)
+}
+
+// landed says a change whose line is in the ledger is kept, whether or not the
+// vault took the file just now: the ledger is the commit point, the mark is read
+// from it at once, and the next page that reads the marks puts it in the vault.
+// The failure is the log's and not the reader's, and a retry is not asked for,
+// which would keep a thought twice. Any other error is returned as it is.
+func (h *Handler) landed(err error, doing string) error {
+	if errors.Is(err, machinemarks.ErrNotInVault) {
+		h.log.Warn("a mark is kept in the local backup and not yet in the vault", "doing", doing, "error", err)
+		return nil
+	}
+	return err
+}
+
+// pageValue is the value of a mark that a page showed, which is the first value
+// its seen covers; a seen that covers none is a page that read nothing in
+// particular, and gets the value that counts.
+func pageValue(entry machinemarks.Entry, seen machinemarks.Seen) machinemarks.Value {
+	for i := range entry.Values {
+		if entry.Values[i].Rev <= seen[entry.Values[i].Writer] {
+			return entry.Values[i]
+		}
+	}
+	return entry.Values[0]
+}
+
+// sendNow answers a change with the mark as the reader will see it now, which is
+// the newest live value of it: where another computer's value, which the page had
+// not read, is newer or live, that is what the reader sees, not the value that
+// was just written. fallback is what is answered when the mark cannot be read
+// back.
+func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fallback *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
+	if view, err := h.kept.View(); err == nil {
+		if entry, ok := view.Entry(fallback.ID, h.kept.gate); ok {
+			shown := entry.Mark()
+			h.send(w, r, status, &shown, seen, lang)
+			return
+		}
+	}
+	h.send(w, r, status, fallback, seen, lang)
 }
 
 // statusOf is the one place a refusal of the marks becomes a status and, for a

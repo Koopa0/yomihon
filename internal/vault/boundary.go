@@ -19,6 +19,15 @@ const ReaderFolder = "reader-notes"
 // path, is the reader folder. A name that differs from ReaderFolder only in
 // case is it too: on a filesystem that does not tell the two spellings apart
 // they are one folder, and a scan that read one of them would read the other.
+//
+// The write side spells the name exactly, as ReaderFolder, and the two are not
+// made the same on purpose: the scan errs toward reading less and the writer
+// toward writing less. On a filesystem that does not tell the spellings apart a
+// folder spelled "Reader-Notes" is the one yomihon writes in, and the scan must
+// not read it. On one that does, "Reader-Notes" is the author's own folder, which
+// yomihon never writes in, and which the scan also leaves alone, at the cost of
+// notes the author keeps there not being indexed; the other choices would either
+// read the folder that is written or write into a folder that is the author's.
 func readerFolder(canonicalDir string) bool {
 	return strings.EqualFold(canonicalDir, ReaderFolder)
 }

@@ -138,3 +138,10 @@ func (v *View) Live() int { return v.v.live() }
 // write takes them in. Until then they are in the earlier file only, and a page
 // that listed only what a read finds would not show them.
 func (v *View) AwaitsTakeIn() bool { return !v.v.st.converted && !v.v.ownFound }
+
+// LegacyView is the view of a vault whose reader folder cannot be entered: it
+// holds no mark, and says the earlier file is not taken in, so that what a page
+// lists from the earlier file, which a read never changes, is still shown.
+func LegacyView() *View {
+	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*kept{}, ids: map[string]bool{}}}
+}

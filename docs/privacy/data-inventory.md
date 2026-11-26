@@ -47,7 +47,7 @@ About those rows:
   computer. Each computer writes only its own file and reads the others', which
   git brings in; two computers never write one file. The scan always leaves out
   the top-level `reader-notes/`, so they are never listed or indexed as notes,
-  and a read creates nothing there. A write is refused when `reader-notes` is a
+  and a read creates nothing there, except that a page that reads the marks may put back into this computer's own file, at most every few seconds, the marks git took out of it. A write is refused when `reader-notes` is a
   link, is not a folder or is read-only, and the reader is told only that the mark could not be kept; why goes to the log. yomihon
   never edits, creates or deletes a note of the reader's or an agent's; the only
   vault paths it writes are under `reader-notes/.yomihon/marks/`. Lines of other
