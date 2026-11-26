@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -45,8 +46,8 @@ func Acquire(dir Dir, name string, wait time.Duration) (*Lock, error) {
 	if err := checkName(name); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir.path, 0o700); err != nil {
-		return nil, fmt.Errorf("create the directory: %w", err)
+	if err := makeDurably(dir.path); err != nil {
+		return nil, err
 	}
 	file, err := openLock(dir, name)
 	if err != nil {
@@ -88,4 +89,30 @@ func Exclusive(dir Dir, name string, wait time.Duration, change func() error) (e
 	}
 	defer func() { err = errors.Join(err, lock.Release()) }()
 	return change()
+}
+
+// makeDurably makes path and the directories above it that are not there, and
+// syncs the directory above each one it made, so that a file a later call puts
+// in path, and syncs only path for, is not lost with a directory whose own entry
+// never reached stable storage. Replace and Append do the same for the
+// directories they make; this is for the lock, which makes them first.
+func makeDurably(path string) error {
+	made := absent(path)
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return fmt.Errorf("create the directory: %w", err)
+	}
+	if len(made) == 0 {
+		return nil
+	}
+	directories, err := openDirectories(filepath.Dir(made[0]), made[1:])
+	if err != nil {
+		return fmt.Errorf("open the directory above one this made to sync it: %w", err)
+	}
+	for _, d := range directories {
+		err = errors.Join(err, d.sync(), d.close())
+	}
+	if err != nil {
+		return fmt.Errorf("sync the directory above one this made: %w", err)
+	}
+	return nil
 }

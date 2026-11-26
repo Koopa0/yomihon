@@ -3,6 +3,7 @@ package mark_test
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/ledger"
 )
 
 func admitEverything(string) bool { return true }
@@ -476,5 +479,85 @@ func TestAdoptWritesFilesThatNameThisVaultAndKeepTheirTimes(t *testing.T) {
 		if !got[i].At.Equal(want[i].At) {
 			t.Errorf("the finished note %q is finished at %v, want when it was finished before, %v", got[i].RelPath, got[i].At, want[i].At)
 		}
+	}
+}
+
+// ledgerOf is the ledger of the vault at root in config.
+func ledgerOf(t *testing.T, config, root string) (l *ledger.Ledger, file string) {
+	t.Helper()
+	dir, err := confdir.VaultDir(confdir.At(config), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ledger.Open(dir, slog.New(slog.DiscardHandler)), dir.Join("ledger.jsonl")
+}
+
+func readOrEmpty(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path) // #nosec G304 -- a file of this test's own temporary directory
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// A vault that moved carries the ledger of what this machine wrote at the
+// earlier path, byte for byte, so this machine goes on under the machine id it
+// had there. A ledger is something kept: an earlier path that has only a
+// ledger is not one with nothing to adopt. Adopting again changes nothing, and
+// the earlier ledger is left as it was.
+func TestAdoptCarriesTheLedgerOfTheEarlierPath(t *testing.T) {
+	t.Parallel()
+	v := movedVault(t)
+	earlier, earlierFile := ledgerOf(t, v.config, v.oldRoot)
+	for _, e := range []*ledger.Event{
+		{Kind: "header", ID: "1f3a9c07", Session: "7a1f03d2"},
+		{Kind: ledger.KindMark, Writer: "1f3a9c07", Session: "7a1f03d2", Content: []byte(`{"mark":{"id":"m1","body":"words"}}`)},
+	} {
+		if _, err := earlier.Record(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := readOrEmpty(t, earlierFile)
+	now, nowFile := ledgerOf(t, v.config, v.newRoot)
+	for i := range 2 {
+		if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+			t.Fatalf("Adopt %d of an earlier path with only a ledger: %v", i+1, err)
+		}
+		if got := readOrEmpty(t, nowFile); got != before {
+			t.Fatalf("after Adopt %d this vault's ledger is %q, want the earlier one byte for byte", i+1, got)
+		}
+	}
+	if latest, err := now.LatestMarks("1f3a9c07"); err != nil || len(latest) != 1 {
+		t.Errorf("the carried ledger's marks are %v, %v; want m1", latest, err)
+	}
+	if got := readOrEmpty(t, earlierFile); got != before {
+		t.Error("Adopt changed the earlier ledger")
+	}
+}
+
+// A vault that has written a ledger of its own since it moved keeps it: the
+// earlier one is not merged into it, and stays where it was.
+func TestAdoptKeepsTheLedgerThisVaultHas(t *testing.T) {
+	t.Parallel()
+	v := movedVault(t)
+	v.keepEverything(t)
+	earlier, _ := ledgerOf(t, v.config, v.oldRoot)
+	if _, err := earlier.Record(&ledger.Event{Kind: "header", ID: "1f3a9c07"}); err != nil {
+		t.Fatal(err)
+	}
+	now, nowFile := ledgerOf(t, v.config, v.newRoot)
+	if _, err := now.Record(&ledger.Event{Kind: "header", ID: "2b4d6f80"}); err != nil {
+		t.Fatal(err)
+	}
+	mine := readOrEmpty(t, nowFile)
+	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if got := readOrEmpty(t, nowFile); got != mine {
+		t.Errorf("Adopt changed the ledger this vault has to %q, want %q", got, mine)
+	}
+	if got := len(listedMarks(t, v.now)); got != 3 {
+		t.Errorf("%d marks came across beside the kept ledger, want 3", got)
 	}
 }

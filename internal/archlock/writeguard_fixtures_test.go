@@ -169,6 +169,26 @@ func save(root *os.Root, name string) error { return root.Rename(name, name+".ol
 		want: []string{"os.Root.Rename"},
 	},
 	{
+		name: "the ledger appending to its file itself, not through confdir",
+		as:   module + "/internal/mark/ledger",
+		src: `package ledger
+import (
+	"os"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
+)
+func record(dir confdir.Dir, line []byte) error {
+	f, err := os.OpenFile(dir.Join("ledger.jsonl"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write(line); err != nil {
+		return err
+	}
+	return f.Sync()
+}`,
+		want: []string{"os.OpenFile", "os.O_WRONLY", "os.O_CREATE", "os.O_APPEND", "os.File.Write", "os.File.Sync"},
+	},
+	{
 		name: "OpenFile, whatever it is opened for",
 		src: `package fixture
 import "os"
@@ -719,6 +739,25 @@ func use() error { _ = WriteFile("x"); return Remove("y") }`,
 func use() {
 	os := struct{ WriteFile func() }{WriteFile: func() {}}
 	os.WriteFile()
+}`,
+	},
+	{
+		name: "the ledger appending through confdir, and reading what it appended",
+		as:   module + "/internal/mark/ledger",
+		src: `package ledger
+import (
+	"errors"
+	"os"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
+)
+func record(dir confdir.Dir, line []byte) error {
+	if _, err := os.Stat(dir.Join("ledger.jsonl")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := confdir.RemoveLeftovers(dir, "ledger.jsonl"); err != nil {
+		return err
+	}
+	return confdir.Exclusive(dir, "ledger.lock", confdir.LockWait, func() error { return confdir.Append(dir, "ledger.jsonl", line) })
 }`,
 	},
 	{

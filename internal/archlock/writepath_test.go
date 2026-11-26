@@ -31,9 +31,9 @@ var writingPackages = []string{
 const inventoryFirstTable = "| Data | Where it lives | How long | Who can reach it |"
 
 // storedFileName is what a string naming one of the reader's files looks like:
-// a bare lower-case name that ends in .json or .lock. It is a shape and not a
-// list, so a file added to internal/mark is found the day it is written.
-var storedFileName = regexp.MustCompile(`^[a-z][a-z0-9.-]*\.(?:json|lock)$`)
+// a bare lower-case name that ends in .json, .jsonl or .lock. It is a shape and
+// not a list, so a file added to internal/mark is found the day it is written.
+var storedFileName = regexp.MustCompile(`^[a-z][a-z0-9.-]*\.(?:json|jsonl|lock)$`)
 
 // TestEveryFileTheReadersRecordsAreKeptInIsNamedInThePrivacyInventory holds the
 // places yomihon writes to the document a stranger checks the claim against. The
@@ -130,14 +130,14 @@ type doc struct {
 // "mentioned.json" in a comment is not a name in use.
 func write() {
 	_ = confdir.Replace("dir", "inline.lock", nil)
-	_ = []string{"listed.json", ".json", "a/b.json", "Upper.json", "x.jsonl", "plain", "sp ace.json"}
+	_ = []string{"listed.json", ".json", "a/b.json", "Upper.json", "x.jsonl", ".jsonl", "x.jsonlx", "plain", "sp ace.json"}
 }
 `
 	got, err := storedFileNames(token.NewFileSet(), "fixture.go", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"newthing.json", "inline.lock", "listed.json"}
+	want := []string{"newthing.json", "inline.lock", "listed.json", "x.jsonl"}
 	if !slices.Equal(got, want) {
 		t.Errorf("found %q, want %q", got, want)
 	}

@@ -4,7 +4,8 @@
 //
 // It knows nothing of what the files hold. A reader of marks or of figure
 // approvals asks it for the directory, reads a file through a cap and installs
-// a new one by rename; the shape of the bytes is theirs. Keeping the writes
+// a new one by rename, or, for the ledger, appends to one; the shape of the
+// bytes is theirs. Keeping the writes
 // here means the promise that yomihon writes only under the configuration
 // directory rests on one function rather than on every package that has a file.
 //
@@ -28,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -197,8 +199,7 @@ func Replace(dir Dir, name string, data []byte) error {
 // install writes data to a sibling of the file called name, syncs it, renames it
 // over the file, syncs directories, and reads the file back.
 func install(dir Dir, name string, data []byte, directories []directory) error {
-	extension := filepath.Ext(name)
-	tmp, err := os.CreateTemp(dir.path, "."+strings.TrimSuffix(name, extension)+"-*"+extension)
+	tmp, err := os.CreateTemp(dir.path, temporaryPattern(name))
 	if err != nil {
 		return fmt.Errorf("create the temporary file for %s: %w", name, err)
 	}
@@ -226,6 +227,167 @@ func install(dir Dir, name string, data []byte, directories []directory) error {
 	}
 	if !bytes.Equal(held, data) {
 		return fmt.Errorf("%s does not read back as what was written", name)
+	}
+	return nil
+}
+
+// temporaryPattern is what os.CreateTemp is given for a sibling of the file
+// called name: a dot, the name without its extension, a dash, the random part
+// and the extension, so ".marks-*.json" beside marks.json.
+func temporaryPattern(name string) string {
+	extension := filepath.Ext(name)
+	return "." + strings.TrimSuffix(name, extension) + "-*" + extension
+}
+
+// isLeftover reports whether entry is a sibling Replace made for the file called
+// name: a regular file named by temporaryPattern, its random part the decimal
+// digits os.CreateTemp writes there.
+func isLeftover(name string, entry fs.DirEntry) bool {
+	if !entry.Type().IsRegular() {
+		return false
+	}
+	prefix, suffix, _ := strings.Cut(temporaryPattern(name), "*")
+	random, hasPrefix := strings.CutPrefix(entry.Name(), prefix)
+	random, hasSuffix := strings.CutSuffix(random, suffix)
+	if !hasPrefix || !hasSuffix || random == "" || len(random) > 10 {
+		return false
+	}
+	return strings.Trim(random, "0123456789") == ""
+}
+
+// RemoveLeftovers deletes the temporary files that Replace made for the file
+// called name in dir and never renamed, which only a process that stopped
+// between the two leaves. It touches no other name: not the file, not a sibling
+// of another file, and not a name that only looks like one.
+//
+// A temporary file of a Replace that is still running looks the same as one a
+// crash left, so the caller holds the lock under which every Replace of name is
+// made, and nothing of name is in the middle of being installed. A directory
+// that is not there holds nothing to remove.
+func RemoveLeftovers(dir Dir, name string) error {
+	if err := dir.named(); err != nil {
+		return err
+	}
+	if err := checkName(name); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(dir.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !isLeftover(name, entry) {
+			continue
+		}
+		if removeErr := os.Remove(dir.Join(entry.Name())); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+			err = errors.Join(err, removeErr)
+		}
+	}
+	return err
+}
+
+// Append adds data to the end of the file called name in dir, creating dir and
+// the file on the first write. data goes in one write to a file opened to
+// append, so a process that stops part way leaves the file holding what it held
+// followed by some first part of data, and never anything else; what data says
+// and how a reader tells a part from the whole is the caller's.
+//
+// Nil means data is on stable storage: the file is synced, and so, the first
+// time this process appends to the file and when this call makes it, is the
+// directory that holds it, and the directory above each one this call made.
+// The directory is synced on that first append and not only when the file is
+// made, since the call that made it may have failed after it did, or been
+// another process's that stopped. An error means data may be there in part or
+// whole and may not be on stable storage. A name that is something other
+// than a regular file, a link among them, is refused before it is opened.
+//
+// Everything is owner-only, as Replace makes it.
+func Append(dir Dir, name string, data []byte) error {
+	if err := dir.named(); err != nil {
+		return err
+	}
+	if err := checkName(name); err != nil {
+		return err
+	}
+	made := absent(dir.path)
+	if err := os.MkdirAll(dir.path, 0o700); err != nil {
+		return fmt.Errorf("create the directory: %w", err)
+	}
+	path := dir.Join(name)
+	info, err := os.Lstat(path)
+	missing := errors.Is(err, fs.ErrNotExist)
+	switch {
+	case missing:
+	case err != nil:
+		return err
+	case !info.Mode().IsRegular():
+		return fmt.Errorf("%w: %s", ErrNotRegular, name)
+	}
+	// Opened before anything is written, so that a directory that cannot be
+	// synced refuses the first data while there is no file to hold part of it.
+	var directories []directory
+	first := !appended.has(path)
+	if missing || first || len(made) > 0 {
+		if directories, err = openDirectories(dir.path, made); err != nil {
+			return fmt.Errorf("open the directory of %s to sync it: %w", name, err)
+		}
+	}
+	err = appendTo(path, name, data, directories)
+	for _, d := range directories {
+		err = errors.Join(err, d.close())
+	}
+	if err == nil {
+		appended.add(path)
+	}
+	return err
+}
+
+// appended is the files this process has appended to with their directory
+// synced: after that, an append syncs only the file.
+var appended = pathSet{held: map[string]bool{}}
+
+// pathSet is a set of paths that goroutines share.
+type pathSet struct {
+	mu   sync.Mutex
+	held map[string]bool
+}
+
+func (s *pathSet) has(path string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.held[path]
+}
+
+func (s *pathSet) add(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.held[path] = true
+}
+
+// appendTo writes data to the end of the file at path, syncs it, and syncs
+// directories, which are there only when the directory's entry for the file
+// is not known to be on stable storage.
+func appendTo(path, name string, data []byte, directories []directory) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600) // #nosec G304 -- a file of this vault's own directory under the configuration directory
+	if err != nil {
+		return fmt.Errorf("open %s to append: %w", name, err)
+	}
+	if _, err = file.Write(data); err != nil {
+		return errors.Join(fmt.Errorf("append to %s: %w", name, err), file.Close())
+	}
+	if err = file.Sync(); err != nil {
+		return errors.Join(fmt.Errorf("sync %s: %w", name, err), file.Close())
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", name, err)
+	}
+	for _, d := range directories {
+		if err = d.sync(); err != nil {
+			return fmt.Errorf("sync the directory after making %s: %w", name, err)
+		}
 	}
 	return nil
 }
