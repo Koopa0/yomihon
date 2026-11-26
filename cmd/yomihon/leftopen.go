@@ -151,6 +151,9 @@ type openRequest struct {
 	// that path are to be brought across before the list is made.
 	adopt  string
 	format judge.Format
+	// export says the reader asked for their own words: the marks with what they
+	// wrote, as Markdown. It is the one way this command prints them.
+	export bool
 	// afterRules runs once the rules are read and before the vault is read for
 	// the list. Nothing in production sets it; a test puts a rules file where
 	// the list is about to be read from.
@@ -188,8 +191,12 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 		return openRequest{}, errors.New(openCommand + " does not accept --baseline")
 	case len(parsed.positionals) > 0:
 		return openRequest{}, errors.New(openCommand + " takes no positional arguments")
+	case parsed.export && parsed.adopt != "":
+		return openRequest{}, errors.New("--export writes nothing and does not accept --adopt")
 	case parsed.adopt != "" && !filepath.IsAbs(parsed.adopt):
 		return openRequest{}, errOpenAdoptRelative
+	case parsed.export && parsed.format != nil:
+		return openRequest{}, errors.New("--export writes Markdown and does not accept --format")
 	}
 	if parsed.root == "" {
 		if parsed.root, err = os.Getwd(); err != nil {
@@ -202,7 +209,7 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 		// has no report body of its own.
 		format = judge.FormatHuman
 	}
-	return openRequest{root: parsed.root, adopt: parsed.adopt, format: format}, nil
+	return openRequest{root: parsed.root, adopt: parsed.adopt, format: format, export: parsed.export}, nil
 }
 
 // rulesRead calls the test's seam between the rules and the list when it set one.
@@ -213,20 +220,36 @@ func (r *openRequest) rulesRead() {
 }
 
 func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
-	payload, adopted, notice, err := r.list(ctx)
+	payload, notices, err := r.produce(ctx)
 	if err != nil {
 		return commandError(stderr, err)
 	}
 	if _, err := payload.WriteTo(stdout); err != nil {
 		return commandError(stderr, fmt.Errorf("write output: %w", err))
 	}
-	if adopted {
-		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", openAdoptedNotice) //nolint:errcheck // the list is already written; a failing stderr has no second channel
-	}
-	if notice != "" {
-		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", notice) //nolint:errcheck // the list is already written; a failing stderr has no second channel
+	for _, notice := range notices {
+		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", notice) //nolint:errcheck // the output is already written; a failing stderr has no second channel
 	}
 	return 0
+}
+
+// produce is the sealed output of the request, and the lines to say beside it
+// on stderr: the list, or with --export the reader's marks and their words.
+func (r *openRequest) produce(ctx context.Context) (payload egress.Payload, notices []string, err error) {
+	if r.export {
+		return r.exportMarks(ctx)
+	}
+	payload, adopted, notice, err := r.list(ctx)
+	if err != nil {
+		return egress.Payload{}, nil, err
+	}
+	if adopted {
+		notices = append(notices, openAdoptedNotice)
+	}
+	if notice != "" {
+		notices = append(notices, notice)
+	}
+	return payload, notices, nil
 }
 
 // list builds the payload under the privacy gate and seals it, which looks at
@@ -235,34 +258,16 @@ func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
 // the marks kept for the earlier path were brought across before the list was
 // made.
 func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted bool, notice string, err error) {
-	source, err := vault.Open(r.root)
+	opened, err := r.openVault(ctx)
 	if err != nil {
-		return egress.Payload{}, false, "", errOpenRoot
+		return egress.Payload{}, false, "", err
 	}
+	source, snap, gate, allowed := opened.source, opened.snap, opened.gate, opened.allowed
 	defer func() {
 		if closeErr := source.Close(); closeErr != nil && err == nil {
 			payload, adopted, notice, err = egress.Payload{}, false, "", errOpenScan
 		}
 	}()
-	gate, err := egress.Open(ctx, source, judge.LinkTargets)
-	if err != nil {
-		return egress.Payload{}, false, "", openRefusal(err)
-	}
-	r.rulesRead()
-	rules := gate.Rules()
-	source.SetBoundary(rules.ScanBoundary())
-	// The generation logs what it reads by path, private ground included, and
-	// this face's stderr goes to the program that called it. Nothing it would
-	// say is this command's answer, so it says it to no one.
-	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), rules, rules.Governance())
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return egress.Payload{}, false, "", ctxErr
-		}
-		return egress.Payload{}, false, "", errOpenScan
-	}
-	snap := store.Current().Capture()
-	allowed := gate.Readable(snap)
 	if missing := openUnreadable(snap, allowed); missing != nil {
 		return egress.Payload{}, false, "", missing
 	}
@@ -292,6 +297,52 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted
 		return egress.Payload{}, false, "", openRefusal(err)
 	}
 	return payload, adopted, openNotice(entries, stored), nil
+}
+
+// openedVault is a vault read under the privacy gate: what both the list and
+// the export begin with.
+type openedVault struct {
+	// source is open, and the caller closes it.
+	source  *vault.Reader
+	gate    *egress.Gate
+	snap    *snapshot.Generation
+	allowed func(string) bool
+}
+
+// openVault opens the folder, reads the rules file for the gate and scans the
+// vault within the rules' boundary. On an error nothing is left open.
+func (r *openRequest) openVault(ctx context.Context) (*openedVault, error) {
+	source, err := vault.Open(r.root)
+	if err != nil {
+		return nil, errOpenRoot
+	}
+	gate, err := egress.Open(ctx, source, judge.LinkTargets)
+	if err != nil {
+		closeRefused(source)
+		return nil, openRefusal(err)
+	}
+	r.rulesRead()
+	rules := gate.Rules()
+	source.SetBoundary(rules.ScanBoundary())
+	// The generation logs what it reads by path, private ground included, and
+	// this face's stderr goes to the program that called it. Nothing it would
+	// say is this command's answer, so it says it to no one.
+	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), rules, rules.Governance())
+	if err != nil {
+		closeRefused(source)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, errOpenScan
+	}
+	snap := store.Current().Capture()
+	return &openedVault{source: source, gate: gate, snap: snap, allowed: gate.Readable(snap)}, nil
+}
+
+// closeRefused closes source for a command that is already refusing, whose
+// refusal is the one told.
+func closeRefused(source *vault.Reader) {
+	_ = source.Close() //nolint:errcheck // the command is already refusing, and says why
 }
 
 // openRefusal is the refusal this command gives for one the gate gave. Only a

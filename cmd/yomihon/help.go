@@ -122,7 +122,7 @@ var commandHelp = map[string]string{
 		"is never described here — no path, no matched field. It still answers:\n" +
 		"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 		"second note under a withheld note's own name.\n",
-	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md] [--adopt <earlier path>]\n" +
+	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md] [--adopt <earlier path>] [--export]\n" +
 		"\n" +
 		"Lists the marks in a vault: the questions you marked, and the notes of\n" +
 		"the rules' answer type that still declare draft: true — newest first,\n" +
@@ -165,7 +165,19 @@ var commandHelp = map[string]string{
 		"it is mended the command runs again.\n" +
 		"\n" +
 		"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
-		"could not run, an unreadable marks file or note included.\n",
+		"could not run, an unreadable marks file or note included.\n" +
+		"\n" +
+		"--export is the one way this command prints what you wrote. It writes every\n" +
+		"highlight, thought and question as Markdown to standard output, for you to\n" +
+		"hand to another program: the words you chose, a link to the note relative to\n" +
+		"the vault's root, and your own words, grouped as open questions, thoughts,\n" +
+		"highlights and resolved questions. A mark that two computers changed\n" +
+		"differently is printed with every version, and so are the values this\n" +
+		"computer set aside. It takes no --format and no --adopt, and writes nothing.\n" +
+		"The rules apply as they do to the list; a note this command could not read\n" +
+		"does not stop it, and its marks are printed as they were kept. When a file\n" +
+		"of marks could not be read, the rest is printed and one line on stderr says\n" +
+		"export may be incomplete.\n",
 	approveFigureCommand: "Usage: yomihon " + approveFigureCommand + " [--root <dir>] <path>\n" +
 		"\n" +
 		"Approves one figure, by its exact bytes, to run its scripts on the reading\n" +

@@ -19,7 +19,7 @@ this document.
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
 | HTTP method, path, query, headers, mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
 | `slog` records: address, vault root, rules file state, scan and render failures; the marks directory's absolute path when reading or writing a file in it fails, and the note path the caller submitted when a bookmark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
-| The reader's highlights, thoughts and questions — `reader-notes/.yomihon/marks/<machine id>.jsonl` in the vault: one append-only file of JSON lines for each computer, which that computer alone writes and the others only read. A line holds the format number, the machine id and the code of the process that wrote it, a revision number, which revisions of other writers' lines the page had read, the time, a checksum and the mark: a random id, its kind, a note path, an anchor id, when it was made, a deleted flag, and, for a highlight, a question or a thought, the words the reader chose with a little of what stood on either side, the content identity of the note's bytes, the words the reader wrote, and when a question was resolved. A question marked on a whole section carries only the kind, id, path, anchor and time | The vault, in its own folder `reader-notes/`, which the scan leaves out; it is the one place yomihon writes in a vault. Git carries it to other computers when the reader commits and pushes | Until the reader deletes the mark, which stays in the file as a deleted line so that an older copy of the file does not bring it back; no expiry. Words that were committed stay in git history after they are deleted. Up to 5,000 marks that are not deleted, of every computer, a line up to 64 KiB, this computer's file up to 20,000 lines, and a file past 16 MiB is not read. A crash can strand a temporary file in that folder, which the next write removes | Whatever can read the vault: the same OS account, other computers that pull it, an agent or program given the vault. Another computer's lines are untrusted data and are drawn escaped. The local reading client receives marks, with the reader's words, over `GET /mark/{id}` and the questions' path, anchor and time from `GET /questions`; `yomihon marks` writes the ones outside withheld ground to its caller |
+| The reader's highlights, thoughts and questions — `reader-notes/.yomihon/marks/<machine id>.jsonl` in the vault: one append-only file of JSON lines for each computer, which that computer alone writes and the others only read. A line holds the format number, the machine id and the code of the process that wrote it, a revision number, which revisions of other writers' lines the page had read, the time, a checksum and the mark: a random id, its kind, a note path, an anchor id, when it was made, a deleted flag, and, for a highlight, a question or a thought, the words the reader chose with a little of what stood on either side, the content identity of the note's bytes, the words the reader wrote, and when a question was resolved. A question marked on a whole section carries only the kind, id, path, anchor and time | The vault, in its own folder `reader-notes/`, which the scan leaves out; it is the one place yomihon writes in a vault. Git carries it to other computers when the reader commits and pushes | Until the reader deletes the mark, which stays in the file as a deleted line so that an older copy of the file does not bring it back; no expiry. Words that were committed stay in git history after they are deleted. Up to 5,000 marks that are not deleted, of every computer, a line up to 64 KiB, this computer's file up to 20,000 lines, and a file past 16 MiB is not read. A crash can strand a temporary file in that folder, which the next write removes | Whatever can read the vault: the same OS account, other computers that pull it, an agent or program given the vault. Another computer's lines are untrusted data and are drawn escaped. The local reading client receives marks, with the reader's words, over `GET /mark/{id}` and the questions' path, anchor and time from `GET /questions`; `yomihon marks` writes the questions' path, anchor and time outside withheld ground to its caller, and `yomihon marks --export` writes the marks themselves, the reader's words among them, to its caller (below) |
 | The reader's bookmarks and finished notes — `progress.json` and its adjacent `.progress-*.json` in the same per-vault directory, holding that vault's absolute path and the bookmarks: for each, the course it belongs to (empty for reading outside any course), a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set; and the notes the reader has finished, each a note path and when. The file has room for a bookmark for each course and for any number of finished notes up to its cap; this version writes the bookmark for reading outside any course and one for each course the reader sets one in, the notes the reader says are finished and, when the reader adopts the marks kept for an earlier path with `yomihon marks --adopt`, the bookmarks and finished notes found there | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash can strand a temporary file holding that same content, and nothing removes it | The same OS account |
 | The files an earlier version wrote — `marks.json` and its adjacent `.marks-*.json` (the marks, as they were kept before they moved into the vault), `reader.json` (one bookmark) and `uncertainty.json` (questions: `path`, `anchor`, `time`), in the same per-vault directory | The platform's configuration directory, never the vault | `marks.json` is read once, and the first write of a computer that has no file of marks in the vault takes its marks in; `reader.json` and `uncertainty.json` are read when `progress.json` or `marks.json` is not there yet, so that what a reader kept is converted rather than lost. None is changed, renamed or removed by yomihon. A reader who deletes them has deleted them | The same OS account. `yomihon marks` reads `uncertainty.json` read-only when there is no `marks.json` |
 | The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
@@ -115,6 +115,19 @@ ledger, so a line changed by hand is read by it and not by yomihon, and what
 git took out of the working tree is not seen. Linux and Windows need `jq`
 installed.
 
+- **What a program that reads the files directly gets, with no export.** The
+  privacy declaration binds what yomihon says, not what the account can read. A
+  program or agent that can open the vault reads every mark's words, a
+  question's included, from the machine files, and a mark the reader deleted
+  stays there whole, its words with it, as a line marked deleted. The ledger in
+  the configuration directory, outside the vault, holds every change this
+  computer made, each with the words it had then, and the values it set aside,
+  and is read by any program of the same account. Such a program can also write
+  a machine file; yomihon finds a line that was changed (its checksum does not
+  fit) and counts it, and cannot prevent it. Keeping the words from a program
+  that reads files takes the operating system: another account, another
+  working directory, permissions or a sandbox.
+
 - **`yomihon marks --adopt <earlier path>` is the one command-line write to
   the reader's files in the configuration directory.** A vault's directory is named from its path, so a vault that
   moved has none of its marks until they are brought across. The command reads
@@ -171,6 +184,45 @@ installed.
   called it, usually an agent, and from there it can leave this machine
   through that agent's model provider — including when the reader was unsure
   of what. That is the caller's egress, not a request yomihon makes.
+- **`yomihon marks --export` hands the reader's own words to whoever runs it.**
+  It is the one way the command prints them, and typing the flag is the
+  consent: there is no second switch, and without it no output of the command
+  carries a word the reader wrote. It writes Markdown to standard output and
+  nothing anywhere else. For each highlight, thought and question that is not
+  deleted it writes the words the reader chose, the note's title and its path
+  from the vault's root, the name of the section, and the words the reader
+  wrote, grouped as open questions, thoughts, highlights and resolved
+  questions; it names no vault, no folder on this machine, and no time of its
+  own. Where two computers changed a mark differently it also writes every other
+  value of it, and the values this computer set aside in the ledger, each under
+  its mark with the time it was written (in UTC) and its state, and a deleted
+  one as `deleted.`; it does not say which computer wrote a value. A mark is
+  written once, whatever number of files hold lines of it, and a value that
+  repeats another is not written again. Text that the vault or another computer
+  wrote and a terminal would act on (control characters, line separators,
+  direction marks) is written out as `\uXXXX`, so the output cannot send an
+  escape sequence to the terminal it is read on.
+  The privacy declaration is the same as the list's, and its gate is asked of
+  everything the command is about to write, before it is written: a mark whose
+  note is under a `never_egress_dirs` directory is left out whole, and so is one
+  whose note's title, section, chosen words or the reader's own words link to
+  withheld ground or spell a withheld directory and a slash, as above. Every
+  value of a mark is asked: if one is withheld, the mark is left out whole, so
+  the public side of a conflict does not reveal that a withheld one was there.
+  A mark of the earlier file that the vault already holds back is not written
+  from it either. Nothing says how much was left out, and the rules file is
+  looked at again after the output is assembled, as for the list. The list
+  refuses when a note it could not read may be a thought still open; the export
+  does not read notes for that, so a note that cannot be read does not make its
+  marks disappear, and they are written as they were kept. A file of marks that
+  could not be read leaves the rest written and one line on stderr, without a
+  count, saying the export may be incomplete. With no rules file, the line that
+  nothing is withheld goes to stderr and the Markdown stays clean. The reader's
+  words are Markdown of their own and are written as they are: the export keeps
+  its own structure only for what it writes itself, so words that look like a
+  heading are theirs. What the export writes is handled by the program that
+  called it, usually an agent, and can leave this machine through that agent's
+  model provider; that is the caller's egress, not a request yomihon makes.
 - **`GET /questions` is not filtered.** The reading server hands the whole
   set of question marks, withheld paths included, to any local client that asks, as it
   hands every note to the reading room; the privacy declaration binds the

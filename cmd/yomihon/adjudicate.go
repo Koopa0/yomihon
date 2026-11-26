@@ -37,7 +37,9 @@ type commandArgs struct {
 	deny      []string
 	baseline  string
 	// adopt is the path a vault had before it moved; only marks takes it.
-	adopt       string
+	adopt string
+	// export is the flag only marks takes, which prints the reader's own words.
+	export      bool
 	positionals []string
 }
 
@@ -103,6 +105,9 @@ func runCommand(
 func validateCommandArgs(command string, args *commandArgs) error {
 	if args.adopt != "" {
 		return fmt.Errorf("%s does not accept --adopt", command)
+	}
+	if args.export {
+		return fmt.Errorf("%s does not accept --export", command)
 	}
 	switch command {
 	case "check":
@@ -179,11 +184,11 @@ func parseCommandArgs(args []string) (commandArgs, error) {
 		}
 		name, inline, hasInline := strings.Cut(arg, "=")
 		switch name {
-		case "--all":
+		case "--all", "--export":
 			if hasInline {
 				return parsed, fmt.Errorf("flag %s takes no value", name)
 			}
-			parsed.all = true
+			parsed.setSwitch(name)
 		case "--root", "--baseline", "--deny", "--format", "--adopt":
 			value, rest, err := commandFlagValue(name, inline, hasInline, args)
 			if err != nil {
@@ -216,6 +221,16 @@ func commandFlagValue(name, inline string, hasInline bool, rest []string) (value
 		return "", remaining, fmt.Errorf("flag %s needs a non-empty value", name)
 	}
 	return value, remaining, nil
+}
+
+// setSwitch sets a flag that takes no value.
+func (args *commandArgs) setSwitch(name string) {
+	switch name {
+	case "--all":
+		args.all = true
+	case "--export":
+		args.export = true
+	}
 }
 
 func (args *commandArgs) setFlag(name, value string) error {
