@@ -168,8 +168,9 @@ jobs:
   # The full analysis, generation, race, and fuzz gates run once on Linux. A
   # real Darwin runner also executes the complete suite. Windows builds and
   # vets every package, compiles every test, runs the configuration
-  # directory's tests, whose lock is its own code there, and the ledger's,
-  # whose appends, renames and killed writers behave differently there, then
+  # directory's tests, whose lock is its own code there, and the ledger's and
+  # the machine file's, whose appends, renames, folder flushes and killed
+  # writers behave differently there, then
   # drives its product-specific contract: the reading server answers every
   # route and writes nothing into the vault.
   portable-core:
@@ -200,9 +201,9 @@ jobs:
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
 
-      - name: Run the configuration directory's and the ledger's tests on Windows
+      - name: Run the configuration directory's, the ledger's and the machine file's tests on Windows
         if: runner.os == 'Windows'
-        run: go test ./internal/mark/confdir ./internal/mark/ledger -count=1 -v
+        run: go test ./internal/mark/confdir ./internal/mark/ledger ./internal/mark/machinefile/... -count=1 -v
 
       # The contract test is asked for by name before it is run. A -run
       # pattern that matches nothing is not an error to Go and exits 0 without
