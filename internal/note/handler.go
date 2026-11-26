@@ -477,6 +477,13 @@ func (h *Handler) reading(
 	questionAddress, writable := h.questionAddress()
 	var titleThoughts []pages.ThoughtLine
 	var sectionNotes map[string][]string
+	// A note that stands alone on its page draws the reader's marks, and keeps
+	// them where the reader folder can be written to.
+	markable := idPrefix == "" && h.sources.Kept != nil
+	markRoutes := ""
+	if markable && questionAddress != "" {
+		markRoutes = mark.Paths.Mark
+	}
 	if idPrefix == "" {
 		result.HTML, sectionNotes = h.markedBody(r.Context(), result.HTML, n, outlineIDs(&result), lang)
 	}
@@ -535,6 +542,8 @@ func (h *Handler) reading(
 		QuestionAddress:   questionAddress,
 		Writable:          writable,
 		ThoughtDoor:       door,
+		MarksOn:           markable,
+		MarkRoutes:        markRoutes,
 		TitleThoughts:     titleThoughts,
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to

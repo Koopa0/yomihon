@@ -94,14 +94,17 @@ var (
 // The actions on one mark.
 var (
 	MarksWriteThought = both("寫想法", "Write a thought")
-	MarksEdit         = both("編輯", "Edit")
-	MarksResolve      = both("標為已解決", "Mark as resolved")
-	MarksReopen       = both("再標為疑問", "Mark as a question again")
-	MarksToThought    = both("改成想法", "Make it a thought")
-	MarksToHighlight  = both("改成劃線", "Make it a highlight")
-	MarksDelete       = both("刪除", "Delete")
-	MarksMore         = both("更多", "More")
-	MarksActions      = both("這一則的動作", "Actions for this mark")
+	// MarksWriteThoughtFmt names the control beside a section, which begins with
+	// the words it shows.
+	MarksWriteThoughtFmt = both("寫想法：%s", "Write a thought: %s")
+	MarksEdit            = both("編輯", "Edit")
+	MarksResolve         = both("標為已解決", "Mark as resolved")
+	MarksReopen          = both("再標為疑問", "Mark as a question again")
+	MarksToThought       = both("改成想法", "Make it a thought")
+	MarksToHighlight     = both("改成劃線", "Make it a highlight")
+	MarksDelete          = both("刪除", "Delete")
+	MarksMore            = both("更多", "More")
+	MarksActions         = both("這一則的動作", "Actions for this mark")
 )
 
 // How a mark is named in the margin and to a screen reader.

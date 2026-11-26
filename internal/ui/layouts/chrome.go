@@ -70,6 +70,9 @@ type Chrome struct {
 	// or "hover". The root carries it, so a stylesheet answering it needs no
 	// script and the first paint is already as the reader left it.
 	SectionButtons string
+	// MarkKeys is whether the keys of the reader's own marks are listed in the
+	// keyboard help: only a page that can keep a mark answers them.
+	MarkKeys bool
 	// Marks is whether the reader's own marks are drawn in the text: "show" or
 	// "hide". The root carries it so the first paint is already as they left it.
 	Marks string

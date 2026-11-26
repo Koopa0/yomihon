@@ -228,7 +228,7 @@ func TestASectionsMarkIsAnAnchorThePageRenders(t *testing.T) {
 
 	page := serve(t, mux, http.MethodGet, "/notes/Source.md", "").Body.String()
 	anchors := 0
-	for _, part := range strings.Split(page, `data-section-anchor="`)[1:] {
+	for _, part := range strings.Split(page, `data-section-mark data-section-anchor="`)[1:] {
 		anchor, _, _ := strings.Cut(part, `"`)
 		anchors++
 		got := serve(t, mux, http.MethodPost, "/questions", url.Values{"path": {"Source.md"}, "anchor": {anchor}}.Encode())

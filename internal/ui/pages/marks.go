@@ -3,11 +3,14 @@ package pages
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -127,4 +130,52 @@ func (m *MarkNote) leads() []string {
 		out = append(out, wording.MarksSectionLead.In(m.Lang))
 	}
 	return out
+}
+
+// markAttrs gives the script that keeps the marks where to send them and the
+// words it says in the reader's language. A page that draws marks it cannot
+// change gets the words alone.
+func markAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
+	if !v.MarksOn {
+		return nil
+	}
+	words, err := json.Marshal(markStrings(lang))
+	if err != nil {
+		// A fixed table of strings cannot fail to encode.
+		panic("pages: the words of the marks do not encode: " + err.Error())
+	}
+	attrs := templ.Attributes{"data-marks-strings": string(words)}
+	if v.MarkRoutes != "" {
+		attrs["data-marks-endpoint"] = v.MarkRoutes
+		attrs["data-marks-path"] = v.RelPath
+	}
+	return attrs
+}
+
+// markStrings is every sentence the script says, by the name it asks for it.
+func markStrings(lang wording.Lang) map[string]string {
+	in := func(p wording.Phrase) string { return p.In(lang) }
+	return map[string]string{
+		"hiddenShow": in(wording.MarksHiddenShow), "show": in(wording.MarksShow),
+		"undo": in(wording.MarksUndo), "undone": in(wording.MarksUndoneFmt),
+		"nothingToUndo": in(wording.MarksNothingToUndo), "cannotUndo": in(wording.MarksCannotUndo),
+		"notUndone": in(wording.MarksNotUndoneFmt), "notKept": in(wording.MarksNotKeptFmt),
+		"notDeleted": in(wording.MarksNotDeletedFmt), "alreadyLit": in(wording.MarksAlreadyLit),
+		"alreadyAsked": in(wording.MarksAlreadyAsked), "selectFirst": in(wording.MarksSelectFirst),
+		"askedUndo": in(wording.MarksAskedUndo), "nowThought": in(wording.MarksNowThought),
+		"nowHighlight": in(wording.MarksNowHighlight), "cancelled": in(wording.MarksCancelled),
+		"deleted": in(wording.MarksDeleted), "pressEscFirst": in(wording.MarksPressEscFirst),
+		"ambiguous": in(wording.MarksAmbiguous), "composing": in(wording.MarksComposing),
+		"sectionNeedsWords": in(wording.MarksSectionNeedsWords), "editing": in(wording.MarksEditing),
+		"words": in(wording.MarksWords), "done": in(wording.MarksDone), "cancel": in(wording.MarksCancel),
+		"retry": in(wording.MarksRetry), "edit": in(wording.MarksEdit), "resolve": in(wording.MarksResolve),
+		"reopen": in(wording.MarksReopen), "ask": in(wording.MarksAskAbout), "more": in(wording.MarksMore),
+		"toThought": in(wording.MarksToThought), "toHighlight": in(wording.MarksToHighlight),
+		"delete": in(wording.MarksDelete), "whatHighlight": in(wording.MarksWhatHighlight),
+		"whatQuestion": in(wording.MarksWhatQuestion), "whatWords": in(wording.MarksWhatWords),
+		"whatThought": in(wording.MarksWhatThought), "whatToHighlight": in(wording.MarksWhatToHighlight),
+		"whatResolve": in(wording.MarksWhatResolve), "whatDelete": in(wording.MarksWhatDelete),
+		"reasonTooLong": in(wording.MarksReasonTooLong), "reasonNotWrite": in(wording.MarksReasonNotWrite),
+		"nameHighlight": in(wording.MarksNameHighlightFmt), "writeThought": in(wording.MarksWriteThought), "actions": in(wording.MarksActions),
+	}
 }

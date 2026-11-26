@@ -47,7 +47,11 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // before it is emptied, which the stylesheet reads to draw the fade, and the
 // running head's three states: that the script knows the section and the head
 // may be drawn, that the note's own head has gone and it is shown, and that the
-// reader has moved, so it fades rather than simply being there.
+// reader has moved, so it fades rather than simply being there, and the state
+// of the reader's own marks on a page: which action a button stands for, which
+// mark the actions bar is for, a note that was pushed from its words or put back
+// after its paragraph, a field's mark, the parts the page adds that are not words
+// of the note, and that the notes have been laid out once.
 var clientOwned = []string{
 	"data-arrival",
 	"data-current",
@@ -68,6 +72,13 @@ var clientOwned = []string{
 	"data-speech-rate",
 	"data-traveling",
 	"data-question-control",
+	"data-act",
+	"data-displaced",
+	"data-docked",
+	"data-for",
+	"data-mark-skip",
+	"data-marks-lifted",
+	"data-mfield",
 }
 
 // TestEveryDataAttributeCrossesTheGapWithAReaderOnTheOtherSide holds the

@@ -48,3 +48,24 @@ templ markNote(m *MarkNote) {
 		</p>
 	</aside>
 }
+
+// marksTools is the parts of the page that only a reader who can keep marks has:
+// the toolbar over a selection, and the line a change says what it did in. Both
+// start hidden and are shown by the script; nothing here is drawn for a page that
+// runs none. The copy button is the next slice's: it is drawn and not offered
+// until it can do what it says.
+templ marksTools(lang wording.Lang) {
+	<div class="y-mbar" role="toolbar" lang={ lang.Tag() } aria-label={ wording.MarksToolbar.In(lang) } data-marks-toolbar hidden>
+		<button type="button" class="y-mbar__act" data-mbar="highlight">{ wording.MarksHighlight.In(lang) } <kbd class="ui-kbd">h</kbd></button>
+		<button type="button" class="y-mbar__act" data-mbar="question">{ wording.MarksAskAbout.In(lang) } <kbd class="ui-kbd">q</kbd></button>
+		<button type="button" class="y-mbar__act" data-mbar="copy" hidden>{ wording.MarksCopy.In(lang) } <kbd class="ui-kbd">c</kbd></button>
+	</div>
+	<div class="y-mstatus" lang={ lang.Tag() } data-marks-status hidden>
+		<p class="y-mstatus__said" role="status" data-mstatus-said></p>
+		<p class="y-mstatus__said" role="alert" data-mstatus-alert></p>
+		<button type="button" class="y-mstatus__act" data-mstatus-act hidden></button>
+		<button type="button" class="y-mstatus__close" data-mstatus-close aria-label={ wording.CloseControl.In(lang) }>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+		</button>
+	</div>
+}

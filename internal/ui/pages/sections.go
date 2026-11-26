@@ -32,6 +32,10 @@ type SectionPlan struct {
 	// Door is whether a thought can be started from this note. It gates the
 	// link beside each section and the line above a question fold.
 	Door bool
+	// Own is whether the reader's own marks are written on this page: a thought
+	// on a section is then written in a field beside it, and the link that opens
+	// a draft for an editor is not offered in its place.
+	Own bool
 	// Sections holds the sections to draw, by the id each heading carries.
 	Sections map[string]SectionMargin
 	// PlaceAnchor is the id of the element the reader left off at, empty where

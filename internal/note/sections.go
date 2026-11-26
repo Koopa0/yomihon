@@ -43,6 +43,7 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 		IDPrefix: idPrefix,
 		Marks:    questionAddress != "",
 		Door:     door,
+		Own:      idPrefix == "" && h.sources.Kept != nil,
 		Sections: make(map[string]pages.SectionMargin),
 	}
 	marked := h.marksIn(n.RelPath)

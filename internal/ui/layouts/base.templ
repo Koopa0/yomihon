@@ -403,7 +403,7 @@ templ headerPath(path string, lang wording.Lang) {
 templ keyboardHelp(c Chrome) {
 	<div id="_y-kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
 		<h2 class="y-kbdhelp__title">{ wording.KeyboardHelp.In(c.Lang) }</h2>
-		@KeyboardKeys(c.Lang)
+		@keyboardKeys(c.Lang, c.MarkKeys)
 		// A reader who opened this panel came looking for how the interface
 		// behaves, and the rest of that answer, the switch for the single keys
 		// included, is one page away.
@@ -417,17 +417,48 @@ templ keyboardHelp(c Chrome) {
 // promising a key the day that key moves, and a promise the keyboard does not
 // keep is worse than no help panel.
 templ KeyboardKeys(lang wording.Lang) {
+	@keyboardKeys(lang, false)
+}
+
+// keyboardKeys is the list, with the keys of the reader's own marks added on a
+// page that can keep them. A page that cannot keep a mark answers none of them,
+// so it does not promise them.
+templ keyboardKeys(lang wording.Lang, marks bool) {
 	<dl class="y-kbdhelp__list">
 		<dt><span class="ui-kbd">⌘K</span> / <span class="ui-kbd">Ctrl K</span></dt>
 		<dd>{ wording.ShortcutSearch.In(lang) }</dd>
 		<dt><span class="ui-kbd">Esc</span></dt>
-		<dd>{ wording.ShortcutCloseSearchOrFilter.In(lang) }</dd>
+		if marks {
+			<dd>{ wording.KeysEscape.In(lang) }</dd>
+		} else {
+			<dd>{ wording.ShortcutCloseSearchOrFilter.In(lang) }</dd>
+		}
 		<dt><span class="ui-kbd">/</span></dt>
 		<dd>{ wording.ShortcutJumpToFilter.In(lang) }</dd>
 		<dt><span class="ui-kbd">[</span></dt>
 		<dd>{ wording.ShortcutToggleSidebar.In(lang) }</dd>
 		<dt><span class="ui-kbd">?</span></dt>
 		<dd>{ wording.ShortcutOpenHelp.In(lang) }</dd>
+		if marks {
+			<dt><span class="ui-kbd">h</span></dt>
+			<dd>{ wording.KeysHighlight.In(lang) }</dd>
+			<dt><span class="ui-kbd">q</span></dt>
+			<dd>{ wording.KeysQuestion.In(lang) }</dd>
+			<dt><span class="ui-kbd">Enter</span></dt>
+			<dd>{ wording.KeysEnter.In(lang) }</dd>
+			<dt><span class="ui-kbd">⌘↵</span></dt>
+			<dd>{ wording.KeysDone.In(lang) }</dd>
+			<dt><span class="ui-kbd">Delete</span></dt>
+			<dd>{ wording.KeysDelete.In(lang) }</dd>
+			<dt><span class="ui-kbd">⌘Z</span></dt>
+			<dd>{ wording.KeysUndo.In(lang) }</dd>
+			<dt><span class="ui-kbd">r</span></dt>
+			<dd>{ wording.KeysResolve.In(lang) }</dd>
+			<dt><span class="ui-kbd">{ "{" }</span> <span class="ui-kbd">{ "}" }</span></dt>
+			<dd>{ wording.KeysNeighbour.In(lang) }</dd>
+			<dt><span class="ui-kbd">m</span></dt>
+			<dd>{ wording.KeysShowMarks.In(lang) }</dd>
+		}
 	</dl>
 }
 
