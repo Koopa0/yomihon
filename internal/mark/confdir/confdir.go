@@ -12,8 +12,9 @@
 // changes a file takes one and never a path, so every write lands in a directory
 // one of the two named. They make it inside a ConfigDir and never from a string,
 // and a ConfigDir is made by Platform, from what the platform names, or by At,
-// which shipped code may not call. That the platform's answer is not inside a
-// folder being read is not something this package checks.
+// which shipped code may not call. Whether the platform's answer and a folder
+// are one inside the other is a question about the disk, which ConfigDir.Apart
+// answers for the command that serves the folder.
 package confdir
 
 import (

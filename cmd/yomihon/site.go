@@ -156,6 +156,13 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	var questions func() ([]mark.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
+	// The folder was compared with the configuration directory when it was
+	// mounted, and may have been put back, or a link to it changed, since. Its
+	// marks are named only for a folder apart from it, compared again now, and
+	// one that cannot be compared is not read.
+	if apartErr := configDir.Apart(source.Name()); apartErr != nil {
+		return nil, apartErr
+	}
 	if !configDir.IsZero() {
 		if marks, err = mark.Open(configDir, source.Name()); err != nil {
 			return nil, fmt.Errorf("name the reader's marks: %w", err)
