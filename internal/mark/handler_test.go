@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
+	"github.com/koopa0/yomihon/internal/mark/marktest"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -34,8 +39,64 @@ func newHandlerFor(t *testing.T, places vaultPlaces) (*mark.Store, http.Handler)
 	t.Helper()
 	file := newStore(t)
 	mux := http.NewServeMux()
-	mark.NewHandler(file, places, slog.New(slog.DiscardHandler)).Register(mux)
+	mark.NewHandler(file, newKept(t, file, resolvedRoot(t)), places, slog.New(slog.DiscardHandler)).Register(mux)
 	return file, mux
+}
+
+// resolvedRoot is a new empty folder to serve as a vault, spelled as the vault
+// itself names it.
+func resolvedRoot(t *testing.T) string {
+	t.Helper()
+	_, root, err := vault.ResolveRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// newKept is the marks of the vault at root, kept beside store's files, with
+// every mark let through as the reading server lets them. It is closed when the
+// test is over.
+func newKept(t *testing.T, store *mark.Store, root string) *mark.Kept {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	t.Cleanup(func() {
+		if closeErr := kept.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
+	return kept
+}
+
+// aServer is the routes over a real folder serving as the vault: where it is,
+// the configuration directory its marks are kept beside, and the marks as the
+// reading server holds them.
+type aServer struct {
+	root, config string
+	store        *mark.Store
+	kept         *mark.Kept
+	handler      http.Handler
+}
+
+// newServer is the routes over a vault that holds the places given, which may
+// be changed while the test runs. A nil map is the vault that holds every one.
+func newServer(t *testing.T, places vaultPlaces) aServer {
+	t.Helper()
+	root, config := resolvedRoot(t), t.TempDir()
+	store := newStoreFor(t, config, root)
+	kept := newKept(t, store, root)
+	mux := http.NewServeMux()
+	mark.NewHandler(store, kept, places, slog.New(slog.DiscardHandler)).Register(mux)
+	return aServer{root: root, config: config, store: store, kept: kept, handler: mux}
 }
 
 func post(t *testing.T, handler http.Handler, form url.Values) *http.Response {
@@ -467,19 +528,32 @@ func TestAPlaceTheVaultDoesNotHoldLeavesTheKeptPlaceAlone(t *testing.T) {
 	}
 }
 
-// TestTheRouteRefusesAVaultItIsNotGiven holds the constructor's own guard,
-// which the question route has too: a route with no vault to ask would
-// either accept everything or fail at the first request, and neither is a
-// refusal anyone chose.
-func TestTheRouteRefusesAVaultItIsNotGiven(t *testing.T) {
+// TestTheRouteRefusesWhatItIsNotGiven holds the constructor's own guard, which
+// the question route has too: a route with no vault to ask, or no marks to keep
+// them in, would either accept everything or fail at the first request, and
+// neither is a refusal anyone chose.
+func TestTheRouteRefusesWhatItIsNotGiven(t *testing.T) {
 	t.Parallel()
 
-	defer func() {
-		if recover() == nil {
-			t.Error("mark.NewHandler accepted a nil Places")
-		}
-	}()
-	mark.NewHandler(newStore(t), nil, slog.New(slog.DiscardHandler))
+	store := newStore(t)
+	kept := newKept(t, store, resolvedRoot(t))
+	log := slog.New(slog.DiscardHandler)
+	for name, build := range map[string]func(){
+		"a nil Store":  func() { mark.NewHandler(nil, kept, vaultPlaces(nil), log) },
+		"a nil Kept":   func() { mark.NewHandler(store, nil, vaultPlaces(nil), log) },
+		"a nil Places": func() { mark.NewHandler(store, kept, nil, log) },
+		"a nil logger": func() { mark.NewHandler(store, kept, vaultPlaces(nil), nil) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			defer func() {
+				if recover() == nil {
+					t.Errorf("mark.NewHandler accepted %s", name)
+				}
+			}()
+			build()
+		})
+	}
 }
 
 // vaultPlaces answers for one vault. A nil map accepts every place.
@@ -521,10 +595,36 @@ func questionRequest(t *testing.T, handler http.Handler, method, body, lang stri
 	return response
 }
 
+// listedQuestions is what the list route answers, read as exactly the three
+// fields a page knows.
+func listedQuestions(t *testing.T, handler http.Handler) []listedQuestion {
+	t.Helper()
+	response := questionRequest(t, handler, http.MethodGet, "", "en")
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d %s, want 200", mark.Paths.Question, response.Code, response.Body.String())
+	}
+	var held []listedQuestion
+	decoder := json.NewDecoder(response.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&held); err != nil {
+		t.Fatalf("GET %s answered %q, which is not a list of questions: %v", mark.Paths.Question, response.Body.String(), err)
+	}
+	return held
+}
+
+// anchorsOf is the anchors of held in the order they are listed.
+func anchorsOf(held []listedQuestion) []string {
+	anchors := make([]string, len(held))
+	for i := range held {
+		anchors[i] = held[i].Anchor
+	}
+	return anchors
+}
+
 func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 	t.Parallel()
-	file, handler := newHandler(t)
-	empty := questionRequest(t, handler, http.MethodGet, "", "en")
+	srv := newServer(t, nil)
+	empty := questionRequest(t, srv.handler, http.MethodGet, "", "en")
 	if empty.Code != http.StatusOK || empty.Body.String() != "[]\n" {
 		t.Fatalf("empty GET = %d %s", empty.Code, empty.Body.String())
 	}
@@ -533,18 +633,15 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 		"time": {"2000-01-01T00:00:00Z"},
 	}
 	before := time.Now()
-	added := questionRequest(t, handler, http.MethodPost, form.Encode(), "en")
+	added := questionRequest(t, srv.handler, http.MethodPost, form.Encode(), "en")
 	after := time.Now()
 	if added.Code != http.StatusOK || added.Body.String() != "{\"marked\":true}\n" {
 		t.Fatalf("add = %d %s", added.Code, added.Body.String())
 	}
-	listed := questionRequest(t, handler, http.MethodGet, "", "en")
-	if listed.Code != http.StatusOK {
-		t.Fatalf("GET = %d %s", listed.Code, listed.Body.String())
-	}
-	var held []listedQuestion
-	if err := json.Unmarshal(listed.Body.Bytes(), &held); err != nil || len(held) != 1 {
-		t.Fatalf("GET marks = %v, %v", held, err)
+	listed := questionRequest(t, srv.handler, http.MethodGet, "", "en")
+	held := listedQuestions(t, srv.handler)
+	if len(held) != 1 {
+		t.Fatalf("GET marks = %v, want the one", held)
 	}
 	if held[0].Path != "Notes/source.md" || held[0].Anchor != "one" {
 		t.Fatalf("GET returned wrong location: %+v", held[0])
@@ -561,12 +658,77 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 			t.Error(err)
 		}
 	}
-	removed := questionRequest(t, handler, http.MethodPost, form.Encode(), "en")
+	removed := questionRequest(t, srv.handler, http.MethodPost, form.Encode(), "en")
 	if removed.Code != http.StatusOK || removed.Body.String() != "{\"marked\":false}\n" {
 		t.Fatalf("remove = %d %s", removed.Code, removed.Body.String())
 	}
-	if marks, err := file.List(mark.Question); err != nil || len(marks) != 0 {
-		t.Fatalf("removed mark still stored: %v, %v", marks, err)
+	if marks, err := srv.kept.Questions(); err != nil || len(marks) != 0 {
+		t.Fatalf("removed mark still kept: %v, %v", marks, err)
+	}
+	if again := questionRequest(t, srv.handler, http.MethodGet, "", "en"); again.Body.String() != "[]\n" {
+		t.Fatalf("GET after the removal = %s, want an empty list", again.Body.String())
+	}
+}
+
+// The list is of the questions of whole sections, which is what the button
+// makes and takes away: a question about words, a thought and a highlight are
+// kept in the same files and are not listed, and neither is one that is deleted.
+func TestQuestionRouteListsOnlyQuestionsOfWholeSections(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, nil)
+	at := time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)
+	onWords := marktest.Question("Notes/source.md", "words", at)
+	onWords.Quote = "some words"
+	marktest.Keep(t, srv.root, confdir.At(srv.config),
+		marktest.Question("Notes/source.md", "whole", at),
+		onWords,
+		machinemarks.Mark{Kind: machinemarks.Thought, Path: "Notes/source.md", Anchor: "thought", Body: "a thought", At: at},
+		machinemarks.Mark{Kind: machinemarks.Highlight, Path: "Notes/source.md", Anchor: "highlight", Quote: "some words", At: at},
+	)
+	held := listedQuestions(t, srv.handler)
+	if want := []listedQuestion{{Path: "Notes/source.md", Anchor: "whole", Time: at}}; !slices.EqualFunc(held, want, func(a, b listedQuestion) bool {
+		return a.Path == b.Path && a.Anchor == b.Anchor && a.Time.Equal(b.Time)
+	}) {
+		t.Fatalf("GET = %+v, want the one question of a whole section, made at %s", held, at)
+	}
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=whole", "en"); got.Body.String() != "{\"marked\":false}\n" {
+		t.Fatalf("pressing the control of the kept section = %d %s, want it taken away", got.Code, got.Body.String())
+	}
+	if held = listedQuestions(t, srv.handler); len(held) != 0 {
+		t.Fatalf("GET after the removal = %+v, want none", held)
+	}
+}
+
+// What the earlier file of marks holds is listed from the first read, since the
+// reader has not marked anything since the upgrade and still has those; nothing
+// reads the file as empty, and no read changes it. The first change takes the
+// marks in, and the file is left as it was.
+func TestQuestionRouteListsTheEarlierFilesQuestionsUntilTheFirstWriteTakesThemIn(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, nil)
+	at := time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)
+	earlier := marksJSON(t, srv.root, mark.Mark{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "one", At: at}, mark.Mark{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "two", At: at})
+	writeFile(t, marksPath(srv.store), earlier)
+
+	if got := anchorsOf(listedQuestions(t, srv.handler)); !slices.Equal(got, []string{"one", "two"}) {
+		t.Fatalf("GET over the earlier file = %v, want its two questions", got)
+	}
+	if _, err := os.Stat(filepath.Join(srv.root, "reader-notes")); !os.IsNotExist(err) {
+		t.Fatalf("reading made the reader folder: %v", err)
+	}
+	// Taking away a question the vault does not hold yet takes the earlier
+	// marks in first, then removes it.
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); got.Body.String() != "{\"marked\":false}\n" {
+		t.Fatalf("taking away a question of the earlier file = %d %s", got.Code, got.Body.String())
+	}
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=three", "en"); got.Body.String() != "{\"marked\":true}\n" {
+		t.Fatalf("marking a new question = %d %s", got.Code, got.Body.String())
+	}
+	if got := anchorsOf(listedQuestions(t, srv.handler)); !slices.Equal(got, []string{"two", "three"}) {
+		t.Fatalf("GET after the first writes = %v, want the earlier file's second question and the new one", got)
+	}
+	if after := contents(t, marksPath(srv.store)); after != earlier {
+		t.Errorf("the earlier file of marks changed to %q", after)
 	}
 }
 
@@ -587,12 +749,12 @@ func TestQuestionRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			file, handler := newHandler(t)
-			response := questionRequest(t, handler, http.MethodPost, tt.body, "en")
+			srv := newServer(t, nil)
+			response := questionRequest(t, srv.handler, http.MethodPost, tt.body, "en")
 			if response.Code != tt.want {
 				t.Fatalf("POST = %d %s; want %d", response.Code, response.Body.String(), tt.want)
 			}
-			marks, err := file.List(mark.Question)
+			marks, err := srv.kept.Questions()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -602,10 +764,18 @@ func TestQuestionRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 			if tt.want != http.StatusOK && strings.Contains(response.Body.String(), "private.md") {
 				t.Fatal("refusal echoes the submitted private path")
 			}
+			if tt.want != http.StatusOK {
+				if _, err = os.Stat(filepath.Join(srv.root, "reader-notes")); !os.IsNotExist(err) {
+					t.Errorf("a refused request made the reader folder: %v", err)
+				}
+			}
 		})
 	}
 }
 
+// A marks.json that cannot be read is what the first write would take in, so
+// every route that needs it says the marks cannot be read, in the reader's
+// language, and nothing is written or made.
 func TestQuestionRoutePreservesCorruptFileAndReportsFailureInBothLanguages(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -617,23 +787,21 @@ func TestQuestionRoutePreservesCorruptFileAndReportsFailureInBothLanguages(t *te
 	} {
 		t.Run(tt.lang, func(t *testing.T) {
 			t.Parallel()
-			file, handler := newHandler(t)
-			if err := os.MkdirAll(filepath.Dir(marksPath(file)), 0o700); err != nil {
-				t.Fatal(err)
-			}
+			srv := newServer(t, nil)
 			const damaged = `[{"path":"private/secret.md"`
-			if err := os.WriteFile(marksPath(file), []byte(damaged), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			writeFile(t, marksPath(srv.store), damaged)
 			for _, method := range []string{http.MethodGet, http.MethodPost} {
-				response := questionRequest(t, handler, method, "path=source.md&anchor=one", tt.lang)
+				response := questionRequest(t, srv.handler, method, "path=source.md&anchor=one", tt.lang)
 				if response.Code != http.StatusInternalServerError || response.Body.String() != tt.want {
 					t.Errorf("%s damaged file = %d %q; want localized 500", method, response.Code, response.Body.String())
 				}
 			}
-			data, err := os.ReadFile(marksPath(file))
+			data, err := os.ReadFile(marksPath(srv.store))
 			if err != nil || string(data) != damaged {
 				t.Fatalf("route replaced corrupt file with %s: %v", data, err)
+			}
+			if _, err = os.Stat(filepath.Join(srv.root, "reader-notes")); !os.IsNotExist(err) {
+				t.Errorf("a refused write made the reader folder: %v", err)
 			}
 		})
 	}
@@ -644,12 +812,12 @@ func TestQuestionRouteRejectsOtherWriteMethods(t *testing.T) {
 	for _, method := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete} {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
-			file, handler := newHandler(t)
-			response := questionRequest(t, handler, method, "path=source.md&anchor=one", "en")
+			srv := newServer(t, nil)
+			response := questionRequest(t, srv.handler, method, "path=source.md&anchor=one", "en")
 			if response.Code != http.StatusMethodNotAllowed {
 				t.Fatalf("%s = %d, want 405", method, response.Code)
 			}
-			if _, err := os.Stat(marksPath(file)); !os.IsNotExist(err) {
+			if _, err := os.Stat(filepath.Join(srv.root, "reader-notes")); !os.IsNotExist(err) {
 				t.Fatalf("%s created storage: %v", method, err)
 			}
 		})
@@ -658,21 +826,24 @@ func TestQuestionRouteRejectsOtherWriteMethods(t *testing.T) {
 
 func TestQuestionRouteRefusesInvalidUTF8RepeatedlyAndStaysReadable(t *testing.T) {
 	t.Parallel()
-	_, handler := newHandler(t)
+	srv := newServer(t, nil)
 	for range 2 {
-		if response := questionRequest(t, handler, http.MethodPost, "path=source.md&anchor=x%FF", "en"); response.Code != http.StatusUnprocessableEntity {
+		if response := questionRequest(t, srv.handler, http.MethodPost, "path=source.md&anchor=x%FF", "en"); response.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("POST invalid UTF-8 = %d, want 422", response.Code)
 		}
 	}
-	if response := questionRequest(t, handler, http.MethodGet, "", "en"); response.Code != http.StatusOK {
+	if response := questionRequest(t, srv.handler, http.MethodGet, "", "en"); response.Code != http.StatusOK {
 		t.Fatalf("GET after the refusals = %d %s, want 200", response.Code, response.Body.String())
+	}
+	if response := questionRequest(t, srv.handler, http.MethodPost, "path=source.md&anchor=one", "en"); response.Code != http.StatusOK {
+		t.Fatalf("a later valid POST = %d %s, want 200", response.Code, response.Body.String())
 	}
 }
 
 func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 	t.Parallel()
 	places := vaultPlaces{{"Notes/real.md", "one"}: true, {"Notes/real.md", ""}: true}
-	file, handler := newHandlerFor(t, places)
+	srv := newServer(t, places)
 	for _, tt := range []struct {
 		body string
 		want int
@@ -682,18 +853,69 @@ func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 		{"path=Notes/real.md&anchor=missing", http.StatusUnprocessableEntity},
 		{"path=Visit+example.com+for+free+prizes.md&anchor=one", http.StatusUnprocessableEntity},
 	} {
-		if response := questionRequest(t, handler, http.MethodPost, tt.body, "en"); response.Code != tt.want {
+		if response := questionRequest(t, srv.handler, http.MethodPost, tt.body, "en"); response.Code != tt.want {
 			t.Errorf("POST %q = %d, want %d", tt.body, response.Code, tt.want)
 		}
 	}
-	held, err := file.List(mark.Question)
+	held, err := srv.kept.Questions()
 	if err != nil || len(held) != 2 {
-		t.Fatalf("stored marks = %v, %v; want only the two real places", held, err)
+		t.Fatalf("kept marks = %v, %v; want only the two real places", held, err)
 	}
 	// A place that has since disappeared can still be cleared.
 	delete(places, [2]string{"Notes/real.md", "one"})
-	if response := questionRequest(t, handler, http.MethodPost, "path=Notes/real.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":false}\n" {
+	if response := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/real.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":false}\n" {
 		t.Fatalf("clearing a vanished place = %d %s", response.Code, response.Body.String())
+	}
+	if held, err = srv.kept.Questions(); err != nil || len(held) != 1 || held[0].Anchor != "" {
+		t.Fatalf("kept marks after the clearing = %v, %v; want only the note as a whole", held, err)
+	}
+}
+
+// A request to mark where the reader folder cannot be written to is refused
+// with a reason the reader can act on and with nothing written, wherever a link
+// there points. A folder that is mended is written to without the server being
+// started again.
+func TestQuestionRouteRefusesToWriteWhereTheReaderFolderCannotBeUsed(t *testing.T) {
+	t.Parallel()
+	for name, spoil := range map[string]func(t *testing.T, folder string) (mustStayEmpty string){
+		"a link": func(t *testing.T, folder string) string {
+			t.Helper()
+			target := t.TempDir()
+			if err := os.Symlink(target, folder); err != nil {
+				t.Skipf("no symbolic links here: %v", err)
+			}
+			return target
+		},
+		"a file": func(t *testing.T, folder string) string {
+			t.Helper()
+			writeFile(t, folder, "not a folder")
+			return ""
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := newServer(t, nil)
+			folder := filepath.Join(srv.root, "reader-notes")
+			target := spoil(t, folder)
+			response := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en")
+			if response.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("POST over %s = %d %q, want 422", name, response.Code, response.Body.String())
+			}
+			if want := wording.MarkNotKept.In(wording.En); !strings.Contains(response.Body.String(), want) || strings.Contains(response.Body.String(), "reader-notes") {
+				t.Errorf("the refusal %q is not %q alone: the reader is told the mark was not kept, and why is the log's", response.Body.String(), want)
+			}
+			if target != "" {
+				if entries, err := os.ReadDir(target); err != nil || len(entries) != 0 {
+					t.Errorf("a refused write left %v, %v where the link points", entries, err)
+				}
+			}
+			if err := os.Remove(folder); err != nil {
+				t.Fatal(err)
+			}
+			if response = questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":true}\n" {
+				t.Fatalf("POST after the folder was mended = %d %q, want it kept", response.Code, response.Body.String())
+			}
+		})
 	}
 }
 
@@ -703,10 +925,7 @@ func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 // arrives; a 301 would turn the POST into a GET and lose it.
 func TestRetiredAddressesRedirectAndKeepTheMethod(t *testing.T) {
 	t.Parallel()
-	log := slog.New(slog.DiscardHandler)
-	file := newStore(t)
-	mux := http.NewServeMux()
-	mark.NewHandler(file, vaultPlaces(nil), log).Register(mux)
+	mux := newServer(t, vaultPlaces(nil)).handler
 
 	// The requests run in order on one mux: a redirect target that remembered
 	// an earlier request's query would show on the one after it.

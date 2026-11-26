@@ -56,6 +56,7 @@ var faceAdapterPackages = []string{
 	"internal/mark/ledger",
 	"internal/mark/machinefile",
 	"internal/mark/machinemarks",
+	"internal/mark/marktest",
 	"internal/mark/vaults",
 	"internal/note",
 	"internal/preference",

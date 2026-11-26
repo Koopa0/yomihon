@@ -73,7 +73,6 @@ export function initQuestion() {
     const words = {
       questionLang: article.dataset.questionLang,
       questionLabel: article.dataset.questionLabel,
-      questionScope: article.dataset.questionScope,
       questionUnavailable: article.dataset.questionUnavailable,
       questionSaved: article.dataset.questionSaved,
       questionCleared: article.dataset.questionCleared,
@@ -89,13 +88,10 @@ export function initQuestion() {
     button.textContent = words.questionLabel;
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
-    const scope = document.createElement('p');
-    scope.className = 'y-fileinfo__note';
-    scope.textContent = words.questionScope;
     const said = document.createElement('p');
     said.className = 'y-question__said';
     said.setAttribute('role', 'status');
-    group.append(button, scope, said);
+    group.append(button, said);
     container.append(group);
     controls.push({ key, button });
     const reflect = () => {

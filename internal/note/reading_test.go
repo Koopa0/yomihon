@@ -20,7 +20,6 @@ import (
 	"golang.org/x/net/html/atom"
 
 	"github.com/koopa0/yomihon/internal/mark"
-	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -67,13 +66,12 @@ func TestReadingRefusesWhatNoReaderOpens(t *testing.T) {
 func readingLibrary(t *testing.T) (*note.Handler, *snapshot.Generation) {
 	t.Helper()
 	rules := readingLibraryContract(t)
-	handler, snap, _ := readingLibraryUnder(t, func() schema.Authority { return schema.CaptureAuthority(rules, rules.Governance()) })
+	handler, snap := readingLibraryUnder(t, func() schema.Authority { return schema.CaptureAuthority(rules, rules.Governance()) })
 	return handler, snap
 }
 
-// readingLibraryUnder is the same handler answering under the given authority,
-// and the name of the vault it holds, for what keeps marks of it.
-func readingLibraryUnder(t *testing.T, authority func() schema.Authority) (*note.Handler, *snapshot.Generation, string) {
+// readingLibraryUnder is the same handler answering under the given authority.
+func readingLibraryUnder(t *testing.T, authority func() schema.Authority) (*note.Handler, *snapshot.Generation) {
 	t.Helper()
 	rules := readingLibraryContract(t)
 	log := slog.New(slog.DiscardHandler)
@@ -81,7 +79,7 @@ func readingLibraryUnder(t *testing.T, authority func() schema.Authority) (*note
 	handler := note.New(&note.Sources{
 		Source: source, Contract: rules, Snapshot: store.Current, Bookmark: noMark, Log: log, Authority: authority,
 	})
-	return handler, store.Current().Capture(), source.Name()
+	return handler, store.Current().Capture()
 }
 
 // TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem holds that a bookmark
@@ -99,7 +97,7 @@ func TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem(t *testing.T) {
 		return schema.CaptureAuthority(nil, schema.Unreadable(errors.New("the rules file cannot be read")))
 	}
 
-	_, snap, _ := readingLibraryUnder(t, open)
+	_, snap := readingLibraryUnder(t, open)
 	courses := snap.Navigation().Paths()
 	if len(courses) == 0 {
 		t.Fatal("the example vault has no course")
@@ -117,7 +115,7 @@ func TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			handler, _, vaultName := readingLibraryUnder(t, tt.authority)
+			handler, _ := readingLibraryUnder(t, tt.authority)
 			if _, _, ok := handler.Units(course); ok != (tt.want == http.StatusOK) {
 				t.Errorf("Units(%q) ok = %v under %s", course, ok, name)
 			}
@@ -125,12 +123,11 @@ func TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem(t *testing.T) {
 				t.Errorf("Rows(%q) ok = %v under %s", course, ok, name)
 			}
 			configDir := t.TempDir()
-			marks, err := mark.Open(confdir.At(configDir), vaultName)
-			if err != nil {
-				t.Fatal(err)
-			}
+			// Neither route here keeps a mark, so nothing is written into the
+			// example vault the reader folder is opened over.
+			marks, kept := openKept(t, openReadingVault(t, readingLibraryRoot), configDir)
 			mux := http.NewServeMux()
-			mark.NewHandler(marks, handler, slog.New(slog.DiscardHandler)).Register(mux)
+			mark.NewHandler(marks, kept, handler, slog.New(slog.DiscardHandler)).Register(mux)
 
 			body := `{"course":` + jsonString(course) + `,"path":` + jsonString(unit) + `,"anchor":"","offset":0,"identity":"` + strings.Repeat("a", 64) + `"}`
 			for _, request := range []struct{ method, target, body string }{

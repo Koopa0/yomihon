@@ -36,11 +36,12 @@ const maxOpeningRunes = 120
 // Everything it shows is read from this generation and the reader's own marks,
 // so the page says on arrival what a second reading would find, without a script.
 func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Bookmark) (body string, title []pages.ThoughtLine) {
+	questionAddress, _ := h.questionAddress()
 	plan := &pages.SectionPlan{
 		Lang:     lang,
 		RelPath:  n.RelPath,
 		IDPrefix: idPrefix,
-		Marks:    h.sources.QuestionAddress != "",
+		Marks:    questionAddress != "",
 		Door:     door,
 		Sections: make(map[string]pages.SectionMargin),
 	}
@@ -78,13 +79,16 @@ func (h *Handler) marksIn(rel string) map[string]time.Time {
 	if h.sources.Questions == nil {
 		return nil
 	}
+	h.mend()
 	kept, err := h.sources.Questions()
 	if err != nil {
 		return nil
 	}
 	marked := make(map[string]time.Time)
 	for i := range kept {
-		if kept[i].RelPath == rel {
+		// A question about a passage is not a mark of a section; only the whole
+		// section's is what the margin's button makes and takes away.
+		if kept[i].RelPath == rel && kept[i].Quote == "" {
 			marked[kept[i].Anchor] = kept[i].At
 		}
 	}

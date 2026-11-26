@@ -141,7 +141,11 @@ type NoteView struct {
 	// the note is told it already holds their place and not asked to guess.
 	PlaceKept       bool
 	QuestionAddress string
-	ThoughtDoor     bool
+	// Writable is why the reader's folder in the vault cannot be written to: empty
+	// when it can, else "link", "not_a_folder" or "read_only". Where it is not
+	// empty the page offers no control that would write there.
+	Writable    string
+	ThoughtDoor bool
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch beside

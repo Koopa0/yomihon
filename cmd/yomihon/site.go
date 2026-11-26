@@ -43,6 +43,9 @@ type readingSite struct {
 	// nothing here and is wrong.
 	snapshots *snapshot.Store
 	source    *vault.Reader
+	// kept holds the reader folder open for the marks; it is let go before the
+	// vault is, and is nil where the process has nowhere to keep marks.
+	kept      *mark.Kept
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -156,6 +159,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	var questions func() ([]mark.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
+	var kept *mark.Kept
 	// The folder was compared with the configuration directory when it was
 	// mounted, and may have been put back, or a link to it changed, since. Its
 	// marks are named only for a folder apart from it, compared again now, and
@@ -171,10 +175,11 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		if approvalsErr != nil {
 			return nil, fmt.Errorf("name the figure approvals: %w", approvalsErr)
 		}
+		kept = mark.OpenKept(marks, source, log, mark.AllMarks)
 		keptPlace = bookmarkFrom(marks, log)
 		markAddress = mark.Paths.Bookmark
 		questionAddress = mark.Paths.Question
-		questions = func() ([]mark.Mark, error) { return marks.List(mark.Question) }
+		questions = kept.Questions
 		// Approvals are read, never written, by the reading server: only the
 		// approval command at a terminal writes them. A page and a frame ask
 		// on every request, so an approval or a revocation needs no restart.
@@ -225,12 +230,13 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		MarkAddress:     markAddress,
 		QuestionAddress: questionAddress,
 		Questions:       questions,
+		Kept:            kept,
 		FigureApproved:  figureApproved,
 		Log:             log,
 	})
 	readers.Register(mux)
 	if marks != nil {
-		mark.NewHandler(marks, readers, log).Register(mux)
+		mark.NewHandler(marks, kept, readers, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
@@ -251,6 +257,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		handler:   origin.LoopbackOnly(handler),
 		snapshots: store,
 		source:    source,
+		kept:      kept,
 		cancel:    cancel,
 	}
 	site.watchers.Go(func() { site.snapshots.Run(watchCtx) })
@@ -325,6 +332,9 @@ func (site *readingSite) close() error {
 		}
 		site.watchers.Wait()
 		site.requests.Wait()
+		if site.kept != nil {
+			site.closeErr = errors.Join(site.closeErr, site.kept.Close())
+		}
 		if site.source != nil {
 			site.closeErr = errors.Join(site.closeErr, site.source.Close())
 		}

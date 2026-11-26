@@ -18,6 +18,11 @@ import (
 // throw away what it holds: nothing is written until it can be read.
 var ErrOwnFileUnreadable = errors.New("this machine's file of marks cannot be read")
 
+// ErrLedgerUnreadable means the ledger, the local backup, cannot be read at
+// all. A line of it changed by another program is counted and the rest read;
+// this is a ledger that cannot be opened.
+var ErrLedgerUnreadable = errors.New("the ledger cannot be read")
+
 // view is everything a read found, before any of it is held back from anyone.
 type view struct {
 	st machine
@@ -74,7 +79,7 @@ func (v *view) live() int {
 func (m *Marks) load() (*view, error) {
 	events, changed, err := m.ledger.Events()
 	if err != nil {
-		return nil, fmt.Errorf("read the ledger: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
 	}
 	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*kept{}}
 	files, err := m.folder.ReadMachineFiles()

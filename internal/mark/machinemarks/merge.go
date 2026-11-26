@@ -158,3 +158,16 @@ func merge(ls []*kept) map[string]resolved {
 	}
 	return out
 }
+
+// coveredHead is the value of the mark that a page which had read base showed
+// it: the first value, in the order the reader is shown them, that base covers.
+// A base that covers none, such as one that read nothing, is the page of a reader
+// who has been shown no value in particular, and gets the one that counts.
+func (r resolved) coveredHead(base Seen) *kept {
+	for _, l := range r.heads {
+		if l.Rev <= base[l.Writer()] {
+			return l
+		}
+	}
+	return r.heads[0]
+}

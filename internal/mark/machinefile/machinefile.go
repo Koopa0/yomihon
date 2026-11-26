@@ -27,6 +27,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -37,6 +38,11 @@ import (
 // they are constants so that the guard can read, at each call that makes or
 // enters a folder, which one it is.
 const (
+	// readerFolder is spelled exactly: a folder that differs from it only in case
+	// is the same folder where the filesystem does not tell them apart, and the
+	// author's own where it does, which is never written in. The scan leaves out
+	// every spelling (internal/vault.ReaderFolder), so it never reads what is
+	// written here.
 	readerFolder  = "reader-notes"
 	yomihonFolder = ".yomihon"
 	marksFolder   = "marks"
@@ -57,6 +63,8 @@ const (
 	staleAfter = 10 * time.Minute
 	folderMode = 0o755
 	fileMode   = 0o644
+	// ownerWrite is the permission bit that lets the folder's owner write in it.
+	ownerWrite = 0o200
 	// renameAttempts and renameWait are how long a rename that failed for a
 	// reason that passes is tried again: on Windows a rename over a file
 	// someone has open to read is refused until they close it, and a reader of
@@ -76,6 +84,11 @@ const MaxFileBytes = 16 << 20
 // something other than a folder. A link is refused wherever it points: one that
 // pointed at a folder of notes would have the marks written among them.
 var ErrNotAFolder = errors.New("is a link or not a folder")
+
+// ErrLink is what is said besides ErrNotAFolder when the name is a link, so a
+// reader who is told why the folder cannot be used is told which of the two it
+// is.
+var ErrLink = errors.New("is a link")
 
 // ErrMoved means the vault's folder is no longer at the path it was pinned
 // from, so the path would open some other folder.
@@ -139,6 +152,37 @@ func (f *Folder) Close() error {
 		return nil
 	}
 	return f.vault.Close()
+}
+
+// ReadOnly says the deepest folder on the way to the machine file that exists,
+// the vault's own when none does yet, has no write permission for its owner. It
+// asks the folder's mode and writes nothing, makes nothing, and says nothing of
+// a mount, an access list or another account's folder that refuses a write: a
+// write that is refused for one of those fails when it is made, and the reader
+// is told then. A folder the way to which is a link, or not a folder, is the
+// error Open gives. On Windows a folder's read-only attribute does not stop
+// anything being written in it, so nothing there is read only.
+func (f *Folder) ReadOnly() (readOnly bool, err error) {
+	if f == nil || f.vault == nil {
+		return false, errors.New("ask the folder about writing: no folder")
+	}
+	d, err := f.enter()
+	defer func() { err = errors.Join(err, d.close()) }()
+	if err != nil {
+		return false, err
+	}
+	deepest := f.vault
+	for _, below := range []*os.Root{d.marks, d.yomihon, d.notes} {
+		if below != nil {
+			deepest = below
+			break
+		}
+	}
+	info, statErr := deepest.Stat(".")
+	if statErr != nil {
+		return false, fmt.Errorf("ask the folder about writing: %w", statErr)
+	}
+	return runtime.GOOS != "windows" && info.Mode().Perm()&ownerWrite == 0, nil
 }
 
 // Measurement is what one replacement took, for the write log. It holds no
@@ -489,7 +533,7 @@ func held(parent *os.Root, mkdir error) error {
 func entered(parent *os.Root, name string, opened *os.Root, openErr error) (*os.Root, error) {
 	if openErr != nil {
 		if info, err := parent.Lstat(name); err == nil && info.Mode().Type() != fs.ModeDir {
-			return nil, fmt.Errorf("%s %w", name, ErrNotAFolder)
+			return nil, notAFolder(name, info)
 		}
 		return nil, fmt.Errorf("open %s: %w", name, openErr)
 	}
@@ -502,9 +546,18 @@ func entered(parent *os.Root, name string, opened *os.Root, openErr error) (*os.
 		return nil, errors.Join(fmt.Errorf("open %s: %w", name, err), opened.Close())
 	}
 	if named.Mode().Type() != fs.ModeDir || !os.SameFile(named, here) {
-		return nil, errors.Join(fmt.Errorf("%s %w", name, ErrNotAFolder), opened.Close())
+		return nil, errors.Join(notAFolder(name, named), opened.Close())
 	}
 	return opened, nil
+}
+
+// notAFolder is the refusal for a name that is not a folder, and says which
+// kind of not a folder it is when it is a link.
+func notAFolder(name string, info fs.FileInfo) error {
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("%s %w: %w", name, ErrNotAFolder, ErrLink)
+	}
+	return fmt.Errorf("%s %w", name, ErrNotAFolder)
 }
 
 // close releases the folders that were entered.

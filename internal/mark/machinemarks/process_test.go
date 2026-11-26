@@ -68,7 +68,7 @@ func openMarks(root, conf string) (*Marks, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return Open(f, dir, slog.New(slog.DiscardHandler), Options{}), func() { _ = f.Close(); _ = r.Close() }, nil //nolint:errcheck // the process is ending
+	return Open(f, dir, slog.New(slog.DiscardHandler), Options{LockWait: crowded}), func() { _ = f.Close(); _ = r.Close() }, nil //nolint:errcheck // the process is ending
 }
 
 // killBodyOf is what the i-th write of a killed writer says, which the test can
@@ -450,4 +450,21 @@ func TestAWriterKilledDuringItsFirstWritesLeavesAVaultThatWrites(t *testing.T) {
 		t.Fatalf("none of %d kills landed after the id was made and before the folders were", kills)
 	}
 	t.Logf("%d of %d kills landed after the id was made and before the folders were", caught, kills)
+}
+
+// The wait for the lock is confdir.LockWait for everything but a test that asks
+// for more: what a reader's change waits for is not the tests' business.
+func TestTheLockWaitIsTheProductsUnlessAskedFor(t *testing.T) {
+	t.Parallel()
+	a := newClone(t, "A")
+	if a.m.lockWait != crowded {
+		t.Fatalf("a clone waits %v, want the tests' %v", a.m.lockWait, crowded)
+	}
+	f := a.m.folder
+	for _, wait := range []time.Duration{0, -1} {
+		m := Open(f, a.dir, slog.New(slog.DiscardHandler), Options{LockWait: wait})
+		if m.lockWait != confdir.LockWait {
+			t.Errorf("LockWait %v waits %v, want confdir.LockWait", wait, m.lockWait)
+		}
+	}
 }

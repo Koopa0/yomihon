@@ -172,7 +172,7 @@ jobs:
   # the machine file's, whose appends, renames, folder flushes and killed
   # writers behave differently there, then
   # drives its product-specific contract: the reading server answers every
-  # route and writes nothing into the vault.
+  # route and writes into the vault only under reader-notes/.yomihon/marks/.
   portable-core:
     strategy:
       fail-fast: false
@@ -201,22 +201,28 @@ jobs:
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
 
-      - name: Run the configuration directory's, the ledger's and the machine file's tests on Windows
+      - name: Run the configuration directory's, the ledger's, the machine file's and the marks routes' tests on Windows
         if: runner.os == 'Windows'
-        run: go test ./internal/mark/confdir ./internal/mark/ledger ./internal/mark/machinefile/... ./internal/mark/machinemarks/... -count=1 -v
+        run: go test ./internal/mark ./internal/mark/confdir ./internal/mark/ledger ./internal/mark/machinefile/... ./internal/mark/machinemarks/... -count=1 -v
 
-      # The contract test is asked for by name before it is run. A -run
+      - name: Run the reader folder's boundary tests on Windows
+        if: runner.os == 'Windows'
+        run: go test ./internal/vault -run 'TestReaderFolder' -count=1 -v
+
+      # The contract tests are asked for by name before they are run. A -run
       # pattern that matches nothing is not an error to Go and exits 0 without
       # testing anything, so a renamed test would quietly turn this step into a
-      # green no-op; the name here has to follow a rename.
-      - name: Drive the Windows reader over a vault it must not write
+      # green no-op; the names here have to follow a rename.
+      - name: Drive the Windows reader over a vault it may write only the marks folder of
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          listed=$(go test ./cmd/yomihon -list '^TestNoRouteWritesIntoTheVault$')
+          listed=$(go test ./cmd/yomihon -list '^(TestReadsWriteNothingInTheVault|TestNoRouteWritesIntoTheVaultOutsideTheMarksFolder)$')
           printf '%s\n' "$listed"
-          printf '%s\n' "$listed" | grep -qx TestNoRouteWritesIntoTheVault || { echo "TestNoRouteWritesIntoTheVault is not among the listed tests; this step would leave its contract unrun" >&2; exit 1; }
-          go test ./cmd/yomihon -run '^TestNoRouteWritesIntoTheVault$' -count=1
+          for name in TestReadsWriteNothingInTheVault TestNoRouteWritesIntoTheVaultOutsideTheMarksFolder; do
+            printf '%s\n' "$listed" | grep -qx "$name" || { echo "$name is not among the listed tests; this step would leave its contract unrun" >&2; exit 1; }
+          done
+          go test ./cmd/yomihon -run '^(TestReadsWriteNothingInTheVault|TestNoRouteWritesIntoTheVaultOutsideTheMarksFolder)$' -count=1
 
 
 

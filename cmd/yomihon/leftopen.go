@@ -35,9 +35,11 @@ import (
 // when the command that needs them is.
 //
 // It is the one command that is about the reader rather than the vault. It
-// reads the reader's marks files and writes nothing anywhere, except when it is
-// given --adopt, which writes the reader's own files for this folder under the
-// configuration directory and nothing else.
+// reads the reader's marks, which the vault's machine files hold, and writes
+// nothing anywhere, except when it is given --adopt, which writes the reader's
+// own files for this folder under the configuration directory and then takes
+// the earlier marks into this computer's machine file in the vault, and
+// nothing else.
 const (
 	openCommand = "marks"
 
@@ -264,10 +266,10 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted
 	if missing := openUnreadable(snap, allowed); missing != nil {
 		return egress.Payload{}, false, "", missing
 	}
-	if adopted, err = r.adoptEarlier(source.Name(), snap, allowed); err != nil {
+	if adopted, err = r.adoptEarlier(source, snap, allowed); err != nil {
 		return egress.Payload{}, false, "", err
 	}
-	kept, stored, err := r.marks(source.Name())
+	kept, stored, err := r.marks(source, source.Name())
 	if err != nil {
 		return egress.Payload{}, false, "", err
 	}
@@ -355,7 +357,8 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 // refused in the list: what another folder's marks say of ground this folder
 // withholds, or of notes it has not got, never becomes part of this folder's
 // output.
-func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, allowed func(string) bool) (adopted bool, err error) {
+func (r *openRequest) adoptEarlier(source *vault.Reader, snap *snapshot.Generation, allowed func(string) bool) (adopted bool, err error) {
+	vaultRoot := source.Name()
 	if r.adopt == "" {
 		return false, nil
 	}
@@ -376,6 +379,14 @@ func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, 
 		_, held := snap.Note(rel)
 		return held && allowed(rel)
 	})
+	if err == nil {
+		// What was adopted is in the earlier file of marks; the vault's own files
+		// are where the marks are read from, so they are taken in now, where the
+		// reader asked for the adoption, and not by whatever writes next.
+		reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
+		takeErr := reader.TakeIn()
+		err = errors.Join(takeErr, reader.Close())
+	}
 	switch {
 	case err == nil:
 		return true, nil
@@ -394,9 +405,10 @@ func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, 
 	}
 }
 
-// marks reads the reader's marked locations for this vault, never writing
-// the file. stored tells no marks file from one that holds none.
-func (r *openRequest) marks(vaultRoot string) (kept []mark.Mark, stored bool, err error) {
+// marks reads the reader's marked locations for this vault, never writing a
+// file: the vault's machine files are read, and nothing is made or taken in.
+// stored tells no marks from marks that were all taken away.
+func (r *openRequest) marks(source *vault.Reader, vaultRoot string) (kept []mark.Mark, stored bool, err error) {
 	if r.configDir.IsZero() {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return nil, false, fmt.Errorf(`no configuration directory, so the marks for this folder cannot be found: %s; nothing was listed`, reason)
@@ -405,10 +417,19 @@ func (r *openRequest) marks(vaultRoot string) (kept []mark.Mark, stored bool, er
 	if err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
-	if kept, err = store.List(mark.Question); err != nil {
+	reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil && err == nil {
+			kept, stored, err = nil, false, errOpenMarksUnreadable
+		}
+	}()
+	if kept, err = reader.Questions(); err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
-	return kept, store.Stored(), nil
+	if stored, err = reader.Held(); err != nil {
+		return nil, false, errOpenMarksUnreadable
+	}
+	return kept, stored, nil
 }
 
 // openEntry is one listed item: exactly one of its two fields is set.

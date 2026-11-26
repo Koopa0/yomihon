@@ -23,11 +23,15 @@ searched or rendered.
 structure, and no claim about a note's quality or whether it is finished, out of
 heading wording, list punctuation, or indentation. When it cannot determine a
 projection it keeps the prose, stops, and reports. It never guesses and never
-flattens, and it never writes into your vault: a note changes only where you
-edit it. Where a reader keeps a reading place, or marks a location "Not sure
-yet", that goes in a file of yomihon's own outside the vault. No command reads
-the bookmark; one command, `marks`, reads the marked locations, and only
-to list them.
+flattens, and it never edits a note of yours: a note changes only where you
+edit it. The one thing it writes in your vault is the reader's own marks (a
+highlight, a thought, a location marked "Not sure yet"), one file for each
+computer under `reader-notes/.yomihon/marks/`; those are the reader's words, not
+notes, and the scan never lists them. Where a reader keeps a reading place goes
+in a file of yomihon's own outside the vault. No command reads the bookmark; one
+command, `marks`, reads the marked locations, and only to list them. Do not run
+`git stash`, `git clean` or `git reset --hard` over `reader-notes/` without
+committing it first: they remove marks, and the marks are the reader's words.
 
 Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
 to ask; this page's probe is how you find out what the one you have can see.

@@ -74,6 +74,9 @@ type Sources struct {
 	// keep something that has nowhere to go.
 	MarkAddress     string
 	QuestionAddress string
+	// Kept is where the reader's highlights, thoughts and questions are kept, in
+	// the vault. Nil means this process has nowhere to keep any.
+	Kept *mark.Kept
 	// FigureApproved reports whether the owner approved a figure's exact
 	// bytes to run their inline scripts. Nil means this process keeps no
 	// approvals, and every figure is served without script.
@@ -471,6 +474,7 @@ func (h *Handler) reading(
 		heldHere = &kept
 	}
 	door := snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel)
+	questionAddress, writable := h.questionAddress()
 	var titleThoughts []pages.ThoughtLine
 	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere)
 
@@ -524,7 +528,8 @@ func (h *Handler) reading(
 		MarkAddress:       h.sources.MarkAddress,
 		VaultID:           h.vaultID,
 		PlaceKept:         marked && kept.RelPath == n.RelPath,
-		QuestionAddress:   h.sources.QuestionAddress,
+		QuestionAddress:   questionAddress,
+		Writable:          writable,
 		ThoughtDoor:       door,
 		TitleThoughts:     titleThoughts,
 		// The identity above covers the note's own bytes; what the render

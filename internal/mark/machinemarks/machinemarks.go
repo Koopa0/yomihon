@@ -62,5 +62,6 @@
 // there. A line is held to the shape the file of marks before this one held a
 // mark to, on the way in and on the way out.
 //
-// Nothing here is called by a route yet.
+// The routes of package mark call it: it is what keeps the reader's marks, and
+// nothing else in the process writes them into the vault.
 package machinemarks

@@ -5,11 +5,39 @@ import (
 	"strings"
 )
 
+// ReaderFolder is the folder at the top of a vault that is the reader's own
+// and not the author's: the one place yomihon writes, and then only the
+// machine file of its marks inside .yomihon/marks. Its name is not
+// configurable. No scan looks inside it, whatever the vault's rules file says
+// and whether or not it has one, so nothing in it is indexed, listed, served
+// or reported missing, the reader's own Markdown in it included: yomihon does
+// not read, list or write anything there but its machine files, and those are
+// read by the code that owns them, not by the scan.
+const ReaderFolder = "reader-notes"
+
+// readerFolder says the directory at canonicalDir, a canonical vault-relative
+// path, is the reader folder. A name that differs from ReaderFolder only in
+// case is it too: on a filesystem that does not tell the two spellings apart
+// they are one folder, and a scan that read one of them would read the other.
+//
+// The write side spells the name exactly, as ReaderFolder, and the two are not
+// made the same on purpose: the scan errs toward reading less and the writer
+// toward writing less. On a filesystem that does not tell the spellings apart a
+// folder spelled "Reader-Notes" is the one yomihon writes in, and the scan must
+// not read it. On one that does, "Reader-Notes" is the author's own folder, which
+// yomihon never writes in, and which the scan also leaves alone, at the cost of
+// notes the author keeps there not being indexed; the other choices would either
+// read the folder that is written or write into a folder that is the author's.
+func readerFolder(canonicalDir string) bool {
+	return strings.EqualFold(canonicalDir, ReaderFolder)
+}
+
 // Boundary is the part of the scan's reach a vault's own contract decides: the
 // directories it keeps out of the scan on top of the dot-prefixed names every
-// scan skips. A directory the boundary excludes is treated exactly as a hidden
-// one is — never read, so nothing indexed, listed, served, or reported
-// missing beneath it. The zero Boundary excludes nothing.
+// scan skips and the reader folder. A directory the boundary excludes is
+// treated exactly as a hidden one is — never read, so nothing indexed, listed,
+// served, or reported missing beneath it. The zero Boundary excludes the
+// reader folder and nothing else.
 //
 // A Boundary is immutable; the patterns are validated by whoever read them
 // from the contract.
@@ -35,6 +63,9 @@ func NewBoundary(patterns []string) Boundary {
 // excludes reports whether the directory at canonicalDir, a canonical
 // vault-relative path, is one the boundary keeps out of the scan.
 func (b Boundary) excludes(canonicalDir string) bool {
+	if readerFolder(canonicalDir) {
+		return true
+	}
 	for _, pattern := range b.excludeDirs {
 		// A pattern that fails to parse matches nothing, so a boundary built
 		// from unvalidated patterns degrades to excluding less, never more.

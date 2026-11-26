@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark"
-	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -67,28 +66,24 @@ func sectionContract(t *testing.T) *schema.Contract {
 // readerSession is the server a reader has open over the vault and the marks
 // file beside it. A second session over the same two is the reader coming back
 // another day: nothing is carried in memory from the first.
-func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, kept func() (mark.Bookmark, bool)) (mux http.Handler, marks *mark.Store) {
+func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, bookmark func() (mark.Bookmark, bool)) (mux http.Handler, kept *mark.Kept) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	var err error
-	marks, err = mark.Open(confdir.At(configDir), source.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kept == nil {
-		kept = noMark
+	marks, kept := openKept(t, source, configDir)
+	if bookmark == nil {
+		bookmark = noMark
 	}
 	handler := note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current,
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
-		Bookmark:  kept, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+		Bookmark:  bookmark, Questions: kept.Questions, Kept: kept,
 		QuestionAddress: mark.Paths.Question, Log: log,
 	})
 	routes := http.NewServeMux()
 	handler.Register(routes)
-	mark.NewHandler(marks, handler, log).Register(routes)
-	return routes, marks
+	mark.NewHandler(marks, kept, handler, log).Register(routes)
+	return routes, kept
 }
 
 func serve(t *testing.T, mux http.Handler, method, target, form string) *httptest.ResponseRecorder {
@@ -128,8 +123,8 @@ func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *test
 		t.Fatalf("marking the section: status %d, body %s", recorded.Code, recorded.Body.String())
 	}
 
-	nextDay, marks := readerSession(t, root, contract, configDir, nil)
-	held, err := marks.List(mark.Question)
+	nextDay, kept := readerSession(t, root, contract, configDir, nil)
+	held, err := kept.Questions()
 	if err != nil || len(held) != 1 {
 		t.Fatalf("the marks the second session reads = %v, %v; want the one the first kept", held, err)
 	}

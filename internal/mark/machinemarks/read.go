@@ -2,8 +2,10 @@ package machinemarks
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Gate says whether a mark may be given to whoever asked: the privacy rules the
@@ -124,3 +126,49 @@ func (v *View) LedgerChanged() int { return v.v.ledgerChanged }
 // writing under its old one, and the reader has not been told. NoticeNewID
 // records that they were.
 func (v *View) NewIDUnsaid() bool { return v.v.st.unsaid }
+
+// OwnBytes is the length of this machine's own file in the vault, 0 where there
+// is none or it could not be read.
+func (v *View) OwnBytes() int { return len(v.v.ownDisk) }
+
+// Live is how many marks of every machine are not deleted, which is what the
+// limit counts.
+func (v *View) Live() int { return v.v.live() }
+
+// AwaitsTakeIn says the marks of the earlier file have not been taken in yet:
+// this machine has no file of marks and no conversion in its ledger, so its next
+// write takes them in. Until then they are in the earlier file only, and a page
+// that listed only what a read finds would not show them.
+func (v *View) AwaitsTakeIn() bool { return !v.v.st.converted && !v.v.ownFound }
+
+// LegacyView is the view of a vault whose reader folder cannot be entered: it
+// holds no mark, and says the earlier file is not taken in, so that what a page
+// lists from the earlier file, which a read never changes, is still shown.
+func LegacyView() *View {
+	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*kept{}, ids: map[string]bool{}}}
+}
+
+// SetAside is the values of this machine's own that a change replaced although
+// they were live and the change was not made on them: the value that two
+// computers each changed and the page was not shown, which the newer line of
+// this machine replaces by the rule that a writer's newer line always replaces
+// its older. They are kept whole in the ledger, in the order they were set
+// aside, so that nothing is lost; the page shows only the newest live value.
+func (m *Marks) SetAside() ([]Value, error) {
+	events, _, err := m.ledger.Events()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
+	}
+	var out []Value
+	for i := range events {
+		if events[i].Kind != kindSetAside {
+			continue
+		}
+		l, verdict := decode(events[i].Content)
+		if verdict != readable {
+			continue
+		}
+		out = append(out, Value{Mark: l.Mark, Writer: l.Writer(), Rev: l.Rev, Time: time.UnixMilli(l.T), Own: true})
+	}
+	return out, nil
+}

@@ -31,7 +31,7 @@
 // notes by date. Its writes go through confdir, under a lock of its own,
 // ledger.lock, so two processes on one vault, or two goroutines of one, append
 // and compact one at a time; a caller that holds the lock of what it writes
-// into the vault takes that one first. No route calls it yet.
+// into the vault takes that one first. The marks of internal/mark call it.
 package ledger
 
 import (
@@ -174,6 +174,18 @@ func Open(dir confdir.Dir, log *slog.Logger) *Ledger {
 		panic("ledger: Open with no log")
 	}
 	return &Ledger{dir: dir, log: log, compactAt: compactAt, lockWait: confdir.LockWait}
+}
+
+// OpenWaiting is Open for a caller that waits for the ledger's lock for wait
+// and not for confdir.LockWait: a test that crowds the lock on purpose and asks
+// whether anything is lost, not how fast the lock comes free. A wait of zero or
+// less is confdir.LockWait.
+func OpenWaiting(dir confdir.Dir, log *slog.Logger, wait time.Duration) *Ledger {
+	l := Open(dir, log)
+	if wait > 0 {
+		l.lockWait = wait
+	}
+	return l
 }
 
 // Record appends e as the next line and syncs it, and answers the seq it took.
