@@ -176,6 +176,18 @@ func Open(dir confdir.Dir, log *slog.Logger) *Ledger {
 	return &Ledger{dir: dir, log: log, compactAt: compactAt, lockWait: confdir.LockWait}
 }
 
+// OpenWaiting is Open for a caller that waits for the ledger's lock for wait
+// and not for confdir.LockWait: a test that crowds the lock on purpose and asks
+// whether anything is lost, not how fast the lock comes free. A wait of zero or
+// less is confdir.LockWait.
+func OpenWaiting(dir confdir.Dir, log *slog.Logger, wait time.Duration) *Ledger {
+	l := Open(dir, log)
+	if wait > 0 {
+		l.lockWait = wait
+	}
+	return l
+}
+
 // Record appends e as the next line and syncs it, and answers the seq it took.
 // It sets e's Seq and Time, and keeps a copy of Content. Nil means the line is on stable storage: it is the
 // commit. An error means the line may be in the ledger whole, in part, or not

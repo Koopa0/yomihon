@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"time"
 
@@ -449,6 +450,13 @@ func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fa
 	if view, err := h.kept.View(); err == nil {
 		if entry, ok := view.Entry(fallback.ID, h.kept.gate); ok {
 			shown := entry.Mark()
+			// What the page has read is what it is shown: the value that counts is
+			// covered, so that the next change is built on it, and no value that is
+			// not shown is.
+			if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
+				seen = maps.Clone(seen)
+				seen[top.Writer] = top.Rev
+			}
 			h.send(w, r, status, &shown, seen, lang)
 			return
 		}

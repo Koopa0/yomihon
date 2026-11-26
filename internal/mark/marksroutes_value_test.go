@@ -316,3 +316,110 @@ func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) 
 		})
 	}
 }
+
+// mkSetAside is the words of the values this computer's ledger holds aside.
+func (r *mkRig) mkSetAside() []string {
+	r.t.Helper()
+	marks, err := r.kept.Marks()
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	values, err := marks.SetAside()
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	var words []string
+	for i := range values {
+		words = append(words, values[i].Mark.Body)
+	}
+	return words
+}
+
+// mkRead is a GET of a mark: what a page that reads it has read, which is the
+// newest line of every writer.
+func (r *mkRig) mkRead(id string) mkAnswer {
+	r.t.Helper()
+	response := r.do(http.MethodGet, "/mark/"+id, "")
+	mkStatus(r.t, response, http.StatusOK)
+	return mkDecode[mkAnswer](r.t, response)
+}
+
+// A mark is in conflict: this computer's own "X2 from A" and B's newer "Y from
+// B", and the reader is shown only Y. A page that read it says it read both, and
+// a resolve sent from it is built on Y, as it should. The new line of this
+// computer replaces its older one by the rule that a writer's newer line always
+// does, and "X2 from A" would then be in no file: it is set aside in the ledger
+// first, durably, so it is recoverable, and the answer is still 200.
+func TestMkAResolveFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
+	t.Parallel()
+	a, id, _ := mkDiverged(t)
+	page := a.mkRead(id)
+	if page.Body != "Y from B" {
+		t.Fatalf("the page is shown %q, want B's newer value", page.Body)
+	}
+
+	response := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, page.Seen)+`,"resolved":true}`)
+	mkStatus(t, response, http.StatusOK)
+
+	if a.mkHolds("X2 from A") {
+		t.Fatal("the test did not reach the case: this computer's file still holds the hidden value")
+	}
+	if got := a.mkSetAside(); !slices.Contains(got, "X2 from A") {
+		t.Errorf("the values set aside are %q, want this computer's hidden value among them", got)
+	}
+	if got := mkDecode[mkAnswer](t, response); got.Body != "Y from B" {
+		t.Errorf("the answer shows %q, want what the reader is shown: %q", got.Body, "Y from B")
+	}
+}
+
+// The same for a delete from a page that read the conflict.
+func TestMkADeleteFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
+	t.Parallel()
+	a, id, _ := mkDiverged(t)
+	page := a.mkRead(id)
+
+	mkStatus(t, a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+mkSeenJSON(t, page.Seen)+`}`), http.StatusOK)
+
+	if a.mkHolds("X2 from A", `"deleted":false`) || a.mkHolds("X2 from A", `"rev":2`) {
+		t.Fatal("the test did not reach the case: this computer's file still holds the hidden value")
+	}
+	if got := a.mkSetAside(); !slices.Contains(got, "X2 from A") {
+		t.Errorf("the values set aside are %q, want this computer's hidden value among them", got)
+	}
+}
+
+// An ordinary change of a mark that is not in conflict sets nothing aside: the
+// value replaced is the one the page was built on.
+func TestMkAnOrdinaryChangeSetsNothingAside(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	first := r.mkThought("first")
+	second := r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, first.Seen)+`,"body":"second"}`)
+	mkStatus(t, second, http.StatusOK)
+	next := mkDecode[mkAnswer](t, second)
+	mkStatus(t, r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, next.Seen)+`,"body":"third"}`), http.StatusOK)
+	mkStatus(t, r.do(http.MethodDelete, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, r.mkRead(first.ID).Seen)+`}`), http.StatusOK)
+	if got := r.mkSetAside(); len(got) != 0 {
+		t.Errorf("the values set aside are %q, want none", got)
+	}
+}
+
+// The answer to a change carries the seen of the value it shows, so that the
+// next change of the page is built on what the page is shown: after a delete
+// that leaves B's value as the one the reader has, a change of those words is
+// made on them, and not refused as a change of a deleted mark.
+func TestMkTheAnswerToAChangeCarriesTheSeenOfTheValueItShows(t *testing.T) {
+	t.Parallel()
+	a, id, seen := mkDiverged(t)
+	deleted := a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+seen+`}`)
+	mkStatus(t, deleted, http.StatusOK)
+	shown := mkDecode[mkAnswer](t, deleted)
+	if shown.Body != "Y from B" || shown.Deleted {
+		t.Fatalf("the answer shows %q deleted=%v, want B's live value", shown.Body, shown.Deleted)
+	}
+	next := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, shown.Seen)+`,"body":"Y, changed by the reader"}`)
+	mkStatus(t, next, http.StatusOK)
+	if got := a.mkRead(id); got.Body != "Y, changed by the reader" || got.Deleted {
+		t.Errorf("the mark reads %q deleted=%v, want the words the reader changed", got.Body, got.Deleted)
+	}
+}

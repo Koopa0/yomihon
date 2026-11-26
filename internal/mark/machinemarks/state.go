@@ -30,6 +30,12 @@ const (
 	// kindReplaced holds the bytes of this machine's file that a write was about
 	// to replace and that were not what this machine last wrote.
 	kindReplaced = "marks-replaced"
+	// kindSetAside holds one line of this machine's own that a change replaced
+	// while it held a live value that neither the change nor the page it was made
+	// on had: whole, as it was written, recorded before the change that replaces
+	// it. The ledger does not read it as a mark's line, so it is never a value of
+	// the mark, and a compaction keeps every line of a kind it does not read.
+	kindSetAside = "mark-set-aside"
 )
 
 // machine is what the ledger says of this machine: who it is, and which

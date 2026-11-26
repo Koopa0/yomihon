@@ -89,6 +89,11 @@ type Options struct {
 	Legacy func() ([]Mark, error)
 	// Now is the time, for tests. Nil is the clock.
 	Now func() time.Time
+	// LockWait is how long a change waits for the vault's lock, and the ledger
+	// for its own. Zero is confdir.LockWait, which is what every caller but a
+	// test that crowds the lock on purpose uses: such a test asks whether
+	// anything is lost, and not how fast the lock comes free.
+	LockWait time.Duration
 }
 
 // Marks is this machine's hand on the marks of one vault: every read and every
@@ -99,6 +104,8 @@ type Marks struct {
 	dir    confdir.Dir
 	ledger *ledger.Ledger
 	opts   Options
+	// lockWait is how long a change waits for the vault's lock.
+	lockWait time.Duration
 	// maxLive and maxLines are MaxLive and MaxLines; a test sets them lower.
 	maxLive, maxLines int
 
@@ -118,7 +125,11 @@ func Open(folder *machinefile.Folder, dir confdir.Dir, log *slog.Logger, opts Op
 	if folder == nil {
 		panic("machinemarks: Open with no folder")
 	}
-	return &Marks{folder: folder, dir: dir, ledger: ledger.Open(dir, log), opts: opts, maxLive: MaxLive, maxLines: MaxLines}
+	wait := opts.LockWait
+	if wait <= 0 {
+		wait = confdir.LockWait
+	}
+	return &Marks{folder: folder, dir: dir, ledger: ledger.OpenWaiting(dir, log, wait), opts: opts, lockWait: wait, maxLive: MaxLive, maxLines: MaxLines}
 }
 
 func (m *Marks) now() time.Time {
@@ -287,7 +298,7 @@ func (m *Marks) NoticeNewID() error {
 	if said, err := m.said(); err != nil || said {
 		return err
 	}
-	return confdir.Exclusive(m.dir, lockName, confdir.LockWait, func() error {
+	return confdir.Exclusive(m.dir, lockName, m.lockWait, func() error {
 		if said, err := m.said(); err != nil || said {
 			return err
 		}
@@ -351,7 +362,7 @@ func (m *Marks) run(takeIn bool, plan func(*view) (*proposal, error)) (Result, e
 	defer m.mu.Unlock()
 	start := time.Now()
 	var res Result
-	err := confdir.Exclusive(m.dir, lockName, confdir.LockWait, func() error {
+	err := confdir.Exclusive(m.dir, lockName, m.lockWait, func() error {
 		res.LockWait = time.Since(start)
 		return m.locked(takeIn, plan, &res)
 	})
@@ -577,7 +588,7 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 	if p.grows && v.live() >= m.maxLive {
 		return fmt.Errorf("%w: %d marks are kept", ErrLimit, v.live())
 	}
-	if err := m.keep(v, line, record); err != nil {
+	if err := m.keep(v, line, setAside(v, p, line), record); err != nil {
 		return err
 	}
 	measured, err := m.folder.ReplaceMachineFile(v.st.id, data)
@@ -591,9 +602,44 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 	return nil
 }
 
+// setAside is the lines of this machine's own that line replaces and that held a
+// live value which neither line nor the value the page built on is: the case of a
+// mark that two computers changed, of which the reader is shown the newest, when
+// a page that read it changes that one. By the rule that a writer's newer line
+// always replaces its older, the older would be in no file and no ledger.
+func setAside(v *view, p *proposal, line *kept) []*kept {
+	if line == nil {
+		return nil
+	}
+	id := p.mark.ID
+	r, shown := v.byMark[id]
+	if !shown {
+		return nil
+	}
+	built := r.coveredHead(p.base).Mark
+	var out []*kept
+	for _, ol := range v.own[id] {
+		if !replaces(&line.Line, &ol.Line) || ol.Mark.Deleted {
+			continue
+		}
+		if !sameValue(&ol.Mark, &line.Mark) && !sameValue(&ol.Mark, &built) {
+			out = append(out, ol)
+		}
+	}
+	return out
+}
+
+// sameValue says two marks of one id say the same: the words, the resolution,
+// the deletion and the place.
+func sameValue(a, b *Mark) bool {
+	return a.Body == b.Body && a.Resolved.Equal(b.Resolved) && a.Deleted == b.Deleted &&
+		a.Kind == b.Kind && a.Path == b.Path && a.Anchor == b.Anchor && a.Quote == b.Quote &&
+		a.Before == b.Before && a.After == b.After
+}
+
 // keep records in the ledger what is to be kept before the file is replaced:
 // the file as it is when it is not what this machine last wrote, then the line.
-func (m *Marks) keep(v *view, line *kept, record func(*ledger.Event) error) error {
+func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Event) error) error {
 	if !v.held() && len(v.ownDisk) > 0 {
 		// What is in the vault is not what this machine last wrote. It is about
 		// to be replaced, so it is kept first, whole.
@@ -603,6 +649,15 @@ func (m *Marks) keep(v *view, line *kept, record func(*ledger.Event) error) erro
 		})
 		if err != nil {
 			return fmt.Errorf("keep the file about to be replaced: %w", err)
+		}
+	}
+	// Each line the new one replaces that held a value nobody was shown is kept
+	// whole before the line that replaces it, which is the commit point: a kill
+	// between the two leaves the value kept twice at worst, never not at all.
+	for _, ol := range aside {
+		err := record(&ledger.Event{Kind: kindSetAside, Writer: ol.Writer(), Session: m.currentSession(), Content: ol.raw})
+		if err != nil {
+			return fmt.Errorf("set a value aside: %w", err)
 		}
 	}
 	if line != nil {
