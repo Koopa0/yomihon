@@ -120,6 +120,10 @@ type Ledger struct {
 	dir       confdir.Dir
 	log       *slog.Logger
 	compactAt int64
+	// lockWait is how long a change waits for another holder of the ledger's
+	// lock: confdir.LockWait, and longer only in a test that crowds the lock on
+	// purpose and asks whether anything was lost rather than how fast.
+	lockWait time.Duration
 
 	// mu orders this process's goroutines, and keeps read the file as last read
 	// while one of them appends or compacts under the lock of the file.
@@ -169,7 +173,7 @@ func Open(dir confdir.Dir, log *slog.Logger) *Ledger {
 	if log == nil {
 		panic("ledger: Open with no log")
 	}
-	return &Ledger{dir: dir, log: log, compactAt: compactAt}
+	return &Ledger{dir: dir, log: log, compactAt: compactAt, lockWait: confdir.LockWait}
 }
 
 // Record appends e as the next line and syncs it, and answers the seq it took.
@@ -329,7 +333,7 @@ func (e *Event) check() error {
 // every compaction is made under this lock, so none of them is one still
 // running.
 func (l *Ledger) exclusive(change func() error) error {
-	return confdir.Exclusive(l.dir, lockName, confdir.LockWait, func() error {
+	return confdir.Exclusive(l.dir, lockName, l.lockWait, func() error {
 		if !l.cleared {
 			if err := confdir.RemoveLeftovers(l.dir, fileName); err != nil {
 				l.log.Warn("remove what a stopped compaction of the ledger left", "err", err)
