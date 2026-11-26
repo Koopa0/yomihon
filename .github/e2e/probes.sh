@@ -51,6 +51,7 @@ probes=(
   "tables-plates.mjs|/notes/Notes/tables-plates.md"
   "prose-type.mjs|/notes/Notes/prose-type.md"
   "note-end.mjs|/notes/Notes/prose-type.md"
+  "note-edges.mjs|/notes/Notes/out-of-contract.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
   "rail-filter-state.mjs|/notes/Course/C02.md"

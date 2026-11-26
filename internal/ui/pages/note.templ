@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -31,6 +30,9 @@ type NoteView struct {
 	// Draft is whether the note declares itself unfinished, which the head
 	// says in one quiet word and nothing else on the page acts on.
 	Draft bool
+	// Kind is what the note is to the vault besides a note, which the head
+	// says beside its draft. The colophon's type and path already say it.
+	Kind NoteKind
 	// ObsidianHref is the obsidian://open URI for this note, already built
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
@@ -153,7 +155,7 @@ type NoteView struct {
 	// SchemaNotices is what the schema said about this note's frontmatter, one
 	// sentence per fault, already in the reader's language and already split
 	// into the words and the note's own text they sit around.
-	SchemaNotices [][]wording.SchemaPart
+	SchemaNotices []SchemaNotice
 
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the concept sheet.
@@ -203,8 +205,6 @@ templ Note(v NoteView, c layouts.Chrome) {
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { questionAttrs(&v, lang)... }>
 		@articleHead(v, lang)
-		@frontmatterUnclosedNotice(v, lang)
-		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
 		@layouts.CodeCopy(lang)
 		<div class="y-prose" data-section-numbers?={ v.numbersSections() }>
@@ -270,11 +270,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 		} else {
 			@noteTitle(v)
 		}
-		if v.ParsePanic {
-			<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
-		} else if v.Stale {
-			<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
-		}
+		@headNotes(v, lang)
 		@noteTools(v, lang)
 		if v.carriesRibbon() {
 			@bookmarkRibbon()
@@ -302,11 +298,13 @@ templ bookmarkRibbon() {
 }
 
 // noteWhere is the row above the title that says where the note is: the vault,
-// then the folders it lies in or the course a unit belongs to, each a link. A
-// draft says so at its end. A note on a page holding two notes has no place to name, the page
-// naming each column, but still says it is a draft.
+// then the folders it lies in or the course a unit belongs to, each a link. What
+// the note is besides a note, an index, a course or a report, and that it is a
+// draft, are said at its end. A note on a page holding two notes has no place
+// to name, the page naming each column, but still says what it is.
 templ noteWhere(v NoteView, lang wording.Lang) {
-	if v.Draft || (!v.NestedTitle && v.whereShown()) {
+	{{ standings := v.standings(lang) }}
+	if len(standings) > 0 || (!v.NestedTitle && v.whereShown()) {
 		<p class="y-notewhere" lang={ lang.Tag() }>
 			if v.NestedTitle {
 				// The page names the column's note itself.
@@ -328,13 +326,26 @@ templ noteWhere(v NoteView, lang wording.Lang) {
 					}
 				}
 			}
-			if v.Draft {
-				<span class="y-notewhere__draft" data-note-draft>
-					@layouts.Icon(schema.DraftField)
-					{ wording.Draft.In(lang) }
-				</span>
+			for _, st := range standings {
+				@standingMark(st)
 			}
 		</p>
+	}
+}
+
+// standingMark is one word the note's head ends on: the pictogram the
+// interface draws that kind with, then the word.
+templ standingMark(st standing) {
+	if st.Draft {
+		<span class="y-notewhere__draft" data-note-draft>
+			@layouts.Icon(st.Icon)
+			{ st.Word }
+		</span>
+	} else {
+		<span class="y-notewhere__kind" data-note-kind>
+			@layouts.Icon(st.Icon)
+			{ st.Word }
+		</span>
 	}
 }
 
@@ -760,34 +771,68 @@ templ relatedAids(v NoteView, lang wording.Lang) {
 	}
 }
 
-// schemaNotices states what the schema made of this note's frontmatter, each
-// sentence naming its own field. It lives in the reading column rather than the rail so the notice stays
-// visible at every width; the rail is hidden on narrow viewports and dropped
-// when a note has no reading aids.
-templ schemaNotices(v NoteView, lang wording.Lang) {
-	if len(v.SchemaNotices) > 0 {
-		<div lang={ lang.Tag() }>
+// headNotes is what the page says about the file rather than reads from it,
+// under the title and above the double rule that opens the text: that the
+// words below are a reading kept from before, that a frontmatter fence never
+// closes, and what the schema made of the frontmatter. Each is one sentence led
+// by the hollow warning triangle in the diagnostics' ochre, in the interface's
+// small face, with no box and no tint: the note still reads in full below it,
+// so nothing here is an alarm, and it stays where the reader arrives, at every
+// width, until the file says otherwise.
+//
+// A field whose values the rules list folds that list under its sentence,
+// closed, so a type the rules do not know is one line in the head and the
+// vocabulary is one press away.
+//
+// The unclosed fence is said whatever the vault governs, because the fact does
+// not depend on a contract: the keys below it are shown as the prose they were
+// read as, and without this nothing on the page says they were meant to be
+// fields.
+templ headNotes(v NoteView, lang wording.Lang) {
+	if v.headNoted() {
+		<div class="y-headnotes" lang={ lang.Tag() }>
+			if v.ParsePanic {
+				@headNote(templ.Attributes{"data-note-stale": true}) {
+					{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code>
+				}
+			} else if v.Stale {
+				@headNote(templ.Attributes{"data-note-stale": true}) {
+					{ wording.NoteStale.In(lang) }
+				}
+			}
+			if v.FrontmatterUnclosed {
+				@headNote(templ.Attributes{"data-frontmatter-unclosed": true}) {
+					{ wording.FrontmatterNeverCloses.In(lang) }
+				}
+			}
 			for _, notice := range v.SchemaNotices {
-				<p class="y-statuspanel__notice y-statusflag">
-					@schemaParts(notice)
-				</p>
+				@headNote(templ.Attributes{"data-schema-notice": true}) {
+					@schemaParts(notice.Says)
+				}
+				if notice.Known != nil {
+					<details class="y-headnote__known">
+						<summary>
+							@schemaParts(wording.AllowedEnumHeading(lang, notice.Field))
+							@chevron()
+						</summary>
+						<p>
+							@schemaParts(wording.AllowedEnumList(lang, notice.Known))
+						</p>
+					</details>
+				}
 			}
 		</div>
 	}
 }
 
-// frontmatterUnclosedNotice states that this note opened a frontmatter fence
-// that never closes. It sits above the article whatever the vault governs,
-// because the fact does not depend on a contract: the keys below it are shown as
-// the prose they were read as, and without this nothing on the page says they
-// were meant to be fields. It is its own block rather than a schema notice
-// because the schema's verdict is absent from a vault with no contract.
-templ frontmatterUnclosedNotice(v NoteView, lang wording.Lang) {
-	if v.FrontmatterUnclosed {
-		<div lang={ lang.Tag() }>
-			<p class="y-statuspanel__notice y-statusflag">{ wording.FrontmatterNeverCloses.In(lang) }</p>
-		</div>
-	}
+// headNote is one of the head's notes: the triangle, then the sentence.
+templ headNote(attrs templ.Attributes) {
+	<p class="y-headnote" { attrs... }>
+		@layouts.Icon("warning")
+		<span>
+			{ children... }
+		</span>
+	</p>
 }
 
 // fragmentSplit states how a link that named a section was read, for a link

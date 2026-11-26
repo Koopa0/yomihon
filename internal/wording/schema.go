@@ -189,6 +189,40 @@ func AllowedEnumValues(lang Lang, field string, values []string) []SchemaPart {
 	return append(parts, SchemaPart{Text: schemaAllowedEnd.In(lang)})
 }
 
+// AllowedEnumHeading names a field's declared vocabulary without listing it:
+// the words that open AllowedEnumValues, without the space before them or the
+// colon after them, so they can stand as the heading of a list folded under a
+// sentence. The words are the sentence's own, so the folded list and the
+// sentence the health page prints cannot come to call the vocabulary two
+// different things.
+func AllowedEnumHeading(lang Lang, field string) []SchemaPart {
+	return []SchemaPart{
+		{Text: strings.TrimLeft(schemaAllowedStart.In(lang), " ")},
+		{Text: field, Code: true},
+		{Text: strings.TrimRight(schemaAllowedMiddle.In(lang), "：: ")},
+	}
+}
+
+// AllowedEnumList is the vocabulary AllowedEnumHeading names, each value as the
+// contract spells it, separated as the reader's language separates a list. A
+// declared empty vocabulary says it has none; an absent one says nothing.
+func AllowedEnumList(lang Lang, values []string) []SchemaPart {
+	if values == nil {
+		return nil
+	}
+	if len(values) == 0 {
+		return []SchemaPart{{Text: schemaAllowedNone.In(lang)}}
+	}
+	parts := make([]SchemaPart, 0, 2*len(values)-1)
+	for i, value := range values {
+		if i > 0 {
+			parts = append(parts, SchemaPart{Text: schemaAllowedSeparator.In(lang)})
+		}
+		parts = append(parts, SchemaPart{Text: value, Code: true})
+	}
+	return parts
+}
+
 var (
 	schemaAllowedSeparator = both("、", ", ")
 	schemaAllowedStart     = both(" 允許的 ", " Allowed ")

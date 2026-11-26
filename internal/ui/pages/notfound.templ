@@ -29,9 +29,11 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c)
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="notfound-title">
-					// A file that exists and could not be read is a fault and
-					// takes the fault colour; an address that names nothing is
-					// an absence and stays quiet.
+					// A file that exists and could not be read is a fault, and its
+					// word above the title takes the diagnostics' ochre; an address
+					// that names nothing is an absence and stays quiet. Neither is an
+					// alarm: both are the same column, the same title and the same
+					// ways out.
 					if v.Unreadable && v.ParsePanic {
 						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.ParseFailedKicker.In(c.Lang), Title: wording.ParseFailedTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
 							<p>{ wording.ParseFailedLede.In(c.Lang) }</p>
@@ -52,16 +54,27 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 							<pre><code>{ v.Asked }</code></pre>
 						</section>
 					}
-					<section class="y-recovery__next" aria-labelledby="notfound-next-title">
-						<h2 id="notfound-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
-						if v.Unreadable && v.ParsePanic {
+					// A file that is there and could not be read needs no way to look
+					// for it: what to do is in the words above, and the first way out
+					// is the read it asks for, a plain link to the same address. A
+					// parse that failed also says what to check first.
+					if v.Unreadable && v.ParsePanic {
+						<section class="y-recovery__next" aria-labelledby="notfound-next-title">
+							<h2 id="notfound-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
 							<p>{ wording.ParseFailedNext.In(c.Lang) }</p>
-						} else {
+						</section>
+					} else if !v.Unreadable {
+						<section class="y-recovery__next" aria-labelledby="notfound-next-title">
+							<h2 id="notfound-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
 							<p>{ wording.NotFoundNext.In(c.Lang) }</p>
-						}
-					</section>
+						</section>
+					}
 					<nav class="y-recovery__actions" aria-label={ wording.LeaveThisPage.In(c.Lang) }>
-						<a class="y-recovery__action" href="/search">{ wording.SearchNotes.In(c.Lang) }</a>
+						if again := v.againHref(); again != "" {
+							<a class="y-recovery__action" href={ templ.SafeURL(again) } data-read-again>{ wording.ReadAgain.In(c.Lang) }</a>
+						} else {
+							<a class="y-recovery__action" href="/search">{ wording.SearchNotes.In(c.Lang) }</a>
+						}
 						<a class="y-recovery__action y-recovery__action--quiet" href="/">{ wording.BackHome.In(c.Lang) }</a>
 					</nav>
 				</article>

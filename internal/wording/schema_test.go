@@ -73,3 +73,38 @@ func TestAllowedEnumValuesUsesTheReadersSeparator(t *testing.T) {
 		})
 	}
 }
+
+// TestAllowedEnumFoldSaysWhatTheSentenceSays pins the fold's heading and list
+// to the sentence the health page prints: the same words with nothing before
+// the heading and no colon after it, and the values in the reader's separator.
+func TestAllowedEnumFoldSaysWhatTheSentenceSays(t *testing.T) {
+	t.Parallel()
+	text := func(parts []SchemaPart) string {
+		var b strings.Builder
+		for _, p := range parts {
+			b.WriteString(p.Text)
+		}
+		return b.String()
+	}
+	for _, tc := range []struct {
+		name          string
+		lang          Lang
+		values        []string
+		heading, list string
+	}{
+		{"Chinese", ZhHant, []string{"draft", "ready"}, "允許的 status 值", "draft、ready"},
+		{"English", En, []string{"draft", "ready"}, "Allowed status values", "draft, ready"},
+		{"Chinese empty", ZhHant, []string{}, "允許的 status 值", "無。"},
+		{"English unavailable", En, nil, "Allowed status values", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := text(AllowedEnumHeading(tc.lang, "status")); got != tc.heading {
+				t.Errorf("AllowedEnumHeading(%s) = %q, want %q", tc.lang.Tag(), got, tc.heading)
+			}
+			if got := text(AllowedEnumList(tc.lang, tc.values)); got != tc.list {
+				t.Errorf("AllowedEnumList(%s, %q) = %q, want %q", tc.lang.Tag(), tc.values, got, tc.list)
+			}
+		})
+	}
+}

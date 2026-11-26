@@ -11,9 +11,9 @@ import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/schema-notice-probe.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['notice-painted'];
-// The schema notice is one sentence per finding, in the class the reading
-// column draws findings in; the fixture's one finding names mystery_key.
-const NOTICE = '.y-statusflag';
+// The schema notice is one sentence per finding, among the notes the head
+// draws about the file; the fixture's one finding names mystery_key.
+const NOTICE = '.y-headnote[data-schema-notice]';
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -66,7 +66,7 @@ const MUTATIONS = {
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>.y-statusflag{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
+      '<style>.y-headnote[data-schema-notice]{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
       1,
       'schema-notice clip style',
     ),
@@ -76,7 +76,7 @@ const MUTATIONS = {
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>@media (max-width:600px){.y-statusflag{display:none!important}}</style></head>',
+      '<style>@media (max-width:600px){.y-headnote[data-schema-notice]{display:none!important}}</style></head>',
       1,
       'schema-notice phone-width hide style',
     ),

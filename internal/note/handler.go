@@ -491,6 +491,7 @@ func (h *Handler) reading(
 		Language:          n.Language,
 		Type:              n.Type,
 		Draft:             n.Draft,
+		Kind:              noteKind(&state, snap.NavigationRoles(), n),
 		VerifiedOn:        verifiedOn,
 		VerifiedAt:        verifiedAt,
 		Prerequisites:     prerequisites(snap, rel),
@@ -581,11 +582,11 @@ func prerequisites(snap *snapshot.Generation, rel string) []nav.NoteRef {
 // reader can read. The findings themselves are one program's verdict in one
 // language for another program to parse; what a page owes a reader is the same
 // verdict in their own words, with the note's own text kept intact inside it.
-func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) []pages.SchemaNotice {
 	if len(findings) == 0 {
 		return nil
 	}
-	notices := make([][]wording.SchemaPart, 0, len(findings))
+	notices := make([]pages.SchemaNotice, 0, len(findings))
 	for i := range findings {
 		f := &findings[i]
 		// An unclosed fence already has its own notice, so the same finding is
@@ -597,11 +598,12 @@ func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wor
 		if f.RuleID == "schema.frontmatter" {
 			target = reading.FMDiagnostic
 		}
-		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target)
+		notice := pages.SchemaNotice{Says: wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target)}
 		if f.RuleID == "schema.enum" {
-			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field)))...)
+			notice.Field = deref(f.Field)
+			notice.Known = enumValues(contract, notice.Field)
 		}
-		notices = append(notices, sentence)
+		notices = append(notices, notice)
 	}
 	return notices
 }
@@ -668,6 +670,25 @@ func classifyGovernance(authority schema.Authority, policy schema.ArtifactPolicy
 		return readableArtifact
 	}
 	return governedInstance
+}
+
+// noteKind is what the note is to the vault besides a note, for its head to
+// say. A template is placed by the same authorities that decide whether the
+// page dresses a lesson, so a template of an index is a template and not an
+// index; a report is a report by where it is, as the shelf and the sidebar
+// decide it; an index and a course by the role the rules give the type.
+func noteKind(state *governanceState, roles schema.NavigationRoles, n *snapshot.Reading) pages.NoteKind {
+	switch {
+	case state.placement == readableArtifact:
+		return pages.KindTemplate
+	case nav.InReports(n.RelPath):
+		return pages.KindReport
+	case roles.IsPathType(n.Type):
+		return pages.KindCourse
+	case roles.IsMapType(n.Type):
+		return pages.KindIndex
+	}
+	return pages.KindNote
 }
 
 type governanceState struct {

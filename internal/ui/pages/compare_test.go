@@ -29,8 +29,8 @@ func comparedNote(prefix, title, relPath, language string) NoteView {
 		IDPrefix: prefix,
 		BodyHTML: `<h2 id="` + prefix + `ledger" data-level="1">Ledger</h2><p><a href="#` + prefix + `ledger">back up</a></p>`,
 		TOC:      []render.TOCEntry{{Level: 1, Text: "Ledger", ID: prefix + "ledger"}},
-		SchemaNotices: [][]wording.SchemaPart{
-			{{Text: "the contract does not know "}, {Text: "unknown_key", Code: true}},
+		SchemaNotices: []SchemaNotice{
+			{Says: []wording.SchemaPart{{Text: "the contract does not know "}, {Text: "unknown_key", Code: true}}},
 		},
 		BasedOn:    []snapshot.DeclaredSource{{Name: "Source", RelPath: "Writing/Source.md"}},
 		Pair:       nav.NoteRef{Name: "The other half", RelPath: "Writing/Other.md"},
