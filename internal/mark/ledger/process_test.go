@@ -158,9 +158,10 @@ type done struct {
 	i   int
 }
 
-// killAfter kills the child once it has begun begins lines and a little longer,
-// and answers every line it said Record answered for.
-func (c *child) killAfter(t *testing.T, begins int, wait time.Duration) []done {
+// killAfter kills the child once it has begun begins lines, then, when until
+// is not nil, once until holds, and then a little longer, wait; and answers
+// every line it said Record answered for.
+func (c *child) killAfter(t *testing.T, begins int, until func() bool, wait time.Duration) []done {
 	t.Helper()
 	var answered []done
 	read := func(line string) {
@@ -183,6 +184,19 @@ func (c *child) killAfter(t *testing.T, begins int, wait time.Duration) []done {
 			begun++
 		}
 		read(line)
+	}
+	for deadline := time.Now().Add(time.Minute); until != nil && !until(); {
+		if time.Now().After(deadline) {
+			t.Fatal("what the kill waits for did not happen in a minute")
+		}
+		select {
+		case line, ok := <-c.lines:
+			if !ok {
+				t.Fatal("the child stopped before it was killed")
+			}
+			read(line)
+		case <-time.After(50 * time.Microsecond):
+		}
 	}
 	time.Sleep(wait)
 	if err := c.cmd.Process.Kill(); err != nil {
@@ -265,8 +279,20 @@ func TestAWriterKilledWhileItAppendsLosesNoCommittedLine(t *testing.T) {
 	var before uint64 // the highest seq in the ledger before the child began
 	for kills < maxKills && (kills < minKills || midRecord == 0) {
 		kills++
+		// Every other kill waits for the ledger to grow, which is the child's
+		// line reaching the file, and so lands after it whatever the machine's
+		// speed: on a slow runner, or under the race detector, making and
+		// encoding a long line can take longer than a delay chosen blind. The
+		// rest are left to chance.
+		var grown func() bool
+		wait := time.Duration(rand.IntN(40000)) * time.Microsecond // #nosec G404 -- the moment of a kill, not a secret
+		if kills%2 == 0 {
+			base := sizeOf(t, dir)
+			grown = func() bool { return sizeOf(t, dir) > base }
+			wait = time.Duration(rand.IntN(1000)) * time.Microsecond // #nosec G404 -- the moment of a kill, not a secret
+		}
 		c := startChild(t, "append", config, "")
-		answered := c.killAfter(t, 1+rand.IntN(2), time.Duration(rand.IntN(40000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
+		answered := c.killAfter(t, 1, grown, wait)
 		data, err := os.ReadFile(dir.Join(fileName))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Fatal(err)
@@ -322,7 +348,7 @@ func TestAWriterKilledWhileItCompactsLosesNoLiveLine(t *testing.T) {
 	for kills < maxKills && (kills < minKills || caught == 0) {
 		kills++
 		c := startChild(t, "compact", config, "")
-		answered := c.killAfter(t, 1+rand.IntN(16), time.Duration(rand.IntN(20000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
+		answered := c.killAfter(t, 1+rand.IntN(16), nil, time.Duration(rand.IntN(20000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
 		entries, err := os.ReadDir(dir.Path())
 		if err != nil {
 			t.Fatal(err)
@@ -384,4 +410,17 @@ func TestTwoProcessesRecordAtOnceAndLoseNothing(t *testing.T) {
 		}
 	}
 	checkNewestThere(t, dir, []string{"one", "two"}, togetherLines)
+}
+
+// sizeOf is how long the ledger in dir is, 0 when it is not there.
+func sizeOf(t *testing.T, dir confdir.Dir) int64 {
+	t.Helper()
+	info, err := os.Stat(dir.Join(fileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
 }

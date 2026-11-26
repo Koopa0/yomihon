@@ -391,11 +391,20 @@ func TestAFailedRenameLeavesNoTemporaryFile(t *testing.T) {
 }
 
 // A write measures what it did: every step it ran took some time, and the
-// bytes are the data's.
+// bytes are the data's. Windows' monotonic clock moves in ticks of half a
+// millisecond or more, so a step shorter than a tick, reading 8 bytes back
+// above all, reads as zero there; what is held there is that the steps were
+// measured at all, and that none reads as less than nothing.
 func TestAWriteMeasuresEachStep(t *testing.T) {
 	t.Parallel()
 	f := opened(t, aVault(t))
 	m := replace(t, f, "{\"a\":1}\n")
+	if runtime.GOOS == "windows" {
+		if m.Bytes != 8 || m.Write < 0 || m.Install < 0 || m.ReadBack < 0 || m.Write+m.Install+m.ReadBack <= 0 {
+			t.Errorf("Measurement = %+v, want 8 bytes and the steps measured", m)
+		}
+		return
+	}
 	if m.Bytes != 8 || m.Write <= 0 || m.Install <= 0 || m.ReadBack <= 0 {
 		t.Errorf("Measurement = %+v, want 8 bytes and every step above zero", m)
 	}
