@@ -60,8 +60,10 @@ import (
 //     inside. What a call may be made with is held for the few calls whose harm
 //     is in an argument: a signal other than 0, and a network other than tcp.
 //
-// What this does not read: whether the directory the platform names is inside a
-// folder being read, which is a question about the disk and not the code;
+// What this does not read: whether the directory the platform names and a
+// folder being read are one inside the other, which is a question about the
+// disk and not the code, and which confdir's ConfigDir.Apart answers as the
+// command runs;
 // whether a function of confdir that is handed a Dir writes inside it, which
 // confdir's own name checks and tests answer; what a reviewed module does with
 // a path it is handed; and a write through a descriptor that was open already,

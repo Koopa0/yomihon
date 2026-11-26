@@ -19,10 +19,12 @@ import (
 // and the running server are two processes with two Stores over the same files,
 // and the lock file is what orders their changes.
 type Store struct {
-	dir  confdir.Dir
-	free func(port int) bool
-	now  func() time.Time
-	wait time.Duration
+	// configDir is what a folder added to the list must be apart from.
+	configDir confdir.ConfigDir
+	dir       confdir.Dir
+	free      func(port int) bool
+	now       func() time.Time
+	wait      time.Duration
 
 	// own is the ports this process holds itself. They are free for the vault
 	// this process is about to give one to, which a probe of them cannot say,
@@ -68,13 +70,14 @@ func Open(configDir confdir.ConfigDir, free func(port int) bool, options ...Opti
 		return nil, err
 	}
 	s := &Store{
-		dir:     dir,
-		free:    free,
-		now:     time.Now,
-		wait:    confdir.LockWait,
-		touched: map[string]touch{},
-		removed: map[string]Entry{},
-		own:     map[int]bool{},
+		configDir: configDir,
+		dir:       dir,
+		free:      free,
+		now:       time.Now,
+		wait:      confdir.LockWait,
+		touched:   map[string]touch{},
+		removed:   map[string]Entry{},
+		own:       map[int]bool{},
 	}
 	for _, option := range options {
 		option(s)
@@ -147,6 +150,12 @@ func (s *Store) Add(root string, start int) (entry Entry, added bool, err error)
 	_, resolved, err := vault.ResolveRoot(root)
 	if err != nil {
 		return Entry{}, false, err
+	}
+	// A folder that is the configuration directory, holds it or is inside it is
+	// not one yomihon reads, so it never joins the list. One listed before this
+	// was refused stays listed, and is not served.
+	if overlapErr := s.configDir.Apart(root); overlapErr != nil {
+		return Entry{}, false, overlapErr
 	}
 	id := confdir.VaultID(resolved)
 

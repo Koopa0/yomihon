@@ -1018,3 +1018,36 @@ func writeListReporting(t *testing.T, configDir string, said *[]string, body str
 	}
 	return s
 }
+
+// A folder that holds the configuration directory, is it, or is inside it never
+// joins the list, and asking leaves the list as it was.
+func TestAFolderThatOverlapsTheConfigurationDirectoryIsNotAdded(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	configDir := filepath.Join(base, "home", ".config")
+	inside := filepath.Join(configDir, "notes")
+	if err := os.MkdirAll(inside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := storeIn(t, configDir, nil)
+	beside := folder(t, "notes")
+	mustAdd(t, s, beside)
+	listed := filepath.Join(configDir, "yomihon", listFile)
+	before, err := os.ReadFile(listed) // #nosec G304 -- the test's own temporary directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{filepath.Join(base, "home"), configDir, inside} {
+		entry, added, addErr := s.Add(root, startPort)
+		if _, overlaps := errors.AsType[*confdir.OverlapError](addErr); !overlaps {
+			t.Errorf("Add(%q) = %+v, %v, %v; want an *OverlapError", root, entry, added, addErr)
+		}
+	}
+	after, err := os.ReadFile(listed) // #nosec G304 -- the test's own temporary directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("the list changed when no folder was added:\n before %s\n after  %s", before, after)
+	}
+}

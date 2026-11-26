@@ -363,6 +363,11 @@ func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, 
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return false, fmt.Errorf(`no configuration directory, so the marks for the earlier path cannot be found: %s; nothing was adopted`, reason)
 	}
+	// Adopting writes this folder's marks, into a configuration directory that
+	// must not be inside the folder, nor the folder inside it.
+	if apartErr := r.configDir.Apart(r.root); apartErr != nil {
+		return false, fmt.Errorf("%w; nothing was adopted", apartErr)
+	}
 	store, err := mark.Open(r.configDir, vaultRoot)
 	if err != nil {
 		return false, errOpenAdoptFailed

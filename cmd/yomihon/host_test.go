@@ -184,6 +184,7 @@ func listOf(t *testing.T, configDir string) *vaults.Store {
 type running struct {
 	host   *host
 	out    *lockedBuffer
+	log    *lockedBuffer
 	cancel context.CancelFunc
 	done   chan error
 
@@ -203,6 +204,7 @@ func startRunning(t *testing.T, configDir, root string, port int) *running {
 	r := &running{
 		host:   newHost(slog.New(slog.NewTextHandler(logged, nil)), confdir.At(configDir), listOf(t, configDir)),
 		out:    new(lockedBuffer),
+		log:    logged,
 		cancel: cancel,
 		done:   make(chan error, 1),
 	}

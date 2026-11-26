@@ -61,6 +61,9 @@ type host struct {
 	mu      sync.Mutex
 	mounts  map[string]*mount
 	closing bool
+	// toldApart is the listed vaults already said to overlap the
+	// configuration directory.
+	toldApart map[string]bool
 
 	// wait is how long a folder given to the running yomihon is waited for.
 	wait time.Duration
@@ -94,6 +97,7 @@ func newHost(log *slog.Logger, configDir confdir.ConfigDir, store *vaults.Store)
 		configDir: configDir,
 		store:     store,
 		mounts:    map[string]*mount{},
+		toldApart: map[string]bool{},
 		wait:      handOffWait,
 		fatal:     make(chan error, 1),
 	}
@@ -104,6 +108,14 @@ func newHost(log *slog.Logger, configDir confdir.ConfigDir, store *vaults.Store)
 // eager, which is for the vault the reader just typed. Its failure is then the
 // process's.
 func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.Listener, eager bool) error {
+	// Checked before the port is bound: a vault listed before yomihon refused
+	// such a folder is not served, and stays listed for `yomihon vaults remove`.
+	if overlap := h.overlaps(entry); overlap != nil {
+		if listener != nil {
+			return errors.Join(overlap, listener.Close())
+		}
+		return overlap
+	}
 	if listener == nil {
 		var err error
 		if listener, err = listenLoopback(ctx, strconv.Itoa(entry.Port)); err != nil {
@@ -313,8 +325,37 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 		return
 	}
 	if err := h.mount(ctx, entry, nil, false); err != nil {
-		h.log.Warn("could not serve the vault", "vault", entry.Path, "port", entry.Port, "error", err)
+		h.notServed(entry, err)
 	}
+}
+
+// overlaps is why the vault is not to be served because it and the
+// configuration directory are one inside the other, or nil. Anything else that
+// stops the comparison, such as a folder that is gone, is for the read of the
+// vault to say, as it was before the comparison was made.
+func (h *host) overlaps(entry *vaults.Entry) error {
+	err := h.configDir.Apart(entry.Path)
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+		return err
+	}
+	return nil
+}
+
+// notServed says why a listed vault is not served. A vault that overlaps the
+// configuration directory is said once, since the list is read again every few
+// seconds and the answer does not change while it is listed.
+func (h *host) notServed(entry *vaults.Entry, err error) {
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+		h.mu.Lock()
+		told := h.toldApart[entry.ID]
+		h.toldApart[entry.ID] = true
+		h.mu.Unlock()
+		if !told {
+			h.log.Warn("not serving a vault in the list; it stays listed until `yomihon vaults remove` takes it out", "vault", entry.Path, "reason", err.Error())
+		}
+		return
+	}
+	h.log.Warn("could not serve the vault", "vault", entry.Path, "port", entry.Port, "error", err)
 }
 
 // stopServing waits for every listener to finish serving and for every read to
@@ -488,6 +529,12 @@ func (h *host) mountAll(ctx context.Context, list []vaults.Entry, typedID string
 		list[0], list[i] = list[i], list[0]
 	}
 	for i := range list {
+		// Asked before the starting port is handed over, which a vault that is
+		// not served must not take with it.
+		if overlap := h.overlaps(&list[i]); overlap != nil && list[i].ID != typedID {
+			h.notServed(&list[i], overlap)
+			continue
+		}
 		var bound net.Listener
 		if list[i].Port == start && !held {
 			bound, held = listener, true
@@ -496,7 +543,7 @@ func (h *host) mountAll(ctx context.Context, list []vaults.Entry, typedID string
 			if list[i].ID == typedID {
 				return held, err
 			}
-			h.log.Warn("could not serve the vault", "vault", list[i].Path, "port", list[i].Port, "error", err)
+			h.notServed(&list[i], err)
 		}
 	}
 	return held, nil
@@ -512,9 +559,18 @@ func (h *host) record(root string, start int) (entry vaults.Entry, added bool, e
 	}
 	typed, added, err := h.store.Add(resolved, start)
 	if err != nil {
-		return vaults.Entry{}, false, fmt.Errorf("add the folder to the list of vaults: %w", err)
+		return vaults.Entry{}, false, addError(err)
 	}
 	return typed, added, nil
+}
+
+// addError is what a folder the list would not take is answered with: a refusal
+// the reader can act on when the folder overlaps the configuration directory.
+func addError(err error) error {
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+		return &refusal{cause: err, msg: err.Error()}
+	}
+	return fmt.Errorf("add the folder to the list of vaults: %w", err)
 }
 
 // unlistIfNew takes the vault just given out of the list when err says its first
@@ -598,7 +654,7 @@ func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Insta
 	}
 	entry, added, err := h.store.Add(resolved, running.Port)
 	if err != nil {
-		return fmt.Errorf("add the folder to the list of vaults: %w", err)
+		return addError(err)
 	}
 	err = h.handOff(ctx, entry.ID, out)
 	if !errors.Is(err, errNotTaken) {

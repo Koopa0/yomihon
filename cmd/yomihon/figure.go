@@ -126,6 +126,12 @@ func runFigureCommand(ctx context.Context, command string, args []string, stdio 
 			stdio.faultf("close vault: %v", closeErr)
 		}
 	}()
+	// An approval is a write into the configuration directory, which must not
+	// be inside the folder, nor the folder inside it.
+	if apartErr := configDir.Apart(root); apartErr != nil {
+		stdio.faultf("%v", apartErr)
+		return 2
+	}
 	// The same namespace the reading server keeps its marks under: the
 	// resolved root, so two spellings of one folder are one vault.
 	approvals, err := approval.Open(configDir, source.Name())
