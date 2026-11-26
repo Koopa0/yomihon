@@ -118,6 +118,11 @@ type Row struct {
 	// one answers; a journal is read by its days and leaves this off, which is
 	// why the day leads there.
 	ByTitle bool
+	// Where is a line of facts under the name, already in words: the folder the
+	// document sits in, for a shelf gathered from across the vault where the
+	// name alone does not say, and that it is a draft. Empty where there is
+	// neither to say.
+	Where string
 	// Mark is what this organisation measures a row by, already in words — a
 	// course's extent, say. An organisation that needs two writes
 	// them as one; where a row sits in time is not one of them, having a face

@@ -131,6 +131,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 type choice struct {
 	name   string
 	cookie string
+	// group is the heading the row is gathered under; the zero phrase for the
+	// language, which stands ahead of every group.
+	group  wording.Phrase
 	legend wording.Phrase
 	note   wording.Phrase
 	labels map[string]wording.Phrase
@@ -162,7 +165,10 @@ type change struct {
 }
 
 // choices is what the page offers, in the order it offers it. The language
-// comes first because it decides what every other row on the page says.
+// comes first because it decides what every other row on the page says; the
+// rest are gathered by what they set — the paper and type the reading is set
+// in, then how the page behaves while reading — and a group's rows stand
+// together.
 var choices = []choice{
 	{
 		name:   "lang",
@@ -177,6 +183,7 @@ var choices = []choice{
 	},
 	{
 		name:   "theme",
+		group:  wording.PrefGroupPaper,
 		cookie: "yomihon_theme",
 		legend: wording.PrefAppearance,
 		note:   wording.PrefAppearanceNote,
@@ -190,6 +197,7 @@ var choices = []choice{
 	},
 	{
 		name:   "paper",
+		group:  wording.PrefGroupPaper,
 		cookie: "yomihon_paper",
 		legend: wording.PrefPaper,
 		note:   wording.PrefPaperNote,
@@ -202,6 +210,7 @@ var choices = []choice{
 	},
 	{
 		name:   "textsize",
+		group:  wording.PrefGroupPaper,
 		cookie: "yomihon_textsize",
 		legend: wording.PrefTextSize,
 		note:   wording.PrefTextSizeNote,
@@ -216,6 +225,7 @@ var choices = []choice{
 	},
 	{
 		name:   "font",
+		group:  wording.PrefGroupPaper,
 		cookie: "yomihon_font",
 		legend: wording.PrefTypeface,
 		note:   wording.PrefTypefaceNote,
@@ -229,6 +239,7 @@ var choices = []choice{
 	},
 	{
 		name:   "ruby",
+		group:  wording.PrefGroupReading,
 		cookie: "yomihon_ruby",
 		legend: wording.PrefFurigana,
 		note:   wording.PrefFuriganaNote,
@@ -240,6 +251,7 @@ var choices = []choice{
 	},
 	{
 		name:   "rail",
+		group:  wording.PrefGroupReading,
 		cookie: "yomihon_rail",
 		legend: wording.PrefRail,
 		note:   wording.PrefRailNote,
@@ -254,6 +266,7 @@ var choices = []choice{
 		// options say what each does, and a sentence for it is wording no one
 		// has approved.
 		name:   "sectionbuttons",
+		group:  wording.PrefGroupReading,
 		cookie: "yomihon_sectionbuttons",
 		legend: wording.PrefSectionButtons,
 		labels: map[string]wording.Phrase{
@@ -264,6 +277,7 @@ var choices = []choice{
 	},
 	{
 		name:   "position",
+		group:  wording.PrefGroupReading,
 		cookie: "yomihon_position",
 		legend: wording.PrefPosition,
 		note:   wording.PrefPositionNote,
@@ -275,6 +289,7 @@ var choices = []choice{
 	},
 	{
 		name:   "shortcuts",
+		group:  wording.PrefGroupReading,
 		cookie: "yomihon_shortcuts",
 		legend: wording.PrefShortcuts,
 		note:   wording.PrefShortcutsNote,

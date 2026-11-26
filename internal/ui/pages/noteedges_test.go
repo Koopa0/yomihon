@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"cmp"
 	"strings"
 	"testing"
 
@@ -87,28 +88,38 @@ func TestAFoldOfValuesSaysWhenTheRulesListNone(t *testing.T) {
 
 // TestTheHeadEndsOnWhatTheNoteIs holds the word the row above the title ends
 // on: an index and a course say so before a draft says it is one, a report says
-// so, and a template is never called a draft, because the draft it writes is a
-// field of the notes made from it.
+// so in the singular, since it is one report, and a template says it is one and
+// is never called a draft, because the draft it writes is a field of the notes
+// made from it.
 func TestTheHeadEndsOnWhatTheNoteIs(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name  string
-		view  NoteView
-		words []string
-		kind  bool
-		draft bool
+		name   string
+		lang   wording.Lang
+		view   NoteView
+		words  []string
+		absent []string
+		kind   bool
+		draft  bool
 	}{
 		{name: "an index draft", view: NoteView{Kind: KindIndex, Draft: true}, words: []string{"索引", "草稿"}, kind: true, draft: true},
 		{name: "a course", view: NoteView{Kind: KindCourse}, words: []string{"課程"}, kind: true},
 		{name: "a report", view: NoteView{Kind: KindReport}, words: []string{"報告"}, kind: true},
-		{name: "a template that writes draft", view: NoteView{Kind: KindTemplate, Draft: true}},
+		{name: "a report in English", lang: wording.En, view: NoteView{Kind: KindReport}, words: []string{"Report"}, absent: []string{"Reports"}, kind: true},
+		{name: "a template that writes draft", view: NoteView{Kind: KindTemplate, Draft: true}, words: []string{"範本"}, absent: []string{"草稿"}, kind: true},
+		{name: "a template in English", lang: wording.En, view: NoteView{Kind: KindTemplate}, words: []string{"Template"}, kind: true},
 		{name: "a note", view: NoteView{}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.view.Title, tt.view.RelPath = "A", "Notes/a.md"
-			row := renderComponent(t, noteWhere(tt.view, wording.ZhHant))
+			row := renderComponent(t, noteWhere(tt.view, cmp.Or(tt.lang, wording.ZhHant)))
+			for _, word := range tt.absent {
+				if strings.Contains(row, word) {
+					t.Errorf("the row says %q: %s", word, row)
+				}
+			}
 			last := -1
 			for _, word := range tt.words {
 				at := strings.Index(row, word)

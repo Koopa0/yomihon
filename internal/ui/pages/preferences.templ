@@ -34,11 +34,16 @@ type PreferencesView struct {
 // options a reader picks between. Options is never empty, and exactly one of
 // them is marked. Note may be empty: a row whose options say all there is to
 // say draws no sentence, and its options then carry no description to point at.
+//
+// Group is the heading of the group the choice is gathered under, and empty for
+// a choice that stands ahead of every group. Choices that share a group stand
+// next to each other.
 type PreferenceField struct {
 	Name    string
 	Legend  string
 	Note    string
 	Refused string
+	Group   string
 	Options []PreferenceOption
 }
 
@@ -74,6 +79,11 @@ type PreferenceOption struct {
 // words on a page are written by the server, and the only honest way to change
 // them is to ask the server for the page again.
 //
+// The language stands first, alone, because it decides what every other row
+// says; the rest are gathered into two groups, the paper and type the reading
+// is set in and how the page behaves while reading, each headed as the
+// shortcuts and the storage below are.
+//
 // Each choice is a column section named by a small heading, not a box cut by a
 // title — the rest of the interface separates a group of controls by space and
 // a label, never a frame, and this page is drawn the same way. The keyboard
@@ -103,8 +113,19 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 			<div class="y-prefs__bench">
 				<div class="y-prefs__controls">
 					<form method="post" action="/preferences" data-prefs data-prefs-settings={ v.Settings }>
-						for _, field := range v.Fields {
-							@preferenceField(field)
+						for _, group := range v.groups() {
+							if group.Title == "" {
+								for _, field := range group.Fields {
+									@preferenceField(field)
+								}
+							} else {
+								<section class="y-prefs__group" aria-labelledby={ "pref-group-" + group.Fields[0].Name }>
+									<h2 id={ "pref-group-" + group.Fields[0].Name }>{ group.Title }</h2>
+									for _, field := range group.Fields {
+										@preferenceField(field)
+									}
+								</section>
+							}
 						}
 						<input type="hidden" name="next" value={ v.ReturnTo }/>
 						<button class="y-prefs__apply y-prefs__fallback" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
@@ -144,6 +165,9 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 // where no script runs it shows the choices the page was drawn with, which are
 // the ones a note would be drawn with as well.
 //
+// A caption over it says it is a preview, in the interface's own small print,
+// so the paragraph under it is not taken for one of the reader's notes.
+//
 // It is hidden from assistive technology and holds nothing that takes focus.
 // What it shows is how the reading looks, which the words of the choices
 // already say to a reader who cannot see it; read out, it would be a paragraph
@@ -152,6 +176,7 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 // pointer the way a note's do, and do nothing.
 templ preferenceSheet(lang wording.Lang) {
 	<div class="y-prefs__sheet" lang={ lang.Tag() } aria-hidden="true">
+		<p class="y-prefs__caption">{ wording.PrefPreview.In(lang) }</p>
 		<div class="y-prose">
 			<div class="y-sect">
 				<div data-level="2">{ wording.PrefSampleHeading.In(lang) }</div>

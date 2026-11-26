@@ -55,3 +55,18 @@ var (
 		"這是規則檔自己的說法，原文照錄：",
 		"This is what the rules file itself said, reproduced as written:")
 )
+
+// The plate the desk returns a reader to their bookmark from: the label it is
+// headed by, the section the bookmark was added under, and how long ago that
+// was. The age is counted in minutes within the hour and in hours within the
+// same day; the day before is yesterday, and anything older is the day itself.
+var (
+	BookmarkLabel = both("書籤", "Bookmark")
+	StoppedAtFmt  = both("停在 %s", "Stopped at %s")
+	MinutesAgoFmt = both("%d 分鐘前", "%d min ago")
+	HoursAgoFmt   = both("%d 小時前", "%d h ago")
+	Yesterday     = both("昨天", "Yesterday")
+)
+
+// RecentlyChanged heads the desk's band of the notes that changed last on disk.
+var RecentlyChanged = both("最近改動", "Recently changed")

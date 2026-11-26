@@ -11,9 +11,10 @@
 // place a reader keeps, and every word reads at 4.5:1 or more in light and
 // dark. A phone is never made wider than itself.
 //
-// The row above the title ends on what the note is: an index says so, and a
-// template is never called a draft, because the draft it writes belongs to the
-// notes made from it. An address that names nothing, and a file that could not
+// The row above the title ends on what the note is, in its word and with its
+// pictogram: an index says so, a report says it is one report, and a template
+// says it is a template and is never called a draft, because the draft it
+// writes belongs to the notes made from it. An address that names nothing, and a file that could not
 // be read, are the same column with the same title in the page's ink; the
 // fault's one sign is its word above the title in the crimson the design keeps
 // for a file that cannot be read, with no box.
@@ -29,6 +30,7 @@ const PAGE = process.env.PAGE_PATH || '/notes/Notes/out-of-contract.md';
 const UNKNOWN_KEY = '/notes/Notes/schema-notice-probe.md';
 const INDEX = '/notes/Maps/reading.md';
 const TEMPLATE = '/notes/System/templates/Template%20lesson.md';
+const REPORT = '/notes/System/reports/audit%20run.md';
 const MISSING = '/notes/Notes/no-such-note.md';
 const MUTATE = process.env.MUTATE || '';
 
@@ -57,6 +59,12 @@ const MODES = {
   'note-past-the-phone': css('.y-headnote{min-width:600px !important}', 'phone'),
   // An index that does not say so.
   'kind-dropped': css('.y-notewhere__kind{display:none !important}', 'kind'),
+  // A template that says nothing of what it is, as it did before it had a word.
+  'template-says-nothing': doc(TEMPLATE, '<span class="y-notewhere__kind" data-note-kind><span class="y-icon" data-icon="template" aria-hidden="true"></span> 範本</span>', '', 'kind'),
+  // A template's word without its pictogram.
+  'template-without-pictogram': doc(TEMPLATE, '<span class="y-icon" data-icon="template" aria-hidden="true"></span> 範本', '範本', 'kind'),
+  // One report called by the shelf's plural.
+  'report-called-reports': doc(REPORT, '</span> Report</span>', '</span> Reports</span>', 'kind'),
   // A template called a draft.
   'template-called-draft': doc(TEMPLATE, '<p class="y-notewhere" lang="zh-Hant">', '<p class="y-notewhere" lang="zh-Hant"><span class="y-notewhere__draft" data-note-draft>草稿</span>', 'kind'),
   // A file that could not be read boxed on a tinted ground again.
@@ -139,12 +147,13 @@ try {
       return route.fulfill({ response, body: original.replaceAll(mode.doc.needle, mode.doc.replacement) });
     });
   };
-  const at = async ({ path = PAGE, width = 1280, theme = 'light', size = '', script = true, status = 200, fault = false }, fn) => {
+  const at = async ({ path = PAGE, width = 1280, theme = 'light', size = '', script = true, status = 200, fault = false, lang = '' }, fn) => {
     const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce', javaScriptEnabled: script });
     await context.addCookies([
       { name: 'yomihon_rail', value: 'collapsed', url: BASE },
       { name: 'yomihon_theme', value: theme, url: BASE },
       ...(size ? [{ name: 'yomihon_textsize', value: size, url: BASE }] : []),
+      ...(lang ? [{ name: 'yomihon_lang', value: lang, url: BASE }] : []),
     ]);
     const page = await context.newPage();
     try {
@@ -251,7 +260,7 @@ try {
   // Every word in the notes and at the row's end reads at 4.5:1 or more.
   if (runs('contrast')) {
     for (const theme of ['light', 'dark']) {
-      for (const path of [PAGE, INDEX]) {
+      for (const path of [PAGE, INDEX, TEMPLATE]) {
         await at({ path, theme }, async (page) => {
           await page.evaluate(() => { for (const fold of document.querySelectorAll('details.y-headnote__known')) fold.open = true; });
           const pairs = await page.evaluate(() => {
@@ -329,15 +338,24 @@ try {
 
   // The row above the title ends on what the note is, and a template is not a draft.
   if (runs('kind')) {
-    await at({ path: INDEX }, async (page) => {
-      const got = await page.evaluate(() => [...document.querySelectorAll('.y-notewhere [data-note-kind]')].map((mark) => ({ drawn: mark.checkVisibility(), word: mark.textContent.trim(), icon: mark.querySelector('.y-icon')?.dataset.icon })));
-      if (got.length !== 1 || !got[0].drawn || got[0].word !== '索引' || got[0].icon !== 'index') fire('kind', `an index's row ends on ${JSON.stringify(got)}, want 索引 drawn with its pictogram`);
-    });
+    const kinds = (page) => page.evaluate(() => [...document.querySelectorAll('.y-notewhere [data-note-kind]')].map((mark) => ({ drawn: mark.checkVisibility(), word: mark.textContent.trim(), icon: mark.querySelector('.y-icon')?.dataset.icon, pictured: (mark.querySelector('.y-icon')?.getBoundingClientRect().width ?? 0) > 0 })));
+    for (const { path, lang, word, icon } of [
+      { path: INDEX, word: '索引', icon: 'index' },
+      { path: TEMPLATE, word: '範本', icon: 'template' },
+      { path: TEMPLATE, lang: 'en', word: 'Template', icon: 'template' },
+      { path: REPORT, word: '報告', icon: 'report' },
+      { path: REPORT, lang: 'en', word: 'Report', icon: 'report' },
+    ]) {
+      await at({ path, lang }, async (page) => {
+        const got = await kinds(page);
+        if (got.length !== 1 || !got[0].drawn || got[0].word !== word || got[0].icon !== icon || !got[0].pictured) fire('kind', `${path} in ${lang || 'zh-Hant'} ends its row on ${JSON.stringify(got)}, want ${word} drawn with the ${icon} pictogram`);
+      });
+    }
     await at({ path: TEMPLATE }, async (page) => {
       const drafts = await page.evaluate(() => document.querySelectorAll('.y-frontis [data-note-draft]').length);
       if (drafts !== 0) fire('kind', `a template's head calls it a draft ${drafts} times`);
     });
-    console.log('note-edges: an index says so in its row, and a template is not called a draft');
+    console.log('note-edges: an index, a template and a report each say what they are with a pictogram, a report in the singular, and a template is not called a draft');
   }
 
   // An address that names nothing and a file that could not be read: one

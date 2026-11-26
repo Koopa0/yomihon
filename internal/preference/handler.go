@@ -94,6 +94,7 @@ func view(c *layouts.Chrome) pages.PreferencesView {
 			Legend:  ch.legend.In(c.Lang),
 			Note:    ch.note.In(c.Lang),
 			Refused: wording.PrefSaveRefused.In(c.Lang),
+			Group:   ch.group.In(c.Lang),
 			Options: offered,
 		})
 	}

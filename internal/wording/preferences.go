@@ -243,3 +243,11 @@ var (
 	)
 	PrefFormUnreadable = both("表單讀不出來。", "The form could not be read.")
 )
+
+// The two groups the settings are gathered under, below the language, and the
+// caption over the sheet of reading set beside them in whatever they say.
+var (
+	PrefGroupPaper   = both("紙面與字體", "Paper and type")
+	PrefGroupReading = both("閱讀行為", "While reading")
+	PrefPreview      = both("即時預覽", "Preview")
+)

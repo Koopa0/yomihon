@@ -513,8 +513,6 @@ type standing struct {
 // standings are what the note says it is beyond its title. A kind outranks a
 // draft only for a template, whose draft field belongs to the notes made from
 // it; an index or a course that is still a draft says both, the kind first.
-// A template has no word of its own yet, and its row already ends on the folder
-// that holds templates, so it says nothing rather than borrow a wrong word.
 func (v *NoteView) standings(lang wording.Lang) []standing {
 	var out []standing
 	switch v.Kind {
@@ -524,9 +522,9 @@ func (v *NoteView) standings(lang wording.Lang) []standing {
 	case KindCourse:
 		out = append(out, standing{Icon: "course", Word: wording.SearchKindCourse.In(lang)})
 	case KindReport:
-		out = append(out, standing{Icon: "report", Word: wording.Reports.In(lang)})
+		out = append(out, standing{Icon: "report", Word: wording.Report.In(lang)})
 	case KindTemplate:
-		return nil
+		return []standing{{Icon: "template", Word: wording.Template.In(lang)}}
 	}
 	if v.Draft {
 		out = append(out, standing{Icon: schema.DraftField, Word: wording.Draft.In(lang), Draft: true})

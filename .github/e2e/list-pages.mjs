@@ -7,8 +7,14 @@
 // half pixel as the finest line it has, so the lock reads the two inks.) The place the reader kept stands on a
 // plate lifted off the desk, the bookmark's ribbon hanging from the plate's top
 // edge, and its one way back is the desk's one filled control, the paper's
-// colour on the ink. The folders run across the desk as a strip three to a
-// row, two on a phone. A folder's order is one segmented control in its
+// colour on the ink. The plate is headed by the word bookmark in the reader's
+// blue, then where the note sits and how long ago the bookmark was added in the
+// faint ink; under the name it says where the reader stopped, the heading's own
+// words in the ink and heavier than the words round them. The notes that changed
+// last run across the desk in a band of their own, two columns wide and one on
+// a phone, each row its name, then its day and its folder in the faint ink, and
+// never the reader's blue: nothing in them is the reader's. The folders run
+// across the desk as a strip three to a row, two on a phone. A folder's order is one segmented control in its
 // toolbar. A hit on the results page lies on the faint hit ground, set
 // heavier. Every line of these pages' own text is a whole pixel tall at every
 // text size, and every piece of their small print is text at 4.5:1 or more on
@@ -16,16 +22,28 @@
 // scrolls sideways on a phone.
 //
 // It keeps a place of its own, so it stands among the probes that leave one
-// behind (see probes.sh).
+// behind (see probes.sh). The band of recent changes is drawn only for notes
+// that changed after a copy stamped the fixture, so the probe gives two notes
+// change times of their own in serve.sh's disposable copy, a second apart, and
+// puts the times back when it is done.
 //
-// Env: YOMIHON_BASE and MUTATE (MUTATE=list prints the modes).
+// Env: YOMIHON_BASE, YOMIHON_FIXTURE_ROOT (serve.sh's disposable vault copy)
+// and MUTATE (MUTATE=list prints the modes).
+import { realpath, stat, utimes } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+
 import { chromium } from 'playwright-core';
 
 import { arrived } from './support/arrival.mjs';
 import { baseUrl as BASE } from './support/base.mjs';
 
 const MUTATE = process.env.MUTATE || '';
-const NOTE = 'Notes/alpha.md';
+// The place is kept under a heading, so the plate has where the reader stopped
+// to say.
+const NOTE = 'Notes/cutover-zh-tw.md';
+const NOTE_ANCHOR = 'ledger';
+// The two notes given change times of their own, newest last.
+const CHANGED = ['Notes/alpha.md', 'Notes/Reading flow.md'];
 const DESK = '/';
 const FOLDER = '/folders/Notes';
 const FOLDER_BY_DATE = '/folders/Notes?sort=recent';
@@ -59,6 +77,18 @@ const MODES = {
   'count-too-faint': css('.y-homeblock__head p{color:var(--fg-ornament) !important}', 'contrast'),
   // The way back's words in the faint ink on the ink.
   'way-back-unreadable': css('.y-continue__note[href]{color:var(--fg-faint) !important}', 'contrast'),
+  // How long ago the bookmark was added, in the reader's blue as if it were a
+  // mark of theirs.
+  'age-in-reader-blue': css('.y-continue__age{color:var(--reader) !important}', 'plate-words'),
+  // Where the reader stopped set like the words round it.
+  'stopped-at-unmarked': css('.y-continue__place{color:inherit !important;font-weight:inherit !important}', 'plate-words'),
+  // A recently changed note's folder in the reader's blue.
+  'recent-folder-in-reader-blue': css('.y-modeblock__where{color:var(--reader) !important}', 'recent'),
+  // The band of recent changes in one column on a wide desk.
+  'recent-in-one-column': css(".y-homeway--whole [data-home-block='recent'] .y-modeblock__rows{column-count:1 !important}", 'recent'),
+  // The age and the folder fainter than text may be.
+  'age-too-faint': css('.y-continue__age{color:var(--fg-ornament) !important}', 'contrast'),
+  'recent-folder-too-faint': css('.y-modeblock__where{color:var(--fg-ornament) !important}', 'contrast'),
   // The desk's grid wider than a phone.
   'desk-past-the-phone': css('@media (max-width:720px){.y-homegrid{min-width:520px !important}}', 'sideways'),
 };
@@ -128,6 +158,8 @@ const readInk = (selector) => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let failure = null;
+// What the probe changed in the fixture, put back however it ends.
+let restore = async () => {};
 try {
   console.log(`list-pages: Chrome ${browser.version()}`);
   const mode = MUTATE ? MODES[MUTATE] : null;
@@ -168,10 +200,36 @@ try {
   // The desk draws the plate only for a place that was kept.
   const keeper = await browser.newContext();
   const kept = await keeper.request.post(`${BASE}/bookmark`, {
-    form: { path: NOTE, anchor: '', offset: '0', identity: '0'.repeat(64) },
+    form: { path: NOTE, anchor: NOTE_ANCHOR, offset: '0', identity: '0'.repeat(64) },
   });
-  await keeper.close();
   if (kept.status() !== 204) broken(`keeping a place in ${NOTE} answered ${kept.status()}, want 204`);
+
+  // Two notes changed after the copy, a second apart and a few seconds ahead
+  // of it, so the band has changes to list and lists them in that order.
+  const supplied = process.env.YOMIHON_FIXTURE_ROOT;
+  if (!supplied) broken('serve.sh did not expose its disposable fixture root');
+  const root = await realpath(supplied);
+  if (basename(root) !== 'vault' || !basename(dirname(root)).startsWith('yomihon-serve.')) broken('the fixture root is not a serve.sh disposable vault copy');
+  const recentHrefs = CHANGED.map((rel) => `/notes/${rel.split('/').map(encodeURIComponent).join('/')}`).reverse();
+  const published = async (want) => {
+    for (const deadline = Date.now() + 15000; Date.now() < deadline; await new Promise((done) => { setTimeout(done, 200); })) {
+      const desk = await (await keeper.request.get(`${BASE}/`)).text();
+      const band = desk.split('data-home-block="recent"')[1]?.split('</section>')[0] ?? '';
+      const hrefs = [...band.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+      if (want(hrefs)) return;
+    }
+    broken('the desk never listed the notes changed for it');
+  };
+  const saved = [];
+  for (const rel of CHANGED) saved.push({ file: join(root, rel), times: await stat(join(root, rel)) });
+  const base = Math.ceil(Date.now() / 1000) + 5;
+  for (const [i, { file }] of saved.entries()) await utimes(file, base + 2 * i, base + 2 * i);
+  await published((hrefs) => hrefs[0] === recentHrefs[0] && hrefs[1] === recentHrefs[1]);
+  restore = async () => {
+    for (const { file, times } of saved) await utimes(file, times.atime, times.mtime);
+    await published((hrefs) => hrefs[0] !== recentHrefs[0]);
+    await keeper.close();
+  };
 
   // The double rule under every threshold: one pixel of the firm ink over the
   // finer hairline in its lighter ink, in a box four pixels tall.
@@ -215,6 +273,69 @@ try {
       if (!plate.way || plate.way.ground !== plate.way.fg) fire('plate', `the way back is not filled with the ink: ${JSON.stringify(plate.way)}`);
     });
     console.log('list-pages: the kept place stands on a plate with its ribbon, and the way back is the ink');
+  }
+
+  // The plate's words: the bookmark in the reader's blue, how long ago it was
+  // added in the faint ink beside where the note sits, and where the reader
+  // stopped, the heading's own words in the ink and heavier than the words
+  // round them.
+  if (runs('plate-words')) {
+    await at({ path: DESK }, async (page) => {
+      const got = await page.locator('.y-continue').evaluate((section) => {
+        const look = (selector) => {
+          const element = section.querySelector(selector);
+          if (!element) return null;
+          const style = getComputedStyle(element);
+          return { text: element.textContent.trim(), ink: style.color, weight: Number(style.fontWeight) };
+        };
+        return {
+          tag: look('.y-continue__tag'), kicker: look('.y-continue__kicker'), age: look('.y-continue__age'),
+          when: section.querySelector('.y-continue__age time')?.getAttribute('datetime') ?? '',
+          title: look('.y-continue__title'), section: look('.y-continue__section'), place: look('.y-continue__place'),
+        };
+      });
+      if (!got.tag || !got.kicker || !got.age || !got.title || !got.section || !got.place) broken(`the plate lacks one of its lines: ${JSON.stringify(got)}`);
+      if (got.tag.text !== '書籤') fire('plate-words', `the plate is headed ${JSON.stringify(got.tag.text)}, want 書籤`);
+      if (!/^\d+ 分鐘前$/.test(got.age.text) || Number.isNaN(Date.parse(got.when))) fire('plate-words', `the plate says the bookmark was added ${JSON.stringify(got.age.text)} at ${JSON.stringify(got.when)}, want minutes ago and the moment`);
+      if (got.age.ink !== got.kicker.ink || got.age.ink === got.tag.ink) fire('plate-words', `the age is drawn in ${got.age.ink}, want the faint ink of the line (${got.kicker.ink}), not the bookmark's ${got.tag.ink}`);
+      if (!got.section.text.startsWith('停在 ') || got.place.ink !== got.title.ink || got.place.weight < 600) fire('plate-words', `where the reader stopped reads ${JSON.stringify(got.section.text)} with the heading in ${got.place.ink} at ${got.place.weight}, want 停在 and the heading in the ink (${got.title.ink}) at 600 or more`);
+    });
+    console.log('list-pages: the plate says bookmark in the blue, its age in the faint ink, and where the reader stopped in the ink');
+  }
+
+  // The notes that changed last: newest first, two columns on a wide desk and
+  // one on a phone, each row its name, its day and its folder, the day and the
+  // folder in the same faint ink, and the band's name no link.
+  if (runs('recent')) {
+    for (const [width, columns] of [[1512, 2], [390, 1]]) {
+      await at({ path: DESK, width }, async (page) => {
+        const rows = "[data-home-block='recent'] .y-modeblock__rows > [data-desk-item]";
+        if (await count(page, rows, DESK) < 2) broken('the band lists fewer than the two notes changed for it');
+        const got = await page.evaluate((selector) => ({
+          linked: document.querySelectorAll("[data-home-block='recent'] h2 a").length,
+          rows: [...document.querySelectorAll(selector)].map((row) => {
+            const when = row.querySelector('.ui-navitem__when');
+            const where = row.querySelector('.y-modeblock__where');
+            return {
+              href: row.getAttribute('href'), left: Math.round(row.getBoundingClientRect().left),
+              when: when?.textContent.trim(), whenInk: when && getComputedStyle(when).color,
+              where: where?.textContent.trim(), whereInk: where && getComputedStyle(where).color,
+            };
+          }),
+          reader: (() => { const probe = document.createElement('span'); probe.style.color = 'var(--reader)'; document.body.append(probe); const ink = getComputedStyle(probe).color; probe.remove(); return ink; })(),
+        }), rows);
+        if (got.linked !== 0) fire('recent', `the band's name links somewhere, but no page stands behind it`);
+        const hrefs = got.rows.map((row) => row.href);
+        if (hrefs[0] !== recentHrefs[0] || hrefs[1] !== recentHrefs[1]) fire('recent', `the band opens on ${JSON.stringify(hrefs.slice(0, 2))}, want ${JSON.stringify(recentHrefs)}, newest first`);
+        for (const row of got.rows.slice(0, 2)) {
+          if (!/^\d{2}-\d{2}$/.test(row.when ?? '') || row.where !== 'Notes') fire('recent', `a row says ${JSON.stringify(row)}, want its day and its folder`);
+          if (row.whereInk !== row.whenInk || row.whereInk === got.reader) fire('recent', `a row's folder is ${row.whereInk} and its day ${row.whenInk}, want the same faint ink and never the reader's blue ${got.reader}`);
+        }
+        const lefts = new Set(got.rows.map((row) => row.left)).size;
+        if (lefts !== columns) fire('recent', `at ${width}px the band stands in ${lefts} columns, want ${columns}`);
+      });
+    }
+    console.log('list-pages: the notes that changed last run newest first, two columns wide, with their day and folder in the faint ink');
   }
 
   // The folders as a strip: three to a row on a wide window, two on a phone.
@@ -261,7 +382,7 @@ try {
 
   // Every line of the pages' own text is a whole pixel, at every text size.
   if (runs('lines')) {
-    const text = '.y-continue__head, .y-continue__title, .y-continue__section, .y-homeblock__head h2, .y-modeblock .ui-navitem[data-desk-item], .y-modeblock__opening, .y-openitem__name, .y-indexcount, .y-home__head .y-title, .y-crumbs, .y-lgroup__name, .y-lrow__title, .y-cover, .y-searchpage__title, .y-found__title, .y-found__lead, .y-found__where';
+    const text = '.y-continue__head, .y-continue__title, .y-continue__section, .y-homeblock__head h2, .y-modeblock .ui-navitem[data-desk-item], .y-modeblock__opening, .y-modeblock__where, .y-openitem__name, .y-indexcount, .y-home__head .y-title, .y-crumbs, .y-lgroup__name, .y-lrow__title, .y-cover, .y-searchpage__title, .y-found__title, .y-found__lead, .y-found__where';
     for (const size of ['', 'l', 'xl']) {
       for (const path of [DESK, FOLDER, SEARCH]) {
         await at({ path, size }, async (page) => {
@@ -282,7 +403,7 @@ try {
 
   // The small print is text: 4.5:1 or more on the ground it stands on.
   if (runs('contrast')) {
-    const print = '.y-continue__tag, .y-continue__kicker, .y-continue__device, .y-continue__note[href], .y-homeblock__head p, .y-shelfall, .y-modeblock .ui-navitem__count, .y-modeblock .ui-navitem__when, .y-modeblock__opening, .y-indexcount, .y-lgroup__name, .y-lgroup__count, .y-lrow__fact, .y-seg a, .y-seg__count, .y-searchfilter__label, .y-results__count, .y-found__where, .y-found mark, .y-deskvault, .y-deskhealth a, .y-crumbs__link';
+    const print = '.y-continue__tag, .y-continue__kicker, .y-continue__age, .y-modeblock__where, .y-continue__device, .y-continue__note[href], .y-homeblock__head p, .y-shelfall, .y-modeblock .ui-navitem__count, .y-modeblock .ui-navitem__when, .y-modeblock__opening, .y-indexcount, .y-lgroup__name, .y-lgroup__count, .y-lrow__fact, .y-seg a, .y-seg__count, .y-searchfilter__label, .y-results__count, .y-found__where, .y-found mark, .y-deskvault, .y-deskhealth a, .y-crumbs__link';
     for (const theme of ['light', 'dark']) {
       for (const path of [DESK, FOLDER, FOLDER_BY_DATE, SEARCH]) {
         await at({ path, theme }, async (page) => {
@@ -315,6 +436,11 @@ try {
 } catch (err) {
   failure = err;
 } finally {
+  try {
+    await restore();
+  } catch (err) {
+    failure ??= err;
+  }
   await browser.close();
 }
 

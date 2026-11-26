@@ -1176,3 +1176,56 @@ func TestTheWayBackIsDrawnOnlyWhereThereIsOne(t *testing.T) {
 		t.Errorf("the page does not carry %s", want)
 	}
 }
+
+// TestTheLanguageLeadsAndTheRestStandInTheirGroups holds the page's order as the
+// owner approved it: the language first and alone, since it decides what every
+// other row says, then the paper and type the reading is set in, then how the
+// page behaves while reading, each under its heading and in both languages.
+// The groups are written out here rather than read from the table that builds
+// the page, so moving a row is a change this test is told about.
+func TestTheLanguageLeadsAndTheRestStandInTheirGroups(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	for _, tt := range []struct {
+		lang            string
+		paper, behavior string
+	}{
+		{"zh-Hant", "紙面與字體", "閱讀行為"},
+		{"en", "Paper and type", "While reading"},
+	} {
+		t.Run(tt.lang, func(t *testing.T) {
+			t.Parallel()
+			code, body := page(t, srv, "/preferences", wording.CookieName+"="+tt.lang)
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			form := choicesForm(t, body)
+			lead, rest, found := strings.Cut(form, `<section class="y-prefs__group"`)
+			if !found {
+				t.Fatal("the choices stand in no group")
+			}
+			if got := slices.Sorted(maps.Keys(radios(t, lead))); !slices.Equal(got, []string{"lang"}) {
+				t.Errorf("ahead of the groups stand %v, want the language alone", got)
+			}
+			paper, behavior, found := strings.Cut(rest, `<section class="y-prefs__group"`)
+			if !found {
+				t.Fatal("the choices stand in one group, want two")
+			}
+			for _, g := range []struct {
+				markup, heading, id string
+				fields              []string
+			}{
+				{paper, tt.paper, "pref-group-theme", []string{"font", "paper", "textsize", "theme"}},
+				{behavior, tt.behavior, "pref-group-ruby", []string{"position", "rail", "ruby", "sectionbuttons", "shortcuts"}},
+			} {
+				if want := ` aria-labelledby="` + g.id + `"><h2 id="` + g.id + `">` + g.heading + `</h2>`; !strings.HasPrefix(g.markup, want) {
+					t.Errorf("a group opens %q, want %q", g.markup[:min(len(g.markup), 120)], want)
+				}
+				if got := slices.Sorted(maps.Keys(radios(t, g.markup))); !slices.Equal(got, g.fields) {
+					t.Errorf("under %q stand %v, want %v", g.heading, got, g.fields)
+				}
+			}
+		})
+	}
+}

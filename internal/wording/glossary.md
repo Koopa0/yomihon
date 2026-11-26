@@ -29,6 +29,7 @@ A vault's own words belong to that vault, not to this page: the note types and d
 | The ground the light theme is set on | paper | 紙色 | One of three, stone (石紙), washi (和紙) or white (白); a daytime choice, since the dark theme is one paper of its own, the night lamp (夜燈). | background, 底色 | `yomihon_paper`, `data-paper` |
 | One problem the check reports | finding | 發現 | A problem that `yomihon check` and the Health page report about a note or the vault. | diagnostic, 診斷 | `judge.Finding` |
 | A written report | report | 報告 (counted 份) | A Markdown report written in the vault's `System/reports/`, listed at `/reports`, newest first. | adjudication report, 判讀報告 | |
+| A note new notes start from | template | 範本 | A note in a folder the rules hold apart as templates. Its fields are the ones a note made from it starts with, so a template that writes `draft: true` is not a draft. | | `KindTemplate`, `wording.Template` |
 | Looking for findings | check | 檢查 | The act, and the command `yomihon check`. | adjudication | `internal/judge`, `adjudicate` |
 | The home page | reading desk | 閱讀桌 | The page at `/`, where the reader returns. | | `Desk`, `HomeView` |
 | The column beside the page | sidebar | 側欄 | The navigation column. | rail | `ReadingRail`, `Rail*` |

@@ -9,9 +9,10 @@ import "github.com/koopa0/yomihon/internal/wording"
 // kept under below, and the one way back under both. The title is not a second
 // link: the desk offers exactly one way back.
 //
-// The words over the kicker are the ones a listener was always told; they are
-// drawn because the plate now says in words, as well as by its ribbon, whose
-// place this is.
+// The line over the name says what the plate is — the bookmark — then where
+// the note sits and how long ago the bookmark was added; the heading it was
+// added under is said as where the reader stopped, in the interface's words
+// round the author's.
 //
 // A row whose note is gone is a sentence and offers no link.
 templ continueRow(row ContinueRow, lang wording.Lang) {
@@ -26,14 +27,18 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 				</svg>
 			}
 			<div class="y-continue__head">
-				<p class="y-continue__tag">{ wording.BookmarkKeptHere.In(lang) }</p>
+				<p class="y-continue__tag">{ wording.BookmarkLabel.In(lang) }</p>
 				if row.Kicker != "" {
 					<p class="y-continue__kicker" { authoredLanguageAttrs(row.KickerLanguage)... }>{ row.Kicker }</p>
+				}
+				if row.Age != "" {
+					<p class="y-continue__age"><time datetime={ row.AgeAt }>{ row.Age }</time></p>
 				}
 			</div>
 			<h2 class="y-continue__title" id="home-continue-title" { authoredLanguageAttrs(row.Language)... }>{ row.Title }</h2>
 			if row.Section.Text != "" {
-				<p class="y-continue__section" { authoredLanguageAttrs(row.Section.Language)... }>{ row.Section.Text }</p>
+				{{ before, after := around(wording.StoppedAtFmt, lang) }}
+				<p class="y-continue__section">{ before }<span class="y-continue__place" { authoredLanguageAttrs(row.Section.Language)... }>{ row.Section.Text }</span>{ after }</p>
 			}
 			if row.Notice != "" {
 				<p class="y-continue__notice">{ row.Notice }</p>

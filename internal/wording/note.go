@@ -28,6 +28,14 @@ var (
 // the ordinary state and carries no mark.
 var Draft = both("草稿", "Draft")
 
+// What a note's head says it is, beside where it is: a note the rules hold
+// apart as a template, and a written report. The report is one, so its word is
+// the singular, where the shelf of them is "Reports".
+var (
+	Template = both("範本", "Template")
+	Report   = both("報告", "Report")
+)
+
 // NoteLanguage labels the facts' language row: the BCP 47 tag a note declares
 // for its own authored content, distinct from PrefLanguage, which names the
 // interface's own language preference.

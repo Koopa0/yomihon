@@ -337,3 +337,40 @@ func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
 		}
 	}
 }
+
+// The desk's bookmark plate, its band of recent changes, the kind words a
+// note's head says and the settings' groups were worded by the owner, in both
+// languages, and are held here as approved: a reader of either language meets
+// the words that were signed off, and neither side can be left behind when the
+// other is edited.
+func TestApprovedWordsReadAsApprovedInBothLanguages(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		phrase Phrase
+		zh, en string
+	}{
+		{"bookmark label", BookmarkLabel, "書籤", "Bookmark"},
+		{"stopped at", StoppedAtFmt, "停在 %s", "Stopped at %s"},
+		{"minutes ago", MinutesAgoFmt, "%d 分鐘前", "%d min ago"},
+		{"hours ago", HoursAgoFmt, "%d 小時前", "%d h ago"},
+		{"yesterday", Yesterday, "昨天", "Yesterday"},
+		{"recently changed", RecentlyChanged, "最近改動", "Recently changed"},
+		{"template", Template, "範本", "Template"},
+		{"report", Report, "報告", "Report"},
+		{"paper and type", PrefGroupPaper, "紙面與字體", "Paper and type"},
+		{"while reading", PrefGroupReading, "閱讀行為", "While reading"},
+		{"preview", PrefPreview, "即時預覽", "Preview"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.phrase.In(ZhHant); got != tt.zh {
+				t.Errorf("In(ZhHant) = %q, want the approved %q", got, tt.zh)
+			}
+			if got := tt.phrase.In(En); got != tt.en {
+				t.Errorf("In(En) = %q, want the approved %q", got, tt.en)
+			}
+		})
+	}
+}
