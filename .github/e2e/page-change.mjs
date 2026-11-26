@@ -83,6 +83,7 @@ const recorder = () => {
     window.__frames.push({
       at: Math.round(performance.now() - started),
       column: Boolean(main),
+      article: Boolean(article),
       visibility: main ? getComputedStyle(main).visibility : null,
       opacity: article ? getComputedStyle(article).opacity : null,
       scale: article ? getComputedStyle(article).scale : null,
@@ -149,9 +150,14 @@ try {
     const link = page.locator('.y-rail-left a.ui-navitem', { hasText: 'C03' }).first();
     if (await link.count() === 0) broken(`${COURSE_PAGE} offers no rail row for C03 to follow`);
     await Promise.all([page.waitForURL(/C03/), link.click()]);
-    await page.waitForFunction(() => (window.__frames ?? []).length >= 8, null, { timeout: 5000 });
-    const seen = (await frames(page)).filter((frame) => frame.column);
-    if (seen.length < 4) broken(`the new document painted ${seen.length} frames with its column, which is too few to say anything about them`);
+    // The column is judged in the frames that have the article it is measured
+    // by. A document that arrives in pieces can be painted once its column
+    // stands open and before its first child has been parsed: that frame has no
+    // article to be faded or scaled, so it is not yet a painted page, and what
+    // is waited for is the page itself.
+    await page.waitForFunction(() => (window.__frames ?? []).filter((frame) => frame.article).length >= 8, null, { timeout: 5000 });
+    const seen = (await frames(page)).filter((frame) => frame.article);
+    if (seen.length < 4) broken(`the new document painted ${seen.length} frames with its article, which is too few to say anything about them`);
     const moving = seen.filter((f) => f.opacity !== '1' || f.scale !== 'none' || f.animations !== 0 || f.visibility !== 'visible');
     console.log(`page-change: following a link painted ${seen.length} frames, ${moving.length} of them not whole`);
     if (moving.length > 0) {
