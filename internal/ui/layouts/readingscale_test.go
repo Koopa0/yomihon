@@ -31,7 +31,11 @@ var readingScaleSteps = []string{
 // The three roots the reader's size preference resolves against, and the rule
 // that narrows the two largest steps on a phone.
 const (
-	baseRoot       = ":root {"
+	// The base root's rule also carries the settings page's chip of the stone
+	// paper in its selector (see tokens.css); the phone's narrowing rule is the
+	// bare root.
+	baseRoot       = ":root,\n.y-papersample[data-paper='stone'] {"
+	baseRootNarrow = ":root {"
 	largeRoot      = `:root[data-textsize='l'] {`
 	extraLargeRoot = `:root[data-textsize='xl'] {`
 	narrowQuery    = "@media (max-width: 720px)"
@@ -42,10 +46,12 @@ const (
 var readingSizes = []struct {
 	name   string
 	opener string
+	// narrowOpener is the same root as the phone's rule writes it.
+	narrowOpener string
 }{
-	{"the base size", baseRoot},
-	{"大", largeRoot},
-	{"特大", extraLargeRoot},
+	{"the base size", baseRoot, baseRootNarrow},
+	{"大", largeRoot, largeRoot},
+	{"特大", extraLargeRoot, extraLargeRoot},
 }
 
 // TestReadingScaleIsDeclaredAtEveryTextSize holds the editorial scale's three
@@ -106,10 +112,10 @@ func TestReadingScaleIsDeclaredAtEveryTextSize(t *testing.T) {
 	narrow := css[narrowAt:]
 	narrowedSteps := map[string][]string{}
 	for _, size := range readingSizes {
-		if n := strings.Count(narrow, size.opener); n != 1 {
-			t.Fatalf("the narrow-width rule opens %s (%q) %d times, want exactly 1", size.name, size.opener, n)
+		if n := strings.Count(narrow, size.narrowOpener); n != 1 {
+			t.Fatalf("the narrow-width rule opens %s (%q) %d times, want exactly 1", size.name, size.narrowOpener, n)
 		}
-		body := ruleBody(t, narrow, size.opener)
+		body := ruleBody(t, narrow, size.narrowOpener)
 		names := readingScaleNames(t, body)
 		if len(names) == 0 {
 			t.Errorf("the narrow-width rule for %s narrows no editorial size, so nothing about it can be checked", size.name)
@@ -119,10 +125,10 @@ func TestReadingScaleIsDeclaredAtEveryTextSize(t *testing.T) {
 				t.Errorf("the narrow-width rule for %s declares %s, which is not a step of the editorial scale — a name only this rule knows is one the three size blocks above cannot be compared on", size.name, name)
 			}
 		}
-		narrowedSteps[size.opener] = names
+		narrowedSteps[size.narrowOpener] = names
 	}
 	for _, size := range readingSizes[1:] {
-		if diff := cmp.Diff(narrowedSteps[baseRoot], narrowedSteps[size.opener]); diff != "" {
+		if diff := cmp.Diff(narrowedSteps[baseRootNarrow], narrowedSteps[size.narrowOpener]); diff != "" {
 			t.Errorf("%s narrows a different set of steps than the base size (-base +%s):\n%s\nevery text-size root has to clamp the same steps, each to its own amount, or a reader at one size keeps a step the others no longer carry", size.name, size.name, diff)
 		}
 	}
@@ -173,7 +179,7 @@ func TestReadingScaleOrderNeverInverts(t *testing.T) {
 
 	for _, size := range readingSizes {
 		wide := cssDeclarations(t, ruleBody(t, wideCSS, size.opener))
-		clamped := cssDeclarations(t, ruleBody(t, narrowCSS, size.opener))
+		clamped := cssDeclarations(t, ruleBody(t, narrowCSS, size.narrowOpener))
 		narrow := make(map[string]string, len(wide))
 		maps.Copy(narrow, wide)
 		maps.Copy(narrow, clamped)

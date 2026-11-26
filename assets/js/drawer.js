@@ -192,6 +192,17 @@ export function initDrawer() {
   // the button when the column it is in stops being drawn: a drawer that has
   // just closed, or a panel the reader had folded, which leaves the tree.
   media.addEventListener('change', () => {
+    // The window changing the column's form is no press of the reader's, and
+    // the fold's fade answers a press. A folded column that a wider window turns
+    // from the drawer into the panel beside the text starts that fade from the
+    // drawer's full opacity: the browser has written the new form's style, and
+    // started the fade, before it tells a script the window crossed the width,
+    // and what is left is a ghost of the column over the page for the length of
+    // the fade. So the crossing puts every fade the column is running at its
+    // end, before a frame is drawn.
+    for (const animation of rail.getAnimations()) {
+      if (animation instanceof CSSTransition) animation.finish();
+    }
     const inside = rail.contains(document.activeElement);
     setOpen(false);
     if (inside && (media.matches || root.dataset.rail !== 'open')) toggleButton.focus();

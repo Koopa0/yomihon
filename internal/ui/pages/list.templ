@@ -93,7 +93,7 @@ templ ListView(l List, lang wording.Lang) {
 }
 
 templ listGroup(g ListGroup) {
-	<section class={ "y-lgroup", templ.KV("y-lgroup--headed", g.Heading != "") }>
+	<section class={ "y-lgroup", templ.KV("y-lgroup--headed", g.Heading != ""), templ.KV("y-lgroup--split", g.Split) }>
 		if g.Heading != "" && g.Href != "" {
 			<a class="y-lgroup__link" href={ templ.URL(g.Href) }>
 				<header class="y-lgroup__head">

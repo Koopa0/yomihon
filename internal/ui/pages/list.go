@@ -48,6 +48,11 @@ func ParseListSort(value string) ListSort {
 // date, a heading for each month.
 const manyRows = 20
 
+// splitRows is how long a group's run of rows may be before a wide page sets it
+// in two columns: past ten, the eye is faster down two short columns than down
+// one tall one.
+const splitRows = 10
+
 // distinguishingRows is how long a list must be before a date that barely
 // varies stops being drawn: ten rows or fewer are all in view at once.
 const distinguishingRows = 10
@@ -78,8 +83,12 @@ type ListGroup struct {
 	// Href makes the heading a link, as a top-level folder is.
 	Href     string
 	Authored bool
-	Count    string
-	Rows     []ListRow
+	// Split says the group's own rows run in two columns on a wide page, its
+	// heading across both. A group that is not long keeps one column at the
+	// full width of the list.
+	Split bool
+	Count string
+	Rows  []ListRow
 	// Action is the one thing a group offers about itself, such as opening the
 	// folders it names.
 	Action ListAction

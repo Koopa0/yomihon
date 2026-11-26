@@ -49,6 +49,7 @@ const NOTE_ANCHOR = 'ledger';
 const CHANGED = ['Notes/alpha.md', 'Notes/Reading flow.md'];
 const DESK = '/';
 const FOLDER = '/folders/Notes';
+const FOLDER_OPENED = '/folders/Writing/lessons?expand=1';
 const FOLDER_BY_DATE = '/folders/Notes?sort=recent';
 const SEARCH = '/search?q=alpha';
 
@@ -70,12 +71,18 @@ const MODES = {
   'plate-without-ribbon': css('.y-continue__ribbon{display:none !important}', 'plate'),
   // The way back drawn as an outline again.
   'way-back-as-outline': css('.y-continue__note[href]{background:transparent !important;color:var(--fg) !important}', 'plate'),
+  // The strip led by the smallest folder, the biggest left out of it.
+  'strip-leads-with-the-smallest': css("[data-home-block='folders'] [data-desk-item]:first-child{order:9 !important}", 'strip'),
   // The folders as a single column.
   'folders-in-one-column': css("[data-home-block='folders'] .y-modeblock__rows{grid-template-columns:minmax(0,1fr) !important}", 'strip'),
   // The order as loose words with no control round them.
   'order-without-segments': css('.y-listbar .y-seg{border:0 !important}', 'toolbar'),
   // A hit set heavier but on no ground.
   'hit-without-ground': css('.y-found mark{background:none !important}', 'hits'),
+  // A long run of notes left in one column beside a small group alone.
+  'long-group-in-one-column': css('.y-lgroup--split{column-count:1 !important}', 'columns'),
+  // A group's heading left in the column, where the columns can break under it.
+  'heading-inside-the-column': css('.y-lgroup--split > .y-lgroup__head, .y-lgroup--split > .y-lgroup__link{column-span:none !important}', 'columns'),
   // A folder's row on a line that is not a whole pixel at the larger sizes.
   'fractional-row-line': css('.y-lrow__title{line-height:1.5 !important}', 'lines'),
   // A row's fact in the ornament ink, read where the folder is ordered by date.
@@ -379,6 +386,24 @@ try {
 
   // The folders as a strip: three to a row on a wide window, two on a phone.
   if (runs('strip')) {
+    // The strip has room for three, so it holds the biggest: read in the order
+    // the eye meets them, the counts never rise, and the first is the largest
+    // folder the full page lists.
+    await at({ path: DESK }, async (page) => {
+      const shown = await page.evaluate(() => [...document.querySelectorAll("[data-home-block='folders'] .y-modeblock__rows > [data-desk-item]")].map((cell) => {
+        const box = cell.getBoundingClientRect();
+        return { top: Math.round(box.top), left: Math.round(box.left), count: Number.parseInt(cell.querySelector('.ui-navitem__count')?.textContent ?? '', 10), name: cell.querySelector('span')?.textContent };
+      }).sort((a, b) => a.top - b.top || a.left - b.left));
+      const listed = await page.evaluate(async () => {
+        const doc = new DOMParser().parseFromString(await (await fetch('/folders')).text(), 'text/html');
+        return [...doc.querySelectorAll('.y-lgroup__link .y-lgroup__count')].map((count) => Number.parseInt(count.textContent, 10));
+      });
+      if (shown.length < 3 || listed.length < 4 || shown.some((row) => Number.isNaN(row.count))) broken(`the desk strip shows ${JSON.stringify(shown)} and the full page lists ${listed}`);
+      if (shown[0].count !== Math.max(...listed)) fire('strip', `the strip leads with ${shown[0].name} (${shown[0].count}), want the biggest folder (${Math.max(...listed)})`);
+      for (let i = 1; i < shown.length; i += 1) {
+        if (shown[i].count > shown[i - 1].count) fire('strip', `the strip lists ${shown[i - 1].name} (${shown[i - 1].count}) before the bigger ${shown[i].name} (${shown[i].count})`);
+      }
+    });
     for (const [width, want] of [[1512, 3], [390, 2]]) {
       await at({ path: DESK, width }, async (page) => {
         const rows = "[data-home-block='folders'] .y-modeblock__rows > [data-desk-item]";
@@ -388,7 +413,7 @@ try {
         if (first !== want) fire('strip', `at ${width}px the folder strip's first row holds ${first} folders, want ${want}`);
       });
     }
-    console.log('list-pages: the folders run three to a row, two on a phone');
+    console.log('list-pages: the folders run three to a row, two on a phone, the biggest first');
   }
 
   // The order in the folder's toolbar is one segmented control.
@@ -417,6 +442,36 @@ try {
       }
     });
     console.log('list-pages: every hit lies on the hit ground, set heavier');
+  }
+
+  // A folder with a long run of notes sets it in two balanced columns, the
+  // group's heading across both and the small groups below it at full width.
+  if (runs('columns')) {
+    for (const path of [FOLDER, FOLDER_OPENED]) {
+      await at({ path }, async (page) => {
+        const got = await page.evaluate(() => {
+          const box = (element) => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+          const groups = [...document.querySelectorAll('.y-listbody > .y-lgroup')].map((group) => {
+            const head = group.querySelector(':scope > .y-lgroup__head, :scope > .y-lgroup__link');
+            return { rows: [...group.querySelectorAll('.y-lrow__title')].map(box), head: head && box(head), group: box(group) };
+          });
+          return { groups, body: box(document.querySelector('.y-listbody')) };
+        });
+        const [notes, ...rest] = got.groups.sort((a, b) => b.rows.length - a.rows.length);
+        if (!notes || notes.rows.length < 12 || rest.length < 1) broken(`${path} holds ${got.groups.map((g) => g.rows.length)} rows per group, want a long run of notes and a small group`);
+        const lefts = [...new Set(notes.rows.map((row) => Math.round(row.left)))].sort((a, b) => a - b);
+        if (lefts.length !== 2) fire('columns', `on ${path} the long run of ${notes.rows.length} notes stands in ${lefts.length} columns, want two`);
+        const sides = lefts.map((left) => notes.rows.filter((row) => Math.round(row.left) === left));
+        if (Math.abs(sides[0].length - sides[1].length) > 1) fire('columns', `on ${path} the two columns hold ${sides[0].length} and ${sides[1].length} notes, want them balanced to within one`);
+        if (notes.head && notes.head.bottom > Math.min(...notes.rows.map((row) => row.top)) + 1) fire('columns', `on ${path} the notes' heading is not above both columns`);
+        for (const group of rest) {
+          if (group.group.top < notes.group.bottom - 1 && group.group.bottom > notes.group.top + 1) fire('columns', `on ${path} a small group stands beside the long run instead of above or below it`);
+          if (Math.abs(group.group.right - group.group.left - (got.body.right - got.body.left)) > 1) fire('columns', `on ${path} a small group below the notes is not as wide as the list`);
+        }
+        if (path === FOLDER_OPENED && !notes.head) broken(`${path} gives the long run no heading to test`);
+      });
+    }
+    console.log('list-pages: a folder\'s long run of notes is two balanced columns, the small groups below at full width');
   }
 
   // Every line of the pages' own text is a whole pixel, at every text size.

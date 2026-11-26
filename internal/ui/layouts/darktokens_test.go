@@ -90,7 +90,7 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 	}
 	for _, token := range slices.Sorted(maps.Keys(pairs)) {
 		places := pairs[token]
-		if len(places) == 0 || places[0] != ":root" {
+		if len(places) == 0 || places[0] != rootSelector {
 			t.Errorf("%s is declared at %v, want first at :root", token, places)
 			continue
 		}
@@ -102,9 +102,9 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 	}
 
 	want := map[string]string{
-		":root":                "light",
-		"[data-theme='light']": "light",
-		"[data-theme='dark']":  "dark",
+		rootSelector:                               "light",
+		"[data-theme='light']":                     "light",
+		"[data-theme='dark']":                      "dark",
 		systemDarkMedia + " " + systemDarkSelector: "dark",
 	}
 	if diff := cmp.Diff(want, schemes); diff != "" {
@@ -114,16 +114,25 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 
 const overlayMask = "--overlay-mask"
 
+// The root's rule and each paper's carry a chip's selector with them: the
+// settings page's chip of a paper is scoped by the paper's name, so the paper's
+// tokens resolve on it.
+const (
+	rootSelector  = ":root, .y-papersample[data-paper='stone']"
+	washiSelector = ":root[data-paper='washi'], .y-papersample[data-paper='washi']"
+	whiteSelector = ":root[data-paper='white'], .y-papersample[data-paper='white']"
+)
+
 // The papers are the one place a colour token is declared a second time: each
 // restates the paper tokens it replaces, and no other. Washi is a warmer paper
 // and a warmer ink with it; white changes the paper alone.
 var paperTokens = map[string]map[string]bool{
-	":root[data-paper='washi']": {
+	washiSelector: {
 		"--bg": true, "--bg-glow": true, "--panel": true, "--elevated": true, "--selected": true,
 		"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
 		"--fg": true, "--fg-muted": true, "--fg-faint": true,
 	},
-	":root[data-paper='white']": {
+	whiteSelector: {
 		"--bg": true, "--bg-glow": true, "--panel": true, "--elevated": true, "--selected": true,
 		"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
 	},
@@ -149,7 +158,7 @@ func TestEveryPaperKeepsTheNightLamp(t *testing.T) {
 			continue
 		}
 		switch {
-		case rule.selector == ":root":
+		case rule.selector == rootSelector:
 			maps.Copy(root, cssDeclarations(t, rule.body))
 		case paperTokens[rule.selector] != nil:
 			papers[rule.selector] = cssDeclarations(t, rule.body)

@@ -36,7 +36,8 @@
    stored nothing on a dark system. A Go test holds the sheet to that shape.
    ============================================================ */
 
-:root {
+:root,
+.y-papersample[data-paper='stone'] {
   color-scheme: light;
 
   /* ---- Paper: 石紙 (stone) in light, 夜燈 (night lamp) in dark ---- */
@@ -447,8 +448,14 @@
    dark system who stored no theme, and a reader who stored dark, both read on
    the night lamp whichever paper they keep. They sit before the theme's
    entrances so that order is visible here too, though light-dark() is what
-   decides it. A Go test holds every dark half here to the root's. */
-:root[data-paper='washi'] {
+   decides it. A Go test holds every dark half here to the root's.
+
+   The settings page draws a small chip of each paper beside its name. The chip
+   is scoped by the paper's own name, so the paper's tokens resolve on it and
+   its ground is read from them rather than written again: stone, which is the
+   root's own, is the root's rule with the chip added to its selector. */
+:root[data-paper='washi'],
+.y-papersample[data-paper='washi'] {
   --bg: light-dark(#f5efe2, #161614);
   --bg-glow: radial-gradient(ellipse 85% 42% at 50% 0%, light-dark(rgb(255 250 236 / 0.72), rgb(235 220 188 / 0.042)), transparent 72%);
   --panel: light-dark(#efe8da, #1c1c19);
@@ -463,7 +470,8 @@
   --fg-faint: light-dark(#70675b, #8d8a81);
 }
 
-:root[data-paper='white'] {
+:root[data-paper='white'],
+.y-papersample[data-paper='white'] {
   --bg: light-dark(#fff, #161614);
   --bg-glow: radial-gradient(ellipse 85% 42% at 50% 0%, light-dark(transparent, rgb(235 220 188 / 0.042)), transparent 72%);
   --panel: light-dark(#f7f6f3, #1c1c19);

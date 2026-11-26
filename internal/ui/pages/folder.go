@@ -143,7 +143,11 @@ func NewFolderLevel(in *FolderInput) FolderView {
 	if q.Filter == "" {
 		list.Groups = append(list.Groups, otherFilesGroup(others, in.Lang)...)
 	}
-	list.Wide = q.Sort != SortByRecent && (len(notes)+folders > manyRows || q.Expand && folders > 0)
+	if q.Sort != SortByRecent {
+		for i := range list.Groups {
+			list.Groups[i].Split = len(list.Groups[i].Rows) > splitRows
+		}
+	}
 	if folders == 0 {
 		foldLoneHeading(&list)
 	}
