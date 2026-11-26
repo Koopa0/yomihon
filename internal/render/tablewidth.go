@@ -21,15 +21,15 @@ import (
 // draws takes its advance from sansAdvance, measured from Geist; one East Asia
 // sets full width falls back to a CJK face at a whole em; a combining mark, a
 // joiner or a variation selector adds nothing. Code inside a cell is the mono
-// face at 0.82em with 5px either side. Every column but the last ends in 16px
-// of space before the next, which is the stylesheet's.
+// face at 0.82em with 0.34em of its own size either side. Every column but the
+// last ends in 16px of space before the next, which is the stylesheet's.
 //
 // It is an estimate, as a table's own layout is: the browser probe
 // wide-blocks.mjs lays the fixture tables out in the browser and holds the
 // estimate to what the browser draws, on tables that sit well clear of the
 // boundary.
 const (
-	tableColumnGap = 16
+	tableColumnGap = 16 // components.css .y-prose th and td padding-inline-end
 	// tableColumnCap is the widest, in ems of the body face, a column is
 	// counted at: about fifteen Han characters or thirty Latin letters.
 	tableColumnCap = 15.0
@@ -37,19 +37,20 @@ const (
 	// regular weight it is counted in, and tableHeaderTracking the space the
 	// stylesheet sets after each of its characters, in ems of its face.
 	tableHeaderWeight   = 1.045
-	tableHeaderTracking = 0.02
-	// tableCodeAdvance and tableCodePadding are a code span's character and
-	// its padding either side together, in ems of the cell: 5px a side is
-	// about a third of an em at every size.
-	tableCodeAdvance = 0.6 * 0.82
-	tableCodePadding = 0.7
+	tableHeaderTracking = 0.02 // components.css .y-prose th letter-spacing
+	// tableCodeSize is a code span's size, tableCodeAdvance its character and
+	// tableCodePadding its padding either side together, each in ems of the
+	// cell. The span's padding is counted in ems of its own size.
+	tableCodeSize    = 0.82                                    // components.css .y-prose code font-size
+	tableCodeAdvance = codeNarrowAdvance / 5.0 * tableCodeSize // Geist Mono's three fifths, at the span's size
+	tableCodePadding = 2 * 0.34 * tableCodeSize                // components.css .y-prose code padding, 0.34em either side
 )
 
 // tableBodySize and tableHeaderSize are the body's and the header's pixel
 // sizes at each text size: --fs-ed-14 and --fs-ed-13.
 var (
-	tableBodySize   = [...]float64{textM: 14, textL: 16, textXL: 18}
-	tableHeaderSize = [...]float64{textM: 13, textL: 15, textXL: 17}
+	tableBodySize   = [...]float64{textM: 14, textL: 16, textXL: 18} // tokens.css --fs-ed-14 at each size, components.css .y-prose table font-size
+	tableHeaderSize = [...]float64{textM: 13, textL: 15, textXL: 17} // tokens.css --fs-ed-13 at each size, components.css .y-prose th font-size
 )
 
 // tableWrapOpen is the opening renderWrappedTable writes, which is how the pass
@@ -264,7 +265,7 @@ func (c *cellCount) text(s string, code bool) {
 		if code {
 			advance = tableCodeAdvance
 			if isFullWidth(r) {
-				advance = 0.82
+				advance = tableCodeSize
 			}
 		}
 		switch {

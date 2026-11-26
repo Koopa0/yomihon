@@ -29,7 +29,7 @@ import (
 
 // plateInset is the mat's inset either side of what it holds, which a picture's
 // room at each measure is counted without.
-const plateInset = 2 * 28
+const plateInset = 2 * 28 // components.css .y-prose .mat --mat-side, 28px either side
 
 // lonePicture matches a paragraph that holds one picture the vault serves and
 // nothing else, which is how the renderer writes a picture on a line of its own
