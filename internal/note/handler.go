@@ -476,7 +476,11 @@ func (h *Handler) reading(
 	door := snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel)
 	questionAddress, writable := h.questionAddress()
 	var titleThoughts []pages.ThoughtLine
-	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere)
+	var sectionNotes map[string][]string
+	if idPrefix == "" {
+		result.HTML, sectionNotes = h.markedBody(r.Context(), result.HTML, n, outlineIDs(&result), lang)
+	}
+	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere, sectionNotes)
 
 	// One resolved sidebar answers both the navigation and the article's own
 	// way onward, so the step under the prose and the list beside it can never

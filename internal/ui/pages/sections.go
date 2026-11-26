@@ -59,6 +59,9 @@ type SectionMargin struct {
 	// 1, which a copy of the note's path names for the section being read. It
 	// is 0 where the file cannot vouch for one.
 	Line int
+	// Notes are the marks of the reader's that stand for this section as a
+	// whole, as markup, drawn after the heading and its margin.
+	Notes []string
 }
 
 // ThoughtLine is one thought of the reader's own, listed beside what it answers:
@@ -75,7 +78,7 @@ type ThoughtLine struct {
 // offers neither the mark nor the link, only a section that holds something the
 // reader left, or the place they left off at, has anything to show.
 func (p *SectionPlan) drawn(id string, m *SectionMargin) bool {
-	return p.Marks || p.Door || len(m.Thoughts) > 0 || (id != "" && id == p.place)
+	return p.Marks || p.Door || len(m.Thoughts) > 0 || len(m.Notes) > 0 || (id != "" && id == p.place)
 }
 
 // bare reports whether the plan draws nothing at all, so the body can be handed
@@ -177,6 +180,9 @@ func (w *weave) end(ctx context.Context, token html.Token, raw []byte) bool {
 	margin := w.plan.Sections[w.openID]
 	w.draw(ctx, sectionMargin(w.openID, &margin, w.plan))
 	w.out.WriteString(`</div>`)
+	for _, note := range margin.Notes {
+		w.out.WriteString(note)
+	}
 	w.open = ""
 	return true
 }

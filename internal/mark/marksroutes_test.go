@@ -1,6 +1,7 @@
 package mark_test
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"log/slog"
@@ -64,7 +65,7 @@ func (n *mkRigNotes) Reading(rel string, lang wording.Lang) (mark.Page, bool) {
 
 // Note is the margin note a page would draw for a mark: here only enough to tell
 // a test that the route asked for one, in the language it was asked in.
-func (n *mkRigNotes) Note(m *machinemarks.Mark, placement string, lang wording.Lang) string {
+func (n *mkRigNotes) Note(_ context.Context, m *machinemarks.Mark, placement string, lang wording.Lang) string {
 	return "<aside data-kind=\"" + string(m.Kind) + "\" data-placement=\"" + placement + "\" lang=\"" + lang.Tag() + "\"></aside>"
 }
 

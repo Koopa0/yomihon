@@ -45,7 +45,7 @@ type placedMark struct {
 type NoteDrawer interface {
 	// Note is the margin note of m as a fragment of markup, or empty where the
 	// mark has none to draw: a highlight on a passage is drawn in the text alone.
-	Note(m *machinemarks.Mark, placement string, lang wording.Lang) string
+	Note(ctx context.Context, m *machinemarks.Mark, placement string, lang wording.Lang) string
 }
 
 // keepRequest is what a page sends to leave a mark. The id, the time and the
@@ -297,7 +297,7 @@ func (h *Handler) getMark(w http.ResponseWriter, r *http.Request) {
 	}
 	lang := origin.Language(r)
 	current := entry.Mark()
-	answer := h.placed(&current, entry.Seen, lang)
+	answer := h.placed(r.Context(), &current, entry.Seen, lang)
 	h.reply(w, r, &answer, "send a mark")
 }
 
@@ -581,17 +581,17 @@ func (h *Handler) refuse(w http.ResponseWriter, r *http.Request, err error, doin
 func (h *Handler) send(w http.ResponseWriter, r *http.Request, status int, m *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	placed := h.placed(m, seen, lang)
+	placed := h.placed(r.Context(), m, seen, lang)
 	if err := json.NewEncoder(w).Encode(&placed); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send a mark", "error", err)
 	}
 }
 
 // placed is m as a route answers with it.
-func (h *Handler) placed(m *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) placedMark {
+func (h *Handler) placed(ctx context.Context, m *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) placedMark {
 	answer := placedMark{Mark: *m, Placement: h.placement(m, lang), Seen: seen}
 	if drawer, ok := h.places.(NoteDrawer); ok && !m.Deleted {
-		answer.Note = drawer.Note(m, answer.Placement, lang)
+		answer.Note = drawer.Note(ctx, m, answer.Placement, lang)
 	}
 	return answer
 }

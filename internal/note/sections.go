@@ -35,7 +35,7 @@ const maxOpeningRunes = 120
 //
 // Everything it shows is read from this generation and the reader's own marks,
 // so the page says on arrival what a second reading would find, without a script.
-func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Bookmark) (body string, title []pages.ThoughtLine) {
+func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Bookmark, notes map[string][]string) (body string, title []pages.ThoughtLine) {
 	questionAddress, _ := h.questionAddress()
 	plan := &pages.SectionPlan{
 		Lang:     lang,
@@ -52,7 +52,7 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 			continue
 		}
 		at, isMarked := marked[strings.TrimPrefix(entry.ID, idPrefix)]
-		margin := pages.SectionMargin{Text: entry.Text, Marked: isMarked, MarkedOn: at}
+		margin := pages.SectionMargin{Text: entry.Text, Marked: isMarked, MarkedOn: at, Notes: notes[strings.TrimPrefix(entry.ID, idPrefix)]}
 		if line, ok := lines[entry.ID]; ok {
 			margin.Line = n.BodyLine + line
 		}
@@ -69,6 +69,17 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 		return result.HTML, title
 	}
 	return body, title
+}
+
+// outlineIDs are the ids of the headings of a rendered note, which are the
+// sections a mark can name.
+func outlineIDs(result *render.Result) []string {
+	entries := result.Outline()
+	ids := make([]string, len(entries))
+	for i := range entries {
+		ids[i] = entries[i].ID
+	}
+	return ids
 }
 
 // marksIn is when the reader marked each section of this note "Not sure yet",

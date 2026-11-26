@@ -171,3 +171,32 @@ func TestMkAnswersCarryTheNoteThePageDraws(t *testing.T) {
 		t.Errorf("a deleted mark was answered %+v, want it deleted and with no note", deleted)
 	}
 }
+
+// Live is the marks of one note that are not deleted, the newest value of each,
+// in the order they were made.
+func TestKeptLiveListsTheMarksOfOneNoteThatAreNotDeleted(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	first := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkNote+`","quote":"the topic particle marks"}`))
+	second := r.mkThought("words")
+	gone := r.mkThought("deleted")
+	mkStatus(t, r.do(http.MethodDelete, "/mark/"+gone.ID, `{"seen":`+mkSeenJSON(t, gone.Seen)+`}`), http.StatusOK)
+	mkStatus(t, r.do(http.MethodPatch, "/mark/"+second.ID, `{"seen":`+mkSeenJSON(t, second.Seen)+`,"body":"newer"}`), http.StatusOK)
+	elsewhere := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkSecret+`","quote":"the topic particle marks"}`))
+
+	live, err := r.kept.Live(mkNote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for i := range live {
+		got = append(got, live[i].ID+":"+live[i].Body)
+	}
+	want := []string{first.ID + ":", second.ID + ":newer"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Live() (-want +got):\n%s", diff)
+	}
+	if elsewhere.ID == "" {
+		t.Fatal("a mark of another note was not kept")
+	}
+}

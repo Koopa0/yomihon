@@ -212,6 +212,34 @@ func (k *Kept) Questions() ([]Mark, error) {
 	return out, nil
 }
 
+// Live is the marks of one note the reader has kept and not deleted, in the
+// order they were made, the earlier file's among them until they are taken in. A
+// conflict is shown as the value that counts, so a page that draws these draws
+// what the newest of the writers wrote. An error says the marks cannot be read;
+// the page is then drawn without them.
+func (k *Kept) Live(rel string) ([]machinemarks.Mark, error) {
+	view, err := k.View()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
+	}
+	pending, err := k.Pending(view)
+	if err != nil {
+		return nil, err
+	}
+	var out []machinemarks.Mark
+	for _, e := range view.Entries(k.gate) {
+		if m := e.Mark(); !e.Deleted() && m.Path == rel {
+			out = append(out, m)
+		}
+	}
+	for i := range pending {
+		if pending[i].Path == rel && !pending[i].Deleted {
+			out = append(out, pending[i])
+		}
+	}
+	return out, nil
+}
+
 // mendEvery is the least time between two mends in one process. A page that
 // reads the marks is drawn many times a minute, and each mend reads every
 // machine file; the marks git takes out of the working tree are put back at the
