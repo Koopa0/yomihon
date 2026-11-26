@@ -10831,34 +10831,34 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 mark[data-mark] {
   background: transparent;
   border-radius: 2px;
+  -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   color: inherit;
-  -webkit-box-decoration-break: clone;
   transition: background-color var(--dur-base) linear;
 }
 
-:root:not([data-marks='hide']) mark.y-mark:is([data-state='highlight'], [data-state='thought']) {
+:root:not([data-marks='hide']) .y-mark:is([data-state='highlight'], [data-state='thought']) {
   background: var(--reader-wash);
 }
 
-:root:not([data-marks='hide']) mark.y-mark[data-state='question'] {
+:root:not([data-marks='hide']) .y-mark[data-state='question'] {
   text-decoration: underline 2px solid var(--ochre);
   text-underline-offset: 0.2em;
 }
 
-:root:not([data-marks='hide']) mark.y-mark.is-lit:is([data-state='highlight'], [data-state='thought']) {
+:root:not([data-marks='hide']) .y-mark.is-lit:is([data-state='highlight'], [data-state='thought']) {
   background: var(--reader-wash-strong);
 }
 
-:root:not([data-marks='hide']) mark.y-mark.is-lit[data-state='question'] {
+:root:not([data-marks='hide']) .y-mark.is-lit[data-state='question'] {
   background: var(--ochre-wash);
 }
 
-:root:not([data-marks='hide']) mark.y-mark.is-lit[data-state='resolved'] {
+:root:not([data-marks='hide']) .y-mark.is-lit[data-state='resolved'] {
   background: var(--line);
 }
 
-mark.y-mark:focus-visible {
+.y-mark:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }

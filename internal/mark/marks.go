@@ -123,15 +123,9 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, fmt.Errorf("%w: not a note this vault holds", machinemarks.ErrInvalidMark), "keep a mark")
 		return
 	}
-	id := request.ID
-	if id == "" {
-		var err error
-		if id, err = newID(); err != nil {
-			h.refuse(w, r, err, "keep a mark")
-			return
-		}
-	} else if !isID(id) {
-		h.refuse(w, r, fmt.Errorf("%w: the id is not 32 lowercase hex digits", machinemarks.ErrInvalidMark), "keep a mark")
+	id, err := markID(request.ID)
+	if err != nil {
+		h.refuse(w, r, err, "keep a mark")
 		return
 	}
 	if request.ID != "" && h.answerKept(w, r, id) {
@@ -142,31 +136,11 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		Quote: request.Quote, Before: request.Before, After: request.After,
 		Identity: page.Identity, Body: request.Body, At: time.Now(),
 	}
-	if err := askedForWhatKindHolds(&candidate); err != nil {
+	if err = askedForWhatKindHolds(&candidate); err != nil {
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
-	marks, err := h.kept.Marks()
-	if err != nil {
-		h.refuse(w, r, err, "keep a mark")
-		return
-	}
-	admit := func(m *machinemarks.Mark) bool { return h.standsIn(m, &page) }
-	var res machinemarks.Result
-	var stored machinemarks.Mark
-	status := http.StatusCreated
-	if candidate.Kind == machinemarks.Thought {
-		stored = candidate
-		res, err = h.keepThought(writeContext(r), marks, &stored, admit)
-	} else {
-		var out machinemarks.Outcome
-		same := func(other *machinemarks.Mark) bool { return sameAct(other, &candidate) }
-		out, err = marks.Keep(writeContext(r), &candidate, same, admit, h.kept.gate)
-		res, stored = out.Result, out.Mark
-		if err == nil && !out.Written {
-			status = http.StatusOK
-		}
-	}
+	stored, res, status, err := h.keepCandidate(writeContext(r), &candidate, &page)
 	if err = h.landed(err, "keep a mark"); err != nil {
 		// A send of the same id that was still on its way when this one came
 		// has written the mark: that mark is the answer.
@@ -177,6 +151,40 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.send(w, r, status, &stored, res.Seen, lang)
+}
+
+// keepCandidate writes the mark, or finds the one already kept in its place, and
+// says which status the answer carries.
+func (h *Handler) keepCandidate(ctx context.Context, candidate *machinemarks.Mark, page *Page) (stored machinemarks.Mark, res machinemarks.Result, status int, err error) {
+	marks, err := h.kept.Marks()
+	if err != nil {
+		return stored, res, 0, err
+	}
+	admit := func(m *machinemarks.Mark) bool { return h.standsIn(m, page) }
+	status = http.StatusCreated
+	if candidate.Kind == machinemarks.Thought {
+		stored = *candidate
+		res, err = h.keepThought(ctx, marks, &stored, admit)
+		return stored, res, status, err
+	}
+	same := func(other *machinemarks.Mark) bool { return sameAct(other, candidate) }
+	out, err := marks.Keep(ctx, candidate, same, admit, h.kept.gate)
+	if err == nil && !out.Written {
+		status = http.StatusOK
+	}
+	return out.Mark, out.Result, status, err
+}
+
+// markID is the id a mark is kept under: the one the page made, when it is one,
+// and a new one when the page made none.
+func markID(sent string) (string, error) {
+	if sent == "" {
+		return newID()
+	}
+	if !isID(sent) {
+		return "", fmt.Errorf("%w: the id is not 32 lowercase hex digits", machinemarks.ErrInvalidMark)
+	}
+	return sent, nil
 }
 
 // answerKept answers a request to keep a mark with an id the page made, when a

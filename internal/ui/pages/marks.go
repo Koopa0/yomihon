@@ -93,7 +93,7 @@ func (m *MarkNote) markState() string {
 // keyboard and a screen reader meet the mark by, and every other piece only
 // belongs to it.
 func (m *MarkNote) Span(start, end int) render.Span {
-	attrs := fmt.Sprintf(`class="y-mark" data-mark="%s" data-kind="%s" data-state="%s"`, m.ID, m.Kind, m.markState())
+	attrs := `class="y-mark" data-mark="` + m.ID + `" data-kind="` + m.Kind + `" data-state="` + m.markState() + `"`
 	first := `<mark ` + attrs + ` tabindex="0" aria-label="` + html.EscapeString(m.Name()) + `"`
 	if m.HasNote() {
 		first += ` aria-describedby="` + MarkNoteID(m.ID) + `"`

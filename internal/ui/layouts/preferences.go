@@ -91,7 +91,8 @@ type Preference struct {
 // one.
 func Preferences() []Preference {
 	out := make([]Preference, 0, len(preferences))
-	for _, p := range preferences {
+	for i := range preferences {
+		p := &preferences[i]
 		out = append(out, Preference{
 			Cookie:   p.cookie,
 			Values:   slices.Clone(p.values),

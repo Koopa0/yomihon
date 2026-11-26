@@ -112,7 +112,7 @@ func (o *overlay) take(kind html.TokenType, token html.Token, raw []byte) {
 // close writes an end tag, and the notes that were waiting for it.
 func (o *overlay) close(name string, raw []byte) {
 	at := -1
-	for i := len(o.stack) - 1; i >= 0; i-- {
+	for i := range slices.Backward(o.stack) {
 		if o.stack[i].name == name {
 			at = i
 			break
@@ -164,7 +164,7 @@ var carriers = map[string]bool{
 // carrier is the index in the stack of the element a note about words inside the
 // innermost open element waits on, or -1.
 func (o *overlay) carrier() int {
-	for i := len(o.stack) - 1; i >= 0; i-- {
+	for i := range slices.Backward(o.stack) {
 		name := o.stack[i].name
 		if !carriers[name] {
 			continue
@@ -213,6 +213,12 @@ func (o *overlay) text(data string, start int, raw []byte) {
 		cuts[i] = runeStart(data, cuts[i])
 	}
 	cuts = slices.Compact(cuts)
+	o.wrap(data, start, covering, cuts)
+}
+
+// wrap writes a piece of the words cut at the given places, each part inside the
+// marks of the spans that run through all of it.
+func (o *overlay) wrap(data string, start int, covering, cuts []int) {
 	if o.started == nil {
 		o.started = make(map[int]bool)
 	}

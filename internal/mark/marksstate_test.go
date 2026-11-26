@@ -94,6 +94,7 @@ func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 		{"a highlight resolved by turning it into one", question, `"kind":"highlight","body":"","resolved":true`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			before := mkTree(t, r.root)
 			response := r.do(http.MethodPatch, "/mark/"+tt.from.ID, `{"seen":`+mkSeenJSON(t, tt.from.Seen)+","+tt.body+`}`)
 			mkStatus(t, response, http.StatusUnprocessableEntity)

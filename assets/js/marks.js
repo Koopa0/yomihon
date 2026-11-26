@@ -12,7 +12,7 @@
 // change is a request, and the answer is what the page shows. Two tabs changing
 // one mark are two requests; the newer is shown.
 
-import { capture, readWords, slotFor, spanOf, unwrap, within, wrap } from './marks-text.js';
+import { capture, slotFor, spanOf, unwrap, wrap } from './marks-text.js';
 import { initIllumination, initMarksLayout } from './marks-layer.js';
 import { createStatus } from './marks-status.js';
 
@@ -329,7 +329,7 @@ export function initMarks() {
     return entry;
   }
 
-  const reasonOf = (result, size = 0) => (size > TOO_LONG ? strings.reasonTooLong : strings.reasonNotWrite);
+  const reasonOf = (_result, size = 0) => (size > TOO_LONG ? strings.reasonTooLong : strings.reasonNotWrite);
 
   async function undoEntry(entry) {
     const at = undoable.indexOf(entry);
@@ -563,7 +563,10 @@ export function initMarks() {
   }
 
   async function openField(id, { fresh = false, anchor = '' } = {}) {
-    if (field) await closeField();
+    if (field) {
+      await finish(field);
+      if (field) return;
+    }
     const mark = id ? await ensure(id) : null;
     if (id && !mark) return;
     const section = id ? !mark.quote : true;
