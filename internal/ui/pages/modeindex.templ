@@ -57,20 +57,23 @@ templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
 	}
 }
 
-// indexHead is the head every mode index carries: the mode's name, how much of
-// it there is as one quiet fact under the name, and — when the listing needs
-// one — the sentence saying what a reader is looking at. A withheld page has no
-// count to print, and an empty count is not written.
+// indexHead is the head every mode index carries: the mode's name, then — when
+// the listing needs one — the sentence saying what a reader is looking at, then
+// one quiet line with how much of it there is and the way back to the desk at
+// its far end. The head is a threshold, so it closes on the double rule. A
+// withheld page has no count to print, and an empty count is not written.
 templ indexHead(count, title, lede string, lang wording.Lang) {
-	<header class="y-home__head">
+	<header class="y-home__head y-home__head--index">
 		<h1 class="y-title">{ title }</h1>
-		if count != "" {
-			<p class="y-indexcount">{ count }</p>
-		}
 		if lede != "" {
 			<p>{ lede }</p>
 		}
-		<a class="y-back" href="/">{ wording.BackHome.In(lang) }</a>
+		<div class="y-countline">
+			if count != "" {
+				<p class="y-indexcount">{ count }</p>
+			}
+			<a class="y-back" href="/">{ wording.BackHome.In(lang) }</a>
+		</div>
 	</header>
 }
 

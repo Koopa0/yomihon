@@ -2,7 +2,8 @@
 // and the shape line above them. Claims a rendering test cannot reach, because
 // each is settled by the browser rather than by the bytes: every table stands
 // its four columns at the same widths, the count read down its right edge in
-// tabular figures, with one rule under each header and none between rows; the
+// tabular figures, with a firm rule under each header and a fainter one under
+// each row; the
 // fold over each group holds the explanation closed and never a finding, so
 // every row is on the page; on a phone the rows stack and each cell says which
 // column it is, instead of the sheet running off the side where half of it
@@ -32,7 +33,7 @@ const INK_SITE = 'error-and-warn-paint-different-inks';
 const MARKER_SITE = 'the-weights-draw-different-markers';
 const COLUMNS_SITE = 'every-table-stands-its-columns-at-the-same-widths';
 const FIGURES_SITE = 'the-count-is-read-down-one-edge-in-tabular-figures';
-const RULES_SITE = 'one-rule-under-the-header-and-none-between-rows';
+const RULES_SITE = 'a-firm-rule-under-the-header-and-faint-ones-between-rows';
 const FOLD_SITE = 'the-fold-holds-the-explanation-and-no-finding';
 const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, SHAPE_SITE, INK_SITE, MARKER_SITE, COLUMNS_SITE, FIGURES_SITE, RULES_SITE, FOLD_SITE];
 
@@ -105,10 +106,9 @@ const showTheEmptyCells = (page) => appendStyle(page, `@media screen and (max-wi
   .y-findings tbody td:empty{display:grid}
 }`);
 
-// revertErrorInk undoes the correction ink error moved onto, painting it back
-// with warn's own colour — the shape this replaced, where the two weights
-// read as one.
-const revertErrorInk = (page) => appendStyle(page, `.y-severity--error{color:var(--warn)}`);
+// revertErrorInk paints error in warn's own ink, the secondary one — the
+// shape this replaced, where the two weights read as one.
+const revertErrorInk = (page) => appendStyle(page, `.y-severity--error{color:var(--fg-muted)}`);
 
 // revertWarnMarker gives warn error's own squared marker, which is how the two
 // weights came to read as one.
@@ -120,8 +120,11 @@ const narrowTheFileColumn = (page) => appendStyle(page, `.y-findings__col--file{
 // leftAlignTheCounts sets the counts against the other edge.
 const leftAlignTheCounts = (page) => appendStyle(page, `.y-findings__count{text-align:left;font-variant-numeric:normal}`);
 
-// ruleBetweenRows draws the line between rows the table used to carry.
-const ruleBetweenRows = (page) => appendStyle(page, `.y-findings tbody td{border-top:1px solid #000}`);
+// rowRuleAsFirmAsTheHead draws the line under each row in the header's ink,
+// so the rows are ruled as heavily as the line that closes the header.
+const rowRuleAsFirmAsTheHead = (page) => appendStyle(page, `.y-findings tbody td{border-bottom-color:var(--line-strong)}`);
+// rowsUnruled takes the faint line from under each row, so nothing parts them.
+const rowsUnruled = (page) => appendStyle(page, `.y-findings tbody td{border-bottom:0}`);
 
 // foldTheFindings puts the rows behind the fold, which is what a table drawn
 // inside the explanation's own disclosure would do.
@@ -202,7 +205,8 @@ const MUTATIONS = {
   'revert-warn-marker': { target: MARKER_SITE, apply: revertWarnMarker },
   'narrow-the-file-column': { target: COLUMNS_SITE, apply: narrowTheFileColumn },
   'left-align-the-counts': { target: FIGURES_SITE, apply: leftAlignTheCounts },
-  'rule-between-rows': { target: RULES_SITE, apply: ruleBetweenRows },
+  'row-rule-as-firm-as-the-head': { target: RULES_SITE, apply: rowRuleAsFirmAsTheHead },
+  'rows-unruled': { target: RULES_SITE, apply: rowsUnruled },
   'fold-the-findings': { target: FOLD_SITE, apply: foldTheFindings },
   'open-the-folds': { target: FOLD_SITE, apply: openTheFolds },
 };
@@ -294,10 +298,13 @@ const readDesk = (page) => page.evaluate(() => [...document.querySelectorAll('.y
     starts: heads.map((rect) => rect.left - tableBox.left),
     shares: heads.map((rect) => rect.width / tableBox.width),
     headRule: Math.max(...[...table.querySelectorAll('thead th')].map((th) => Number.parseFloat(getComputedStyle(th).borderBottomWidth))),
+    headInk: getComputedStyle(table.querySelector('thead th')).borderBottomColor,
     bodyRule: Math.max(0, ...cells.flatMap((td) => {
       const style = getComputedStyle(td);
       return [Number.parseFloat(style.borderTopWidth), Number.parseFloat(style.borderBottomWidth)];
     })),
+    unruledRows: [...table.querySelectorAll('tbody tr')].filter((tr) => [...tr.cells].some((td) => !(Number.parseFloat(getComputedStyle(td).borderBottomWidth) > 0))).length,
+    bodyInks: [...new Set(cells.map((td) => getComputedStyle(td).borderBottomColor))],
     countEdges: ends,
     countAlign: counts.map((td) => getComputedStyle(td).textAlign),
     countFigures: counts.map((td) => getComputedStyle(td).fontVariantNumeric),
@@ -474,7 +481,9 @@ try {
       fail(FIGURES_SITE, `table ${i}'s counts do not end on one edge: ${JSON.stringify(measured.countEdges)}`);
     }
     if (!(measured.headRule > 0)) fail(RULES_SITE, `table ${i} draws no rule under its header`);
-    if (measured.bodyRule > 0) fail(RULES_SITE, `table ${i} draws a ${measured.bodyRule}px line between its rows`);
+    if (measured.unruledRows > 0) fail(RULES_SITE, `table ${i} leaves ${measured.unruledRows} rows with no hairline under them`);
+    if (measured.bodyRule > 1) fail(RULES_SITE, `table ${i} draws a ${measured.bodyRule}px line between its rows, want a hairline`);
+    if (measured.bodyInks.includes(measured.headInk)) fail(RULES_SITE, `table ${i} rules its rows in the header's own ink ${measured.headInk}, so the header's rule no longer stands firmer than theirs`);
   }
 
   // The shape line's own numbers, held against a second count of the very

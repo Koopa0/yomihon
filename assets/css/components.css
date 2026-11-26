@@ -1724,6 +1724,43 @@ html[data-js][data-arrival='kept'] .y-main {
   margin: 0;
 }
 
+/* A file's head is a note's frontispiece: the folders it lies in as the
+   running head, then its name, then what kind of file it is and where, in the
+   same quiet line a note's facts are read in. */
+.y-frontis .y-crumbs {
+  color: var(--fg-faint);
+  font-size: var(--fs-13);
+  gap: var(--sp-1) var(--sp-2);
+  letter-spacing: 0.02em;
+  margin: 0 0 14px;
+}
+
+.y-frontis .y-crumbs__sep {
+  color: var(--fg-faint);
+}
+
+.y-frontis .y-crumbs__link {
+  text-decoration: none;
+}
+
+.y-frontis .y-crumbs__link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.24em;
+}
+
+.y-frontis .y-metarow {
+  color: var(--fg-faint);
+  font-size: var(--fs-13);
+  margin: var(--sp-3) 0 0;
+}
+
+.y-frontis .ui-type {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+}
+
 .y-notewhere__draft,
 .y-notewhere__kind {
   --icon-size: 13px;
@@ -4625,8 +4662,42 @@ button.y-freshness__action {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
+  line-height: round(1.76em, 1px);
   margin: var(--sp-3) 0 0;
   max-width: 600px;
+}
+
+/* A mode's own page — the courses, the indexes, the reports, the reader's
+   marks, the journal — opens as the Atelier opens a page it lists on: the
+   name, the sentence saying what is listed, and one quiet line with how much
+   there is and the way back to the desk at its far end, the whole head closed
+   by the double rule a threshold takes. What it lists follows the rule
+   directly, so the list draws no rule of its own above its first row. */
+.y-home__head--index {
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  position: relative;
+}
+
+.y-home__head--index::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.y-home__head--index > .y-countline {
+  margin: var(--sp-4) 0 0;
+}
+
+.y-home__head--index + .y-list,
+.y-home__head--index + .y-order + .y-list {
+  border-top: 0;
 }
 
 /* The desk's own name is a label over what stands first on it, and the
@@ -4815,22 +4886,26 @@ button.y-freshness__action {
   padding-top: var(--sp-2);
 }
 
-[data-home-block='marks'] .y-openitem {
+[data-home-block='marks'] .y-openitem,
+.y-list--open .y-openitem {
   align-content: start;
   border-inline-start: 1.5px solid var(--reader);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
   padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
 }
 
-[data-home-block='marks'] .y-openitem[data-open-kind='thought'] {
+[data-home-block='marks'] .y-openitem[data-open-kind='thought'],
+.y-list--open .y-openitem[data-open-kind='thought'] {
   border-inline-start-color: var(--fg-faint);
 }
 
-[data-home-block='marks'] .y-openitem[data-open-kind='lost'] {
+[data-home-block='marks'] .y-openitem[data-open-kind='lost'],
+.y-list--open .y-openitem[data-open-kind='lost'] {
   border-inline-start-color: var(--warn);
 }
 
-[data-home-block='marks'] .y-openitem:has(.y-openitem__name[href]:hover) {
+[data-home-block='marks'] .y-openitem:has(.y-openitem__name[href]:hover),
+.y-list--open .y-openitem:has(.y-openitem__name[href]:hover) {
   background: var(--wash);
 }
 
@@ -5020,8 +5095,9 @@ button.y-freshness__action {
   flex: 1;
 }
 
-/* The way back to the desk is a line a reader can hit: its own words at the
-   size of the links around it, a target as tall as a button, and the wash a
+/* The way back to the desk is the last thing on the head's count line, as the
+   way to a whole shelf is on a desk band's: quieter than the name, only as wide
+   as its words, its target as tall as the line's controls, and the wash a
    pointer brings reaching past the words rather than moving them. */
 .y-back {
   align-items: center;
@@ -5029,19 +5105,31 @@ button.y-freshness__action {
   color: var(--fg-muted);
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  margin: var(--sp-4) calc(-1 * var(--sp-3)) 0;
+  font-size: var(--fs-13);
+  line-height: 20px;
+  margin-block: -6px;
+  margin-inline-start: auto;
   min-height: 32px;
-  padding: 0 var(--sp-3);
+  padding-inline-start: var(--sp-3);
+  text-decoration: none;
 }
 
 .y-back:hover {
-  background: var(--wash);
   color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .y-back {
+    margin-block: -12px;
+    min-height: 44px;
+  }
 }
 
 .y-list {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 /* A row's words start on the list's own edge, under the heading above it, and
@@ -5056,11 +5144,12 @@ button.y-freshness__action {
 
 .y-row {
   align-items: baseline;
-  border-bottom: 1px solid var(--border-faint);
-  border-radius: var(--r-sm);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
   display: flex;
   gap: var(--sp-4);
-  padding: var(--sp-4) 0;
+  padding: var(--sp-3) 0;
+  text-decoration: none;
 }
 
 .y-row:hover,
@@ -5069,20 +5158,26 @@ button.y-freshness__action {
   box-shadow: calc(-1 * var(--bleed)) 0 0 var(--wash), var(--bleed) 0 0 var(--wash);
 }
 
+/* A row is the folder's row: the author's words in the reading face on a
+   whole-pixel line, the fact at the far end in the faint ink and tabular
+   figures, a hairline under each. */
 .y-row__title {
   color: var(--fg);
   flex: 1;
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
+  line-height: round(1.5em, 1px);
   min-width: 0;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .y-row__measure {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   flex: none;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
 }
 /* A row reporting a hole in its own shelf. The colour has to be written here,
    after the measure it overrides: the shared warning colour is declared far
@@ -5095,10 +5190,14 @@ button.y-freshness__action {
 /* What the reader left open, on the desk and on the shelf: each is a short
    stack rather than a row with a figure at its end — what kind of thing it is
    and when, its name and the place in it that was marked, the sentence found
-   there, and the notes a thought came from. There is no hairline between them:
-   the space does that, and the shelf's own rule above the first is dropped. */
+   there, and the notes a thought came from. There is no hairline between them
+   and no box round them: each stands on a line down its start in its kind's
+   colour, as it does on the desk, space parts them, and the shelf's own rule
+   above the first is dropped. */
 .y-list--open {
   border-top: 0;
+  display: grid;
+  gap: var(--sp-4);
 }
 
 .y-openitem {
@@ -5115,7 +5214,7 @@ button.y-freshness__action {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   gap: var(--sp-1) var(--sp-3);
-  line-height: 1.5;
+  line-height: 20px;
   margin: 0;
 }
 
@@ -5168,7 +5267,7 @@ button.y-freshness__action {
   color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
-  line-height: 1.55;
+  line-height: round(1.5em, 1px);
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -5220,33 +5319,52 @@ button.y-freshness__action {
   text-underline-offset: 0.24em;
 }
 
-/* The choice of how a shelf is ordered: one group, the chosen one on the tonal
-   ground in the full ink with a heavier word and a line under it — drawn as the
-   read-aloud speeds are, because a choice is drawn one way everywhere. */
+/* The choice of how a shelf is ordered is the segmented control a folder's
+   toolbar draws: its name in the quiet label, then one group under a hairline
+   with a hairline between its members, the chosen one on the tonal ground in a
+   heavier word. The buttons are the form's own, so the group's edge is drawn
+   on them: each closes its end, and the first and last round theirs. */
 .y-order {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  gap: 2px;
-  margin: 0 0 var(--sp-4);
+  margin: 0 0 var(--sp-5);
 }
 
 .y-order__label {
-  color: var(--fg-subtle);
-  margin-inline-end: var(--sp-2);
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  letter-spacing: 0.04em;
+  margin-inline-end: var(--sp-3);
 }
 
 .y-order button {
   background: transparent;
-  border: 0;
-  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  border-inline-start-width: 0;
+  border-radius: 0;
   color: var(--fg-muted);
   cursor: pointer;
   font: inherit;
   min-height: 32px;
   padding: 0 var(--sp-3);
+}
+
+.y-order__label + button {
+  border-end-start-radius: var(--r-sm);
+  border-inline-start-width: 1px;
+  border-start-start-radius: var(--r-sm);
+}
+
+.y-order button:last-child {
+  border-end-end-radius: var(--r-sm);
+  border-start-end-radius: var(--r-sm);
+}
+
+.y-order button + button {
+  border-inline-start: 1px solid var(--line);
 }
 
 .y-order button:hover {
@@ -5258,12 +5376,9 @@ button.y-freshness__action {
   background: var(--selected);
   color: var(--on-selected);
   font-weight: var(--fw-semibold);
-  text-decoration: underline 2px var(--outline);
-  text-decoration-skip-ink: none;
-  text-underline-offset: 5px;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 720px) {
   .y-order button {
     min-height: 44px;
   }
@@ -5285,7 +5400,7 @@ button.y-freshness__action {
 }
 
 .y-row__when {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
@@ -5304,12 +5419,15 @@ button.y-freshness__action {
   grid-row: 1;
 }
 
+/* The line a document opens with, set as the desk sets it under a report's
+   name: the interface's face at its small size, in the secondary ink. */
 .y-row__opening {
   color: var(--fg-muted);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
   grid-column: 2;
   grid-row: 2;
+  line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5360,9 +5478,11 @@ button.y-freshness__action {
   grid-row: 1;
 }
 
+/* The day ends on the list's right edge, where a folder row's fact ends. */
 .y-row--by-title .y-row__when {
   grid-column: 2;
   grid-row: 1;
+  text-align: end;
 }
 
 .y-row--by-title .y-row__opening {
@@ -5392,27 +5512,33 @@ button.y-freshness__action {
     grid-column: 1;
     grid-row: 3;
     margin-top: var(--sp-2);
+    text-align: start;
   }
 }
 
 /* The journal, read a month at a time. The two ways out of the month hold the
-   ends of one line above the calendar, each named for the month it leads to;
-   where there is nothing on one side the other keeps its end. */
+   ends of one quiet line above the calendar, each named for the month it leads
+   to; where there is nothing on one side the other keeps its end. */
 .y-months {
   display: flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   gap: var(--sp-3);
   justify-content: space-between;
-  margin-bottom: var(--sp-4);
+  line-height: 20px;
+  margin-bottom: var(--sp-3);
 }
 
 .y-months__step {
   color: var(--fg-muted);
+  text-decoration: none;
 }
 
 .y-months__step:hover {
   color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
 .y-months__step--later {
@@ -5422,10 +5548,15 @@ button.y-freshness__action {
 /* The month itself. Seven columns share the width between them whatever the
    width is, so a phone is given a smaller calendar rather than one it has to
    scroll sideways to reach the end of — which is why the columns are laid out
-   from the table rather than from what is written in them. */
+   from the table rather than from what is written in them.
+
+   It is ruled as a list page is, with no box round a day: the weekdays stand
+   over a firmer hairline, and each week is parted from the next by a faint
+   one. A day written on is told by its number in the ink at weight and the
+   entries under it, not by a ground. */
 .y-month {
   border-collapse: collapse;
-  margin-bottom: 28px;
+  margin-bottom: var(--sp-7);
   table-layout: fixed;
   width: 100%;
 }
@@ -5434,69 +5565,72 @@ button.y-freshness__action {
   caption-side: top;
   color: var(--fg);
   font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
-  padding-bottom: var(--sp-3);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-medium);
+  line-height: round(1.3em, 1px);
+  padding-bottom: var(--sp-4);
   text-align: left;
 }
 
 .y-month__weekday {
+  border-bottom: 1px solid var(--line-strong);
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  font-weight: var(--fw-regular);
-  padding: 0 0 var(--sp-2);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  line-height: 20px;
+  padding: 0 var(--sp-2) var(--sp-2) 0;
   text-align: left;
 }
 
+.y-month tbody tr + tr {
+  border-top: 1px solid var(--line);
+}
+
 .y-month__cell {
-  border: 1px solid var(--border-faint);
-  height: 62px;
+  height: 68px;
   overflow: hidden;
-  padding: var(--sp-1) 5px;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
   vertical-align: top;
 }
 
-/* The squares before the month began and after it ended are the table's shape
-   rather than days, so they are drawn as the gap they are: no rule and no fill,
-   which is what leaves the month itself the only thing with edges. */
-.y-month__cell--outside {
-  border-color: transparent;
-}
-
-.y-month__cell--written {
-  background: var(--sage-bg);
-}
-
 .y-month__day {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   display: block;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
+  line-height: 20px;
 }
 
 .y-month__cell--written .y-month__day {
   color: var(--fg);
+  font-weight: var(--fw-semibold);
 }
 
 /* One link per entry written that day, because two entries on one day is where
    a rule that made the square the link would have to choose between them. The
-   name is clipped to the square on screen and the row below carries it whole,
-   which is what keeps a busy week from growing down the page. */
+   name is the author's, so it is set in the reading face; it is clipped to the
+   square on screen and the row below carries it whole, which is what keeps a
+   busy week from growing down the page. */
 .y-month__entry {
   color: var(--link);
   display: block;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-14);
+  line-height: 24px;
   min-height: 24px;
   overflow: hidden;
-  padding-top: 3px;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .y-month__entry:hover {
   text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
 /* An entry named for nothing but its own day has no words to add to the number
@@ -5506,61 +5640,84 @@ button.y-freshness__action {
   border-radius: 50%;
   content: '';
   display: block;
-  height: 7px;
+  height: 6px;
   margin-top: var(--sp-2);
-  width: 7px;
+  width: 6px;
 }
 
 /* The entries that wrote no day belong to no month, so they sit under whichever
-   month is open rather than falling off every one of them. */
+   month is open rather than falling off every one of them, under a group head
+   drawn as a folder's is: the quiet label over a firmer hairline. */
 .y-journalundated {
-  margin-top: 34px;
+  margin-top: var(--sp-7);
+}
+
+.y-journalundated > h2 {
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  line-height: 20px;
+  padding: var(--sp-2) 0;
+}
+
+.y-journalundated .y-list {
+  border-top: 0;
 }
 
 /* File views — a vault file that is not a note. Source and pictures borrow the
    reading column's own type and code styling, so only the document frame and
    the information page need rules of their own. */
 .y-source .y-code {
-  margin-top: var(--sp-5);
+  margin-top: 0;
 }
 
 .y-fileframe {
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 0;
   display: block;
   height: min(78vh, 900px);
-  margin: var(--sp-5) 0 0;
+  margin: 0;
   width: 100%;
 }
 
+/* What yomihon says of a file it cannot show is the page's text, not a panel
+   laid on it: the sentence in the reading face, then the file's facts as rows
+   on faint hairlines, the term in the label face and the value in the machine
+   face, then the way to its bytes. */
 .y-fileinfo {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  margin: var(--sp-5) 0 0;
-  padding: 20px var(--sp-5);
-}
-
-.y-fileinfo__lead {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
-  font-style: italic;
-  margin: 0 0 var(--sp-4);
-}
-
-.y-fileinfo__list {
-  display: grid;
-  gap: var(--sp-2) 20px;
-  grid-template-columns: auto 1fr;
   margin: 0;
 }
 
+.y-fileinfo__lead {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: round(1.76em, 1px);
+  margin: 0 0 var(--sp-5);
+}
+
+.y-fileinfo__list {
+  border-top: 1px solid var(--line-strong);
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+}
+
+.y-fileinfo__list dt,
+.y-fileinfo__list dd {
+  border-bottom: 1px solid var(--line);
+  line-height: 20px;
+  padding: var(--sp-3) 0;
+}
+
 .y-fileinfo__list dt {
-  align-self: baseline;
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
+  padding-inline-end: var(--sp-6);
 }
 
 .y-fileinfo__list dd {
@@ -6615,32 +6772,37 @@ samp,
 }
 
 /* Keeping the columns level is the script's to do, so the control appears only
-   where a script marked the document. */
+   where a script marked the document. It is drawn as a folder's toolbar draws
+   its toggle: one segment under a hairline, in the label face, on the tonal
+   ground in a heavier word while it is on. */
 .y-compare__align {
+  align-items: center;
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   cursor: pointer;
   display: none;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   margin: var(--sp-2) 20px 0;
-  padding: var(--sp-2) var(--sp-3);
+  min-height: 30px;
+  padding: 0 var(--sp-3);
 }
 
 [data-js] .y-compare__align {
   display: inline-flex;
 }
 
+.y-compare__align:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
 .y-compare__align[aria-pressed='true'] {
   background: var(--selected);
-  border-color: transparent;
   color: var(--on-selected);
   font-weight: var(--fw-semibold);
-  text-decoration: underline 2px var(--outline);
-  text-decoration-skip-ink: none;
-  text-underline-offset: 5px;
 }
 
 .y-compare {
@@ -6661,13 +6823,14 @@ samp,
 }
 
 .y-compare__column + .y-compare__column {
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
 }
 
 /* Half the page's width per note, so the reading measure gives back what the
-   note page spends on a gutter it no longer has room for. */
+   note page spends on a gutter it no longer has room for. The column's head
+   takes the same gutter. */
 @media (min-width: 1101px) {
-  .y-compare__column .y-article {
+  .y-compare__column {
     --gutter-read: 28px;
   }
 }
@@ -6680,19 +6843,31 @@ samp,
   margin: var(--sp-4) 0 0;
 }
 
+/* Over each note, the way to read it alone: the column's own quiet line at
+   its start, on the gutter the column's text keeps, with nothing ruled under
+   it — the note's frontispiece below closes on its own double rule. It is the
+   page's, not the note's, so it stands on the column's edge whatever measure
+   the note's language gives its text. */
 .y-compare__head {
   align-items: center;
-  border-bottom: 1px solid var(--border-faint);
   display: flex;
   gap: var(--sp-3);
-  justify-content: space-between;
-  padding: var(--sp-3) 28px;
+  padding: var(--sp-4) var(--gutter-read) 0;
 }
 
 .y-compare__alone {
   color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
+  line-height: 20px;
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
+.y-compare__alone:hover {
+  color: var(--fg);
 }
 
 /* ============================================================
@@ -6713,12 +6888,12 @@ samp,
 
   .y-compare__column + .y-compare__column {
     border-left: 0;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--line);
   }
 
   .y-compare__tabs {
     background: var(--bg);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--line);
     justify-content: flex-start;
     position: sticky;
     top: var(--hdr-h);
@@ -6726,10 +6901,10 @@ samp,
   }
 
   .y-compare__tab {
-    color: var(--fg-subtle);
+    color: var(--fg-muted);
     display: inline-flex;
-    font-family: var(--font-mono);
-    font-size: var(--fs-12);
+    font-family: var(--font-serif);
+    font-size: var(--fs-ed-14);
     max-width: 50%;
     overflow: hidden;
     padding: var(--sp-3);
@@ -7246,14 +7421,18 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
     overflow: visible;
     white-space: normal;
   }
-  /* A month printed on paper is a calendar somebody will write on: the squares
-     keep their rules, a week is never split across two sheets, and an entry's
-     name is set whole because the reader cannot click the row below to see the
-     rest of it. */
+  /* A month printed on paper is a calendar somebody will write on: the days
+     are ruled into squares there, a week is never split across two sheets, and
+     an entry's name is set whole because the reader cannot click the row below
+     to see the rest of it. */
   .y-month__cell {
-    border-color: var(--border);
     height: auto;
     overflow: visible;
+  }
+
+  .y-month__cell:not(.y-month__cell--outside) {
+    border: 1px solid var(--border);
+    padding-inline-start: var(--sp-1);
   }
 
   .y-month tr {
@@ -7427,67 +7606,74 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
-  line-height: var(--lh-read);
-  margin: var(--sp-4) 0 0;
+  line-height: round(1.76em, 1px);
+  margin: var(--sp-3) 0 0;
 }
 
+/* A fact that stands over every finding — the findings are as of an older
+   reading, or a kind of them could not be worked out — is a short passage on
+   a line down its start, as the Atelier sets a principle apart, rather than a
+   box. The fact that qualifies every row beneath it draws that line in the
+   diagnostic ochre, the page's one sparing accent; the others in the firmer
+   hairline. */
 .y-healthsection {
-  margin: 36px 0 0;
+  border-inline-start: 1.5px solid var(--line-strong);
+  margin: var(--sp-6) 0 0;
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-4);
 }
 
 .y-healthsection__title {
   align-items: center;
   color: var(--fg);
   display: flex;
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-regular);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
   gap: var(--sp-2);
+  line-height: 22px;
   margin: 0;
 }
 
-/* A standing notice qualifies every row beneath it, so it is the one section on
-   the page that carries the warning tint. */
 .y-healthsection--notice {
-  background: var(--warn-bg);
-  border-radius: var(--r-lg);
-  padding: var(--sp-5);
-}
-
-.y-healthsection--notice .y-healthsection__lede {
-  color: var(--fg-muted);
+  border-inline-start-color: var(--warn);
 }
 
 .y-healthsection__lede {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.7;
-  margin: var(--sp-2) 0 0;
+  line-height: 22px;
+  margin: var(--sp-1) 0 0;
+  max-width: var(--measure-read);
 }
 
 .y-healthlink {
   color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
+  line-height: round(1.5em, 1px);
   text-decoration: none;
 }
 
 .y-healthlink:hover {
   text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
-/* The report's own shape, in the same label face as the table's own headings
-   below it: monospace, small, and no colour of its own — a weight already
-   carries the table's badge colour, and everything else here stays neutral. */
+/* The report's own shape is the page's count line: a quiet fact in the label
+   face and tabular figures, with no colour of its own — a weight carries its
+   own mark, and everything else here stays neutral. */
 .y-healthshape {
   align-items: center;
   color: var(--fg-muted);
   display: flex;
   flex-wrap: wrap;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  gap: var(--sp-1) var(--sp-3);
+  line-height: 20px;
   margin: var(--sp-4) 0 0;
 }
 
@@ -7503,12 +7689,12 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   color: var(--fg);
 }
 
-/* The findings, a table to each kind. The one rule is the one under the
-   header, and nothing is ruled between rows or drawn round the table: a box
-   round a ledger adds a line for every line it already has, and the room a row
-   is given does what a hairline did. Every table on the page stands its four
-   columns at the same widths, so the file, the finding, the weight and the
-   count line up from one kind to the next down the whole page. */
+/* The findings, a table to each kind, ruled as the Atelier rules a table:
+   a firmer hairline under the header and a faint one under each row, nothing
+   drawn round the table and no rule between its columns. Every table on the
+   page stands its four columns at the same widths, so the file, the finding,
+   the weight and the count line up from one kind to the next down the whole
+   page. */
 .y-findings {
   border-collapse: collapse;
   margin: var(--sp-3) 0 0;
@@ -7538,11 +7724,12 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-findings__head {
-  border-bottom: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--line-strong);
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-regular);
+  line-height: 20px;
   padding: 0 var(--sp-3) var(--sp-2) 0;
   vertical-align: bottom;
   white-space: nowrap;
@@ -7599,6 +7786,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-findings tbody td {
+  border-bottom: 1px solid var(--line);
   overflow-wrap: anywhere;
   padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
   vertical-align: baseline;
@@ -7618,10 +7806,10 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-findings__detail {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
-  margin-top: 3px;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
@@ -7630,7 +7818,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-findings__count {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
@@ -7638,29 +7826,27 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   text-align: right;
 }
 
-/* The weight the judging face gives a finding, in that face's own word. Error
-   and warn used to share one ink and differ only by a border, which reads as
-   one colour at a glance. On screen they are pulled further apart by two more
-   channels: the marker's shape — a filled square for error, a ring for warn, a
-   small dot for info — and error's ink, a hue of its own rather than a darker warning, never the same
-   colour. Neither borrows the blue, which marks the reader's own place
-   and nothing else. The border is what a
-   printed page keeps no matter how a reader's printer treats background
-   colour: the marker's dot is a background fill, and a printer that drops
-   background graphics drops it with it. */
+/* The weight the judging face gives a finding, in that face's own word, as a
+   mark beside the row rather than a box round the word. The three weights are
+   told apart by two channels besides the word: the marker's shape — a filled
+   square for error, a ring for warn, a small dot for info — and the ink. Error
+   is the one finding the folder cannot do without mending, so it alone takes
+   the diagnostic ochre, the page's sparing accent; warn is the secondary ink
+   and info the faint one. Nothing here is red: a finding is something to
+   mend, not an alarm. Neither borrows the blue, which marks the reader's own
+   place and nothing else. The marker is a border where a fill would be a
+   background, so a printer that drops background graphics keeps the ring and
+   the word; the square and the dot are small enough that the word carries the
+   weight on paper. */
 .y-severity {
   align-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
-  gap: var(--sp-1);
-  line-height: 1;
-  padding: 3px var(--sp-2) 3px var(--sp-2);
+  gap: 6px;
+  line-height: 20px;
 }
 
 .y-severity::before {
@@ -7673,9 +7859,8 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-severity--error {
-  background: var(--error-bg);
-  border-color: var(--error);
-  color: var(--error);
+  color: var(--warn);
+  font-weight: var(--fw-semibold);
 }
 
 .y-severity--error::before {
@@ -7685,44 +7870,53 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-severity--warn {
-  background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--fg-muted);
 }
 
 .y-severity--warn::before {
   background: transparent;
-  border: 2px solid currentcolor;
+  border: 1.5px solid currentcolor;
   height: 8px;
   width: 8px;
 }
 
-.y-severity--info {
-  background: var(--panel);
-  border-color: var(--border-faint);
-  color: var(--fg-muted);
-}
-
-/* A kind of finding: its name, then the fold holding what it means, then the
-   table. The name is a step below the page's own, which stays the largest text
-   here; nothing on the page is set larger than it. */
+/* A kind of finding is a band of the page, as a desk band is: its name in the
+   label face over the double rule a threshold takes, then the fold holding
+   what it means, then the table. The page's own name stays the largest text
+   here. */
 .y-healthgroup {
   margin: var(--sp-7) 0 0;
 }
 
 .y-healthgroup__title {
   color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
-  line-height: 1.5;
+  letter-spacing: 0.04em;
+  line-height: 20px;
   margin: 0;
+  padding-bottom: var(--sp-3);
+  position: relative;
+}
+
+.y-healthgroup__title::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
 }
 
 /* What a kind means, folded: a reader who knows what a row claims came for the
    rows. The fold holds explanation and nothing else; a fact about the group
    stands below it, and every row is in the table. */
 .y-healthabout {
-  margin: 2px 0 0;
+  margin: var(--sp-2) 0 0;
 }
 
 .y-healthabout__head {
@@ -7741,18 +7935,19 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-healthabout__text {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.7;
+  line-height: 22px;
   margin: var(--sp-1) 0 0;
-  max-width: 46em;
+  max-width: var(--measure-read);
 }
 
 .y-healthgroup__standing {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
+  line-height: 20px;
   margin: var(--sp-2) 0 0;
 }
 
@@ -7766,26 +7961,34 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
 .y-healthlist li {
   align-items: baseline;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
   gap: 2px var(--sp-3);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-3) 0;
+}
+
+.y-healthlist .y-findings__path {
+  color: var(--fg-faint);
 }
 
 .y-healthlist__branch {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-15);
+  line-height: round(1.5em, 1px);
 }
 
 /* Which rows of the report are on this page, set in the same label face as the
    shape line it follows and quieter than it: the shape is what the folder owes,
    this is only where in the list the reader is standing. */
 .y-healthrange {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  margin: var(--sp-2) 0 0;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+  margin: var(--sp-1) 0 0;
 }
 
 /* ============================================================
@@ -7892,7 +8095,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   }
 
   .y-findings thead tr {
-    border-bottom: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--line-strong);
     display: flex;
     flex-wrap: wrap;
     gap: var(--sp-1) var(--sp-4);
@@ -7909,10 +8112,12 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   }
 
   .y-findings tbody tr {
+    border-bottom: 1px solid var(--line);
     padding: var(--sp-3) 0;
   }
 
   .y-findings tbody td {
+    border-bottom: 0;
     display: grid;
     gap: 2px var(--sp-3);
     grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr);
@@ -7920,9 +8125,9 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   }
 
   .y-findings tbody td::before {
-    color: var(--fg-muted);
+    color: var(--fg-faint);
     content: attr(data-col);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: var(--fs-12);
   }
   /* The label owns the first column and everything the cell holds owns the
@@ -9062,10 +9267,13 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   text-decoration-line: underline;
 }
 
+/* The card is a slip of the raised paper laid beside the link: the paper the
+   desk's kept place is set on, a hairline edge, a small radius, and the
+   shadow of something lifted off the page. */
 .y-preview {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  background: var(--elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   box-shadow: var(--shadow-2);
   color: var(--fg);
   inline-size: min(38rem, calc(100vw - 2rem));
@@ -9108,7 +9316,8 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 .y-preview__source {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  line-height: 1.5;
+  letter-spacing: 0.02em;
+  line-height: 20px;
   margin: 0 0 var(--sp-3);
 }
 
@@ -9122,20 +9331,20 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-preview__sep {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   margin: 0 var(--sp-2);
 }
 
 .y-preview__section {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 /* The two sentences the card says in its own voice: why it is empty, and where
    the rest of a note it cut short can be read. */
 .y-preview__notice {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.6;
+  line-height: 20px;
   margin: 0;
 }
 
