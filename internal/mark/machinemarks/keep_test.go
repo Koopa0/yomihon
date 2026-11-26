@@ -16,14 +16,14 @@ func TestKeepOfAMarkThatIsThereWritesNothing(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	first := highlight(1, "dead tuples")
-	out, err := a.m.Keep(&first, sameQuote("dead tuples"), open, open)
+	out, err := a.m.Keep(t.Context(), &first, sameQuote("dead tuples"), open, open)
 	if err != nil || !out.Written {
 		t.Fatalf("first Keep = %+v, %v", out, err)
 	}
 	before := tree(t, a.root)
 	ledger := string(a.ledgerBytes())
 	again := highlight(2, "dead tuples")
-	out, err = a.m.Keep(&again, sameQuote("dead tuples"), open, open)
+	out, err = a.m.Keep(t.Context(), &again, sameQuote("dead tuples"), open, open)
 	if err != nil || out.Written || out.Mark.ID != mid(1) {
 		t.Fatalf("second Keep = %+v, %v; want the first mark and no write", out, err)
 	}
@@ -44,7 +44,7 @@ func TestKeepsAtOnceKeepOne(t *testing.T) {
 	for n := 1; n <= 8; n++ {
 		wg.Go(func() {
 			m := highlight(n, "same passage")
-			if _, err := a.m.Keep(&m, sameQuote("same passage"), open, open); err != nil {
+			if _, err := a.m.Keep(t.Context(), &m, sameQuote("same passage"), open, open); err != nil {
 				t.Error(err)
 			}
 		})
@@ -60,12 +60,12 @@ func TestKeepIgnoresAWithheldMark(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	first := highlight(1, "secret")
-	if _, err := a.m.Keep(&first, sameQuote("secret"), open, open); err != nil {
+	if _, err := a.m.Keep(t.Context(), &first, sameQuote("secret"), open, open); err != nil {
 		t.Fatal(err)
 	}
 	withhold := func(*Mark) bool { return false }
 	second := highlight(2, "secret")
-	out, err := a.m.Keep(&second, sameQuote("secret"), open, withhold)
+	out, err := a.m.Keep(t.Context(), &second, sameQuote("secret"), open, withhold)
 	if err != nil || !out.Written || out.Mark.ID != mid(2) {
 		t.Fatalf("Keep under a gate that withholds = %+v, %v", out, err)
 	}
@@ -76,7 +76,7 @@ func TestKeepRefusesAnIDThatIsTaken(t *testing.T) {
 	a := newClone(t, "A")
 	a.say(1, "words")
 	m := highlight(1, "other")
-	if _, err := a.m.Keep(&m, sameQuote("other"), open, open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Keep(t.Context(), &m, sameQuote("other"), open, open); !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Keep with a taken id = %v, want ErrInvalidMark", err)
 	}
 }
@@ -87,13 +87,13 @@ func TestToggleMakesAndTakesAway(t *testing.T) {
 	a := newClone(t, "A")
 	q := Mark{ID: mid(1), Kind: Question, Path: "courses/pg/vacuum.md", Anchor: "dead-tuples", At: thought(1, "").At}
 	same := func(m *Mark) bool { return m.Kind == Question && m.Quote == "" && m.Anchor == "dead-tuples" }
-	out, err := a.m.Toggle(&q, same, open, open)
+	out, err := a.m.Toggle(t.Context(), &q, same, open, open)
 	if err != nil || !out.Written || out.Mark.Deleted {
 		t.Fatalf("first Toggle = %+v, %v", out, err)
 	}
 	q2 := q
 	q2.ID = mid(2)
-	out, err = a.m.Toggle(&q2, same, open, open)
+	out, err = a.m.Toggle(t.Context(), &q2, same, open, open)
 	if err != nil || !out.Written || !out.Mark.Deleted || out.Mark.ID != mid(1) {
 		t.Fatalf("second Toggle = %+v, %v; want the first mark deleted", out, err)
 	}
@@ -102,7 +102,7 @@ func TestToggleMakesAndTakesAway(t *testing.T) {
 	}
 	q3 := q
 	q3.ID = mid(3)
-	if out, err = a.m.Toggle(&q3, same, open, open); err != nil || out.Mark.Deleted || out.Mark.ID != mid(3) {
+	if out, err = a.m.Toggle(t.Context(), &q3, same, open, open); err != nil || out.Mark.Deleted || out.Mark.ID != mid(3) {
 		t.Fatalf("third Toggle = %+v, %v; want a new mark", out, err)
 	}
 }
@@ -125,7 +125,7 @@ func TestToggleRefusesAMarkInConflict(t *testing.T) {
 		t.Fatalf("%d values, want a conflict", len(e.Values))
 	}
 	m := q(2)
-	_, err := a.m.Toggle(&m, func(x *Mark) bool { return x.ID == mid(1) }, open, open)
+	_, err := a.m.Toggle(t.Context(), &m, func(x *Mark) bool { return x.ID == mid(1) }, open, open)
 	stale, ok := errors.AsType[*StaleError](err)
 	if !ok || len(stale.Seen) == 0 {
 		t.Fatalf("Toggle on a conflict = %v, want a StaleError with what is read", err)
@@ -146,7 +146,7 @@ func TestTakeInLegacyTakesInOnlyWhatIsNew(t *testing.T) {
 	a.say(3, "the first write takes the old ones in")
 	a.delete(1)
 	old = append(old, thought(4, "arrived with an adoption"))
-	if _, err := a.m.TakeInLegacy(); err != nil {
+	if _, err := a.m.TakeInLegacy(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if a.words(4) != "arrived with an adoption" {
@@ -159,7 +159,7 @@ func TestTakeInLegacyTakesInOnlyWhatIsNew(t *testing.T) {
 		t.Fatalf("mark 2 reads %q", a.words(2))
 	}
 	before := string(a.ledgerBytes())
-	if _, err := a.m.TakeInLegacy(); err != nil {
+	if _, err := a.m.TakeInLegacy(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if string(a.ledgerBytes()) != before {
@@ -177,21 +177,21 @@ func TestToggleAdmitsOnlyWhatIsNewAndAlwaysTakesAway(t *testing.T) {
 	q := thought(1, "")
 	q.Kind = Question
 	before := tree(t, a.root)
-	if _, err := a.m.Toggle(&q, same, refuse, open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Toggle(t.Context(), &q, same, refuse, open); !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Toggle of a place that is not admitted = %v, want ErrInvalidMark", err)
 	}
-	if _, err := a.m.Toggle(&q, same, nil, open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Toggle(t.Context(), &q, same, nil, open); !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Toggle with no admit = %v, want ErrInvalidMark", err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
 		t.Fatalf("a refused place wrote %s", diff)
 	}
-	if _, err := a.m.Toggle(&q, same, open, open); err != nil {
+	if _, err := a.m.Toggle(t.Context(), &q, same, open, open); err != nil {
 		t.Fatal(err)
 	}
 	q2 := q
 	q2.ID = mid(2)
-	out, err := a.m.Toggle(&q2, same, refuse, open)
+	out, err := a.m.Toggle(t.Context(), &q2, same, refuse, open)
 	if err != nil || !out.Mark.Deleted {
 		t.Fatalf("taking away with a refusing admit = %+v, %v; want the mark taken away", out, err)
 	}
@@ -212,7 +212,7 @@ func TestStaleSeenDoesNotCoverALineOfAnotherComputerThePageNeverRead(t *testing.
 	pull(b, a)
 
 	m := thought(1, "from the stale page")
-	_, err := a.m.Put(&m, page, nil, open)
+	_, err := a.m.Put(t.Context(), &m, page, nil, open)
 	stale, ok := errors.AsType[*StaleError](err)
 	if !ok {
 		t.Fatalf("Put on an old page = %v, want a StaleError", err)
@@ -222,7 +222,7 @@ func TestStaleSeenDoesNotCoverALineOfAnotherComputerThePageNeverRead(t *testing.
 			t.Fatalf("the stale answer covers B's line, which the page never read: %v", stale.Seen)
 		}
 	}
-	if _, err = a.m.Put(&m, stale.Seen, nil, open); err != nil {
+	if _, err = a.m.Put(t.Context(), &m, stale.Seen, nil, open); err != nil {
 		t.Fatalf("writing on top of the stale answer: %v", err)
 	}
 	got := a.words(1)

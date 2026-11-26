@@ -2,6 +2,7 @@ package machinemarks
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -33,13 +34,13 @@ type Outcome struct {
 // of one the reader had read, which has to say what it had read. admit is asked
 // of a mark that is new, under the lock, and says whether the place is one the
 // caller can stand behind.
-func (m *Marks) Keep(mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
+func (m *Marks) Keep(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
 	needGate(gate)
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
-	res, err := m.change(func(v *view) (*proposal, error) {
+	res, err := m.change(ctx, func(v *view) (*proposal, error) {
 		if there := sameMark(v, same, gate); len(there) > 0 {
 			out.Mark = there[0].heads[0].Mark
 			return &proposal{noWrite: true, base: entrySeen(v, out.Mark.ID)}, nil
@@ -79,13 +80,13 @@ func admitted(v *view, mark *Mark, admit func(*Mark) bool) error {
 // is read now. Marks that are the same place and were each made by a machine
 // that had not read the other leave Remaining to take away by asking again.
 // Taking away is always allowed; admit is asked of a mark that is new only.
-func (m *Marks) Toggle(mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
+func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
 	needGate(gate)
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
-	res, err := m.change(func(v *view) (*proposal, error) {
+	res, err := m.change(ctx, func(v *view) (*proposal, error) {
 		there := sameMark(v, same, gate)
 		if len(there) == 0 {
 			if err := admitted(v, mark, admit); err != nil {
@@ -130,8 +131,8 @@ func sameMark(v *view, same func(*Mark) bool, gate Gate) []resolved {
 // the vault had already taken in its own. It takes in what no line of any
 // machine names and nothing that was taken in before, and writes this machine's
 // file as the ledger and the file say it is.
-func (m *Marks) TakeInLegacy() (Result, error) {
-	return m.run(true, func(*view) (*proposal, error) {
+func (m *Marks) TakeInLegacy(ctx context.Context) (Result, error) {
+	return m.run(ctx, true, func(*view) (*proposal, error) {
 		return &proposal{restore: true}, nil
 	})
 }

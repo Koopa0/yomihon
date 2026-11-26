@@ -122,7 +122,7 @@ func (r *openRequest) exportMarks(ctx context.Context) (payload egress.Payload, 
 			payload, notices, err = egress.Payload{}, nil, errOpenScan
 		}
 	}()
-	adopted, err := r.adoptEarlier(source, snap, opened.allowed)
+	adopted, err := r.adoptEarlier(ctx, source, snap, opened.allowed)
 	if err != nil {
 		return egress.Payload{}, nil, err
 	}

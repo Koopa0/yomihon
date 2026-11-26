@@ -67,7 +67,7 @@ func (k keptMarks) forget(id string) {
 	if !ok {
 		k.t.Fatalf("no mark %s to forget", id)
 	}
-	if _, err = hand.Delete(id, entry.Seen, nil, mark.AllMarks); err != nil {
+	if _, err = hand.Delete(k.t.Context(), id, entry.Seen, nil, mark.AllMarks); err != nil {
 		k.t.Fatalf("forget mark %s: %v", id, err)
 	}
 }

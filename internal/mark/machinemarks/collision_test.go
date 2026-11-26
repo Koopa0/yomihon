@@ -70,7 +70,7 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	if !b.view().NewIDUnsaid() {
 		t.Fatal("the new id was not there to be said")
 	}
-	if err := b.m.NoticeNewID(); err != nil {
+	if err := b.m.NoticeNewID(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	b.restart()
@@ -131,7 +131,7 @@ func TestALeaveStoppedHalfWayIsFinished(t *testing.T) {
 		t.Fatal(err)
 	}
 	// B recorded that it left the id and was killed before it took another.
-	if _, err := b.m.ledger.Record(&ledger.Event{Kind: kindRetire, ID: idA}); err != nil {
+	if _, err := b.m.ledger.Record(t.Context(), &ledger.Event{Kind: kindRetire, ID: idA}); err != nil {
 		t.Fatal(err)
 	}
 	b.restart()
@@ -213,7 +213,7 @@ func TestTheLinesOfALeftIdAreKeptInTheFileOfTheNewId(t *testing.T) {
 	if v := b.view(); v.Missing() == 0 {
 		t.Fatal("nothing is missing after B's file was taken away")
 	}
-	if _, err := b.m.Restore(); err != nil {
+	if _, err := b.m.Restore(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if v := b.view(); v.Missing() != 0 {

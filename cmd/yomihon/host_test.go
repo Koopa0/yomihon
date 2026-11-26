@@ -917,7 +917,7 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock, err := confdir.Acquire(home, "vaults.lock", 0)
+	lock, err := confdir.Acquire(t.Context(), home, "vaults.lock", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

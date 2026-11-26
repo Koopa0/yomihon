@@ -65,7 +65,7 @@ func markEvent(writer, session, id, body string) *Event {
 
 func record(t *testing.T, l *Ledger, e *Event) uint64 {
 	t.Helper()
-	seq, err := l.Record(e)
+	seq, err := l.Record(t.Context(), e)
 	if err != nil {
 		t.Fatalf("Record %s: %v", e.Kind, err)
 	}
@@ -79,6 +79,15 @@ func events(t *testing.T, l *Ledger) (held []Event, changed int) {
 		t.Fatal(err)
 	}
 	return evs, changed
+}
+
+// latestIn is LatestMarks of writer over what l reads now.
+func latestIn(l *Ledger, writer string) (map[string]Event, error) {
+	events, _, err := l.Events()
+	if err != nil {
+		return nil, err
+	}
+	return LatestMarks(events, writer), nil
 }
 
 func fileOf(t *testing.T, dir confdir.Dir, name string) []byte {
@@ -175,7 +184,7 @@ func TestEachLineTakesItsOwnSeqAndTheyOnlyGoUp(t *testing.T) {
 	if seq := record(t, restarted, markEvent("a", "s2", "m1", "edit")); seq != 4 {
 		t.Fatalf("after a restart the line took seq %d, want 4", seq)
 	}
-	if err := restarted.Compact(); err != nil {
+	if err := restarted.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if seq := record(t, restarted, markEvent("a", "s2", "m2", "other")); seq != 5 {
@@ -194,7 +203,7 @@ func TestEachLineTakesItsOwnSeqAndTheyOnlyGoUp(t *testing.T) {
 	// Change seq 6 too, and compact: the highest seq left in the ledger is 4.
 	data = fileOf(t, dir, fileName)
 	writeFile(t, dir, fileName, bytes.Replace(data, []byte("third"), []byte("THIRD"), 1))
-	if err := restarted.Compact(); err != nil {
+	if err := restarted.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	fresh, _ := open(t, dir)
@@ -254,7 +263,7 @@ func TestALineCutShortIsReadPastAndTheNextBeginsOnItsOwn(t *testing.T) {
 			if !bytes.Contains(fileOf(t, sub, fileName), append(append(slices.Clone(cutLine[:at]), '\n'), got[2].raw...)) {
 				t.Error("the next line does not begin on a line of its own after the cut one")
 			}
-			if err := again.Compact(); err != nil {
+			if err := again.Compact(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			if data := fileOf(t, sub, fileName); !bytes.Contains(data, append(append(slices.Clone(got[1].raw), '\n'), cutLine[:at]...)) {
@@ -304,11 +313,11 @@ func TestAChangedLineIsCountedNeverReadAndSetAside(t *testing.T) {
 	if changed != 1 || len(got) != 2 || got[0].mark != "m1" || got[1].mark != "m3" {
 		t.Fatalf("after one line was changed: %d events, %d changed; want m1 and m3 read and one changed", len(got), changed)
 	}
-	if latest, err := l.LatestMarks("a"); err != nil || len(latest) != 2 {
+	if latest, err := latestIn(l, "a"); err != nil || len(latest) != 2 {
 		t.Fatalf("LatestMarks = %v, %v; want the two whole lines", latest, err)
 	}
 	for range 2 {
-		if err := l.Compact(); err != nil {
+		if err := l.Compact(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		if bytes.Contains(fileOf(t, dir, fileName), changedLine) {
@@ -367,24 +376,24 @@ func TestRecordingTheSameLineAgainIsIdempotent(t *testing.T) {
 	first := record(t, l, markEvent("a", "s", "m1", "same"))
 	second := record(t, l, markEvent("a", "s", "m1", "same"))
 	record(t, l, markEvent("a", "s", "m2", "other"))
-	latest, err := l.LatestMarks("a")
+	latest, err := latestIn(l, "a")
 	if err != nil || len(latest) != 2 || latest["m1"].Seq != second {
 		t.Fatalf("LatestMarks = %v, %v; want m1 at seq %d, not %d", latest, err, second, first)
 	}
-	if err = l.Compact(); err != nil {
+	if err = l.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	after := fileOf(t, dir, fileName)
 	if got, _ := events(t, l); len(got) != 2 || got[0].Seq != second {
 		t.Fatalf("after a compaction the ledger holds %d lines, the first at seq %d; want m1's newest and m2", len(got), got[0].Seq)
 	}
-	if err = l.Compact(); err != nil {
+	if err = l.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if again := fileOf(t, dir, fileName); !bytes.Equal(again, after) {
 		t.Errorf("a second compaction changed the ledger:\n%s\nwant\n%s", again, after)
 	}
-	if again, err := l.LatestMarks("a"); err != nil || !sameEvent(new(again["m1"]), new(latest["m1"])) || !sameEvent(new(again["m2"]), new(latest["m2"])) {
+	if again, err := latestIn(l, "a"); err != nil || !sameEvent(new(again["m1"]), new(latest["m1"])) || !sameEvent(new(again["m2"]), new(latest["m2"])) {
 		t.Errorf("after compactions LatestMarks = %v, %v; want %v", again, err, latest)
 	}
 }
@@ -420,13 +429,13 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 	if changed != 0 || len(before) != 12 {
 		t.Fatalf("before the compaction: %d events, %d changed; want 12 and 0", len(before), changed)
 	}
-	latestA, errA := l.LatestMarks("aaaaaaaa")
-	latestB, errB := l.LatestMarks("bbbbbbbb")
+	latestA, errA := latestIn(l, "aaaaaaaa")
+	latestB, errB := latestIn(l, "bbbbbbbb")
 	if errA != nil || errB != nil {
 		t.Fatal(errA, errB)
 	}
 
-	if err := l.Compact(); err != nil {
+	if err := l.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	after, changed := events(t, l)
@@ -467,7 +476,7 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 		t.Errorf("the compaction kept the processes %q as session lines, want only s2, at the seq of its line", sessions)
 	}
 	for writer, want := range map[string]map[string]Event{"aaaaaaaa": latestA, "bbbbbbbb": latestB} {
-		got, err := l.LatestMarks(writer)
+		got, err := latestIn(l, writer)
 		if err != nil || len(got) != len(want) {
 			t.Fatalf("after the compaction LatestMarks(%s) = %v, %v; want %v", writer, got, err, want)
 		}
@@ -613,7 +622,7 @@ func TestALeftoverOfACompactionIsRemovedAndNothingElse(t *testing.T) {
 	before := names()
 	restarted, _ := open(t, dir)
 	events(t, restarted)
-	if _, err := restarted.LatestMarks("a"); err != nil {
+	if _, err := latestIn(restarted, "a"); err != nil {
 		t.Fatal(err)
 	}
 	if after := names(); !slices.Equal(after, before) {
@@ -636,7 +645,7 @@ func TestReadingAMissingLedgerMakesNothing(t *testing.T) {
 	if got, changed := events(t, l); len(got) != 0 || changed != 0 {
 		t.Fatalf("a missing ledger reads %d events, %d changed", len(got), changed)
 	}
-	if latest, err := l.LatestMarks("a"); err != nil || len(latest) != 0 {
+	if latest, err := latestIn(l, "a"); err != nil || len(latest) != 0 {
 		t.Fatalf("LatestMarks of a missing ledger = %v, %v", latest, err)
 	}
 	if _, err := os.Stat(dir.Path()); !errors.Is(err, os.ErrNotExist) {
@@ -660,7 +669,7 @@ func TestALedgerSeesWhatAnotherWriterDid(t *testing.T) {
 	if got, _ := events(t, mine); len(got) != 3 || got[2].Session != "t" {
 		t.Fatalf("after another process's line this one reads %d events, want 3 with theirs last", len(got))
 	}
-	if err := theirs.Compact(); err != nil {
+	if err := theirs.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := events(t, mine); len(got) != 2 {
@@ -686,9 +695,232 @@ func TestALedgerSeesWhatAnotherWriterDid(t *testing.T) {
 	}
 }
 
+// A Record that waits for the ledger's lock, here held as another process
+// would hold it, keeps no reader of this process waiting: every page that reads
+// the marks reads the ledger, and a write can wait for the lock for seconds.
+func TestAReaderDoesNotWaitBehindARecordThatWaitsForTheLock(t *testing.T) {
+	t.Parallel()
+	dir := vaultDir(t)
+	l, _ := open(t, dir)
+	l.lockWait = time.Minute
+	record(t, l, markEvent("a", "s", "m1", "first"))
+	other, err := confdir.Acquire(t.Context(), dir, lockName, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			if err := other.Release(); err != nil {
+				t.Errorf("Release: %v", err)
+			}
+		}
+	}
+	t.Cleanup(release)
+
+	recorded := make(chan error, 1)
+	go func() {
+		_, err := l.Record(t.Context(), markEvent("a", "s", "m2", "second"))
+		recorded <- err
+	}()
+	// Read for a while as the Record waits, each read bounded: one that waited
+	// behind the Record would wait for as long as the lock is held.
+	for until := time.Now().Add(200 * time.Millisecond); time.Now().Before(until); {
+		read := make(chan error, 1)
+		go func() {
+			got, _, err := l.Events()
+			if err == nil && len(got) != 1 {
+				err = fmt.Errorf("read %d events while the second line waits, want 1", len(got))
+			}
+			read <- err
+		}()
+		select {
+		case err := <-read:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Events waited 5s behind a Record that waits for the ledger's lock")
+		}
+	}
+	select {
+	case err := <-recorded:
+		t.Fatalf("the Record answered %v while another held the lock", err)
+	default:
+	}
+	release()
+	if err := <-recorded; err != nil {
+		t.Fatalf("the Record once the lock came free: %v", err)
+	}
+	if got, _ := events(t, l); len(got) != 2 {
+		t.Errorf("after the Record the ledger reads %d events, want 2", len(got))
+	}
+}
+
+// A compaction installs the ledger while a reader, which takes no lock, has the
+// file open: on Windows the rename over it is refused until the reader closes
+// it, and is tried again rather than failing the compaction.
+func TestACompactionInstallsTheLedgerWhileAReaderHasItOpen(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "windows" {
+		t.Skip("elsewhere a rename over a file a reader has open is never refused, so there is nothing to try again")
+	}
+	dir := vaultDir(t)
+	l, _ := open(t, dir)
+	record(t, l, markEvent("a", "s", "m1", "old"))
+	record(t, l, markEvent("a", "s", "m1", "new"))
+	reader, err := os.Open(dir.Join(fileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan error, 1)
+	time.AfterFunc(50*time.Millisecond, func() { closed <- reader.Close() })
+	if err := l.Compact(t.Context()); err != nil {
+		t.Fatalf("Compact while a reader had the ledger open = %v, want it installed once the reader closed it", err)
+	}
+	if err := <-closed; err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := events(t, l); len(got) != 1 || !bytes.Contains(got[0].Content, []byte("new")) {
+		t.Errorf("after the compaction the ledger reads %d events, want the newer line alone", len(got))
+	}
+}
+
+// Lines another process set aside are counted though the ledger itself was left
+// as it was, as a compaction stopped between setting them aside and installing
+// the ledger leaves it: what one ledger holds from its last read is not what it
+// answers once either file has changed under it.
+func TestALedgerSeesLinesSetAsideByAnotherThatLeftTheLedgerAsItWas(t *testing.T) {
+	t.Parallel()
+	dir := vaultDir(t)
+	l, _ := open(t, dir)
+	record(t, l, markEvent("a", "s", "m1", "first"))
+	if _, changed := events(t, l); changed != 0 {
+		t.Fatalf("a ledger of whole lines reads %d changed, want 0", changed)
+	}
+	line := bytes.TrimSuffix(fileOf(t, dir, fileName), []byte("\n"))
+	writeFile(t, dir, damagedName, append(bytes.Replace(line, []byte("first"), []byte("FIRST"), 1), '\n'))
+	if _, changed := events(t, l); changed != 1 {
+		t.Errorf("after another set a changed line aside the ledger reads %d changed, want 1", changed)
+	}
+}
+
+// A reader that reads the file of the lines set aside while a compaction is
+// still appending a changed line to it counts that line once: it is whole in the
+// ledger still, and half written in the file beside it. What it read is not
+// held as the count once the append has ended.
+func TestALineSetAsideHalfWayIsCountedOnce(t *testing.T) {
+	t.Parallel()
+	dir := vaultDir(t)
+	l, _ := open(t, dir)
+	record(t, l, markEvent("a", "s", "m1", "first"))
+	record(t, l, markEvent("a", "s", "m2", "second"))
+	changedLedger := bytes.Replace(fileOf(t, dir, fileName), []byte("first"), []byte("FIRST"), 1)
+	writeFile(t, dir, fileName, changedLedger)
+	if _, changed := events(t, l); changed != 1 {
+		t.Fatalf("a ledger with one changed line reads %d changed, want 1", changed)
+	}
+	line := lines(changedLedger)[0]
+	writeFile(t, dir, damagedName, line[:len(line)/2])
+	for read := range 2 {
+		if _, changed := events(t, l); changed != 1 {
+			t.Errorf("read %d while the line is half set aside: %d changed, want 1", read, changed)
+		}
+	}
+	writeFile(t, dir, damagedName, append(bytes.Clone(line), '\n'))
+	if _, changed := events(t, l); changed != 1 {
+		t.Errorf("once the line is set aside whole: %d changed, want 1", changed)
+	}
+}
+
+// A compaction and a carry leave what this process holds of the ledger in place
+// until the new ledger is installed, so a reader of this process that reads
+// meanwhile is answered from it and does not open the ledger the rename is
+// replacing, which on Windows would refuse the rename. Here the install is
+// refused before it begins, by a directory that cannot be written to, and what
+// was held is held still.
+func TestWhatIsHeldStaysUntilANewLedgerIsInstalled(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("a folder's mode does not stop a file being made in it on Windows")
+	}
+	for _, tt := range []struct {
+		name    string
+		ledger  func(t *testing.T, l *Ledger, dir confdir.Dir)
+		install func(t *testing.T, l *Ledger) error
+	}{
+		{
+			name: "a compaction",
+			ledger: func(t *testing.T, l *Ledger, _ confdir.Dir) {
+				t.Helper()
+				record(t, l, markEvent("a", "s", "m1", "old"))
+				record(t, l, markEvent("a", "s", "m1", "new"))
+			},
+			install: func(t *testing.T, l *Ledger) error {
+				t.Helper()
+				return l.Compact(t.Context())
+			},
+		},
+		{
+			name: "a carry",
+			ledger: func(t *testing.T, _ *Ledger, dir confdir.Dir) {
+				t.Helper()
+				writeFile(t, dir, fileName, nil)
+				// The lock file is made now, so that what the directory refuses
+				// below is the install and not the lock.
+				lock, err := confdir.Acquire(t.Context(), dir, lockName, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = lock.Release(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			install: func(t *testing.T, l *Ledger) error {
+				t.Helper()
+				from := vaultDir(t)
+				earlier, _ := open(t, from)
+				record(t, earlier, markEvent("a", "s", "m1", "earlier"))
+				_, err := l.Carry(t.Context(), from)
+				return err
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := vaultDir(t)
+			l, _ := open(t, dir)
+			tt.ledger(t, l, dir)
+			events(t, l)
+			if err := os.Chmod(dir.Path(), 0o500); err != nil { // #nosec G302 -- the test's own temporary directory
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+					t.Errorf("restore the directory's mode: %v", err)
+				}
+			})
+			if err := os.WriteFile(dir.Join("probe"), nil, 0o600); err == nil {
+				t.Skip("this user writes in a directory it may not write in (a privileged user), so the fixture shows nothing")
+			}
+			if err := tt.install(t, l); err == nil {
+				t.Fatalf("%s into a directory that cannot be written to = nil, want the install refused", tt.name)
+			}
+			l.mu.Lock()
+			held := l.read.info != nil
+			l.mu.Unlock()
+			if !held {
+				t.Errorf("%s that could not install a new ledger dropped what this process held of the old one", tt.name)
+			}
+		})
+	}
+}
+
 // Goroutines that share one ledger, and ledgers that share one directory as two
 // processes do, each record without losing or doubling a line or a seq, while
-// compactions drop the lines that newer ones supersede among them.
+// compactions drop the lines that newer ones supersede among them, and while
+// readers of the shared ledger, which take no lock, read it over and over.
 func TestRecordsAtOnceLoseNothing(t *testing.T) {
 	t.Parallel()
 	const writers, each = 4, 25
@@ -714,18 +946,55 @@ func TestRecordsAtOnceLoseNothing(t *testing.T) {
 		names = append(names, name)
 		wg.Go(func() {
 			for i := range each {
-				if _, err := l.Record(togetherEvent(name, i)); err != nil {
+				if _, err := l.Record(t.Context(), togetherEvent(name, i)); err != nil {
 					errs <- err
 				}
 			}
 		})
 	}
+	written := make(chan struct{})
+	var readers sync.WaitGroup
+	for range 2 {
+		readers.Go(func() {
+			for {
+				select {
+				case <-written:
+					return
+				default:
+				}
+				if err := readWhole(shared); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		})
+	}
 	wg.Wait()
+	close(written)
+	readers.Wait()
 	close(errs)
 	for err := range errs {
 		t.Error(err)
 	}
 	checkNewestThere(t, dir, names, each)
+}
+
+// readWhole reads l as a page would while others write, and says what is wrong
+// with what it read: a line that is not a whole one, or a seq on two lines.
+func readWhole(l *Ledger) error {
+	got, _, err := l.Events()
+	if err != nil {
+		return err
+	}
+	for i := range got {
+		if markOf(got[i].Content) == "" {
+			return fmt.Errorf("a reader read a mark line that names no mark: %q", got[i].Content)
+		}
+		if i > 0 && got[i].Seq <= got[i-1].Seq {
+			return fmt.Errorf("a reader read seq %d after seq %d", got[i].Seq, got[i-1].Seq)
+		}
+	}
+	return nil
 }
 
 // togetherMarks is how many marks each writer at once writes over and over.
@@ -757,7 +1026,7 @@ func checkNewestThere(t *testing.T, dir confdir.Dir, writers []string, each int)
 	if len(got) >= len(writers)*each {
 		t.Errorf("the ledger holds all %d lines written, so no compaction ran among the writers", len(got))
 	}
-	latest, err := l.LatestMarks("aaaaaaaa")
+	latest, err := latestIn(l, "aaaaaaaa")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -788,7 +1057,7 @@ func TestCarryBringsTheEarlierLedgerOnlyIntoOneThatHasNone(t *testing.T) {
 	record(t, earlier, markEvent("aaaaaaaa", "s", "m2", "changed there"))
 	data := fileOf(t, from, fileName)
 	writeFile(t, from, fileName, bytes.Replace(data, []byte("changed there"), []byte("CHANGED there"), 1))
-	if err = earlier.Compact(); err != nil {
+	if err = earlier.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	record(t, earlier, markEvent("aaaaaaaa", "s", "m3", "after"))
@@ -800,7 +1069,7 @@ func TestCarryBringsTheEarlierLedgerOnlyIntoOneThatHasNone(t *testing.T) {
 	}
 	l, _ := open(t, to)
 	for i, want := range []bool{true, false} {
-		carried, carryErr := l.Carry(from)
+		carried, carryErr := l.Carry(t.Context(), from)
 		if carryErr != nil || carried != want {
 			t.Fatalf("Carry %d = %v, %v; want %v", i+1, carried, carryErr, want)
 		}
@@ -828,7 +1097,7 @@ func TestCarryBringsTheEarlierLedgerOnlyIntoOneThatHasNone(t *testing.T) {
 	o, _ := open(t, own)
 	record(t, o, &Event{Kind: "header", ID: "bbbbbbbb"})
 	mineBefore := fileOf(t, own, fileName)
-	if carried, carryErr := o.Carry(from); carryErr != nil || carried {
+	if carried, carryErr := o.Carry(t.Context(), from); carryErr != nil || carried {
 		t.Fatalf("Carry into a ledger with lines of its own = %v, %v; want false, nil", carried, carryErr)
 	}
 	if got := fileOf(t, own, fileName); !bytes.Equal(got, mineBefore) {
@@ -842,7 +1111,7 @@ func TestCarryBringsTheEarlierLedgerOnlyIntoOneThatHasNone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if carried, err := o.Carry(nothing); err != nil || carried {
+	if carried, err := o.Carry(t.Context(), nothing); err != nil || carried {
 		t.Errorf("Carry from a path with no ledger = %v, %v; want false, nil", carried, err)
 	}
 }
@@ -865,7 +1134,7 @@ func TestACarryMadeAgainSetsNothingAsideTwice(t *testing.T) {
 	record(t, earlier, markEvent("aaaaaaaa", "s", "m1", "changed"))
 	writeFile(t, from, fileName, bytes.Replace(fileOf(t, from, fileName), []byte("changed"), []byte("CHANGED"), 1))
 	record(t, earlier, markEvent("aaaaaaaa", "s", "m2", "whole"))
-	if err := earlier.Compact(); err != nil {
+	if err := earlier.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	aside := fileOf(t, from, damagedName)
@@ -873,7 +1142,7 @@ func TestACarryMadeAgainSetsNothingAsideTwice(t *testing.T) {
 	// aside here, no ledger.
 	writeFile(t, to, damagedName, aside)
 	l, _ := open(t, to)
-	if carried, err := l.Carry(from); err != nil || !carried {
+	if carried, err := l.Carry(t.Context(), from); err != nil || !carried {
 		t.Fatalf("Carry = %v, %v; want true, nil", carried, err)
 	}
 	if got := fileOf(t, to, damagedName); !bytes.Equal(got, aside) {
@@ -886,13 +1155,13 @@ func TestALineLongerThanItsLimitIsRefused(t *testing.T) {
 	t.Parallel()
 	dir := vaultDir(t)
 	l, _ := open(t, dir)
-	if _, err := l.Record(&Event{Kind: "marks-replaced", Content: bytes.Repeat([]byte("x"), MaxLineBytes)}); !errors.Is(err, ErrTooLarge) {
+	if _, err := l.Record(t.Context(), &Event{Kind: "marks-replaced", Content: bytes.Repeat([]byte("x"), MaxLineBytes)}); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("Record of a line past its limit = %v, want ErrTooLarge", err)
 	}
-	if _, err := l.Record(&Event{}); err == nil {
+	if _, err := l.Record(t.Context(), &Event{}); err == nil {
 		t.Error("Record of a line with no kind = nil, want an error")
 	}
-	if _, err := l.Record(&Event{Kind: KindMark, Writer: "a\xff"}); err == nil {
+	if _, err := l.Record(t.Context(), &Event{Kind: KindMark, Writer: "a\xff"}); err == nil {
 		t.Error("Record of a writer that is not UTF-8 = nil, want an error: it would be read back as another")
 	}
 	if _, err := os.Stat(filepath.Join(dir.Path(), fileName)); !errors.Is(err, os.ErrNotExist) {

@@ -576,7 +576,7 @@ func TestALockHeldByAnotherIsWaitedForAndThenGivenUpOn(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
-	held, err := confdir.Acquire(homeAt(t, config), lockFile, 0)
+	held, err := confdir.Acquire(t.Context(), homeAt(t, config), lockFile, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

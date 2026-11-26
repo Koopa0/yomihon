@@ -294,16 +294,18 @@ func run(log *slog.Logger, root string, out io.Writer) error {
 // list of vaults the reader has opened and is served beside them by the one
 // running yomihon; otherwise it is served alone, and nothing is remembered.
 func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config, out io.Writer) error {
-	// A folder that is the configuration directory, holds it or is inside it
-	// would have what yomihon keeps written into the folder being read, so it
-	// is refused before anything is listed, bound or written. One that cannot
-	// be compared with it is read with nothing kept, as with no configuration
-	// directory at all.
-	if err := cfg.configDir.Apart(cfg.root); err != nil {
-		if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
-			return &refusal{cause: err, msg: err.Error()}
-		}
+	// A folder that overlaps the configuration directory would have what
+	// yomihon keeps written into the folder being read, so it is refused before
+	// anything is listed, bound or written. One that cannot be compared with it
+	// is read with nothing kept: the process goes on with no configuration
+	// directory, as though the platform named none, and the warning below says
+	// why.
+	switch relation, err := cfg.configDir.Classify(cfg.root); relation {
+	case confdir.Overlaps:
+		return &refusal{cause: err, msg: err.Error()}
+	case confdir.Unknown:
 		cfg.configDir, cfg.noConfigDir = confdir.ConfigDir{}, err.Error()
+	case confdir.Apart:
 	}
 	if cfg.noConfigDir != "" {
 		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",

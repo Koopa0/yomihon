@@ -16,3 +16,8 @@ func openDirectory(path string) (directory, error) {
 
 func (d directory) sync() error  { return d.file.Sync() }
 func (d directory) close() error { return d.file.Close() }
+
+// transient says whether a rename that failed is worth trying again. None of
+// the failures of a rename on a Unix system is one that passes by itself:
+// another process reading the file does not stop a rename over it.
+func transient(error) bool { return false }

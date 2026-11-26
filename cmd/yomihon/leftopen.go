@@ -271,7 +271,7 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted
 	if missing := openUnreadable(snap, allowed); missing != nil {
 		return egress.Payload{}, false, "", missing
 	}
-	if adopted, err = r.adoptEarlier(source, snap, allowed); err != nil {
+	if adopted, err = r.adoptEarlier(ctx, source, snap, allowed); err != nil {
 		return egress.Payload{}, false, "", err
 	}
 	kept, stored, err := r.marks(source, source.Name())
@@ -408,7 +408,7 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 // refused in the list: what another folder's marks say of ground this folder
 // withholds, or of notes it has not got, never becomes part of this folder's
 // output.
-func (r *openRequest) adoptEarlier(source *vault.Reader, snap *snapshot.Generation, allowed func(string) bool) (adopted bool, err error) {
+func (r *openRequest) adoptEarlier(ctx context.Context, source *vault.Reader, snap *snapshot.Generation, allowed func(string) bool) (adopted bool, err error) {
 	vaultRoot := source.Name()
 	if r.adopt == "" {
 		return false, nil
@@ -418,9 +418,10 @@ func (r *openRequest) adoptEarlier(source *vault.Reader, snap *snapshot.Generati
 		return false, fmt.Errorf(`no configuration directory, so the marks for the earlier path cannot be found: %s; nothing was adopted`, reason)
 	}
 	// Adopting writes this folder's marks, into a configuration directory that
-	// must not be inside the folder, nor the folder inside it.
-	if apartErr := r.configDir.Apart(r.root); apartErr != nil {
-		return false, fmt.Errorf("%w; nothing was adopted", apartErr)
+	// must not be inside the folder, nor the folder inside it: it is refused
+	// unless the two are known to be apart.
+	if relation, notApart := r.configDir.Classify(r.root); relation != confdir.Apart {
+		return false, fmt.Errorf("%w; nothing was adopted", notApart)
 	}
 	store, err := mark.Open(r.configDir, vaultRoot)
 	if err != nil {
@@ -435,7 +436,7 @@ func (r *openRequest) adoptEarlier(source *vault.Reader, snap *snapshot.Generati
 		// are where the marks are read from, so they are taken in now, where the
 		// reader asked for the adoption, and not by whatever writes next.
 		reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
-		takeErr := reader.TakeIn()
+		takeErr := reader.TakeIn(ctx)
 		err = errors.Join(takeErr, reader.Close())
 	}
 	switch {

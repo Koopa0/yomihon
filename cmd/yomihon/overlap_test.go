@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -365,6 +366,33 @@ func TestAListedFolderThatComesBackInsideTheConfigurationDirectoryIsNotRead(t *t
 	}
 	if _, err := os.Stat(filepath.Join(configDir, "yomihon", entry.ID)); !os.IsNotExist(err) {
 		t.Errorf("something was kept for %s: %v", inside, err)
+	}
+}
+
+// A site is built only for a folder known to be apart from the configuration
+// directory the process keeps things in, so one that cannot be compared with
+// it, here one under a file, is not read. A folder that could not be compared
+// at the start never reaches here with that directory: this is a listed vault,
+// read by a yomihon whose configuration directory was usable when it began.
+func TestASiteIsNotBuiltForAFolderThatCannotBeToldApartFromTheConfigurationDirectory(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows reads a name below a file as one that is not there")
+	}
+	base := t.TempDir()
+	home := filepath.Join(base, "home")
+	if err := os.WriteFile(home, []byte("a file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(base, "notes")
+	writeDeskFixture(t, root)
+	site, err := newReadingSite(t.Context(), root, confdir.At(filepath.Join(home, ".config")), slog.New(slog.DiscardHandler))
+	if err == nil {
+		closeErr := site.close()
+		t.Fatalf("newReadingSite with a configuration directory that cannot be compared = a site (close: %v), want the folder not read", closeErr)
+	}
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+		t.Errorf("newReadingSite = %v, want the error that stopped the comparison, not an overlap", err)
 	}
 }
 

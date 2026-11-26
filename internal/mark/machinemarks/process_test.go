@@ -3,6 +3,7 @@ package machinemarks
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -120,7 +121,7 @@ func runChild(mode, root, conf, who string) error {
 			if e, ok := view.Entry(mark.ID, open); ok {
 				base = e.Seen
 			}
-			if _, putErr := m.Put(&mark, base, nil, open); putErr != nil {
+			if _, putErr := m.Put(context.Background(), &mark, base, nil, open); putErr != nil {
 				return putErr
 			}
 			if err := say("done %d", i); err != nil {
@@ -141,7 +142,7 @@ func together(m *Marks, who string) error {
 	}
 	for i := range togetherMarks {
 		mark := thought(base+i, who+" "+strconv.Itoa(i))
-		if _, err := m.Put(&mark, nil, nil, open); err != nil {
+		if _, err := m.Put(context.Background(), &mark, nil, nil, open); err != nil {
 			return err
 		}
 		if i%5 != 0 {
@@ -157,7 +158,7 @@ func together(m *Marks, who string) error {
 			if e, ok := view.Entry(shared.ID, open); ok {
 				seen = e.Seen
 			}
-			_, err = m.Put(&shared, seen, nil, open)
+			_, err = m.Put(context.Background(), &shared, seen, nil, open)
 			if err == nil {
 				break
 			}
@@ -269,7 +270,7 @@ func TestGoroutinesWriteAtOnce(t *testing.T) {
 			}
 			for i := range 15 {
 				mark := thought(10+g*100+i, "g")
-				if _, err := m.Put(&mark, nil, nil, open); err != nil {
+				if _, err := m.Put(t.Context(), &mark, nil, nil, open); err != nil {
 					errs <- err
 					return
 				}

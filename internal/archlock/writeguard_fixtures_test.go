@@ -746,18 +746,19 @@ func use() {
 		as:   module + "/internal/mark/ledger",
 		src: `package ledger
 import (
+	"context"
 	"errors"
 	"os"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
-func record(dir confdir.Dir, line []byte) error {
+func record(ctx context.Context, dir confdir.Dir, line []byte) error {
 	if _, err := os.Stat(dir.Join("ledger.jsonl")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	if err := confdir.RemoveLeftovers(dir, "ledger.jsonl"); err != nil {
 		return err
 	}
-	return confdir.Exclusive(dir, "ledger.lock", confdir.LockWait, func() error { return confdir.Append(dir, "ledger.jsonl", line) })
+	return confdir.Exclusive(ctx, dir, "ledger.lock", confdir.LockWait, func() error { return confdir.Append(dir, "ledger.jsonl", line) })
 }`,
 	},
 	{

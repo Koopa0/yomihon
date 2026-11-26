@@ -370,7 +370,7 @@ func TestAZeroDirIsRefusedByEverythingThatChangesAFile(t *testing.T) {
 	if err := confdir.SetAside(none, "f.json", "g.json"); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("SetAside = %v, want ErrNotNamed", err)
 	}
-	if _, err := confdir.Acquire(none, "l.lock", 0); !errors.Is(err, confdir.ErrNotNamed) {
+	if _, err := confdir.Acquire(t.Context(), none, "l.lock", 0); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Acquire = %v, want ErrNotNamed", err)
 	}
 	if _, err := confdir.Read(none, "f.json", 1); !errors.Is(err, confdir.ErrNotNamed) {

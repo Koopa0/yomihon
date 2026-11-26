@@ -3,15 +3,18 @@ package confdir_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
@@ -49,7 +52,7 @@ func TestMain(m *testing.M) {
 func hold() int {
 	dir, err := confdir.Home(confdir.At(os.Getenv(configVar)))
 	if err == nil {
-		err = confdir.Exclusive(dir, lockName, 0, func() error {
+		err = confdir.Exclusive(context.Background(), dir, lockName, 0, func() error {
 			if readyErr := ready(); readyErr != nil {
 				return readyErr
 			}
@@ -74,7 +77,7 @@ func write() int {
 		if _, ended := in.ReadString('\n'); ended != nil {
 			return 0
 		}
-		err = confdir.Exclusive(dir, lockName, confdir.LockWait, func() error {
+		err = confdir.Exclusive(context.Background(), dir, lockName, confdir.LockWait, func() error {
 			held, readErr := confdir.Read(dir, linesName, 1<<20)
 			if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
 				return readErr
@@ -193,7 +196,7 @@ func TestAHolderThatDiesReleasesTheLock(t *testing.T) {
 	}
 	holder := started(t, config, "hold")
 	t.Cleanup(func() { _ = holder.cmd.Wait() }) //nolint:errcheck // killed, so it reports the signal
-	if err := confdir.Exclusive(dir, lockName, 0, func() error { return errors.New("entered a lock another process holds") }); !errors.Is(err, confdir.ErrLocked) {
+	if err := confdir.Exclusive(t.Context(), dir, lockName, 0, func() error { return errors.New("entered a lock another process holds") }); !errors.Is(err, confdir.ErrLocked) {
 		t.Fatalf("Exclusive while another process holds the lock = %v, want ErrLocked", err)
 	}
 	if err := holder.cmd.Process.Kill(); err != nil {
@@ -201,7 +204,7 @@ func TestAHolderThatDiesReleasesTheLock(t *testing.T) {
 	}
 	begun := time.Now()
 	entered := false
-	if err := confdir.Exclusive(dir, lockName, confdir.LockWait, func() error { entered = true; return nil }); err != nil || !entered {
+	if err := confdir.Exclusive(t.Context(), dir, lockName, confdir.LockWait, func() error { entered = true; return nil }); err != nil || !entered {
 		t.Fatalf("Exclusive after the holder was killed = %v, entered %v; want the lock, at once", err, entered)
 	}
 	t.Logf("the lock was taken %v after its holder was killed", time.Since(begun))
@@ -211,11 +214,11 @@ func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 	t.Parallel()
 	dir := homeIn(t)
 
-	first, err := confdir.Acquire(dir, "list.lock", 0)
+	first, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
 	if err != nil {
 		t.Fatalf("Acquire: %v", err)
 	}
-	if _, refused := confdir.Acquire(dir, "list.lock", 0); !errors.Is(refused, confdir.ErrLocked) {
+	if _, refused := confdir.Acquire(t.Context(), dir, "list.lock", 0); !errors.Is(refused, confdir.ErrLocked) {
 		t.Fatalf("a second Acquire while the first holds it = %v, want ErrLocked", refused)
 	}
 	if err = first.Release(); err != nil {
@@ -226,7 +229,7 @@ func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 	if _, statErr := os.Stat(dir.Join("list.lock")); statErr != nil {
 		t.Errorf("a released lock took its file away: %v", statErr)
 	}
-	second, err := confdir.Acquire(dir, "list.lock", 0)
+	second, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
 	if err != nil {
 		t.Fatalf("Acquire after Release: %v", err)
 	}
@@ -238,7 +241,7 @@ func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 func TestAWaiterGetsTheLockWhenItsHolderReleasesInTime(t *testing.T) {
 	t.Parallel()
 	dir := homeIn(t)
-	held, err := confdir.Acquire(dir, "list.lock", 0)
+	held, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
 	if err != nil {
 		t.Fatalf("Acquire: %v", err)
 	}
@@ -246,11 +249,168 @@ func TestAWaiterGetsTheLockWhenItsHolderReleasesInTime(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		_ = held.Release() //nolint:errcheck // a failure surfaces as the waiter timing out below
 	}()
-	waiter, err := confdir.Acquire(dir, "list.lock", 5*time.Second)
+	waiter, err := confdir.Acquire(t.Context(), dir, "list.lock", 5*time.Second)
 	if err != nil {
 		t.Fatalf("a waiter was not given the lock after its holder released it: %v", err)
 	}
 	if err := waiter.Release(); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+}
+
+// A claim of this process that waits behind another of this process's stops
+// waiting when its context is cancelled, and not when the wait it was given runs
+// out.
+func TestACancelledContextEndsTheWaitForTheLockAtOnce(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		dir := homeIn(t)
+		held, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
+		if err != nil {
+			t.Fatalf("Acquire: %v", err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		const cancelAt = 300 * time.Millisecond
+		time.AfterFunc(cancelAt, cancel)
+		began := time.Now()
+		lock, err := confdir.Acquire(ctx, dir, "list.lock", time.Minute)
+		if err == nil {
+			_ = lock.Release() //nolint:errcheck // the failure below is the report
+		}
+		if !errors.Is(err, context.Canceled) || errors.Is(err, confdir.ErrLocked) {
+			t.Errorf("Acquire with its context cancelled = %v, want the context's error and not ErrLocked", err)
+		}
+		if waited := time.Since(began); waited != cancelAt {
+			t.Errorf("Acquire ended %v after it began, want at the cancellation, %v", waited, cancelAt)
+		}
+		if err := held.Release(); err != nil {
+			t.Fatalf("Release: %v", err)
+		}
+	})
+}
+
+// A context that is done stops a wait, never the taking of a lock that is free:
+// a change part way through its steps goes on to the next.
+func TestAFreeLockIsTakenWhateverTheContextSays(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	lock, err := confdir.Acquire(ctx, dir, "list.lock", time.Minute)
+	if err != nil {
+		t.Fatalf("Acquire of a free lock with a cancelled context = %v, want the lock", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+}
+
+// A claim of this process waiting behind another of its own is let through the
+// moment that one lets the lock go, and gives up when the wait it was given
+// runs out, not a moment later. The clock is the bubble's, so the times are
+// exact.
+func TestAClaimIsLetThroughTheMomentTheLockIsLetGoAndWaitsNoLongerThanItWasGiven(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		dir := homeIn(t)
+		held, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
+		if err != nil {
+			t.Fatalf("Acquire: %v", err)
+		}
+		const wait = 3 * time.Second
+		began := time.Now()
+		if _, err = confdir.Acquire(t.Context(), dir, "list.lock", wait); !errors.Is(err, confdir.ErrLocked) {
+			t.Fatalf("Acquire of a lock held throughout = %v, want ErrLocked", err)
+		}
+		if waited := time.Since(began); waited != wait {
+			t.Errorf("Acquire gave up after %v, want exactly the %v it was given", waited, wait)
+		}
+
+		const heldFor = 2 * time.Second
+		go func() {
+			time.Sleep(heldFor)
+			if releaseErr := held.Release(); releaseErr != nil {
+				t.Errorf("Release: %v", releaseErr)
+			}
+		}()
+		began = time.Now()
+		lock, err := confdir.Acquire(t.Context(), dir, "list.lock", wait)
+		if err != nil {
+			t.Fatalf("Acquire of a lock let go after %v = %v, want the lock", heldFor, err)
+		}
+		if late := time.Since(began) - heldFor; late != 0 {
+			t.Errorf("the lock was taken %v after it was let go, want at once", late)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatalf("Release: %v", err)
+		}
+	})
+}
+
+// The claims of one process are let through in the order they were made: one
+// that has waited longest is next, and none of them is passed over by one that
+// came after, however many there are.
+func TestTheClaimsOfOneProcessAreLetThroughInTheOrderTheyWereMade(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		dir := homeIn(t)
+		held, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
+		if err != nil {
+			t.Fatalf("Acquire: %v", err)
+		}
+		const claims = 8
+		var order []int
+		var mu sync.Mutex
+		var all sync.WaitGroup
+		for i := range claims {
+			all.Go(func() {
+				time.Sleep(time.Duration(i+1) * time.Millisecond)
+				lock, err := confdir.Acquire(t.Context(), dir, "list.lock", time.Minute)
+				if err != nil {
+					t.Errorf("claim %d: Acquire: %v", i, err)
+					return
+				}
+				mu.Lock()
+				order = append(order, i)
+				mu.Unlock()
+				time.Sleep(time.Millisecond) // the change made under the lock
+				if err := lock.Release(); err != nil {
+					t.Errorf("claim %d: Release: %v", i, err)
+				}
+			})
+		}
+		time.Sleep(time.Second)
+		if err := held.Release(); err != nil {
+			t.Fatalf("Release: %v", err)
+		}
+		all.Wait()
+		if want := []int{0, 1, 2, 3, 4, 5, 6, 7}; !slices.Equal(order, want) {
+			t.Errorf("the claims were let through in the order %v, want %v", order, want)
+		}
+	})
+}
+
+// A claim whose lock file cannot be opened, here because a folder stands at its
+// name, gives its place in this process's queue back: once the name is free, a
+// claim that waits for nothing gets the lock.
+func TestAClaimWhoseLockCannotBeOpenedGivesItsTurnBack(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	if err := os.Mkdir(dir.Join("list.lock"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 0); err == nil {
+		_ = lock.Release() //nolint:errcheck // the failure below is the report
+		t.Fatal("Acquire opened a folder as its lock file")
+	}
+	if err := os.Remove(dir.Join("list.lock")); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
+	if err != nil {
+		t.Fatalf("Acquire after a claim that could not open the lock = %v, want the lock at once", err)
+	}
+	if err := lock.Release(); err != nil {
 		t.Fatalf("Release: %v", err)
 	}
 }
@@ -268,7 +428,7 @@ func TestOnlyOneHolderIsInsideAtATime(t *testing.T) {
 	for worker := range workers {
 		wg.Go(func() {
 			for round := range rounds {
-				lock, err := confdir.Acquire(dir, "list.lock", 30*time.Second)
+				lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 30*time.Second)
 				if err != nil {
 					t.Errorf("worker %d round %d: Acquire: %v", worker, round, err)
 					return
@@ -309,7 +469,7 @@ func TestExclusiveKeepsEveryChangeOfWritersOnOneFile(t *testing.T) {
 	for w := range writers {
 		group.Go(func() {
 			for i := range each {
-				err := confdir.Exclusive(dir, "x.lock", 30*time.Second, func() error {
+				err := confdir.Exclusive(t.Context(), dir, "x.lock", 30*time.Second, func() error {
 					held, err := confdir.Read(dir, "x.txt", 1<<20)
 					if err != nil && !os.IsNotExist(err) {
 						return err
@@ -342,7 +502,7 @@ func TestALockDoesNotFollowALinkOutOfItsDirectory(t *testing.T) {
 	if err := os.Symlink(outside, dir.Join("list.lock")); err != nil {
 		t.Skipf("this platform or user cannot make a link: %v", err)
 	}
-	if lock, err := confdir.Acquire(dir, "list.lock", 0); err == nil {
+	if lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 0); err == nil {
 		_ = lock.Release() //nolint:errcheck // the failure below is the report
 		t.Fatal("Acquire followed a link out of its directory")
 	}
@@ -354,7 +514,7 @@ func TestALockDoesNotFollowALinkOutOfItsDirectory(t *testing.T) {
 func TestALockRefusesAnythingButAFileName(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"", ".", "..", "../x", "a/b"} {
-		if _, err := confdir.Acquire(homeIn(t), name, 0); err == nil {
+		if _, err := confdir.Acquire(t.Context(), homeIn(t), name, 0); err == nil {
 			t.Errorf("Acquire accepted %q as a lock name", name)
 		}
 	}

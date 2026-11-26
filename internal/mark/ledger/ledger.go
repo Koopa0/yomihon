@@ -31,12 +31,15 @@
 // notes by date. Its writes go through confdir, under a lock of its own,
 // ledger.lock, so two processes on one vault, or two goroutines of one, append
 // and compact one at a time; a caller that holds the lock of what it writes
-// into the vault takes that one first. The marks of internal/mark call it.
+// into the vault takes that one first. A read takes no lock and waits for no
+// writer: a line being appended is a line cut short to it, and a compaction
+// installs the ledger whole. The marks of internal/mark call it.
 package ledger
 
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -125,8 +128,12 @@ type Ledger struct {
 	// purpose and asks whether anything was lost rather than how fast.
 	lockWait time.Duration
 
-	// mu orders this process's goroutines, and keeps read the file as last read
-	// while one of them appends or compacts under the lock of the file.
+	// mu guards the fields below it, which are what this process holds of the
+	// ledger, and nothing else: no file is looked at, read, written or locked
+	// while it is held, so a reader never waits behind a writer's wait for the
+	// lock, its append, its sync or its compaction. Writers are put one at a
+	// time by the ledger's lock, which lets this process's through in the order
+	// they asked and excludes another process's as well.
 	mu   sync.Mutex
 	read state
 	// failedAt is how long the ledger was when a compaction this process tried
@@ -144,7 +151,10 @@ type state struct {
 	info fs.FileInfo
 	// absent is a ledger that was not there when read.
 	absent bool
-	// events are its whole lines, in the order of the file.
+	// events are its whole lines, in the order of the file. A state is only
+	// ever grown at its end, by the holder of the ledger's lock and under mu, so
+	// the events a copy of it holds are never written again and a reader may
+	// copy them out after letting mu go.
 	events []Event
 	// changed are its lines that do not fit their checksum.
 	changed [][]byte
@@ -152,13 +162,27 @@ type state struct {
 	// before it, so a compaction keeps them where they were.
 	cuts []cutLine
 	// aside is how many lines earlier compactions set aside and the ledger no
-	// longer holds.
-	aside int
+	// longer holds, and asideFile the file they are in as it was when read.
+	aside     int
+	asideFile look
 	// next is the seq the next line takes.
 	next uint64
 	// open is a file whose last line lost its newline: the next line begins with
 	// one.
 	open bool
+}
+
+// look is a file as a look at it found it: its info, or none when it was not
+// there.
+type look struct{ info fs.FileInfo }
+
+// same says two looks found the same file at the same length and time, or both
+// found none.
+func (a look) same(b look) bool {
+	if a.info == nil || b.info == nil {
+		return a.info == nil && b.info == nil
+	}
+	return sameFile(a.info, b.info)
 }
 
 // cutLine is a line a crash cut short, and how many whole lines stand before it.
@@ -189,18 +213,18 @@ func OpenWaiting(dir confdir.Dir, log *slog.Logger, wait time.Duration) *Ledger 
 }
 
 // Record appends e as the next line and syncs it, and answers the seq it took.
-// It sets e's Seq and Time, and keeps a copy of Content. Nil means the line is on stable storage: it is the
-// commit. An error means the line may be in the ledger whole, in part, or not
-// at all, so a caller that records before it writes the vault does not write
-// the vault.
-func (l *Ledger) Record(e *Event) (uint64, error) {
+// It sets e's Seq and Time, and keeps a copy of Content. Nil means the line is
+// on stable storage: it is the commit. An error means the line may be in the
+// ledger whole, in part, or not at all, so a caller that records before it
+// writes the vault does not write the vault. ctx bounds the wait for the
+// ledger's lock, as confdir.Acquire says; once the lock is held the line is
+// appended whatever ctx says.
+func (l *Ledger) Record(ctx context.Context, e *Event) (uint64, error) {
 	if err := e.check(); err != nil {
 		return 0, err
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	var seq uint64
-	err := l.exclusive(func() error {
+	err := l.exclusive(ctx, func() error {
 		st, err := l.load()
 		if err != nil {
 			return err
@@ -217,7 +241,7 @@ func (l *Ledger) Record(e *Event) (uint64, error) {
 			data = slices.Concat([]byte{'\n'}, data)
 		}
 		if err = confdir.Append(l.dir, fileName, data); err != nil {
-			l.read = state{}
+			l.forget()
 			return fmt.Errorf("record a line of the ledger: %w", err)
 		}
 		seq = e.Seq
@@ -235,12 +259,12 @@ func (l *Ledger) Record(e *Event) (uint64, error) {
 
 // Events is every whole line of the ledger, in the order of their seqs, and how
 // many lines were changed after they were written: those in the ledger now and
-// those compactions set aside. It takes no lock: a line being appended as it
-// reads is a line cut short to it, and is not there yet. The Content of each
-// is shared with what the ledger holds, and is not changed by the caller.
+// those compactions set aside. It takes no lock and waits for no writer, of
+// this process or another: a line being appended as it reads is a line cut
+// short to it, and is not there yet, and a compaction installs the ledger by
+// rename, so it is read whole before or after. The Content of each is shared
+// with what the ledger holds, and is not changed by the caller.
 func (l *Ledger) Events() (events []Event, changed int, err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	st, err := l.load()
 	if err != nil {
 		return nil, 0, err
@@ -250,14 +274,12 @@ func (l *Ledger) Events() (events []Event, changed int, err error) {
 	return events, len(st.changed) + st.aside, nil
 }
 
-// LatestMarks is the newest line of each mark that writer wrote, by the id of
-// the mark: what this machine last wrote of each under that machine id. A mark
-// line whose content names no mark is not among them.
-func (l *Ledger) LatestMarks(writer string) (map[string]Event, error) {
-	events, _, err := l.Events()
-	if err != nil {
-		return nil, err
-	}
+// LatestMarks is the newest line of each mark that writer wrote among events,
+// by the id of the mark: what this machine last wrote of each under that
+// machine id. A mark line whose content names no mark is not among them. It
+// reads nothing, so a caller that asks it of several writers asks it of the one
+// read of Events it already holds.
+func LatestMarks(events []Event, writer string) map[string]Event {
 	latest := map[string]Event{}
 	for i := range events {
 		e := &events[i]
@@ -268,15 +290,13 @@ func (l *Ledger) LatestMarks(writer string) (map[string]Event, error) {
 			latest[e.mark] = *e
 		}
 	}
-	return latest, nil
+	return latest
 }
 
 // Compact rewrites the ledger whole now, as a Record does once the ledger is
-// long; see compacted for what it keeps.
-func (l *Ledger) Compact() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.exclusive(l.compact)
+// long; see compacted for what it keeps. ctx bounds the wait for the lock.
+func (l *Ledger) Compact(ctx context.Context) error {
+	return l.exclusive(ctx, l.compact)
 }
 
 // Carry brings the ledger kept for an earlier path of this vault, in from, into
@@ -286,8 +306,8 @@ func (l *Ledger) Compact() error {
 // any this one holds, none twice. A ledger that has lines of its own is left as
 // it is, and the earlier one is not merged into it: false says nothing was
 // carried. from is only read, so the same call can be made again, and one that
-// stopped part way is finished by it.
-func (l *Ledger) Carry(from confdir.Dir) (bool, error) {
+// stopped part way is finished by it. ctx bounds the wait for the lock.
+func (l *Ledger) Carry(ctx context.Context, from confdir.Dir) (bool, error) {
 	// Read first, and the lock taken only when there is something to carry, so
 	// that a vault with no earlier ledger is left without even a lock file.
 	theirs, err := confdir.Read(from, fileName, maxBytes)
@@ -301,10 +321,8 @@ func (l *Ledger) Carry(from confdir.Dir) (bool, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return false, fmt.Errorf("read what the earlier ledger set aside: %w", err)
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	carried := false
-	err = l.exclusive(func() error {
+	err = l.exclusive(ctx, func() error {
 		st, loadErr := l.load()
 		if loadErr != nil {
 			return loadErr
@@ -315,10 +333,10 @@ func (l *Ledger) Carry(from confdir.Dir) (bool, error) {
 		if asideErr := l.setAside(lines(aside)); asideErr != nil {
 			return asideErr
 		}
-		l.read = state{}
 		if replaceErr := confdir.Replace(l.dir, fileName, theirs); replaceErr != nil {
 			return fmt.Errorf("carry the earlier ledger: %w", replaceErr)
 		}
+		l.forget()
 		carried = true
 		return nil
 	})
@@ -340,24 +358,32 @@ func (e *Event) check() error {
 	return nil
 }
 
-// exclusive runs change holding the ledger's lock. The first time this process
-// holds it, it removes the temporary files a compaction killed part way left:
-// every compaction is made under this lock, so none of them is one still
-// running.
-func (l *Ledger) exclusive(change func() error) error {
-	return confdir.Exclusive(l.dir, lockName, l.lockWait, func() error {
-		if !l.cleared {
+// exclusive runs change holding the ledger's lock, waiting for it as ctx and
+// l.lockWait allow. The first time this process holds it, it removes the
+// temporary files a compaction killed part way left: every compaction is made
+// under this lock, so none of them is one still running.
+func (l *Ledger) exclusive(ctx context.Context, change func() error) error {
+	return confdir.Exclusive(ctx, l.dir, lockName, l.lockWait, func() error {
+		l.mu.Lock()
+		cleared := l.cleared
+		l.mu.Unlock()
+		if !cleared {
 			if err := confdir.RemoveLeftovers(l.dir, fileName); err != nil {
 				l.log.Warn("remove what a stopped compaction of the ledger left", "err", err)
 			}
+			l.mu.Lock()
 			l.cleared = true
+			l.mu.Unlock()
 		}
 		return change()
 	})
 }
 
-// load is the ledger as it is: what was read last, while the file is the same
-// one at the same length and time, and the file read again otherwise.
+// load is the ledger as it is: what was read last, while the ledger and the
+// file of the lines set aside are each the same one at the same length and
+// time, and both read again otherwise. Only the look at what is held and the
+// keeping of what was read are made under l.mu; the files are looked at and
+// read outside it.
 func (l *Ledger) load() (state, error) {
 	info, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
 	switch {
@@ -365,26 +391,50 @@ func (l *Ledger) load() (state, error) {
 		info = nil
 	case err != nil:
 		return state{}, fmt.Errorf("look at the ledger: %w", err)
-	case l.read.info != nil && sameFile(l.read.info, info):
-		return l.read, nil
+	}
+	asideFile, err := l.lookAside()
+	if err != nil {
+		return state{}, err
+	}
+	if held, ok := l.heldFor(info, asideFile); ok {
+		return held, nil
 	}
 	st := state{absent: info == nil, next: 1}
 	if info != nil {
-		data, readErr := confdir.Read(l.dir, fileName, maxBytes)
-		if readErr != nil {
-			return state{}, fmt.Errorf("read the ledger: %w", readErr)
-		}
-		st.parse(data)
-		// What was read is reused only while the file is what was read: one that
-		// changed between the look and the read is read again next time.
-		after, statErr := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
-		if statErr == nil && after.Size() == int64(len(data)) {
-			st.info = after
+		if readErr := l.readLedger(&st, info); readErr != nil {
+			return state{}, readErr
 		}
 	}
+	if asideErr := l.readAside(&st, asideFile); asideErr != nil {
+		return state{}, asideErr
+	}
+	l.hold(&st)
+	return st, nil
+}
+
+// readLedger fills st from the ledger, which a look found as info.
+func (l *Ledger) readLedger(st *state, info fs.FileInfo) error {
+	data, err := confdir.Read(l.dir, fileName, maxBytes)
+	if err != nil {
+		return fmt.Errorf("read the ledger: %w", err)
+	}
+	st.parse(data)
+	// What was read is reused only while the file is what was read: one that
+	// changed or was replaced between the look and the end of the read is read
+	// again next time.
+	after, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	if err == nil && sameFile(info, after) && after.Size() == int64(len(data)) {
+		st.info = after
+	}
+	return nil
+}
+
+// readAside counts in st the lines set aside, from their file, which a look
+// found as asideFile.
+func (l *Ledger) readAside(st *state, asideFile look) error {
 	aside, err := confdir.Read(l.dir, damagedName, maxBytes)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return state{}, fmt.Errorf("read what the ledger set aside: %w", err)
+		return fmt.Errorf("read what the ledger set aside: %w", err)
 	}
 	// A line set aside that the ledger still holds, because a compaction was
 	// stopped between setting it aside and installing the ledger, is one line.
@@ -392,14 +442,70 @@ func (l *Ledger) load() (state, error) {
 	for _, raw := range st.changed {
 		inLedger[string(raw)] = true
 	}
-	for _, raw := range lines(aside) {
+	// A last line with no newline is one a compaction is still appending, or
+	// one a crash cut short as it appended: either way the line it copies is in
+	// the ledger still, and counted there, and the next setAside ends it on a
+	// line of its own before it adds anything.
+	for _, raw := range lines(ended(aside)) {
 		if !inLedger[string(raw)] {
 			st.aside++
 		}
 		st.next = after(st.next, seqOf(raw))
 	}
-	l.read = st
-	return st, nil
+	// The lines set aside are counted in what is held, and a compaction that
+	// stopped between setting them aside and installing the ledger, in this
+	// process or another, leaves the ledger as it was: what was read is reused
+	// only while that file too is what was read.
+	if asideAfter, lookErr := l.lookAside(); lookErr != nil || !asideAfter.same(asideFile) {
+		st.info = nil
+	}
+	st.asideFile = asideFile
+	return nil
+}
+
+// ended is data up to the end of its last newline: its lines that are whole.
+func ended(data []byte) []byte {
+	return data[:bytes.LastIndexByte(data, '\n')+1]
+}
+
+// lookAside looks at the file of the lines set aside.
+func (l *Ledger) lookAside() (look, error) {
+	info, err := os.Stat(l.dir.Join(damagedName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return look{}, nil
+	case err != nil:
+		return look{}, fmt.Errorf("look at what the ledger set aside: %w", err)
+	}
+	return look{info: info}, nil
+}
+
+// heldFor is what this process holds of the ledger, when it was read from the
+// ledger info describes and the file of the lines set aside asideFile
+// describes; a ledger that is not there is always read again.
+func (l *Ledger) heldFor(info fs.FileInfo, asideFile look) (state, bool) {
+	if info == nil {
+		return state{}, false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.read.info == nil || !sameFile(l.read.info, info) || !l.read.asideFile.same(asideFile) {
+		return state{}, false
+	}
+	return l.read, true
+}
+
+// hold keeps st as what this process holds of the ledger.
+func (l *Ledger) hold(st *state) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.read = *st
+}
+
+// forget drops what this process holds of the ledger, which is read again next
+// time.
+func (l *Ledger) forget() {
+	l.hold(&state{})
 }
 
 // parse fills st from the bytes of the ledger.
@@ -428,24 +534,29 @@ func (st *state) parse(data []byte) {
 // appended bytes holding e, into the file as it is after, when the file is
 // what that append alone made of it; otherwise it is read again next time.
 func (l *Ledger) extend(st *state, e *Event, appended int64) {
-	l.read = state{}
 	if st.info == nil && !st.absent {
+		l.forget()
 		return
 	}
 	after, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
 	if err != nil {
+		l.forget()
 		return
 	}
 	var before int64
 	if st.info != nil {
 		if !os.SameFile(st.info, after) {
+			l.forget()
 			return
 		}
 		before = st.info.Size()
 	}
 	if after.Size() != before+appended {
+		l.forget()
 		return
 	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	st.events = append(st.events, *e)
 	st.info, st.absent, st.open, st.next = after, false, false, e.Seq+1
 	l.read = *st
@@ -462,8 +573,11 @@ func sameFile(a, b fs.FileInfo) bool {
 // by this process until the ledger has doubled: the line that triggered it is
 // committed, and its failure is not that line's.
 func (l *Ledger) compactIfLong() {
+	l.mu.Lock()
+	failedAt := l.failedAt
+	l.mu.Unlock()
 	info, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
-	if err != nil || info.Size() <= l.compactAt || info.Size() < 2*l.failedAt {
+	if err != nil || info.Size() <= l.compactAt || info.Size() < 2*failedAt {
 		return
 	}
 	st, err := l.load()
@@ -471,13 +585,20 @@ func (l *Ledger) compactIfLong() {
 		return
 	}
 	if err = l.compact(); err != nil {
+		l.mu.Lock()
 		l.failedAt = info.Size()
+		l.mu.Unlock()
 		l.log.Warn("compact the ledger", "bytes", info.Size(), "err", err)
 	}
 }
 
 // compact sets aside the lines that were changed and installs what compacted
-// keeps. The caller holds the lock.
+// keeps. The caller holds the lock. What this process holds is let go only once
+// the new ledger is installed: until then a reader of this process is answered
+// from it and does not open the ledger the rename replaces, which on Windows
+// would refuse the rename. A look tells the new file from the old by its
+// identity, but on Windows it reads that identity by the name, so there letting
+// go is what says the old one is gone; Carry does the same.
 func (l *Ledger) compact() error {
 	st, err := l.load()
 	if err != nil {
@@ -487,10 +608,10 @@ func (l *Ledger) compact() error {
 		return asideErr
 	}
 	data := compacted(&st)
-	l.read = state{}
 	if err = confdir.Replace(l.dir, fileName, data); err != nil {
 		return fmt.Errorf("compact the ledger: %w", err)
 	}
+	l.forget()
 	return nil
 }
 

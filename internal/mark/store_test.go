@@ -427,7 +427,7 @@ func TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	held, err := confdir.Acquire(dir, "marks.lock", 0)
+	held, err := confdir.Acquire(t.Context(), dir, "marks.lock", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

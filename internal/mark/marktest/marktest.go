@@ -52,7 +52,7 @@ func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...mach
 		if m.At.IsZero() {
 			m.At = time.Now()
 		}
-		if _, err = hand.Put(&m, nil, nil, mark.AllMarks); err != nil {
+		if _, err = hand.Put(tb.Context(), &m, nil, nil, mark.AllMarks); err != nil {
 			tb.Fatalf("leave a mark: %v", err)
 		}
 	}

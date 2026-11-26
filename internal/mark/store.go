@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -64,11 +65,12 @@ func sameMark(a, b *Mark) bool {
 // exclusive runs change as the only writer of this vault's marks and progress,
 // in this process and in any other on the same directory: a change reads a file
 // and replaces it whole, so one that read before another replaced would write
-// the other's away.
+// the other's away. The store's methods take no context, so the wait for the
+// lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return confdir.Exclusive(s.dir, lockFile, confdir.LockWait, change)
+	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 
 // loadMarks reads marks.json. When it is not there the marks are those an

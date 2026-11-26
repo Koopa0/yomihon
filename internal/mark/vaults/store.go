@@ -1,6 +1,7 @@
 package vaults
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -151,11 +152,12 @@ func (s *Store) Add(root string, start int) (entry Entry, added bool, err error)
 	if err != nil {
 		return Entry{}, false, err
 	}
-	// A folder that is the configuration directory, holds it or is inside it is
-	// not one yomihon reads, so it never joins the list. One listed before this
-	// was refused stays listed, and is not served.
-	if overlapErr := s.configDir.Apart(root); overlapErr != nil {
-		return Entry{}, false, overlapErr
+	// A folder joins the list only when it is known to be apart from the
+	// configuration directory: one that overlaps it is not one yomihon reads,
+	// and one that cannot be compared with it is not added on the chance. One
+	// listed before this was refused stays listed, and is not served.
+	if relation, notApart := s.configDir.Classify(root); relation != confdir.Apart {
+		return Entry{}, false, notApart
 	}
 	id := confdir.VaultID(resolved)
 
@@ -391,9 +393,10 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // now, so that a vault another process added a moment ago is in it. change
 // answers the list to write and whether it differs; a list that cannot be read
 // is set aside first and the change is made to an empty one, which keeps what
-// the reader had in a file they can open and never deletes it.
+// the reader had in a file they can open and never deletes it. The store's
+// methods take no context, so the wait for the lock is bounded by s.wait alone.
 func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {
-	return confdir.Exclusive(s.dir, lockFile, s.wait, func() error { return s.updateHeld(change) })
+	return confdir.Exclusive(context.Background(), s.dir, lockFile, s.wait, func() error { return s.updateHeld(change) })
 }
 
 // updateHeld is update with the lock already taken.

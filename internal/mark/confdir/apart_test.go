@@ -12,17 +12,17 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// overlapOf is how Apart says folder and configDir overlap, 0 for apart, or the
-// test stops on any other answer.
+// overlapOf is how Classify says folder and configDir overlap, 0 for apart, or
+// the test stops on any other answer.
 func overlapOf(t *testing.T, configDir confdir.ConfigDir, folder string) confdir.Overlap {
 	t.Helper()
-	err := configDir.Apart(folder)
-	if err == nil {
+	relation, err := configDir.Classify(folder)
+	if relation == confdir.Apart && err == nil {
 		return 0
 	}
 	overlap, ok := errors.AsType[*confdir.OverlapError](err)
-	if !ok {
-		t.Fatalf("Apart(%q) = %v, want nil or an *OverlapError", folder, err)
+	if relation != confdir.Overlaps || !ok {
+		t.Fatalf("Classify(%q) = %v, %v; want apart, or overlaps with an *OverlapError", folder, relation, err)
 	}
 	return overlap.How
 }
@@ -69,8 +69,93 @@ func TestAFolderAndTheConfigurationDirectoryOneInsideTheOtherOverlap(t *testing.
 		{"yomihon's own directory", filepath.Join(base, "home", ".config", "yomihon"), confdir.FolderIsInside},
 	} {
 		if got := overlapOf(t, configDir, tt.folder); got != tt.want {
-			t.Errorf("%s: Apart(%q) overlaps as %d, want %d", tt.name, tt.folder, got, tt.want)
+			t.Errorf("%s: Classify(%q) overlaps as %d, want %d", tt.name, tt.folder, got, tt.want)
 		}
+	}
+}
+
+// Classify is the one answer every caller acts on, so each of its three answers
+// comes with the error that goes with it, and no other: apart with none, overlaps
+// with an *OverlapError that says how, and unknown with what stopped the
+// comparison, which is never taken for an overlap.
+func TestClassifyAnswersApartOverlapsOrUnknownWithItsError(t *testing.T) {
+	t.Parallel()
+	type fixture struct {
+		configDir confdir.ConfigDir
+		folder    string
+	}
+	// under makes home/.config, home/notes and home/.config/notes under a
+	// directory of the case's own, and names the folder rel under home.
+	under := func(rel string) func(*testing.T) fixture {
+		return func(t *testing.T) fixture {
+			t.Helper()
+			home := mkdirs(t, t.TempDir(), "home", "home/.config/notes", "home/notes", "home/.config2")
+			return fixture{confdir.At(filepath.Join(home, ".config")), filepath.Join(home, filepath.FromSlash(rel))}
+		}
+	}
+	noConfigDir := func(t *testing.T) fixture {
+		t.Helper()
+		return fixture{confdir.ConfigDir{}, t.TempDir()}
+	}
+	danglingLink := func(t *testing.T) fixture {
+		t.Helper()
+		f := under("dangling")(t)
+		symlink(t, filepath.Join(filepath.Dir(f.folder), "gone"), f.folder)
+		return f
+	}
+	configDirUnderAFile := func(t *testing.T) fixture {
+		t.Helper()
+		base := t.TempDir()
+		notes := mkdirs(t, base, "notes")
+		file := filepath.Join(base, "home")
+		if err := os.WriteFile(file, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return fixture{confdir.At(filepath.Join(file, ".config")), notes}
+	}
+	for _, tt := range []struct {
+		name     string
+		unixOnly bool
+		fixture  func(t *testing.T) fixture
+		want     confdir.Relation
+		how      confdir.Overlap
+	}{
+		{name: "no configuration directory", fixture: noConfigDir, want: confdir.Apart},
+		{name: "a folder beside it", fixture: under("notes"), want: confdir.Apart},
+		{name: "a folder whose name begins with its name", fixture: under(".config2"), want: confdir.Apart},
+		{name: "the configuration directory", fixture: under(".config"), want: confdir.Overlaps, how: confdir.FolderIsIt},
+		{name: "the folder that holds it", fixture: under("."), want: confdir.Overlaps, how: confdir.FolderHoldsIt},
+		{name: "a folder inside it", fixture: under(".config/notes"), want: confdir.Overlaps, how: confdir.FolderIsInside},
+		{name: "a folder that is not there", fixture: under("absent"), want: confdir.Unknown},
+		{name: "a link to a folder that is not there", fixture: danglingLink, want: confdir.Unknown},
+		{name: "a configuration directory under a file", unixOnly: true, fixture: configDirUnderAFile, want: confdir.Unknown},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.unixOnly && runtime.GOOS == "windows" {
+				t.Skip("Windows reads a name below a file as one that is not there")
+			}
+			f := tt.fixture(t)
+			relation, err := f.configDir.Classify(f.folder)
+			if relation != tt.want {
+				t.Fatalf("Classify(%q) = %v, %v; want %v", f.folder, relation, err, tt.want)
+			}
+			overlap, isOverlap := errors.AsType[*confdir.OverlapError](err)
+			switch tt.want {
+			case confdir.Apart:
+				if err != nil {
+					t.Errorf("Classify(%q) = apart with %v, want no error", f.folder, err)
+				}
+			case confdir.Overlaps:
+				if !isOverlap || overlap.How != tt.how {
+					t.Errorf("Classify(%q) = overlaps with %v, want an *OverlapError of how %d", f.folder, err, tt.how)
+				}
+			case confdir.Unknown:
+				if err == nil || isOverlap {
+					t.Errorf("Classify(%q) = unknown with %v, want the error that stopped the comparison", f.folder, err)
+				}
+			}
+		})
 	}
 }
 
@@ -103,14 +188,14 @@ func TestAVaultLinkedToAFolderAboveTheConfigurationDirectoryHoldsIt(t *testing.T
 	symlink(t, filepath.Join(base, "home"), link)
 	configDir := confdir.At(filepath.Join(base, "home", ".config"))
 	if got := overlapOf(t, configDir, link); got != confdir.FolderHoldsIt {
-		t.Errorf("Apart(%q), a link to the folder above it, overlaps as %d, want FolderHoldsIt", link, got)
+		t.Errorf("Classify(%q), a link to the folder above it, overlaps as %d, want FolderHoldsIt", link, got)
 	}
 	leads, err := filepath.EvalSymlinks(filepath.Join(base, "home"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if said := configDir.Apart(link).Error(); !strings.Contains(said, vault.Tilde(leads)+")") {
-		t.Errorf("the refusal says %q, which does not name where the link leads", said)
+	if _, refusal := configDir.Classify(link); refusal == nil || !strings.Contains(refusal.Error(), vault.Tilde(leads)+")") {
+		t.Errorf("the refusal says %v, which does not name where the link leads", refusal)
 	}
 }
 
@@ -198,8 +283,8 @@ func TestADriveLetterInAnotherCaseIsTheSameDrive(t *testing.T) {
 
 func TestNoConfigurationDirectoryIsApartFromEveryFolder(t *testing.T) {
 	t.Parallel()
-	if err := (confdir.ConfigDir{}).Apart(t.TempDir()); err != nil {
-		t.Errorf("the zero ConfigDir.Apart = %v, want nil", err)
+	if relation, err := (confdir.ConfigDir{}).Classify(t.TempDir()); relation != confdir.Apart || err != nil {
+		t.Errorf("the zero ConfigDir.Classify = %v, %v; want apart, nil", relation, err)
 	}
 }
 
@@ -208,8 +293,8 @@ func TestAFolderThatCannotBeToldApartIsNotApart(t *testing.T) {
 	t.Parallel()
 	base := t.TempDir()
 	configDir := confdir.At(filepath.Join(base, "home", ".config"))
-	if err := configDir.Apart(filepath.Join(base, "absent")); err == nil {
-		t.Error("Apart of a folder that is not there = nil, want an error")
+	if relation, err := configDir.Classify(filepath.Join(base, "absent")); relation != confdir.Unknown || err == nil {
+		t.Errorf("Classify of a folder that is not there = %v, %v; want unknown with an error", relation, err)
 	}
 	if runtime.GOOS == "windows" {
 		return
@@ -229,21 +314,21 @@ func TestAFolderThatCannotBeToldApartIsNotApart(t *testing.T) {
 	if _, err := os.Stat(notes); err == nil {
 		t.Skip("this user looks inside a directory it may not search (a privileged user), so the fixture shows nothing")
 	}
-	err := configDir.Apart(notes)
-	if err == nil {
-		t.Fatal("Apart under a directory that cannot be searched = nil, want an error")
+	relation, err := configDir.Classify(notes)
+	if relation != confdir.Unknown || err == nil {
+		t.Fatalf("Classify under a directory that cannot be searched = %v, %v; want unknown with an error", relation, err)
 	}
 	if _, isOverlap := errors.AsType[*confdir.OverlapError](err); isOverlap {
-		t.Errorf("Apart under a directory that cannot be searched = %v, want the error that stopped it", err)
+		t.Errorf("Classify under a directory that cannot be searched = %v, want the error that stopped it", err)
 	}
 	// The folder can be looked at and the configuration directory cannot.
 	elsewhere := mkdirs(t, base, "elsewhere")
-	err = configDir.Apart(elsewhere)
-	if err == nil {
-		t.Fatal("Apart of a configuration directory under a directory that cannot be searched = nil, want an error")
+	relation, err = configDir.Classify(elsewhere)
+	if relation != confdir.Unknown || err == nil {
+		t.Fatalf("Classify of a configuration directory under a directory that cannot be searched = %v, %v; want unknown with an error", relation, err)
 	}
 	if _, isOverlap := errors.AsType[*confdir.OverlapError](err); isOverlap {
-		t.Errorf("Apart of a configuration directory that cannot be looked at = %v, want the error that stopped it", err)
+		t.Errorf("Classify of a configuration directory that cannot be looked at = %v, want the error that stopped it", err)
 	}
 }
 
