@@ -59,6 +59,8 @@ const MODES = {
   'sheet-sets-its-own-size': css('.y-prefs__sheet .y-prose{font-size:17px !important}', 'same-reading'),
   'sheet-sets-its-own-face': css('.y-prefs__sheet .y-prose{font-family:var(--font-serif) !important}', 'same-reading'),
   'sheet-on-its-own-ground': css('.y-prefs__sheet{background:var(--elevated) !important}', 'same-reading'),
+  // The sheet's Latin line written as the bare factor, a fraction at 大 and 特大.
+  'sheet-line-a-fraction': css('.y-prefs__sheet .y-prose{line-height:1.7647 !important}', 'same-reading'),
   'sheet-keeps-the-han-line-in-english': css('.y-prefs__sheet .y-prose{line-height:var(--lh-cjk) !important}', 'same-reading'),
   // A pick that stores the choice but leaves the root, and so the sheet, as
   // it was until the next page.
@@ -250,6 +252,9 @@ try {
       const want = await noteReading(stored, scheme, note);
       const got = await at({ stored, scheme }, (page) => page.evaluate(readSetting, '.y-prefs__sheet'));
       if (!got?.codeFace) broken('the sheet has no paragraph with code under a section heading');
+      // A line that is a fraction of a pixel moves every block under it, in the
+      // sheet as in a note, and a note's own probe holds the note to the same.
+      if (!/^\d+px$/.test(got.line)) fire('same-reading', `under ${JSON.stringify(stored)} (${scheme} system) the sheet's line is ${got.line}, want a whole pixel`);
       for (const key of Object.keys(want)) {
         if (want[key] !== null && got[key] !== want[key]) {
           fire('same-reading', `under ${JSON.stringify(stored)} (${scheme} system) the sheet's ${key} is ${got[key]}, a note's is ${want[key]}`);
