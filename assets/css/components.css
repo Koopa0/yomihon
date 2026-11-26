@@ -4835,6 +4835,17 @@ button.y-freshness__action {
   white-space: normal;
 }
 
+/* The folder a recently changed note sits in is a line of the faint ink under
+   its name, as a row's day is the faint ink at its end. */
+.y-modeblock .y-modeblock__where {
+  color: var(--fg-faint);
+  flex-basis: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
 /* The way to the whole shelf is the last thing on the band's head line,
    quieter than the name and only as wide as its words. */
 .y-modeblock .y-shelfall {
@@ -8410,6 +8421,18 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   }
 }
 
+/* The caption says the sheet is a preview, in the interface's small print on a
+   faint hairline over the reading, as the Atelier captions its sheet. */
+.y-prefs__caption {
+  border-bottom: 1px solid var(--line-faint);
+  color: var(--fg-faint);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  line-height: 20px;
+  margin: 0 0 var(--sp-4);
+  padding-bottom: var(--sp-2);
+}
+
 /* The buttons beside a section, as a note draws them on a window wide enough
    to set them in its margin with a pointer that can rest: gone until the
    pointer rests on the section, when the reader chose that. A narrower window
@@ -8668,14 +8691,20 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   background: var(--overlay);
 }
 
-/* The keys this interface answers to and what this browser is holding are
-   sections of the page rather than choices, headed as the Atelier heads a
-   group: a small heading over the double rule. */
+/* Below the language the choices stand in two groups, and the keys this
+   interface answers to and what this browser is holding are sections of the
+   page rather than choices; each is headed as the Atelier heads a group: a
+   small heading over the double rule. */
+.y-prefs__group {
+  margin: var(--sp-6) 0 0;
+}
+
 .y-prefs__shortcuts,
 .y-prefs__storage {
   margin: var(--sp-7) 0 0;
 }
 
+.y-prefs__group h2,
 .y-prefs__shortcuts h2,
 .y-prefs__storage h2 {
   color: var(--fg-muted);
@@ -8689,6 +8718,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   position: relative;
 }
 
+.y-prefs__group h2::after,
 .y-prefs__shortcuts h2::after,
 .y-prefs__storage h2::after {
   border-bottom: 0.5px solid var(--line);
@@ -9576,9 +9606,18 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   margin: 0;
 }
 
-.y-continue__kicker::before {
+.y-continue__kicker::before,
+.y-continue__age::before {
   content: '·';
   margin-inline-end: var(--sp-2);
+}
+
+/* How long ago the bookmark was added closes the line, in the faint ink and
+   figures of one width, so an age that grows does not move what is before it. */
+.y-continue__age {
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
 .y-continue__title {
@@ -9599,6 +9638,13 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   font-size: var(--fs-ed-16);
   line-height: round(1.7em, 1px);
   margin: 0;
+}
+
+/* Where the reader stopped is the heading's own words, set in the ink and a
+   step heavier than the words round them. */
+.y-continue__place {
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
 }
 
 /* A row whose note has changed or gone says so before the way back. */

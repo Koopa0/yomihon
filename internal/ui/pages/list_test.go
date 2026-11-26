@@ -349,3 +349,135 @@ func TestTheFolderIndexLeavesOutTheVaultsReadme(t *testing.T) {
 		t.Errorf("notes = %+v, want only the top-level README gone", got)
 	}
 }
+
+// Ago says how long ago something was in the words the owner approved: minutes
+// within the hour, hours within the same day, yesterday for the calendar day
+// before, and otherwise the day itself as the lists write one. The day is the
+// reader's: the calendar of the zone now is given in, so a moment eight hours
+// east of UTC is yesterday there while it is still today in UTC, and the other
+// way round.
+func TestAgoCountsMinutesHoursThenTheReadersCalendar(t *testing.T) {
+	t.Parallel()
+
+	taipei := time.FixedZone("UTC+8", 8*60*60)
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("LoadLocation(America/New_York): %v", err)
+	}
+	for _, tt := range []struct {
+		name    string
+		at, now time.Time
+		zh, en  string
+	}{
+		{
+			name: "seconds ago is one minute",
+			at:   time.Date(2026, 11, 26, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 9, 0, 20, 0, taipei),
+			zh: "1 分鐘前", en: "1 min ago",
+		},
+		{
+			name: "the same moment is one minute",
+			at:   time.Date(2026, 11, 26, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 9, 0, 0, 0, taipei),
+			zh: "1 分鐘前", en: "1 min ago",
+		},
+		{
+			name: "a clock a few seconds behind is one minute",
+			at:   time.Date(2026, 11, 26, 9, 0, 30, 0, taipei), now: time.Date(2026, 11, 26, 9, 0, 0, 0, taipei),
+			zh: "1 分鐘前", en: "1 min ago",
+		},
+		{
+			name: "minutes are counted down",
+			at:   time.Date(2026, 11, 26, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 9, 14, 59, 0, taipei),
+			zh: "14 分鐘前", en: "14 min ago",
+		},
+		{
+			name: "the last minute of the hour",
+			at:   time.Date(2026, 11, 26, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 9, 59, 59, 0, taipei),
+			zh: "59 分鐘前", en: "59 min ago",
+		},
+		{
+			name: "an hour is an hour",
+			at:   time.Date(2026, 11, 26, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 10, 0, 0, 0, taipei),
+			zh: "1 小時前", en: "1 h ago",
+		},
+		{
+			name: "hours within the same day",
+			at:   time.Date(2026, 11, 26, 0, 30, 0, 0, taipei), now: time.Date(2026, 11, 26, 23, 0, 0, 0, taipei),
+			zh: "22 小時前", en: "22 h ago",
+		},
+		{
+			name: "under an hour across midnight is still minutes",
+			at:   time.Date(2026, 11, 25, 23, 50, 0, 0, taipei), now: time.Date(2026, 11, 26, 0, 10, 0, 0, taipei),
+			zh: "20 分鐘前", en: "20 min ago",
+		},
+		{
+			name: "three hours across midnight is yesterday, not three hours",
+			at:   time.Date(2026, 11, 25, 22, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 1, 0, 0, 0, taipei),
+			zh: "昨天", en: "Yesterday",
+		},
+		{
+			// 15:30 and 17:00 UTC on the 25th are one day in UTC; east of it they
+			// are 23:30 on the 25th and 01:00 on the 26th.
+			name: "a time stored in UTC is read on the reader's calendar",
+			at:   time.Date(2026, 11, 25, 15, 30, 0, 0, time.UTC), now: time.Date(2026, 11, 26, 1, 0, 0, 0, taipei),
+			zh: "昨天", en: "Yesterday",
+		},
+		{
+			// 16:30 UTC on the 25th is 00:30 on the 26th east of it: the same day
+			// as 23:00 on the 26th, though UTC calls it the day before.
+			name: "the reader's today can be UTC's yesterday",
+			at:   time.Date(2026, 11, 25, 16, 30, 0, 0, time.UTC), now: time.Date(2026, 11, 26, 23, 0, 0, 0, taipei),
+			zh: "22 小時前", en: "22 h ago",
+		},
+		{
+			name: "the whole of yesterday",
+			at:   time.Date(2026, 11, 25, 0, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 23, 59, 0, 0, taipei),
+			zh: "昨天", en: "Yesterday",
+		},
+		{
+			name: "two calendar days back is the day, though under forty-eight hours",
+			at:   time.Date(2026, 11, 24, 23, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 1, 0, 0, 0, taipei),
+			zh: "11-24", en: "11-24",
+		},
+		{
+			name: "another year writes the year",
+			at:   time.Date(2025, 12, 31, 12, 0, 0, 0, taipei), now: time.Date(2026, 1, 2, 12, 0, 0, 0, taipei),
+			zh: "2025-12-31", en: "2025-12-31",
+		},
+		{
+			name: "yesterday across a new year",
+			at:   time.Date(2025, 12, 31, 12, 0, 0, 0, taipei), now: time.Date(2026, 1, 1, 12, 0, 0, 0, taipei),
+			zh: "昨天", en: "Yesterday",
+		},
+		{
+			// The night the clocks go forward has twenty-three hours, so the
+			// calendar and a count of hours disagree.
+			name: "yesterday over a short night is still yesterday",
+			at:   time.Date(2026, 3, 7, 23, 30, 0, 0, newYork), now: time.Date(2026, 3, 8, 22, 0, 0, 0, newYork),
+			zh: "昨天", en: "Yesterday",
+		},
+		{
+			name: "a time well ahead of the clock is its day",
+			at:   time.Date(2026, 11, 28, 9, 0, 0, 0, taipei), now: time.Date(2026, 11, 26, 9, 0, 0, 0, taipei),
+			zh: "11-28", en: "11-28",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Ago(tt.at, tt.now, wording.ZhHant); got != tt.zh {
+				t.Errorf("Ago(%v, %v, zh) = %q, want %q", tt.at, tt.now, got, tt.zh)
+			}
+			if got := Ago(tt.at, tt.now, wording.En); got != tt.en {
+				t.Errorf("Ago(%v, %v, en) = %q, want %q", tt.at, tt.now, got, tt.en)
+			}
+		})
+	}
+}
+
+// A bookmark with no time — one kept before bookmarks carried one — says
+// nothing about its age rather than a day in the year one.
+func TestAgoOfNoTimeIsNothing(t *testing.T) {
+	t.Parallel()
+	if got := Ago(time.Time{}, listNow, wording.ZhHant); got != "" {
+		t.Errorf("Ago(zero, now, zh) = %q, want empty", got)
+	}
+}

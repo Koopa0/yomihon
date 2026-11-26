@@ -61,24 +61,9 @@ type HomeView struct {
 	// Continue is the way back to the place the reader kept, drawn ahead of
 	// the four ways in. A reader who kept none gets no row.
 	Continue ContinueRow
-}
-
-// HomeNote is one item in the recently-changed block. Modified is the compact
-// display date; ModifiedAt is its machine-readable RFC 3339 value.
-type HomeNote struct {
-	Title   string
-	RelPath string
-	Type    string
-	// Draft is whether the note declares itself unfinished, the one note the
-	// row marks.
-	Draft      bool
-	Modified   string
-	ModifiedAt string
-
-	// Language is the note's own declared BCP 47 tag when the contract gave
-	// the field authority and the frontmatter carried a valid value. Empty
-	// otherwise, so a listing inherits the page language rather than guessing.
-	Language string
+	// Recent is the notes that changed last, drawn across the desk ahead of
+	// the ways in. A shelf with no rows draws nothing.
+	Recent Shelf
 }
 
 // Home renders the desk. Each block is marked with the mode it opens, so a
@@ -125,6 +110,13 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 					}
 					<div class="y-homegrid">
+						// What changed last runs across the desk above the ways in, its
+						// rows in two columns where the desk is wide.
+						if len(v.Recent.Rows) > 0 {
+							<div class="y-homeway y-homeway--whole">
+								@ShelfBlock(v.Recent, "recent", recentItems, c.Lang, false)
+							</div>
+						}
 						for _, way := range v.ways() {
 							<div class={ "y-homeway", templ.KV("y-homeway--whole", way.Whole) }>
 								@ShelfBlock(way.Block.Shelf, way.Block.Mode, deskBlockItems, c.Lang, false)

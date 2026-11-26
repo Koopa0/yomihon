@@ -93,6 +93,21 @@ func TestTheDeskOffersTheKeptPlaceBack(t *testing.T) {
 	if strings.Contains(page, wording.BookmarkNoteChanged.In(wording.ZhHant)) {
 		t.Error("the row says the note changed when its bytes are the ones the mark was taken against")
 	}
+	if !strings.Contains(page, `<p class="y-continue__age"><time datetime="`) || !strings.Contains(page, ">1 分鐘前</time>") {
+		t.Errorf("the row does not say the bookmark was added a minute ago; row:\n%s", rowOf(page))
+	}
+}
+
+// A bookmark kept before bookmarks carried a time says nothing about its age:
+// the zero time is no moment, and a day in the year one would be a claim.
+func TestABookmarkWithNoTimeSaysNoAge(t *testing.T) {
+	t.Parallel()
+
+	kept := keptIn("Notes/alpha.md", "alpha", 0, identityOf(aNote))
+	kept.At = time.Time{}
+	if row := rowOf(deskWithMark(t, kept, true)); strings.Contains(row, "y-continue__age") {
+		t.Errorf("a bookmark with no time says an age; row:\n%s", row)
+	}
 }
 
 // TestAChangedNoteIsSaidAndStillOffered holds the ruled behaviour: an identity
@@ -192,7 +207,7 @@ func TestTheKeptPlaceSaysWhereItSitsAndWhichHeadingItWasKeptUnder(t *testing.T) 
 	for _, want := range []string{
 		`<p class="y-continue__kicker">Course · Unit one</p>`,
 		`id="home-continue-title">Listed</h2>`,
-		`<p class="y-continue__section">Cancel the work</p>`,
+		`<p class="y-continue__section">停在 <span class="y-continue__place">Cancel the work</span></p>`,
 	} {
 		if !strings.Contains(inCourse, want) {
 			t.Errorf("the kept place in a course lacks %q; row:\n%s", want, inCourse)

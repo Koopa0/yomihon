@@ -184,6 +184,49 @@ func listDate(at, now time.Time) string {
 	return at.Format("2006-01-02")
 }
 
+// Ago says how long before now at was, in the reader's words: minutes within
+// the hour, never fewer than one; hours within the same day; yesterday for the
+// calendar day before; and otherwise the day itself, as listDate writes it.
+//
+// The day is a calendar day in the zone now is given in, which is the reader's:
+// a moment late in the evening is yesterday the next morning, however few hours
+// have passed, and it is the calendar rather than a count of hours that says so
+// on a night the clocks change. at is read in that zone whatever zone it was
+// stored in. A clock that runs a little behind the moment it is asked about
+// still says one minute; a moment well ahead of it is not made into an age and
+// is given as its day. The zero time has no age and says nothing.
+func Ago(at, now time.Time, lang wording.Lang) string {
+	if at.IsZero() {
+		return ""
+	}
+	at = at.In(now.Location())
+	since := now.Sub(at)
+	if since < -time.Minute {
+		return listDate(at, now)
+	}
+	if since < time.Hour {
+		return fmt.Sprintf(wording.MinutesAgoFmt.In(lang), max(1, int(since/time.Minute)))
+	}
+	switch calendarDays(at, now) {
+	case 0:
+		return fmt.Sprintf(wording.HoursAgoFmt.In(lang), int(since/time.Hour))
+	case 1:
+		return wording.Yesterday.In(lang)
+	}
+	return listDate(at, now)
+}
+
+// calendarDays counts the days on the calendar from at's day to now's, each
+// read in its own zone. Counting whole days between two midnights in UTC keeps
+// a day that the clocks shortened or lengthened a day.
+func calendarDays(at, now time.Time) int {
+	day := func(t time.Time) time.Time {
+		y, m, d := t.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}
+	return int(day(now).Sub(day(at)) / (24 * time.Hour))
+}
+
 // NoteRows applies the list rule to the notes of one folder: order, the
 // shared-prefix groups, the month groups, and the one fact a row carries.
 func NoteRows(notes []ListNote, sort ListSort, now time.Time, lang wording.Lang) []ListGroup {

@@ -14,6 +14,13 @@
 // assistive technology and nothing in it takes focus, because what it shows
 // the choices already say.
 //
+// The sheet is captioned a preview in the interface's small print, on a faint
+// hairline over the reading and readable at 4.5:1 in light and dark, script or
+// none. Below the language, which stands first and alone, the choices stand in
+// two groups — the paper and type, then how the page behaves while reading —
+// each headed as the page heads its sections: a small heading in the
+// interface's face over the double rule.
+//
 // Around it: on a wide window the sheet stands beside the column and stays in
 // view while the column scrolls; below 1081 it stands above the choices and
 // scrolls away with them, and nothing scrolls sideways on a phone. The paper's
@@ -62,6 +69,14 @@ const MODES = {
   // The buttons beside the sheet's heading drawn whatever the choice, or never.
   'sheet-buttons-always-drawn': css('.y-prefs__sheet .y-margin__act{opacity:1 !important}', 'section-buttons'),
   'sheet-buttons-never-drawn': css('.y-prefs__sheet .y-margin__act{opacity:0 !important}', 'section-buttons'),
+  // The caption gone, or fainter than text may be.
+  'caption-gone': css('.y-prefs__caption{display:none !important}', 'caption'),
+  'caption-too-faint': css('.y-prefs__caption{color:var(--fg-ornament) !important}', 'caption'),
+  // A group's heading with no rule under it, or set in the reading face.
+  'group-head-without-rule': css('.y-prefs__group h2::after{content:none !important}', 'groups'),
+  'group-head-in-the-reading-face': css('.y-prefs__group h2{font-family:var(--font-serif) !important;font-size:17px !important}', 'groups'),
+  // The language moved into the first group.
+  'language-in-a-group': html(/(<fieldset class="y-preffield" data-pref-field="lang">[\s\S]*?<\/fieldset>)(<section class="y-prefs__group"[^>]*><h2[^>]*>[^<]*<\/h2>)/, '$2$1', 'groups'),
   // The sheet put away where no script runs.
   'sheet-needs-a-script': css(':root:not([data-js]) .y-prefs__sheet{display:none !important}', 'no-script'),
   // The sheet read out, or a stop on the way through the page.
@@ -325,6 +340,94 @@ try {
       if (got.size !== want.size || got.face !== want.face) fire('no-script', `with no script the sheet is ${got.size} in ${got.face}; a note under the same choices is ${want.size} in ${want.face}`);
     });
     console.log('preference-sheet: with no script the sheet stands, drawn in the stored choices');
+  }
+
+  // The caption: the first thing on the sheet, in the interface's small face,
+  // on a hairline over the reading, and readable on the sheet's own ground, in
+  // light and dark, with a script or without one.
+  if (runs('caption')) {
+    for (const scheme of ['light', 'dark']) {
+      for (const script of [true, false]) {
+        await at({ scheme, script, stored: { theme: scheme } }, async (page) => {
+          const got = await page.evaluate(() => {
+            const sheet = document.querySelector('.y-prefs__sheet');
+            const caption = sheet?.querySelector('.y-prefs__caption');
+            if (!caption) return null;
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            const rgba = (value) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = value;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data];
+            };
+            const style = getComputedStyle(caption);
+            const prose = sheet.querySelector('.y-prose').getBoundingClientRect();
+            const box = caption.getBoundingClientRect();
+            return {
+              first: sheet.firstElementChild === caption, drawn: caption.checkVisibility() && box.height > 0,
+              text: caption.textContent.trim(), size: Number.parseFloat(style.fontSize), family: style.fontFamily,
+              rule: style.borderBottomWidth, above: box.bottom <= prose.top,
+              ink: rgba(style.color), ground: rgba(getComputedStyle(sheet).backgroundColor),
+              uiFamily: getComputedStyle(document.querySelector('.y-preffield legend')).fontFamily,
+            };
+          });
+          if (!got) fire('caption', `in ${scheme}${script ? '' : ' without a script'} the sheet carries no caption`);
+          const channel = (c) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+          const over = (top, under) => [0, 1, 2].map((i) => top[i] * (top[3] / 255) + under[i] * (1 - top[3] / 255));
+          const lum = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+          const [hi, lo] = [lum(over(got.ink, got.ground)), lum(got.ground)].sort((x, y) => y - x);
+          const ratio = (hi + 0.05) / (lo + 0.05);
+          if (!got.first || !got.drawn || !got.above || got.text !== '即時預覽') fire('caption', `in ${scheme}${script ? '' : ' without a script'} the caption is ${JSON.stringify({ first: got.first, drawn: got.drawn, above: got.above, text: got.text })}, want 即時預覽 drawn first, over the reading`);
+          if (got.family !== got.uiFamily || got.size > 12.5 || got.rule !== '1px') fire('caption', `the caption is set ${got.size}px in ${got.family} over a ${got.rule} rule, want the interface's face (${got.uiFamily}) at the small size over a hairline`);
+          if (ratio < 4.5) fire('caption', `in ${scheme} the caption reads at ${ratio.toFixed(2)}:1 on the sheet, want 4.5:1`);
+        });
+      }
+    }
+    console.log('preference-sheet: the sheet is captioned a preview in the small print, over the reading, at 4.5:1 in light and dark');
+  }
+
+  // The language first and alone, then two groups, each headed by a small
+  // heading in the interface's face over the double rule.
+  if (runs('groups')) {
+    await at({}, async (page) => {
+      const got = await page.evaluate(() => {
+        const form = document.querySelector('form[data-prefs]');
+        const groups = [...form.querySelectorAll(':scope > .y-prefs__group')];
+        return {
+          lead: [...form.querySelectorAll(':scope > fieldset[data-pref-field]')].map((f) => f.dataset.prefField),
+          groups: groups.map((group) => {
+            const h2 = group.querySelector(':scope > h2');
+            const style = getComputedStyle(h2);
+            const after = getComputedStyle(h2, '::after');
+            return {
+              title: h2.textContent.trim(), labelled: group.getAttribute('aria-labelledby') === h2.id,
+              fields: [...group.querySelectorAll('fieldset[data-pref-field]')].map((f) => f.dataset.prefField),
+              size: Number.parseFloat(style.fontSize), family: style.fontFamily,
+              rule: { content: after.content, height: after.height, top: after.borderTopWidth, bottom: after.borderBottomWidth, topInk: after.borderTopColor, bottomInk: after.borderBottomColor },
+            };
+          }),
+          uiFamily: getComputedStyle(document.querySelector('.y-preffield legend')).fontFamily,
+          shortcutsRule: getComputedStyle(document.querySelector('.y-prefs__shortcuts h2'), '::after').height,
+        };
+      });
+      const want = [
+        { title: '紙面與字體', fields: ['theme', 'paper', 'textsize', 'font'] },
+        { title: '閱讀行為', fields: ['ruby', 'rail', 'sectionbuttons', 'position', 'shortcuts'] },
+      ];
+      if (JSON.stringify(got.lead) !== JSON.stringify(['lang'])) fire('groups', `ahead of the groups stand ${JSON.stringify(got.lead)}, want the language alone`);
+      const shape = got.groups.map(({ title, fields }) => ({ title, fields }));
+      if (JSON.stringify(shape) !== JSON.stringify(want)) fire('groups', `the choices stand in ${JSON.stringify(shape)}, want ${JSON.stringify(want)}`);
+      for (const group of got.groups) {
+        const { rule } = group;
+        const doubled = rule.content !== 'none' && rule.height === '4px' && rule.top === '1px' && Number.parseFloat(rule.bottom) > 0 && Number.parseFloat(rule.bottom) <= 1 && rule.topInk !== rule.bottomInk;
+        if (!group.labelled || !doubled) fire('groups', `${group.title} is ${group.labelled ? '' : 'not '}named by its heading and closes on ${JSON.stringify(rule)}, want a 1px firm rule over a finer hairline in a lighter ink, 4px apart`);
+        if (group.family !== got.uiFamily || group.size > 12.5) fire('groups', `${group.title} is set ${group.size}px in ${group.family}, want the interface's small face (${got.uiFamily})`);
+      }
+    });
+    console.log('preference-sheet: the language stands first and alone, then the two groups, each headed small over the double rule');
   }
 
   // Hidden from assistive technology, and never a stop for the keyboard.

@@ -8,6 +8,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -37,7 +38,11 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	visible := h.projectShell(authority, snap)
 	visibleNav := visible.Nav
-	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	articleLang := pages.ArticleLanguageFromSnapshot(snap)
+	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, snap), lang, articleLang)
+	// One moment for every age and day the desk states, in the zone of the
+	// machine yomihon runs on, which is the reader's own.
+	now := time.Now()
 	// The reason a way in is empty, stated once at the foot of the page. The
 	// desk draws all four ways in, so what it says here is the union of what
 	// the four pages behind them say: the write authority, which empties the
@@ -61,10 +66,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Bookmark()
+	keptRow := continueRow(&kept, hasMark, snap, visibleNav, lang)
+	if keptRow.Show && !kept.At.IsZero() {
+		keptRow.Age, keptRow.AgeAt = pages.Ago(kept.At, now, lang), kept.At.Format(time.RFC3339)
+	}
 	open, openFault := h.openThoughtShelf(snap, authority.Governed(), lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
-	// An empty block is not drawn where nothing declared the shelf: no answer
-	// role, or no rules file, which reads the built-in one.
-	if (snap.NavigationRoles().AnswerType() == "" || !authority.Governed()) && len(open.Rows) == 0 && openFault == "" {
+	// An empty block is not drawn, whether or not the rules declare a thought
+	// type: on the desk the shelf has no sentence for having nothing, so what
+	// would stand is its heading over nothing. The marks page says it is empty.
+	// A mark file that cannot be read is not an empty shelf, and is said.
+	if len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
 	view := pages.HomeView{
@@ -81,7 +92,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Notices:           folderNotices(fresh.Collision, fresh.Root, lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
-		Continue:          continueRow(&kept, hasMark, snap, visibleNav, lang),
+		Continue:          keptRow,
+		Recent:            pages.NewRecentShelf(visibleNav.KnowledgeNotes(), now, lang, articleLang),
 		Sidebar:           pages.NewLibrarySidebar(visible, pages.LibraryDesk, ""),
 	}
 	view.Sidebar.FaultsStated = true

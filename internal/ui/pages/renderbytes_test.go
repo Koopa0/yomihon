@@ -385,6 +385,7 @@ func recordedPreferencesView(lang wording.Lang) PreferencesView {
 				Legend:  wording.PrefAppearance.In(lang),
 				Note:    wording.PrefAppearanceNote.In(lang),
 				Refused: wording.PrefSaveRefused.In(lang),
+				Group:   wording.PrefGroupPaper.In(lang),
 				// Following the system is the one option a cookie cannot
 				// carry, so the recording keeps a choice whose marks differ
 				// across its options — one that stores nothing beside two
@@ -400,6 +401,7 @@ func recordedPreferencesView(lang wording.Lang) PreferencesView {
 				Legend:  wording.PrefFurigana.In(lang),
 				Note:    wording.PrefFuriganaNote.In(lang),
 				Refused: wording.PrefSaveRefused.In(lang),
+				Group:   wording.PrefGroupReading.In(lang),
 				Options: []PreferenceOption{
 					{Value: "on", Label: wording.PrefOn.In(lang), Checked: true, Stores: true, Unset: true},
 					{Value: "off", Label: wording.PrefOff.In(lang), Stores: true},
@@ -412,6 +414,7 @@ func recordedPreferencesView(lang wording.Lang) PreferencesView {
 				Name:    "sectionbuttons",
 				Legend:  wording.PrefSectionButtons.In(lang),
 				Refused: wording.PrefSaveRefused.In(lang),
+				Group:   wording.PrefGroupReading.In(lang),
 				Options: []PreferenceOption{
 					{Value: "always", Label: wording.PrefSectionButtonsAlways.In(lang), Checked: true, Stores: true, Unset: true},
 					{Value: "hover", Label: wording.PrefSectionButtonsHover.In(lang), Stores: true},
@@ -687,7 +690,21 @@ func recordedKeptHomeView(model *nav.Model) HomeView {
 		Show: true, Title: "L01", Language: "en", Kicker: "Go path · Part one",
 		Section: RowPlace{Text: "A second look", Language: "en"},
 		Href:    ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 640),
+		Age:     "14 分鐘前", AgeAt: "2026-11-26T09:00:00+08:00",
 	}
+	// What changed last, a root note among them, drawn above the ways in: five
+	// of the six notes, the oldest left to the folders.
+	changed := func(title, rel string, month time.Month, day int) nav.NoteSummary {
+		return nav.NoteSummary{Title: title, RelPath: rel, Modified: time.Date(2026, month, day, 12, 0, 0, 0, time.UTC)}
+	}
+	view.Recent = NewRecentShelf([]nav.NoteSummary{
+		changed("L01", "Writing/lessons/go/L01.md", time.November, 25),
+		changed("README", "README.md", time.November, 20),
+		changed("C01", "Concepts/go/C01.md", time.October, 1),
+		changed("Go path", "Maps/Go path.md", time.September, 9),
+		changed("Reading map", "Maps/Reading map.md", time.March, 2),
+		changed("Vault audit", "System/reports/2026-07-10 vault audit.md", time.January, 3),
+	}, time.Date(2026, 11, 26, 9, 0, 0, 0, time.UTC), recordedChrome().Lang, func(string) string { return "en" })
 	return view
 }
 

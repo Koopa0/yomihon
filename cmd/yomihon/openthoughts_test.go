@@ -151,7 +151,8 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 // TestOpenThoughtsEmptySaysWhatTheShelfHolds pins the empty shelf of a vault
 // that declares a thought type: the lede names both sources, no count is
 // stated, and the marks-only sentence — which would leave the thoughts out — is
-// not said.
+// not said. Its page says so; the desk draws no block for it, because a
+// heading over nothing is an empty block, and the desk draws none.
 func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -173,6 +174,9 @@ func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 		}
 		if strings.Contains(page, wording.OpenThoughtsMarksEmpty.In(lang)) {
 			t.Errorf("%s: the empty shelf speaks of marks alone in a vault that declares thoughts", lang.Tag())
+		}
+		if desk := openThoughtPage(t, site, "/", lang.Tag()); strings.Contains(desk, `data-home-block="marks"`) {
+			t.Errorf("%s: the desk draws the marks block with nothing in it", lang.Tag())
 		}
 	}
 }

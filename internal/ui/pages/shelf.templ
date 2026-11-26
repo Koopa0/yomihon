@@ -12,7 +12,8 @@ import (
 // page instead of going on, at the far end of the line its name stands on. The
 // shelf's lede belongs to that page: the heading already says what the block
 // is, and a sentence under it restated the listing's own wording where the two
-// could disagree.
+// could disagree. A shelf with no page of its own — the notes that changed last
+// — has a name and no way on.
 //
 // What the block shows and what the shelf holds are different questions. A
 // shelf whose rows are all listed without being stops — a course whose lessons
@@ -26,11 +27,15 @@ import (
 templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
 	<section class={ "y-homeblock y-modeblock", templ.KV("y-modeblock--lead", lead) } data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
 		<header class="y-homeblock__head">
-			<h2 id={ "home-" + id + "-title" }><a href={ templ.URL(s.Href) }>{ s.Title }</a></h2>
+			if s.Href == "" {
+				<h2 id={ "home-" + id + "-title" }>{ s.Title }</h2>
+			} else {
+				<h2 id={ "home-" + id + "-title" }><a href={ templ.URL(s.Href) }>{ s.Title }</a></h2>
+			}
 			if s.Count != "" {
 				<p>{ s.Count }</p>
 			}
-			if len(s.Rows) > 0 {
+			if len(s.Rows) > 0 && s.Href != "" {
 				<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
 			}
 		</header>
@@ -91,6 +96,9 @@ templ shelfNarrowBody(row Row) {
 	}
 	if row.Opening != "" {
 		<span class="y-modeblock__opening" { authoredLanguageAttrs(row.Language)... }>{ row.Opening }</span>
+	}
+	if row.Where != "" {
+		<span class="y-modeblock__where">{ row.Where }</span>
 	}
 }
 
