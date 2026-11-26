@@ -155,8 +155,10 @@ type Result struct {
 
 	// Rev is the line written, and 0 for a change that wrote none.
 	Rev uint64
-	// Seen is what the lines of the mark are now, for the next change to be made
-	// on top of.
+	// Seen is what the page has read of the mark once the change is made: what
+	// the line written says it read, and the line itself. It is the base of the
+	// next change of the same page, and it does not hold a line the page was
+	// never shown, since a change made on top of it would cover that line.
 	Seen Seen
 }
 
@@ -177,8 +179,10 @@ type proposal struct {
 // a change of one the page had read, which base says how far. A change of state
 // is a Put of the same ID with another Kind. edit names the page's editing
 // session, nil when it has none. A mark that exists and the gate withholds is
-// ErrGone, as a mark that is not there is for the changes that need one; the
-// gate is not optional and a nil one panics.
+// ErrGone, which is what Delete and Choose answer for a mark that is not there;
+// Put of an id that is not there is a new mark, so for it the answer does tell
+// the two apart, and only a caller who already holds the id of a withheld mark
+// can ask. The gate is not optional and a nil one panics.
 func (m *Marks) Put(mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
 	needGate(gate)
 	if err := validate(mark, edit); err != nil {
@@ -518,7 +522,13 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 			return replaces(&line.Line, &ol.Line)
 		})...)
 		res.Rev = line.Rev
-		res.Seen = maps.Clone(entrySeen(v, p.mark.ID))
+		// What the page has read, and no more: what the line says it read, and
+		// the line itself. A line that came in while the page was open is not
+		// here, so a send made on top of this answer does not cover it.
+		res.Seen = maps.Clone(line.Seen)
+		if res.Seen == nil {
+			res.Seen = Seen{}
+		}
 		res.Seen[line.Writer()] = line.Rev
 	} else if v.held() && v.missing == 0 {
 		res.Seen = Seen{}

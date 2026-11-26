@@ -46,7 +46,9 @@
 // one leaves its id for a new one, and the reader is told once. The lines it
 // wrote under the old id stay its own and are written into the file of the new
 // id, since the file of the old one is another machine's now; the lines it
-// did not write are never taken for its own.
+// did not write are never taken for its own. So a file can hold lines whose m
+// is not the id of its name: the name says who wrote the file, a line's m says
+// who wrote the line, and a reader never takes the one for the other.
 //
 // A write is made under the vault's lock, machine-file.lock in the vault's
 // directory under the configuration directory, and takes the ledger's lock

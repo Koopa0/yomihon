@@ -604,3 +604,33 @@ func TestWhenEveryLineIsReplacedEachWritersNewestStands(t *testing.T) {
 		t.Fatalf("the lines that stand are %q, want %q", bodies, want)
 	}
 }
+
+// A page that sends again and again, each send on top of what the last one
+// answered, has read only what it was shown: a line another machine's edit
+// brought in while the page was open is not in what it answers, so the next
+// send does not cover it and the edit is not hidden.
+func TestAnAnswerSaysOnlyWhatThePageHadRead(t *testing.T) {
+	t.Parallel()
+	a, b := newClone(t, "A"), newClone(t, "B")
+	a.say(1, "first")
+	pull(a, b)
+	page := a.entry(mid(1)).Seen // the page A's reader has open
+	b.say(1, "B's edit")
+	pull(b, a) // a git pull brings it in while the page is open
+	e := Edit{ID: "page-1", Seq: 1}
+	first, err := a.m.Put(new(thought(1, "A, typing")), page, &e, open)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Seq = 2
+	if _, err = a.m.Put(new(thought(1, "A, typing on")), first.Seen, &e, open); err != nil {
+		t.Fatalf("the second send: %v", err)
+	}
+	got := a.entry(mid(1))
+	if !got.Conflict() {
+		t.Fatalf("B's edit was covered by a page that had not read it: %s", a.words(1))
+	}
+	if words := a.words(1); !strings.Contains(words, "B's edit") || !strings.Contains(words, "A, typing on") || strings.Contains(words, "A, typing |") {
+		t.Fatalf("the mark reads %q, want A's last words and B's edit as its two values", words)
+	}
+}
