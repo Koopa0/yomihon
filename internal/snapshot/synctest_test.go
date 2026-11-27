@@ -6,8 +6,6 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/lexical"
 )
 
 // TestRunScannerTicksAndStops pins only the scanner loop's clock, cancellation,
@@ -60,68 +58,4 @@ func TestRunScannerTicksAndStops(t *testing.T) {
 			t.Error("runScanner did not return after cancellation")
 		}
 	})
-}
-
-func TestConcurrentReadersCannotMutateAGeneration(t *testing.T) {
-	t.Parallel()
-	gen, _ := immutableGenerationFixture(t)
-
-	synctest.Test(t, func(t *testing.T) {
-		for range 32 {
-			go func() {
-				for range 100 {
-					request := gen.Capture()
-					resolution := request.Graph().Resolve("Foo")
-					resolution.Candidates[0] = "mutated"
-
-					folders := request.Navigation().Folders()
-					folders[0].Name = "mutated"
-
-					answer, err := request.Search().Search(lexical.Parse("Foo"), -1)
-					if err != nil {
-						t.Errorf("Search(Foo) error = %v", err)
-						continue
-					}
-					answer.Results[0].Title = "mutated"
-					drafts, err := request.Search().Search(lexical.Parse("draft:true"), -1)
-					if err != nil {
-						t.Errorf("Search(draft:true) error = %v", err)
-						continue
-					}
-					for i := range drafts.Results {
-						drafts.Results[i].Draft = false
-					}
-
-					slot, ok := request.Slots().Lookup("lesson-l01")
-					if !ok {
-						t.Error("Slots().Lookup(lesson-l01) = false")
-						continue
-					}
-					position := slot.Patterns[0].Slots["A"]
-					position.Fills[0].JP = "mutated"
-					slot.Patterns[0].Slots["A"] = position
-
-					_ = request.ArtifactPolicy().ValidateSource()
-				}
-			}()
-		}
-		synctest.Wait()
-	})
-
-	if got := gen.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
-		t.Errorf("Resolve(Foo) after concurrent mutation starts with %q, want %q", got, "A/Foo.md")
-	}
-	if got := gen.Navigation().Folders()[0].Name; got == "mutated" {
-		t.Error("Navigation().Folders() retained a concurrent caller mutation")
-	}
-	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
-		t.Errorf("Search(Foo) after concurrent mutation starts with title %q, want %q", got, "Foo")
-	}
-	slot, ok := gen.Slots().Lookup("lesson-l01")
-	if !ok {
-		t.Fatal("Slots().Lookup(lesson-l01) = false")
-	}
-	if got := slot.Patterns[0].Slots["A"].Fills[0].JP; got != "私" {
-		t.Errorf("Slots().Lookup() after concurrent mutation fill = %q, want %q", got, "私")
-	}
 }

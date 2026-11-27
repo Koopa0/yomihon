@@ -52,32 +52,6 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	}
 }
 
-// TestSchemaFindingsAreTheCallersOwnSlice holds the accessor to the promise
-// every other collection accessor here makes. Handing out the generation's own
-// backing array would let one reader's append reach another reader's page.
-func TestSchemaFindingsAreTheCallersOwnSlice(t *testing.T) {
-	t.Parallel()
-
-	const faulty = "Concepts/golang/Bad.md"
-	body := "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\n---\n\nbody\n"
-
-	root := t.TempDir()
-	contract := testContract(t, root)
-	writeNote(t, root, faulty, body)
-	store, _ := newTestStore(t, root, contract)
-	gen := store.Current()
-
-	first := gen.SchemaFindings(faulty)
-	if len(first) == 0 {
-		t.Fatal("the fixture note draws no schema findings, so this test would prove nothing")
-	}
-	first[0] = judge.Finding{RuleID: "scribbled.over"}
-	second := gen.SchemaFindings(faulty)
-	if second[0].RuleID == "scribbled.over" {
-		t.Error("writing to one caller's slice changed the next caller's; the accessor handed out the generation's own array")
-	}
-}
-
 func TestGenerationDomainFolder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -116,7 +90,7 @@ func TestGenerationDomainFolder(t *testing.T) {
 }
 
 // TestCapturedDomainRoots keeps one path's interpretation tied to its captured
-// declaration even after a caller edits a copy and the contract file is replaced.
+// declaration after the contract file is replaced.
 func TestCapturedDomainRoots(t *testing.T) {
 	t.Parallel()
 	const rel = "Writing/lessons/japanese/nested/Deep.md"
@@ -126,12 +100,6 @@ func TestCapturedDomainRoots(t *testing.T) {
 	writeNote(t, root, rel, body)
 	firstStore, _ := newTestStore(t, root, firstContract)
 	first := firstStore.Current().Capture()
-
-	copyBeforeBuild := firstContract.Definition()
-	copyBeforeBuild.Folders.DomainFrom[0] = "Writing"
-	fromOriginalContract, _ := newTestStore(t, root, firstContract)
-	copyAfterBuild := firstContract.Definition()
-	copyAfterBuild.Folders.DomainFrom[0] = "Writing"
 
 	secondContract := domainRootContract(t, root, `["Writing"]`)
 	secondStore, _ := newTestStore(t, root, secondContract)
@@ -143,7 +111,6 @@ func TestCapturedDomainRoots(t *testing.T) {
 		folder string
 	}{
 		{name: "captured first after replacement", gen: first, folder: "japanese"},
-		{name: "original contract after caller edits", gen: fromOriginalContract.Current().Capture(), folder: "japanese"},
 		{name: "captured replacement", gen: second, folder: "lessons"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

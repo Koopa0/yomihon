@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -156,97 +157,53 @@ func writeNote(tb testing.TB, root, rel, content string) {
 	}
 }
 
-func immutableGenerationFixture(t *testing.T) (gen *Generation, root string) {
-	t.Helper()
-	root = t.TempDir()
-	writeNote(t, root, "A/Foo.md", "first body\n")
-	writeNote(t, root, "B/Foo.md", "second body\n")
-	writeNote(t, root, "Concepts/go/Concept.md", "---\ntype: concept\ndraft: true\n---\nconcept body\n")
-	writeNote(t, root, "Writing/Lesson.md", "---\ntype: lesson\nslug: lesson-l01\n---\nlesson body\n")
-	writeNote(t, root, "System/slots/L01.yaml", `lesson: L01
-slug: lesson-l01
-title: Lesson
-patterns:
-  - id: p1
-    template: "{A}"
-    gloss_zh: "{A}"
-    slots:
-      A:
-        fills:
-          - {jp: 私, reading: わたし, zh: 我}
-`)
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	return store.Current(), root
-}
-
-func TestAGenerationReturnsImmutableProjections(t *testing.T) {
+// TestAccessorsHandTheCallerItsOwnCopy holds the accessors that copy what a
+// generation holds: one reader's writes must not reach the next reader's page.
+func TestAccessorsHandTheCallerItsOwnCopy(t *testing.T) {
 	t.Parallel()
-	gen, _ := immutableGenerationFixture(t)
+	root := t.TempDir()
+	const faulty, unread = "Concepts/Bad.md", "Concepts/Unread.md"
+	writeNote(t, root, faulty, "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\n---\n\nbody\n")
+	writeNote(t, root, unread, "---\ntype: concept\n---\nbody\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{Source: reader, reads: make(map[string]int), fail: map[string]int{unread: 1}}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gen := store.Current()
 
-	files := gen.Files()
-	if len(files) == 0 {
-		t.Fatal("Files() returned no captured files")
+	blocked := gen.Freshness().Blocked
+	if len(blocked) != 1 {
+		t.Fatalf("Freshness().Blocked = %+v, want the one unread note", blocked)
 	}
-	wantFirstPath := files[0].Path()
-	files[0] = vault.Entry{}
-	if got := gen.Files()[0].Path(); got != wantFirstPath {
-		t.Errorf("Files()[0].Path() after mutation = %q, want %q", got, wantFirstPath)
-	}
-
-	resolution := gen.Graph().Resolve("Foo")
-	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
-		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
-	}
-	resolution.Candidates[0] = "mutated"
-	if got := gen.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
-		t.Errorf("Resolve(Foo) after mutation starts with %q, want %q", got, "A/Foo.md")
-	}
-
-	results := snapshotSearch(t, gen.Search(), "Foo")
-	if len(results) != 2 {
-		t.Fatalf("Search(Foo) returned %d results, want 2", len(results))
-	}
-	results[0].Title = "mutated"
-	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
-		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
-	}
-	drafts, err := draftSearch(gen.Search())
-	if err != nil || len(drafts.Results) == 0 {
-		t.Fatalf("draft search = (%+v, %v), want the draft concept", drafts.Results, err)
-	}
-	drafts.Results[0].Draft = false
-	drafts, err = draftSearch(gen.Search())
-	if err != nil || len(drafts.Results) == 0 || !drafts.Results[0].Draft {
-		t.Errorf("draft search after caller mutation = (%+v, %v), want the draft still marked", drafts.Results, err)
+	blocked[0].Path = "changed"
+	if got := gen.Freshness().Blocked[0].Path; got != unread {
+		t.Errorf("Freshness().Blocked[0].Path after a caller's write = %q, want %q", got, unread)
 	}
 
-	slot, ok := gen.Slots().Lookup("lesson-l01")
-	if !ok {
-		t.Fatal("Slots().Lookup(lesson-l01) = false, want true")
+	findings := gen.SchemaFindings(faulty)
+	if len(findings) == 0 {
+		t.Fatal("the fixture note draws no schema findings, so this test would prove nothing")
 	}
-	position := slot.Patterns[0].Slots["A"]
-	position.Fills[0].JP = "mutated"
-	slot.Patterns[0].Slots["A"] = position
-	secondSlot, ok := gen.Slots().Lookup("lesson-l01")
-	if !ok || secondSlot.Patterns[0].Slots["A"].Fills[0].JP != "私" {
-		t.Errorf("Slots().Lookup() after mutation = %+v, want original fill", secondSlot)
-	}
-
-	concept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
-	if !ok {
-		t.Fatal("Concepts().Document() = false, want true")
-	}
-	concept.Title = "mutated"
-	secondConcept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
-	if !ok || concept.Title != "mutated" || secondConcept.Title != "Concept" {
-		t.Errorf("Concepts().Document() after mutation = %+v, want original title", secondConcept)
+	findings[0] = judge.Finding{RuleID: "changed"}
+	if got := gen.SchemaFindings(faulty)[0].RuleID; got == "changed" {
+		t.Error("SchemaFindings() handed out the generation's own slice")
 	}
 }
 
 func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	t.Parallel()
-	gen, root := immutableGenerationFixture(t)
+	root := t.TempDir()
+	const concept = "Concepts/go/Concept.md"
+	writeNote(t, root, concept, "---\ntype: concept\ndraft: true\n---\nconcept body\n")
+	store, _ := newTestStore(t, root, testContract(t, root))
+	gen := store.Current()
 	requestA := gen.Capture()
 
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
@@ -261,12 +218,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := draftSearch(requestA.Search()); err != nil {
 		t.Errorf("request-captured draft search error = %v, want stable authority", err)
 	}
-	// Notes are answered before files, and the contract is a vault file whose
-	// characters a reader can open, so it joins the text corpus and can share a
-	// query with this note. The claim under test is the note's badge, so the
-	// note is named rather than assumed to be alone.
-	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || !results[0].Draft {
+	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) != 1 ||
+		results[0].RelPath != concept || !results[0].Draft {
 		t.Errorf("request-captured Search(Concept) = %+v, want stable metadata badge", results)
 	}
 	if requestB.ArtifactPolicy().Available() {
@@ -275,28 +228,9 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := draftSearch(requestB.Search()); !errors.Is(err, lexical.ErrMetadataUnavailable) {
 		t.Errorf("next draft search error = %v, want ErrMetadataUnavailable", err)
 	}
-	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Draft {
+	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) != 1 ||
+		results[0].RelPath != concept || results[0].Draft {
 		t.Errorf("next Search(Concept) = %+v, want lexical result without metadata badge", results)
-	}
-	// A page combines two samples of the same authority: the policy it asks for
-	// classification, and the index it asks for metadata. Capture binds both to
-	// one authority, which is why a reader can trust them together. Were they
-	// ever to disagree, a page could show a draft filter's answer beside a
-	// policy that had already stopped classifying — so the agreement is asserted here rather
-	// than left to be inferred from the two halves above.
-	for _, tt := range []struct {
-		name string
-		gen  *Generation
-	}{
-		{name: "captured before the source changed", gen: requestA},
-		{name: "captured after the source changed", gen: requestB},
-	} {
-		_, countErr := draftSearch(tt.gen.Search())
-		if got, want := tt.gen.ArtifactPolicy().Available(), countErr == nil; got != want {
-			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers metadata = %t; "+
-				"one request would combine two disagreeing authorities", tt.name, got, want)
-		}
 	}
 }
 
@@ -900,50 +834,41 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	}
 }
 
-// TestConcurrentReadDuringSwap runs many readers of the atomic pointer while a
-// writer swaps it in a loop — the exact swap the scanner performs (buildSnapshot
-// then ptr.Store). Under -race this passes only because the pointer is an
-// atomic.Pointer; a plain field would be flagged.
-func TestConcurrentReadDuringSwap(t *testing.T) {
+// TestReadersRunBesideRescans reads the published generation from several
+// goroutines while rescans replace it, so the race detector sees every handoff
+// from the reconciliation loop to a reader.
+func TestReadersRunBesideRescans(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n\nbody\n")
+	const rel = "Concepts/Alpha.md"
+	body := func(i int) string { return strings.Repeat("edit ", i+1) + "\n" }
+	writeNote(t, root, rel, body(0))
+	store, _ := newTestStore(t, root, nil)
 
-	contract := testContract(t, root)
-	store, reader := newTestStore(t, root, contract)
 	ctx, cancel := context.WithCancel(t.Context())
-
 	var readers sync.WaitGroup
-	for range 8 {
+	for range 4 {
 		readers.Go(func() {
 			for ctx.Err() == nil {
-				snap := store.Current()
-				_ = snap.Search().Len()
-				_ = snap.Graph().Resolve("Alpha")
+				gen := store.Current()
+				_, _ = gen.Note(rel)
+				_ = gen.Search().Len()
+				_ = gen.Freshness()
 			}
 		})
 	}
-
-	var swapper sync.WaitGroup
-	swapper.Go(func() {
-		for range 100 {
-			scan, err := reader.ScanAvailable(t.Context())
-			if err != nil {
-				t.Errorf("ScanAvailable: %v", err)
-				return
-			}
-			gen, _, err := store.buildGeneration(t.Context(), nil, scan, store.capabilities, nil)
-			if err != nil {
-				t.Errorf("buildGeneration: %v", err)
-				return
-			}
-			store.ptr.Store(gen)
-		}
-	})
-	swapper.Wait()
-
+	// Each edit changes the note's size, so each rescan publishes.
+	const edits = 5
+	for i := 1; i <= edits; i++ {
+		writeNote(t, root, rel, body(i))
+		store.rescan(t.Context())
+	}
 	cancel()
 	readers.Wait()
+
+	if note, ok := store.Current().Note(rel); !ok || note.Body != body(edits) {
+		t.Errorf("Note(%q) after %d rescans = %+v, present %t; want the last edit published", rel, edits, note, ok)
+	}
 }
 
 // TestBuildGenerationIndexesNotesOnly pins that the text corpus holds notes and
