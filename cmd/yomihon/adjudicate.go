@@ -32,7 +32,7 @@ type commandArgs struct {
 	root string
 	// serve refuses repeated roots; the adjudicating commands keep the last.
 	rootCount int
-	format    *judge.Format
+	format    *outputFormat
 	all       bool
 	deny      []string
 	baseline  string
@@ -67,7 +67,7 @@ func runCommand(
 			return commandError(stderr, fmt.Errorf("resolve working directory: %w", err))
 		}
 	}
-	format := judge.ResolveFormat(parsed.format, stdoutIsTerminal)
+	format := engineFormat(resolveFormat(parsed.format, stdoutIsTerminal))
 
 	var payload egress.Payload
 	var exit int
@@ -113,28 +113,16 @@ func validateCommandArgs(command string, args *commandArgs) error {
 	case "check":
 		return scopeIsNotTheVaultItself(args.positionals)
 	case "coverage":
-		if args.all {
-			return errors.New("coverage does not accept --all")
-		}
-		if len(args.deny) > 0 {
-			return errors.New("coverage does not accept --deny")
-		}
-		if args.baseline != "" {
-			return errors.New("coverage does not accept --baseline")
+		if err := refuseCheckFlags(command, args); err != nil {
+			return err
 		}
 		if len(args.positionals) > 0 {
 			return errors.New("coverage takes no positional arguments")
 		}
 		return nil
 	case "exists":
-		if args.all {
-			return errors.New("exists does not accept --all")
-		}
-		if len(args.deny) > 0 {
-			return errors.New("exists does not accept --deny")
-		}
-		if args.baseline != "" {
-			return errors.New("exists does not accept --baseline")
+		if err := refuseCheckFlags(command, args); err != nil {
+			return err
 		}
 		if len(args.positionals) != 1 {
 			return errors.New("exists takes exactly one name argument")
@@ -143,6 +131,19 @@ func validateCommandArgs(command string, args *commandArgs) error {
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
+}
+
+// refuseCheckFlags refuses on coverage and exists the flags only check takes.
+func refuseCheckFlags(command string, args *commandArgs) error {
+	switch {
+	case args.all:
+		return fmt.Errorf("%s does not accept --all", command)
+	case len(args.deny) > 0:
+		return fmt.Errorf("%s does not accept --deny", command)
+	case args.baseline != "":
+		return fmt.Errorf("%s does not accept --baseline", command)
+	}
+	return refuseMarkdown(command, args.format)
 }
 
 // scopeIsNotTheVaultItself refuses a scope written as an absolute path, before
@@ -245,13 +246,27 @@ func (args *commandArgs) setFlag(name, value string) error {
 	case "--deny":
 		args.deny = append(args.deny, value)
 	case "--format":
-		format, ok := judge.ParseFormat(value)
+		format, ok := parseFormat(value)
 		if !ok {
 			return fmt.Errorf("invalid --format %q; use json, human, or md", value)
 		}
 		args.format = &format
 	}
 	return nil
+}
+
+// engineFormat is the judge's name for the shape a command was asked for.
+func engineFormat(f outputFormat) judge.Format {
+	switch f {
+	case formatJSON:
+		return judge.FormatJSON
+	case formatHuman:
+		return judge.FormatHuman
+	case formatMarkdown:
+		return judge.FormatMarkdown
+	default:
+		panic(fmt.Sprintf("main: unknown outputFormat: %d", int(f)))
+	}
 }
 
 // contractGuidance is the paragraph a person needs after a refusal a program

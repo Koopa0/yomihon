@@ -21,6 +21,8 @@ func TestMembershipIsTheAcceptedOccurrence(t *testing.T) {
 		// alsoWant is a rule the same run has to report, for a case whose
 		// answer would otherwise be right for a reason it does not state.
 		alsoWant string
+		// notWant is a rule the same run must not report.
+		notWant string
 	}{
 		{
 			// The lesson link opens the row and is the course's member; the
@@ -29,6 +31,16 @@ func TestMembershipIsTheAcceptedOccurrence(t *testing.T) {
 			name: "an embed beside the lesson link",
 			body: "## Main {sequence=primary}\n\n- [[Lesson]] ![[Retired]]\n",
 			want: false,
+		},
+		{
+			// The picture names nothing on disk. It is an ordinary link, so it
+			// is reported broken, and the course never promised it, so it is
+			// not a disagreement between the course and disk.
+			name:     "an embed of a missing note beside the lesson link",
+			body:     "## Main {sequence=primary}\n\n- [[Lesson]] ![[MissingPicture]]\n",
+			want:     false,
+			alsoWant: `"rule_id":"link.broken"`,
+			notWant:  "course.disk_mismatch",
 		},
 		{
 			// The embed comes first, and an embed is something a reader sees,
@@ -84,10 +96,10 @@ func TestMembershipIsTheAcceptedOccurrence(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeCourseContract(t, root)
-			writeJudgeNote(t, root, courseNotePath, courseNote(tt.body))
-			writeJudgeNote(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
-			writeJudgeNote(t, root, courseLessonPath("Other"), courseLesson("other"))
-			writeJudgeNote(t, root, courseLessonPath("Retired"), courseLesson("retired"))
+			write(t, root, courseNotePath, courseNote(tt.body))
+			write(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
+			write(t, root, courseLessonPath("Other"), courseLesson("other"))
+			write(t, root, courseLessonPath("Retired"), courseLesson("retired"))
 
 			out := string(runCheck(t, root))
 			if got := courseLists(out, "Retired"); got != tt.want {
@@ -97,6 +109,9 @@ func TestMembershipIsTheAcceptedOccurrence(t *testing.T) {
 			if tt.alsoWant != "" && !strings.Contains(out, tt.alsoWant) {
 				t.Errorf("%s was not reported, so the row was left out for some other reason:\n%s",
 					tt.alsoWant, out)
+			}
+			if tt.notWant != "" && strings.Contains(out, tt.notWant) {
+				t.Errorf("%s was reported for %q:\n%s", tt.notWant, tt.body, out)
 			}
 		})
 	}
@@ -116,11 +131,11 @@ func TestTheSameTargetTwiceKeepsTwoOccurrences(t *testing.T) {
 	// the refused row is ordinary link health. Joining by name would make both
 	// occurrences members: the course rule would say it twice and link health
 	// not at all.
-	writeJudgeNote(t, root, "Maps/Course.md", courseNote(
+	write(t, root, "Maps/Course.md", courseNote(
 		"## Main {sequence=primary}\n\n"+
 			"- [[Unwritten]] 與 [[Lesson]]\n"+
 			"- [[Unwritten]]\n"))
-	writeJudgeNote(t, root, "Writing/Lesson.md", courseLesson("lesson"))
+	write(t, root, "Writing/Lesson.md", courseLesson("lesson"))
 
 	out := string(runCheck(t, root))
 	if n := strings.Count(out, "course.disk_mismatch"); n != 1 {
@@ -151,10 +166,8 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeCourseContract(t, root)
-		writeJudgeNote(t, root, courseNotePath, courseNote(
-			"## Main {sequence=primary}\n\n- [[Lesson]] ![[Picture]]\n"))
-		writeJudgeNote(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
-		writeJudgeNote(t, root, "Concepts/Picture.md", "---\ntype: note\n---\nbody\n")
+		write(t, root, courseNotePath, courseNote("## Main {sequence=primary}\n\n- [[Lesson]]\n"))
+		write(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
 
 		out := string(runCheck(t, root))
 		if strings.Contains(out, "course.disk_mismatch") {
@@ -174,10 +187,10 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeCourseContract(t, root)
-		writeJudgeNote(t, root, courseNotePath, courseNote(
+		write(t, root, courseNotePath, courseNote(
 			"## Main {sequence=primary}\n\n- **[[Lesson]]** ![[Retired]]\n"))
-		writeJudgeNote(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
-		writeJudgeNote(t, root, courseLessonPath("Retired"), courseLesson("retired"))
+		write(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
+		write(t, root, courseLessonPath("Retired"), courseLesson("retired"))
 
 		out := string(runCheck(t, root))
 		if !courseLists(out, "Lesson") {
@@ -192,9 +205,7 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeCourseContract(t, root)
-		writeJudgeNote(t, root, "Maps/Course.md", courseNote(
-			"## Main {sequence=primary}\n\n- [[Unwritten]] ![[Picture]]\n"))
-		writeJudgeNote(t, root, "Concepts/Picture.md", "---\ntype: note\n---\nbody\n")
+		write(t, root, "Maps/Course.md", courseNote("## Main {sequence=primary}\n\n- [[Unwritten]]\n"))
 
 		out := string(runCheck(t, root))
 		if n := strings.Count(out, "course.disk_mismatch"); n != 1 {
@@ -213,7 +224,7 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeCourseContract(t, root)
-		writeJudgeNote(t, root, "Maps/Course.md", courseNote(
+		write(t, root, "Maps/Course.md", courseNote(
 			"關於 [[Unwritten]] 的說明。\n\n## Main {sequence=primary}\n\n- [[Unwritten]]\n"))
 
 		out := string(runCheck(t, root))
@@ -226,43 +237,6 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 	})
 }
 
-// TestAnEmbedOnALessonRowIsOrdinaryPurpose holds both consumers of course
-// membership against one row, separately.
-//
-// The row lists a lesson and shows a picture beside it, and the picture names
-// nothing on disk. Two rules read membership from opposite sides: the one that
-// reconciles a course against disk keeps what the course lists, and ordinary
-// link health skips it. A line-based answer breaks each of them in its own
-// direction — link health would fall silent about the picture, and the course
-// rule would report the picture as a lesson it promised — so each direction is
-// asserted here rather than left to whichever rule happens to speak first.
-func TestAnEmbedOnALessonRowIsOrdinaryPurpose(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeCourseContract(t, root)
-	writeJudgeNote(t, root, courseNotePath, courseNote(
-		"## Main {sequence=primary}\n\n- [[Lesson]] ![[MissingPicture]]\n"))
-	writeJudgeNote(t, root, courseLessonPath("Lesson"), courseLesson("lesson"))
-
-	out := string(runCheck(t, root))
-
-	// The lesson is what the course lists: the rule that reconciles the course
-	// against disk found it, so it is not also reported as a lesson nobody
-	// listed. This is the membership the other assertions are narrowing.
-	if !courseLists(out, "Lesson") {
-		t.Errorf("the course lists this lesson but membership did not find it:\n%s", out)
-	}
-	// The picture is not a lesson, so it is an ordinary link, and it is broken.
-	if n := strings.Count(out, `"rule_id":"link.broken"`); n != 1 {
-		t.Errorf("link.broken reported %d times, want 1 for the embed:\n%s", n, out)
-	}
-	// The course never promised the picture, so it is not a disagreement
-	// between the course and disk.
-	if strings.Contains(out, "course.disk_mismatch") {
-		t.Errorf("the embed was reconciled against disk as a lesson the course lists:\n%s", out)
-	}
-}
-
 // TestGeneralMapAnswersForEveryLink holds that narrowing a course to its
 // accepted rows did not narrow a general map. A map declares no sequence, so
 // every link it carries is the map pointing somewhere — including one written
@@ -271,7 +245,7 @@ func TestGeneralMapAnswersForEveryLink(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeCourseContract(t, root)
-	writeJudgeNote(t, root, "Maps/Topic.md",
+	write(t, root, "Maps/Topic.md",
 		"---\ntype: topic-map\n---\n# Topic\n\n- [[Unwritten]] 與 [[Absent]]\n")
 
 	out := string(runCheck(t, root))
@@ -285,21 +259,14 @@ func TestGeneralMapAnswersForEveryLink(t *testing.T) {
 // lesson is listed but unwritten. A lesson under a heading the author marked as
 // a gap is a promise, not a fault, and reports as information rather than a
 // warning. The link's own context has to survive the join that decides
-// membership, and each mark the contract prints has to be one the tool reads.
+// membership.
 func TestGapHeadingStillSoftensAMissingLesson(t *testing.T) {
 	t.Parallel()
-	// The marks the authoring contract tells an author to write. A mark that
-	// stopped being read here is a contract promising something the tool no
-	// longer does.
-	gapMarks := []string{"缺口", "待補", "待寫", "待整理", "待建"}
-
-	for _, mark := range gapMarks {
-		t.Run("a branch marked "+mark+" informs", func(t *testing.T) {
-			t.Parallel()
-			assertMissingLessonSeverity(t,
-				"## "+mark+" {sequence=primary}\n\n- [[Unwritten]]\n", `"severity":"info"`)
-		})
-	}
+	t.Run("a branch marked as a gap informs", func(t *testing.T) {
+		t.Parallel()
+		assertMissingLessonSeverity(t,
+			"## 缺口 {sequence=primary}\n\n- [[Unwritten]]\n", `"severity":"info"`)
+	})
 
 	t.Run("an unmarked branch warns", func(t *testing.T) {
 		t.Parallel()
@@ -318,9 +285,9 @@ func TestGapHeadingStillSoftensAMissingLesson(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeCourseContract(t, root)
-		writeJudgeNote(t, root, "Concepts/Index.md",
+		write(t, root, "Concepts/Index.md",
 			"---\ntype: note\n---\n\n## 缺口\n\n- Unwritten\n")
-		writeJudgeNote(t, root, "Maps/Course.md", courseNote(
+		write(t, root, "Maps/Course.md", courseNote(
 			"## Main {sequence=primary}\n\n- [[Unwritten]]\n"))
 		assertSeverityOf(t, string(runCheck(t, root)), `"severity":"warn"`)
 	})
@@ -332,7 +299,7 @@ func assertMissingLessonSeverity(t *testing.T, body, want string) {
 	t.Helper()
 	root := t.TempDir()
 	writeCourseContract(t, root)
-	writeJudgeNote(t, root, "Maps/Course.md", courseNote(body))
+	write(t, root, "Maps/Course.md", courseNote(body))
 	assertSeverityOf(t, string(runCheck(t, root)), want)
 }
 

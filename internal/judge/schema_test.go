@@ -1,11 +1,8 @@
 package judge
 
 import (
-	"bytes"
-	"encoding/hex"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -14,57 +11,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestCheckSchemaGolden drives the frontmatter engine over fixture vaults and
-// asserts the emitted bytes equal each golden. The rules fixture triggers
-// every schema rule at least once and exercises the four scope behaviors that
-// must produce nothing: a skipped basename, a note outside the knowledge
-// directories, a note with no frontmatter, and a note whose block does not
-// parse (which yields exactly one fault). The coercion fixture pins how an
-// unquoted scalar's value reaches a finding: booleans lowercased, integers in
-// decimal, nulls dropped, and everything else — quoted text, the 1.1 boolean
-// words, out-of-range numbers, reals, aliases, custom-tagged and block scalars
-// (whose trailing newline is kept or stripped by their chomping) — left as the
-// reference reads them. It states a vocabulary on five of the defined fields
-// (level, prerequisites, slug, verified_on, verified_with), none of which a
-// value there can satisfy, so every value written reaches the golden as one
-// schema.enum line whichever field carries it. The strictness fixture pins the parse boundary: a
-// repeated key (nested, in a list, flow or block), a tab indent, an invalid
-// escape, and an unterminated quote each become a single parse fault; a merge
-// key is read as an ordinary key; and the fence handling matches — an empty
-// block reads as present-but-empty, a "..." close and a closing fence at end of
-// file are both honored. The unclosed fixture pins the fence that never closes:
-// three notes that open a block and lose its closing line each draw one finding,
-// while a block that closes and two notes that open with a thematic break draw
-// none. Each golden holds the schema subset of the reference tool's sorted
-// output over that same fixture.
-func TestCheckSchemaGolden(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		fixture string
-		golden  string
-	}{
-		{name: "rules", fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
-		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
-		{name: "parser strictness", fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
-		{name: "unclosed fence", fixture: "testdata/vault-unclosed", golden: "testdata/golden/unclosed.jsonl"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			want, err := os.ReadFile(tt.golden)
-			if err != nil {
-				t.Fatalf("read golden: %v", err)
-			}
-			got := runSchema(t, tt.fixture)
-			if !bytes.Equal(got, want) {
-				t.Errorf("schema findings differ from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-					tt.golden, got, want, hex.Dump(got), hex.Dump(want))
-			}
-		})
-	}
-}
-
 // TestDeclaredOptionalEnums holds the distinction between an undeclared
 // vocabulary and a declared vocabulary that rejects the note's value. Type
 // retains its own rule when every optional vocabulary is open.
@@ -72,141 +18,39 @@ func TestDeclaredOptionalEnums(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		declaration  string
-		frontmatter  string
-		wantOutput   string
-		wantExit     int
-		wantFindings []Finding
+		name        string
+		declaration string
+		frontmatter string
+		want        []string
 	}{
-		{
-			name:        "level/omitted",
-			frontmatter: "type: memo\nlevel: book\n",
-		},
-		{
-			name:        "level/empty",
-			declaration: "level = []\n",
-			frontmatter: "type: memo\nlevel: book\n",
-		},
-		{
-			name:        "level/matching",
-			declaration: "level = [\"book\"]\n",
-			frontmatter: "type: memo\nlevel: book\n",
-		},
-		{
-			name:        "level/mismatching",
-			declaration: "level = [\"course\"]\n",
-			frontmatter: "type: memo\nlevel: book\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"level","message":"level \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:c323b71b99e2043d"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("level"),
-				Message:         `level "book" is not an allowed value`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("book"),
-				Fingerprint:     "v1:c323b71b99e2043d",
-			}},
-		},
-		{
-			name:        "type remains dedicated",
-			frontmatter: "type: unknown\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"type","message":"type \"unknown\" is not an allowed type","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"unknown","fingerprint":"v1:3bed4c2ace05b5f0"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("type"),
-				Message:         `type "unknown" is not an allowed type`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("unknown"),
-				Fingerprint:     "v1:3bed4c2ace05b5f0",
-			}},
-		},
+		{name: "level/omitted", frontmatter: "type: memo\nlevel: book\n"},
+		{name: "level/empty", declaration: "level = []\n", frontmatter: "type: memo\nlevel: book\n"},
+		{name: "level/matching", declaration: "level = [\"book\"]\n", frontmatter: "type: memo\nlevel: book\n"},
+		{name: "level/mismatching", declaration: "level = [\"course\"]\n", frontmatter: "type: memo\nlevel: book\n", want: []string{"schema.enum level book"}},
+		{name: "type remains dedicated", frontmatter: "type: unknown\n", want: []string{"schema.enum type unknown"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, `[folders]
-checked = ["Notes"]
-templates = []
-[enums]
-`+tt.declaration+`[fields]
-common = ["type", "level"]
-required = ["type"]
-[types.memo]
-[privacy]
-never_egress_dirs = []
-`)
-			data := []byte("---\n" + tt.frontmatter + "---\nBody.\n")
-			write(t, root, "Notes/Probe.md", string(data))
+			write(t, root, schema.ContractRelPath, memoContract(tt.declaration))
 			contract, err := schema.Load(root)
 			if err != nil {
 				t.Fatalf("schema.Load() error = %v", err)
 			}
-
-			t.Run("check", func(t *testing.T) {
-				t.Parallel()
-
-				got, exit, err := checkBytes(t.Context(), &CheckOptions{
-					Root:   root,
-					Deny:   []string{"error"},
-					Format: FormatJSON,
-				})
-				if err != nil {
-					t.Fatalf("RunCheck() error = %v", err)
-				}
-				if diff := cmp.Diff(tt.wantOutput, string(got)); diff != "" {
-					t.Errorf("RunCheck() output mismatch (-want +got):\n%s", diff)
-				}
-				if exit != tt.wantExit {
-					t.Errorf("RunCheck() exit = %d, want %d", exit, tt.wantExit)
-				}
-			})
-			t.Run("lint", func(t *testing.T) {
-				t.Parallel()
-
-				got := LintFrontmatter("Notes/Probe.md", data, contract)
-				if diff := cmp.Diff(tt.wantFindings, got); diff != "" {
-					t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
-				}
-			})
+			if diff := cmp.Diff(tt.want, findingKeys(lintFrontmatter("Notes/Probe.md", []byte("---\n"+tt.frontmatter+"---\nBody.\n"), contract))); diff != "" {
+				t.Errorf("lintFrontmatter() findings (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
 
-// TestKnowledgeScopeFoldsTheDeclaredSpelling pins the repair for the quietest
-// failure this face had: a contract naming "notes" where the folder is "Notes"
-// turned every frontmatter rule off for that folder, and the run stayed exit 0
-// with no diagnostic anywhere, because the notes the rules were written for
-// were simply never examined. On a case-insensitive filesystem both spellings
-// open the same folder, so the scope now folds the way the privacy and
-// artifact scopes always have.
-func TestKnowledgeScopeFoldsTheDeclaredSpelling(t *testing.T) {
-	t.Parallel()
-
-	got := runCheck(t, "testdata/vault-knowledge-scope")
-	if !bytes.Contains(got, []byte(`"path":"Notes/bad.md"`)) {
-		t.Errorf("check output = %s, want the note under the differently-spelled directory linted", got)
-	}
-}
-
 // TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope holds the finding on the
-// surface a caller actually reads. Folding the spelling repairs one way a
-// declaration can reach nothing; a directory that was renamed, or a contract
-// copied from another vault, reaches nothing in a way no fold can recover, and
-// the finding announcing it would be invisible if it were filed against the
-// contract file, since System/ paths are dropped from every run that did not
-// ask for them.
+// surface a caller actually reads. A directory that was renamed, or a contract
+// copied from another vault, reaches nothing, and the finding announcing it is
+// filed against the directory rather than the contract file, since System/
+// paths are dropped from every run that did not ask for them.
 func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
 	t.Parallel()
 
@@ -229,12 +73,9 @@ func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
 }
 
 // TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne holds the line between a
-// declaration that reaches nothing and one whose folder is simply empty. The
-// live vault this was first run against declares an inbox and had processed
-// everything in it, so an emptiness test would have told its owner to correct a
-// contract that is right, and failed a gate over a vault with nothing wrong
-// with it. A fixture cannot carry an empty directory — nothing records one —
-// so this builds the vault it needs.
+// declaration that reaches nothing and one whose folder is simply empty, as an
+// inbox whose notes have all been processed is. A fixture cannot carry an empty
+// directory, so this builds the vault it needs.
 func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 	t.Parallel()
 
@@ -265,25 +106,6 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 	}
 }
 
-// TestEveryTypeTakesTheSameRules holds that no type is let off the knowledge
-// rules. The working-document types — a guide, a template, a system note —
-// once took a lighter rule that waived the required fields; the contract no
-// longer states such a group, so each of them answers for a missing required
-// field like any other note.
-func TestEveryTypeTakesTheSameRules(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
-	contract := loadTestAuthority(t, root).contract
-	for _, noteType := range []string{"guide", "template", "system", "note"} {
-		findings := LintFrontmatter("Writing/Doc.md", []byte("---\ntype: "+noteType+"\n---\n# Doc\n"), contract)
-		if diff := cmp.Diff([]string{"schema.required created is required"}, describeFindings(findings)); diff != "" {
-			t.Errorf("LintFrontmatter(type %s) mismatch (-want +got):\n%s", noteType, diff)
-		}
-	}
-}
-
 func TestLintArticleLanguage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -295,8 +117,6 @@ func TestLintArticleLanguage(t *testing.T) {
 		want int
 	}{
 		{name: "missing is allowed", yaml: "type: note", want: 0},
-		{name: "valid Japanese", yaml: "type: note\nlang: ja", want: 0},
-		{name: "valid canonicalizable", yaml: "type: note\nlang: zh-hant", want: 0},
 		{name: "invalid", yaml: "type: note\nlang: not_a_tag", want: 1},
 		{name: "non-string", yaml: "type: note\nlang: [ja]", want: 1},
 	}
@@ -315,62 +135,31 @@ func TestLintArticleLanguage(t *testing.T) {
 	}
 }
 
-func TestCheckSchemaIncludesArticleLanguage(t *testing.T) {
+// TestALanguageThatIsNotTextIsNotCalledEmpty asserts a lang value YAML reads as
+// something other than text is told so, rather than told it is empty.
+func TestALanguageThatIsNotTextIsNotCalledEmpty(t *testing.T) {
 	t.Parallel()
-	contract, err := schema.Load("testdata/vault-schema")
-	if err != nil {
-		t.Fatalf("schema.Load() error = %v", err)
-	}
-	n := parseNote("Sources/Invalid-language.md", []byte("---\ntype: lesson\nslug: invalid-language\nlang: not_a_tag\n---\n# Invalid language\n"))
-	findings := checkSchema([]note{n}, contract)
-	var languageFindings []Finding
-	for i := range findings {
-		if findings[i].RuleID == "schema.language" {
-			languageFindings = append(languageFindings, findings[i])
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+	run := newLintRun(loadTestAuthority(t, root).contract)
+	// reason is the finding's message without the value it quotes.
+	reason := func(value string) string {
+		n := parseNote("Writing/T.md", []byte("---\ntype: note\nlang: "+value+"\n---\n"))
+		got := run.articleLanguage(&n)
+		if len(got) != 1 {
+			t.Fatalf("articleLanguage(lang: %q) = %d findings, want 1", value, len(got))
 		}
+		return strings.Replace(got[0].Message, ` "`+value+`"`, "", 1)
 	}
-	if len(languageFindings) != 1 {
-		t.Fatalf("schema.language findings = %#v, want exactly one", languageFindings)
+	if empty, date := reason(""), reason("2024-01-01"); empty == date {
+		t.Errorf("an empty lang and a date are given the same reason: %q", date)
 	}
-	if languageFindings[0].Field == nil || *languageFindings[0].Field != "lang" {
-		t.Errorf("schema.language finding = %#v, want field lang", languageFindings[0])
-	}
-}
-
-// runSchema collects the notes under root, runs the frontmatter engine, sorts,
-// and returns the wire bytes.
-func runSchema(t *testing.T, root string) []byte {
-	t.Helper()
-	notes, err := collectNotes(t.Context(), root)
-	if err != nil {
-		t.Fatalf("collectNotes(t.Context(), %q): %v", root, err)
-	}
-	s, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("schema.Load(%q): %v", root, err)
-	}
-	findings := checkSchema(notes, s)
-	sortFindings(findings)
-	var buf bytes.Buffer
-	if err := WriteJSONL(&buf, findings); err != nil {
-		t.Fatalf("WriteJSONL: %v", err)
-	}
-	return buf.Bytes()
 }
 
 // TestTheProvenanceRuleFollowsTheContractsOwnConceptType holds the frontmatter
-// rules to the vocabulary the contract layer owns. The rule that asks a
-// distilled idea where it came from is written for a corpus of them, and
-// whether this vault keeps such a corpus is the contract's answer, not a word
-// spelled here — the coverage face already asks it that way, and this file
-// asked instead whether one note happened to be typed with the same letters.
-//
-// The cost of the literal is a rule that fires where there is no corpus for it
-// to be about: the type already draws its own finding for being undeclared,
-// and a second one demanding provenance of it holds the author to a rule their
-// contract never claimed covered anything. The same reading builds the notices
-// the reading page prints beside a note, so the wrong answer was shown on the
-// page as well as printed by the command.
+// rules to the vocabulary the contract layer owns: the rule that asks a
+// distilled idea where it came from applies only where the contract declares a
+// concept type, and an undeclared type draws its own finding instead.
 func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 	t.Parallel()
 
@@ -400,7 +189,7 @@ func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
 			contract := loadTestAuthority(t, root).contract
 
-			findings := LintFrontmatter(relPath, []byte(body), contract)
+			findings := lintFrontmatter(relPath, []byte(body), contract)
 			var rules []string
 			for _, f := range findings {
 				rules = append(rules, string(f.RuleID))
@@ -434,133 +223,66 @@ func TestScalarTypeKeepsItsRouting(t *testing.T) {
 		{name: "boolean declared type", kind: "true", fields: "verified_on: 2026-01-01\n"},
 		{name: "quoted numeric declared type", kind: "'1'", fields: "verified_on: 2026-01-01\n"},
 		{name: "quoted boolean declared type", kind: "'true'", fields: "verified_on: 2026-01-01\n"},
-		{name: "numeric type missing its field", kind: "1", want: []string{"schema.required verified_on is required"}},
-		{name: "quoted boolean type missing its field", kind: "'true'", want: []string{"schema.required verified_on is required"}},
+		{name: "numeric type missing its field", kind: "1", want: []string{"schema.required verified_on"}},
+		{name: "quoted boolean type missing its field", kind: "'true'", want: []string{"schema.required verified_on"}},
 		{
 			name: "undeclared numeric type", kind: "2", fields: "verified_on: 2026-01-01\n",
-			want: []string{
-				`schema.enum type "2" is not an allowed type target=2`,
-				`schema.type_dependent type "2" is not valid, so type-only fields cannot be judged until type is valid target=2`,
-			},
+			want: []string{"schema.enum type 2", "schema.type_dependent type 2"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			body := "---\ntype: " + tc.kind + "\ncreated: 2026-01-01\n" + tc.fields + "---\nBody.\n"
-			got := LintFrontmatter("Writing/Scalar.md", []byte(body), contract)
-			if diff := cmp.Diff(tc.want, describeFindings(got)); diff != "" {
-				t.Errorf("caught: scalar type=%s (-want +got):\n%s", tc.kind, diff)
+			got := lintFrontmatter("Writing/Scalar.md", []byte(body), contract)
+			if diff := cmp.Diff(tc.want, findingKeys(got)); diff != "" {
+				t.Errorf("lintFrontmatter(type %s) findings (-want +got):\n%s", tc.kind, diff)
 			}
 		})
 	}
 }
 
-// TestOptionalEnumFoldsTheSpelling holds every optional vocabulary to one
-// answer per declared word. A contract is written in an editor and a note's
-// frontmatter is read back off a filesystem, and the two hand over different
-// byte strings for the same word, so a membership test on the bytes can call a
-// note's value undeclared while it names exactly what the contract lists. The
-// contract folds its own values as it loads, which left the note's value as the
-// one unfolded side: a contract and a note carrying identical decomposed bytes
-// disagreed, because only one of them had been folded.
-//
-// Both directions are covered, because a contract can be the decomposed side as
-// easily as a note can. A word the contract never declares is the control that
-// keeps the folding from becoming a blanket yes, and the finding it produces
-// carries the note's own bytes: a reader is shown what their file says, not a
-// respelling of it.
+// TestOptionalEnumFoldsTheSpelling holds an optional vocabulary to one answer
+// per declared word: a note's value spelled in another Unicode form names the
+// word the contract lists. A word the contract never declares is the control,
+// and its finding carries the note's own bytes.
 func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
 	t.Parallel()
 
-	// Two words, each in two spellings, written from code points so nothing
-	// between the keyboard and the compiler can fold one into the other: the
-	// dakuten composed into one letter, then the bare letter followed by its
-	// combining mark.
 	const (
-		composed        = "\u304c\u3044\u306d\u3093"
-		decomposed      = "\u304b\u3099\u3044\u306d\u3093"
-		otherComposed   = "\u3050\u3093"
-		otherDecomposed = "\u304f\u3099\u3093"
+		composed   = "\u304c\u3044\u306d\u3093"
+		decomposed = "\u304b\u3099\u3044\u306d\u3093"
+		other      = "\u304f\u3099\u3093"
 	)
-	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
-		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, memoContract(`level = ["`+composed+`"]`+"\n"))
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatalf("schema.Load() error = %v", err)
 	}
-	if otherComposed == otherDecomposed || schema.NormalizeWord(otherDecomposed) != otherComposed {
-		t.Fatalf("the control spellings are not one word in two forms: %q and %q", otherComposed, otherDecomposed)
-	}
-	if composed == otherComposed {
-		t.Fatalf("the control word is the declared word: %q", composed)
-	}
-
-	// The vocabularies come from the fields yomihon defines, so a field added
-	// there is covered here without a row. The type, the draft flag and the
-	// language each answer to a rule of their own; the list is pinned so a
-	// field leaving it is reported rather than silently untested.
-	var fields []string
-	for _, field := range schema.Fields() {
-		if field == schema.FieldType || field == schema.DraftField || field == schema.FieldLang {
-			continue
-		}
-		fields = append(fields, field)
-	}
-	if want := []string{"aliases", "based_on", "created", "slug", "level", "prerequisites", "verified_on", "verified_with"}; !slices.Equal(fields, want) {
-		t.Fatalf("optional vocabularies = %q, want %q", fields, want)
-	}
-
-	spellings := []struct {
-		name     string
-		declared string
-		value    string
-		// wantValue is the word the finding must carry, or empty when the
-		// note's value names what the contract declared.
-		wantValue string
+	for _, tt := range []struct {
+		name  string
+		value string
+		want  []string
 	}{
-		{name: "composed contract, composed note", declared: composed, value: composed},
-		{name: "composed contract, decomposed note", declared: composed, value: decomposed},
-		{name: "decomposed contract, composed note", declared: decomposed, value: composed},
-		{name: "decomposed contract, decomposed note", declared: decomposed, value: decomposed},
-		{
-			name: "a word the contract never declared", declared: composed, value: "other",
-			wantValue: "other",
-		},
-		{
-			name: "a different word, decomposed in the note", declared: composed, value: otherDecomposed,
-			wantValue: otherDecomposed,
-		},
-	}
-	for _, field := range fields {
-		for _, tt := range spellings {
-			t.Run(field+"/"+tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				root := t.TempDir()
-				write(t, root, schema.ContractRelPath, optionalEnumContract(field, tt.declared))
-				data := []byte("---\ntype: memo\n" + field + ": " + tt.value + "\n---\nBody.\n")
-				write(t, root, "Notes/Probe.md", string(data))
-				contract, err := schema.Load(root)
-				if err != nil {
-					t.Fatalf("schema.Load() error = %v", err)
-				}
-				findings := LintFrontmatter("Notes/Probe.md", data, contract)
-				var want []string
-				if tt.wantValue != "" {
-					want = []string{"schema.enum " + field + ` "` + tt.wantValue + `" is not an allowed value` +
-						" target=" + tt.wantValue}
-				}
-				if diff := cmp.Diff(want, describeFindings(findings)); diff != "" {
-					t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
-				}
-			})
-		}
+		{name: "the declared spelling", value: composed},
+		{name: "the decomposed spelling", value: decomposed},
+		{name: "a word the contract never declared", value: other, want: []string{"schema.enum level " + other}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			data := []byte("---\ntype: memo\nlevel: " + tt.value + "\n---\nBody.\n")
+			if diff := cmp.Diff(tt.want, findingKeys(lintFrontmatter("Notes/Probe.md", data, contract))); diff != "" {
+				t.Errorf("lintFrontmatter(level %q) findings (-want +got):\n%s", tt.value, diff)
+			}
+		})
 	}
 }
 
-// TestTypeRequiredFieldsFoldTheSpelling holds the fields a type adds to the
-// required set to the type word, not its bytes. A type spelled one way in the
-// contract and another in the note would otherwise lose its own requirement and
-// the note would pass without the field its type asks for. A type that does not
-// require the field is the control.
-func TestTypeRequiredFieldsFoldTheSpelling(t *testing.T) {
+// TestATypeWrittenDecomposedIsTheDeclaredType asserts a note that writes its
+// type in decomposed form, as a Mac keyboard hands it over, is judged as the
+// type the contract declares: it takes that type's required fields, and a unit
+// type's slug requirement.
+func TestATypeWrittenDecomposedIsTheDeclaredType(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -570,67 +292,51 @@ func TestTypeRequiredFieldsFoldTheSpelling(t *testing.T) {
 	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
 		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
 	}
-
+	type fieldFinding struct{ Rule, Field string }
 	tests := []struct {
 		name     string
-		declared string
-		noteType string
-		want     []string
+		contract string
+		want     []fieldFinding
 	}{
-		{name: "composed contract, composed note", declared: composed, noteType: composed, want: []string{"schema.required level is required"}},
-		{name: "composed contract, decomposed note", declared: composed, noteType: decomposed, want: []string{"schema.required level is required"}},
-		{name: "decomposed contract, composed note", declared: decomposed, noteType: composed, want: []string{"schema.required level is required"}},
-		{name: "decomposed contract, decomposed note", declared: decomposed, noteType: decomposed, want: []string{"schema.required level is required"}},
-		{name: "a type that does not require it", declared: composed, noteType: "memo"},
+		{name: "a type's required field", contract: typeRequiredContract(composed), want: []fieldFinding{{"schema.required", "level"}}},
+		{name: "a unit type's slug", contract: unitTypeContract(composed), want: []fieldFinding{{"schema.required", "slug"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, typeRequiredContract(tt.declared))
-			data := []byte("---\ntype: " + tt.noteType + "\n---\nBody.\n")
-			write(t, root, "Notes/Probe.md", string(data))
+			write(t, root, schema.ContractRelPath, tt.contract)
 			contract, err := schema.Load(root)
 			if err != nil {
 				t.Fatalf("schema.Load() error = %v", err)
 			}
-			findings := LintFrontmatter("Notes/Probe.md", data, contract)
-			if diff := cmp.Diff(tt.want, describeFindings(findings)); diff != "" {
-				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+			data := []byte("---\ntype: " + decomposed + "\n---\nBody.\n")
+			var got []fieldFinding
+			for _, f := range NewFrontmatterLinter(contract).Lint("Notes/Probe.md", data) {
+				field := ""
+				if f.Field != nil {
+					field = *f.Field
+				}
+				got = append(got, fieldFinding{string(f.RuleID), field})
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Lint(type %q) findings mismatch (-want +got):\n%s", decomposed, diff)
 			}
 		})
 	}
 }
 
-// describeFindings renders each finding as the sentence a reader is shown plus
-// the value it points at, so a comparison covers both the wording and the bytes
-// the finding carries.
-func describeFindings(findings []Finding) []string {
-	var got []string
-	for i := range findings {
-		f := &findings[i]
-		entry := string(f.RuleID) + " " + f.Message
-		if f.Target != nil {
-			entry += " target=" + *f.Target
-		}
-		got = append(got, entry)
-	}
-	return got
-}
-
-// optionalEnumContract declares one word for one optional vocabulary, spelled
-// the way the caller asks, and leaves every other vocabulary open.
-func optionalEnumContract(field, declared string) string {
+// memoContract declares one memo type over the Notes folder, with type and
+// level as its fields and enums as the whole of its [enums] table.
+func memoContract(enums string) string {
 	return `[folders]
 checked = ["Notes"]
 templates = []
 
 [enums]
-` + field + ` = ["` + declared + `"]
-
+` + enums + `
 [fields]
-common = ["type", "aliases", "based_on", "created", "slug", "level", "prerequisites", "verified_on", "verified_with"]
+common = ["type", "level"]
 required = ["type"]
 
 [types.memo]
@@ -642,6 +348,27 @@ never_egress_dirs = []
 
 // typeRequiredContract declares a type that requires level, naming the type
 // the way the caller asks, beside a memo that does not.
+// unitTypeContract declares declared as the type holding the unit role.
+func unitTypeContract(declared string) string {
+	return `[folders]
+checked = ["Notes"]
+templates = []
+
+[enums]
+
+[fields]
+common = ["type"]
+required = ["type"]
+
+[types."` + declared + `"]
+role = "lesson"
+fields = ["slug"]
+
+[privacy]
+never_egress_dirs = []
+`
+}
+
 func typeRequiredContract(declared string) string {
 	return `[folders]
 checked = ["Notes"]

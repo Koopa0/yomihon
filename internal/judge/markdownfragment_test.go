@@ -25,11 +25,9 @@ func fragmentRuleFindingsSealed(t *testing.T, files map[string]string, withheld,
 	}
 	writeTestContract(t, root, withheld)
 	for _, path := range sealed {
-		if !unreadable(t, filepath.Join(root, filepath.FromSlash(path))) {
-			t.Fatal("this process can still read a file it took every permission from")
-		}
+		unreadable(t, filepath.Join(root, filepath.FromSlash(path)))
 	}
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}

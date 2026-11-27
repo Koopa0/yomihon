@@ -1,17 +1,14 @@
-package judge_test
+package judge
 
 import (
 	"path/filepath"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/judge"
 )
 
 // TestTheExampleVaultScans reads the vault this repository ships as its worked
 // example. The README sends a new reader to that contract as the thing to copy,
-// and until now nothing checked that it still parses: an example is the one file
-// that rots without anybody noticing, because nobody who already has a working
-// vault ever opens it.
+// and an example is the one file that rots without anybody noticing, because
+// nobody who already has a working vault ever opens it.
 //
 // What it holds is the whole scan rather than the contract alone. A contract can
 // load and still describe a vault whose notes it rejects, and that vault would
@@ -20,9 +17,9 @@ func TestTheExampleVaultScans(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "examples", "vault")
 
-	findings, err := judge.Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
-		t.Fatalf("Check(%q) error = %v; the example vault no longer scans", root, err)
+		t.Fatalf("check %q error = %v; the example vault no longer scans", root, err)
 	}
 
 	// The vault sets out to show three faults and no others. An example that
@@ -31,11 +28,10 @@ func TestTheExampleVaultScans(t *testing.T) {
 	// side — and an example that produces a fourth is teaching something nobody
 	// chose to teach, which is the failure from the other.
 	demonstrates := map[string]int{
-		"schema.enum": 1, // a note whose status is outside the declared list
+		"schema.enum": 1, // a note whose type is outside the declared list
 		"link.broken": 1, // a wikilink whose target nobody has written
 		// The dialect note writes a live link into a section its target does
-		// not have, and its own prose says the link degrades rather than
-		// breaks; the judge now reports the same miss the page shows.
+		// not have, and the judge reports the same miss the page shows.
 		"link.section_missing": 1,
 	}
 	found := map[string]int{}

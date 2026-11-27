@@ -48,7 +48,7 @@ func TestAPanicParsingOneNoteIsReportedUnreadableLikeAFileNothingCouldOpen(t *te
 	t.Parallel()
 
 	root := judgeFixtureRoot(t, unreadableFixture)
-	whole, err := Check(t.Context(), root)
+	whole, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check(whole vault) error = %v; the run below proves nothing without it", err)
 	}
@@ -71,12 +71,12 @@ func TestAPanicParsingOneNoteIsReportedUnreadableLikeAFileNothingCouldOpen(t *te
 
 	var notices []Finding
 	for i := range findings {
-		if findings[i].RuleID == unreadableRule {
+		if findings[i].RuleID == RuleScanUnreadable {
 			notices = append(notices, findings[i])
 		}
 	}
 	if len(notices) != 1 {
-		t.Fatalf("%d %q findings, want exactly one for the note whose parse panicked: %+v", len(notices), unreadableRule, notices)
+		t.Fatalf("%d %q findings, want exactly one for the note whose parse panicked: %+v", len(notices), RuleScanUnreadable, notices)
 	}
 	notice := notices[0]
 	if notice.Path != sealedNote || notice.Severity != SeverityError {
@@ -116,7 +116,7 @@ func TestAPanicParsingOneNoteExitsAsAnUnreadableFileDoes(t *testing.T) {
 		want int
 	}{
 		{name: "nothing denied", want: 0},
-		{name: "the rule denied by name", deny: []string{string(unreadableRule)}, want: 1},
+		{name: "the rule denied by name", deny: []string{string(RuleScanUnreadable)}, want: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

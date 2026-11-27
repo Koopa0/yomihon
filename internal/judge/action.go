@@ -11,11 +11,9 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// errVaultScan is what an observation that could not be made answers with. It
-// and the withheld variant below are declared here rather than with the
-// package's other types because choosing between them is this file's whole
-// subject: how much an observation may say about what it could not read. A
-// reader following that decision needs both in front of the code that makes it.
+// errVaultScan is what an observation that could not be made answers with.
+// It and the withheld variants below sit beside the code that chooses between
+// them: how much an observation may say about what it could not read.
 var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out
@@ -66,9 +64,8 @@ type action struct {
 }
 
 // unreadableEntry is one file the scan listed and the read could not open: the
-// path the scan gave it, and the machine's own account of what stopped. The
-// cause is kept as the error rather than as its text so the refusal a command
-// builds from it wraps the same value it always did.
+// path the scan gave it, and the machine's own account of what stopped, kept
+// as the error so a refusal built from it wraps it.
 type unreadableEntry struct {
 	path  string
 	cause error
@@ -83,33 +80,19 @@ func (a *action) partialCorpus() bool {
 
 // unreadableRefusal is the refusal a command gives instead of an answer it
 // cannot stand behind. It names the first file the reads stopped on, in scan
-// order, which is the one a run used to end at.
+// order.
 func (a *action) unreadableRefusal() error {
 	first := a.unreadable[0]
 	return entryUnreadable(first.path, first.cause, a.authority)
-}
-
-// runHook calls a test's seam when it set one. Nothing in production does.
-func runHook(hook func()) {
-	if hook != nil {
-		hook()
-	}
 }
 
 func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
 	reader, err := vault.Open(root)
 	if err != nil {
 		// Opening the folder fails before one vault byte is read, so there is
-		// no policy state to report and nothing observed to withhold. Answering
-		// that a privacy authority is unavailable named a fault in a contract
-		// file that, for the ordinary case of a mistyped folder, is not there to
-		// be at fault — and it carried a paragraph telling the reader where that
-		// file lives. A scan that could not start is what happened.
-		//
-		// It says which folder and why, because both are already the reader's:
-		// the folder is the one they typed and the reason is the machine's
-		// answer about it. Withholding them left somebody who mistyped a
-		// directory with nothing to correct.
+		// nothing observed to withhold, and the folder and the reason are
+		// already the reader's: the folder they typed and the machine's answer
+		// about it, which is what a mistyped directory needs to be corrected.
 		return nil, fmt.Errorf("%w: %w", errVaultScan, err)
 	}
 	a := &action{reader: reader}
@@ -117,14 +100,38 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	if err != nil {
 		return nil, a.abort(err)
 	}
-	runHook(hooks.afterAuthority)
+	if hooks.afterAuthority != nil {
+		hooks.afterAuthority()
+	}
 	reader.SetBoundary(a.authority.contract.ScanBoundary())
 	a.scan, err = reader.ScanComplete(ctx)
 	if err != nil {
 		return nil, a.abort(scanStopped(err, a.authority))
 	}
 	a.authority.scan = a.scan
-	runHook(hooks.afterScan)
+	if hooks.afterScan != nil {
+		hooks.afterScan()
+	}
+	if err = a.readNotes(ctx, hooks); err != nil {
+		return nil, a.abort(err)
+	}
+	// A judgement needs something to be about. Where every read failed there is
+	// nothing in hand to judge, and the caller is owed the refusal rather than a
+	// page whose every line says the same thing under an exit code that reads as
+	// success. A root taken away under the run arrives here too, since a read
+	// through it then fails for every file at once.
+	if len(a.notes) == 0 && a.partialCorpus() {
+		return nil, a.abort(a.unreadableRefusal())
+	}
+	return a, nil
+}
+
+// readNotes reads every Markdown file the scan listed into a note, and files
+// everything else as a resource. A file that could not be opened, or whose
+// parse panicked, is the same hole in the observation: nothing was read from
+// it, so nothing is judged from it and the rules that answer from the whole
+// vault stand down. A read that voids the observation ends it.
+func (a *action) readNotes(ctx context.Context, hooks actionHooks) error {
 	marks := plannedMarksFrom(a.authority.contract)
 	domains := a.authority.contract.Domains()
 	parse := parseNoteWithMarks
@@ -137,37 +144,26 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 			a.resources = append(a.resources, relPath)
 			continue
 		}
-		data, readErr := reader.ReadFile(ctx, entry)
-		if readErr != nil {
-			if readVoidsTheObservation(ctx, readErr) {
-				return nil, a.abort(entryUnreadable(relPath, readErr, a.authority))
+		data, err := a.reader.ReadFile(ctx, entry)
+		if err != nil {
+			if readVoidsTheObservation(ctx, err) {
+				return entryUnreadable(relPath, err, a.authority)
 			}
-			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: readErr})
+			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: err})
 			continue
 		}
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
-		parsed, parseErr := parseContained(parse, relPath, data, marks)
-		if parseErr != nil {
-			// The file opened and its parse panicked. It is the same hole an
-			// unopenable file is: nothing was read from it, so nothing is judged
-			// from it and the rules that answer from the whole vault stand down.
-			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: parseErr})
+		parsed, err := parseContained(parse, relPath, data, marks)
+		if err != nil {
+			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: err})
 			continue
 		}
 		parsed.domain = domains.Of(relPath)
 		a.notes = append(a.notes, parsed)
 	}
-	// A judgement needs something to be about. Where every read failed there is
-	// nothing in hand to judge, and the caller is owed the refusal rather than a
-	// page whose every line says the same thing under an exit code that reads as
-	// success. A root taken away under the run arrives here too, since a read
-	// through it then fails for every file at once.
-	if len(a.notes) == 0 && a.partialCorpus() {
-		return nil, a.abort(a.unreadableRefusal())
-	}
-	return a, nil
+	return nil
 }
 
 // parseContained runs one note's parse and turns a panic inside it into the
@@ -309,7 +305,9 @@ func (a *action) abort(cause error) error {
 		}
 	}
 	if closeErr := a.close(); closeErr != nil {
-		return closeErr
+		// Both are kept: the cause is why the run failed, and errors.Is still
+		// finds a refusal in it once the close failure is beside it.
+		return errors.Join(cause, closeErr)
 	}
 	return cause
 }
@@ -324,7 +322,7 @@ func (a *action) close() error {
 	reader := a.reader
 	a.reader = nil
 	if err := reader.Close(); err != nil {
-		return errVaultScan
+		return fmt.Errorf("%w: %w", errVaultScan, err)
 	}
 	return nil
 }

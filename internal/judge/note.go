@@ -3,7 +3,6 @@ package judge
 import (
 	"slices"
 	"strconv"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -38,8 +37,11 @@ type note struct {
 	// title is the words of the body's first level-1 heading, which is the
 	// note's title; empty where the note has no such heading or its body was
 	// not read. A note writes no title in its frontmatter.
-	title    string
-	aliases  []string
+	title   string
+	aliases []string
+	// noteType is the type the frontmatter writes, composed the way the
+	// contract's own type names are, so a type typed in decomposed form is
+	// still the type the contract declares.
 	noteType string
 	// domain is the first folder below a root the contract derives domains
 	// from. The parse cannot know it, so the run fills it in.
@@ -101,27 +103,20 @@ func (v fmValue) present() bool {
 	return v.scalar != ""
 }
 
-// parseNote splits a file's leading frontmatter and reads it into the note
-// model. A file with no frontmatter block is legal. A block that is present but
-// does not parse — or that a stricter reading rejects, such as a mapping with a
-// repeated key — yields a note flagged bad, reported as one fault rather than a
-// cascade of "field missing" for fields sitting above it.
-func parseNote(rel string, data []byte) note {
-	return parseNoteWithMarks(rel, data, defaultPlannedMarks())
-}
-
-// parseNoteWithMarks is parseNote using the heading and inline marks the
-// contract declared, so a vault that names English marks is extracted
-// against those marks rather than the loader default.
+// parseNoteWithMarks splits a file's leading frontmatter and reads it and the
+// body into the note model, the body against the heading and inline marks the
+// rules file declared. A file with no frontmatter block is legal. A block that
+// is present but does not parse — or that a stricter reading rejects, such as a
+// mapping with a repeated key — yields a note flagged bad, reported as one
+// fault rather than a cascade of "field missing" for fields sitting above it.
 func parseNoteWithMarks(rel string, data []byte, marks plannedMarks) note {
 	return readNote(rel, data, &marks)
 }
 
-// parseFrontmatter is parseNote for a reader that judges the frontmatter and
-// never looks at the body. It leaves every body field empty: no wikilink, path
-// reference, planned name, callout title, sequence or anchor is extracted,
+// parseFrontmatter is parseNoteWithMarks for a reader that judges the
+// frontmatter and never looks at the body. It leaves every body field empty,
 // because that extraction is most of the cost of a parse and none of a
-// frontmatter verdict. Whatever it does fill, it fills with the code parseNote
+// frontmatter verdict, and fills the rest with the code parseNoteWithMarks
 // runs, so the frontmatter, its flags and its typed fields cannot differ.
 func parseFrontmatter(rel string, data []byte) note {
 	return readNote(rel, data, nil)
@@ -177,7 +172,7 @@ func readTypedFields(n *note, doc *yaml.Node) {
 		return
 	}
 	n.aliases = listField(root, "aliases")
-	n.noteType = strField(root, "type")
+	n.noteType = schema.NormalizeWord(strField(root, "type"))
 	n.slug = strField(root, "slug")
 	n.draft = boolTrue(root, schema.DraftField)
 	n.basedOn = listField(root, "based_on")
@@ -191,12 +186,9 @@ func boolTrue(m *yaml.Node, key string) bool {
 	if !ok {
 		return false
 	}
-	v = resolveAlias(v)
-	if v.Kind != yaml.ScalarNode || v.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle|yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
-		return false
-	}
-	var value bool
-	return v.Decode(&value) == nil && v.Tag == "!!bool" && value
+	value, _ := decodeScalar(v)
+	b, isBool := value.(bool)
+	return isBool && b
 }
 
 // mappingValue returns the value node for a top-level key, or false when the
@@ -250,30 +242,29 @@ func listField(m *yaml.Node, key string) []string {
 	}
 }
 
-// asString reports a scalar's text when it reads as a genuine string. A quoted
-// or block scalar is always a string; an explicitly tagged scalar is a string
-// unless its tag is one of the non-string core tags; an unquoted scalar is a
-// string unless the core schema resolves it to a number, boolean or null.
+// asString reports a scalar's text when it reads as a genuine string, which is
+// when the page's own decode of the block would make it one: a quoted or block
+// scalar, a tagged one yaml.v3 hands over as text, or a plain one it resolves to
+// no number, boolean, null or time.
 func asString(n *yaml.Node) (string, bool) {
+	value, _ := decodeScalar(n)
+	s, ok := value.(string)
+	return s, ok
+}
+
+// decodeScalar is what yaml.v3 makes of one scalar, the decode the page reads
+// the whole block with, so the check and the page cannot read one value two
+// ways. ok is false for a node that is not a scalar and for a value its tag
+// cannot hold.
+func decodeScalar(n *yaml.Node) (value any, ok bool) {
 	n = resolveAlias(n)
 	if n.Kind != yaml.ScalarNode {
-		return "", false
+		return nil, false
 	}
-	if !isPlain(n) {
-		return n.Value, true
+	if err := n.Decode(&value); err != nil {
+		return nil, false
 	}
-	if n.Style&yaml.TaggedStyle != 0 {
-		switch n.Tag {
-		case "!!bool", "!!int", "!!float", "!!null":
-			return "", false
-		default:
-			return n.Value, true
-		}
-	}
-	if plainIsString(n.Value) {
-		return n.Value, true
-	}
-	return "", false
+	return value, true
 }
 
 // hasDuplicateKey reports whether any mapping anywhere in the document repeats
@@ -295,8 +286,9 @@ func hasDuplicateKey(n *yaml.Node) bool {
 }
 
 // buildFrontmatter reads a parsed frontmatter document into the flat key/value
-// map the checks consume. Only keys that read as strings are kept; a bare
-// scalar or list at the top contributes no keys.
+// map the checks consume. A key is a name, so every scalar key is kept as the
+// author wrote it, whatever its value would read as; a bare scalar or list at
+// the top contributes no keys.
 func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 	m := make(map[string]fmValue)
 	root := doc
@@ -310,64 +302,11 @@ func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 		return m
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if key, ok := keyText(root.Content[i]); ok {
-			m[key] = nodeValue(root.Content[i+1])
+		if key := resolveAlias(root.Content[i]); key.Kind == yaml.ScalarNode {
+			m[key.Value] = nodeValue(root.Content[i+1])
 		}
 	}
 	return m
-}
-
-// keyText reports a mapping key's text when it reads as a string, and false
-// when the core schema would resolve it to a number, boolean or null. A quoted
-// key is always a string.
-func keyText(n *yaml.Node) (string, bool) {
-	n = resolveAlias(n)
-	if n.Kind != yaml.ScalarNode {
-		return "", false
-	}
-	if !isPlain(n) {
-		return n.Value, true
-	}
-	if n.Style&yaml.TaggedStyle != 0 {
-		switch n.Tag {
-		case "!!bool", "!!int", "!!float", "!!null":
-			return "", false
-		default:
-			return n.Value, true
-		}
-	}
-	if plainIsString(n.Value) {
-		return n.Value, true
-	}
-	return "", false
-}
-
-// plainIsString reports whether an unquoted, untagged scalar reads as a string
-// under the core schema: none of an integer in any of its spellings, a boolean
-// word, a null word, or a real number.
-func plainIsString(v string) bool {
-	switch {
-	case strings.HasPrefix(v, "0x"):
-		if _, err := strconv.ParseInt(v[2:], 16, 64); err == nil {
-			return false
-		}
-	case strings.HasPrefix(v, "0o"):
-		if _, err := strconv.ParseInt(v[2:], 8, 64); err == nil {
-			return false
-		}
-	case strings.HasPrefix(v, "+"):
-		if _, err := strconv.ParseInt(v[1:], 10, 64); err == nil {
-			return false
-		}
-	}
-	switch v {
-	case "", "~", "null", "true", "True", "TRUE", "false", "False", "FALSE":
-		return false
-	}
-	if _, err := strconv.ParseInt(v, 10, 64); err == nil {
-		return false
-	}
-	return !isCoreFloat(v)
 }
 
 // nodeValue converts one frontmatter value node into an fmValue: a sequence
@@ -403,122 +342,29 @@ func resolveAlias(n *yaml.Node) *yaml.Node {
 	return n
 }
 
-// scalarText is a scalar value's text as the frontmatter checks read it. A
-// quoted or block scalar is taken verbatim. An unquoted scalar is resolved
-// under the YAML core schema — a boolean normalizes to lowercase, an integer to
-// its decimal form, a null to an empty string — while every other token,
-// yes/no/on/off and any real number included, keeps what the author wrote.
+// scalarText is a scalar value's text as the frontmatter checks read it: a
+// boolean in lowercase, an integer in its decimal form, a null or a value its
+// tag cannot hold as empty, and every other value, a real number or a time
+// included, as the author wrote it.
 func scalarText(n *yaml.Node) string {
-	n = resolveAlias(n)
-	if n.Kind != yaml.ScalarNode {
+	value, ok := decodeScalar(n)
+	if !ok {
 		return ""
 	}
-	if !isPlain(n) {
-		return n.Value
-	}
-	if n.Style&yaml.TaggedStyle != 0 {
-		return resolveTaggedScalar(n.Tag, n.Value)
-	}
-	return resolvePlainScalar(n.Value)
-}
-
-// resolveTaggedScalar maps an unquoted scalar carrying an explicit core-schema
-// tag to the string the wire format carries. A boolean tag admits only the six
-// boolean words; an integer tag reads a plain decimal integer; a float tag
-// keeps a valid real number; a null tag is always empty; any other tag keeps
-// the text verbatim. A value the tag cannot read collapses to an empty string.
-func resolveTaggedScalar(tag, v string) string {
-	switch tag {
-	case "!!bool":
-		switch v {
-		case "true", "True", "TRUE":
-			return "true"
-		case "false", "False", "FALSE":
-			return "false"
-		default:
-			return ""
-		}
-	case "!!int":
-		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return strconv.FormatInt(i, 10)
-		}
+	switch v := value.(type) {
+	case nil:
 		return ""
-	case "!!float":
-		if isCoreFloat(v) {
-			return v
-		}
-		return ""
-	case "!!null":
-		return ""
-	default:
+	case string:
 		return v
+	case bool:
+		return strconv.FormatBool(v)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	default:
+		return resolveAlias(n).Value
 	}
-}
-
-// isCoreFloat reports whether v is a real number under the YAML core schema:
-// an infinity or not-a-number spelling, or a decimal real. That real is decimal
-// only, so Go's own extensions (1_000, 0x1p4) read as text here.
-func isCoreFloat(v string) bool {
-	switch v {
-	case ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF",
-		"-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN":
-		return true
-	}
-	hasDigit := false
-	for _, r := range v {
-		switch {
-		case r >= '0' && r <= '9':
-			hasDigit = true
-		case r == '.' || r == 'e' || r == 'E' || r == '+' || r == '-':
-			// A decimal-real character.
-		default:
-			return false
-		}
-	}
-	if !hasDigit {
-		return false
-	}
-	_, err := strconv.ParseFloat(v, 64)
-	return err == nil
-}
-
-// isPlain reports whether a scalar was written unquoted and unblocked; a
-// quoted or block scalar is always its literal text.
-func isPlain(n *yaml.Node) bool {
-	const quotedOrBlock = yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
-	return n.Style&quotedOrBlock == 0
-}
-
-// resolvePlainScalar maps an unquoted scalar's text to the string the wire
-// format carries under the YAML core schema: a hexadecimal, octal, signed or
-// plain decimal integer collapses to its decimal form, the null and boolean
-// words collapse as noted, and anything else — a real number, an out-of-range
-// number, plain text — is kept exactly as written.
-func resolvePlainScalar(v string) string {
-	switch {
-	case strings.HasPrefix(v, "0x"):
-		if i, err := strconv.ParseInt(v[2:], 16, 64); err == nil {
-			return strconv.FormatInt(i, 10)
-		}
-	case strings.HasPrefix(v, "0o"):
-		if i, err := strconv.ParseInt(v[2:], 8, 64); err == nil {
-			return strconv.FormatInt(i, 10)
-		}
-	case strings.HasPrefix(v, "+"):
-		if i, err := strconv.ParseInt(v[1:], 10, 64); err == nil {
-			return strconv.FormatInt(i, 10)
-		}
-	}
-	switch v {
-	case "", "~", "null":
-		return ""
-	case "true", "True", "TRUE":
-		return "true"
-	case "false", "False", "FALSE":
-		return "false"
-	}
-	if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-		return strconv.FormatInt(i, 10)
-	}
-	return v
 }

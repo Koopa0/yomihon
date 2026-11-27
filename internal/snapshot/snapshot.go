@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/drill"
-	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -634,8 +633,8 @@ func newStore(source Source, log *slog.Logger, contract *schema.Contract, govern
 		parsers: noteParsers{
 			note:     vault.Parse,
 			document: lexical.DocumentFromNote,
-			planned:  plannedNames,
-			links:    citedTargets,
+			planned:  judge.NewPlanned,
+			links:    judge.Citations,
 		},
 		capabilities:     contract.Capabilities(governance),
 		contract:         contract,
@@ -1005,7 +1004,7 @@ func (s *Store) buildGeneration(
 	if hasConceptType {
 		coverage.conceptType = schema.NormalizeWord(conceptType)
 	}
-	health := newHealth(b.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titledBy, capabilities.Navigation, &coverage)
+	health := newHealth(b.ordered, b.citations(), graphIndex, planned, backlinks, capabilities.Artifacts, titledBy, capabilities.Navigation, &coverage)
 	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(b.ordered, b.findings, b.readings)
 	gen := &Generation{
@@ -1186,17 +1185,7 @@ type noteParsers struct {
 	note     func(relPath string, data []byte) *vault.Note
 	document func(*vault.Note) lexical.Document
 	planned  func(body string, contract *schema.Contract) judge.Planned
-	links    func(body string) []string
-}
-
-// citedTargets are the wikilink targets one body cites, in document order.
-func citedTargets(body string) []string {
-	return egress.Targets(judge.LinkTargets(body))
-}
-
-// plannedNames harvests the concept names one body declares it still owes.
-func plannedNames(body string, contract *schema.Contract) judge.Planned {
-	return judge.NewPlanned(slices.Values([]string{body}), contract)
+	links    func(body string, contract *schema.Contract) []judge.Citation
 }
 
 // noteProducts is what the folder-wide projections read out of one note's body,
@@ -1208,8 +1197,8 @@ type noteProducts struct {
 	document lexical.Document
 	// planned is the set of concept names the body declares it still owes.
 	planned judge.Planned
-	// links are the wikilink targets the body cites, in document order.
-	links []string
+	// links are the wikilinks the body cites, in document order.
+	links []judge.Citation
 }
 
 // noteRead is one note read whole, held apart from the generation until every
@@ -1254,7 +1243,7 @@ func (p noteParsers) derive(
 	read.products = noteProducts{
 		document: p.document(read.parsed),
 		planned:  p.planned(read.parsed.Body, contract),
-		links:    p.links(read.parsed.Body),
+		links:    p.links(read.parsed.Body, contract),
 	}
 	return read, nil
 }
@@ -1316,14 +1305,29 @@ func (b *build) plannedSet() judge.Planned {
 	return judge.MergePlanned(sets...)
 }
 
-// linkTargets is what every held note cites, by path, as it was read when the
-// note was.
+// linkTargets are the names every held note cites, by path, as read when
+// the note was.
 func (b *build) linkTargets() map[string][]string {
 	links := make(map[string][]string, len(b.ordered))
 	for _, n := range b.ordered {
-		links[n.RelPath] = b.products[n.RelPath].links
+		cited := b.products[n.RelPath].links
+		targets := make([]string, len(cited))
+		for i, c := range cited {
+			targets[i] = c.Target
+		}
+		links[n.RelPath] = targets
 	}
 	return links
+}
+
+// citations is what every held note cites, by path, as it was read when the
+// note was.
+func (b *build) citations() map[string][]judge.Citation {
+	cited := make(map[string][]judge.Citation, len(b.ordered))
+	for _, n := range b.ordered {
+		cited[n.RelPath] = b.products[n.RelPath].links
+	}
+	return cited
 }
 
 // recordVerdict keeps the schema's verdict for one note when there is one. A

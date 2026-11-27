@@ -4,20 +4,16 @@ import "slices"
 
 // A file the scan listed and the read could not open is reported here, at the
 // weight of the gravest thing this face has, and the judgement goes on over
-// everything it did read. The reading room has always shown such a file as a
-// row of its own; before this the command answered the same fact by ending the
-// run, so two faces gave two answers about one file.
+// everything it did read, as the reading room shows such a file as a row of its
+// own.
 //
 // Going on is only honest about part of what the rules conclude. A finding
 // about one note is still true when another note could not be read. A finding
-// about something being *absent* — a name no file answers to, a lesson no
+// about something being *absent* — a name no file answers to, a unit no
 // course lists — is not: the file nobody could read may hold the name or the
 // list. Those rules therefore say nothing at all over such a run, and the file
 // that cost them says so in its own sentence, so a reader meets the reason
 // rather than a report that is quietly shorter than it looks.
-
-// unreadableRule is the rule id of a file that could not be opened.
-const unreadableRule RuleID = "scan.unreadable"
 
 // withheldOnPartialCorpus are the rules that answer from the whole vault: each
 // concludes that something is nowhere, and the file that could not be read is
@@ -28,10 +24,10 @@ const unreadableRule RuleID = "scan.unreadable"
 //     gave it — but its aliases and its title are not, and neither is whether it
 //     lists the name as a planned one, which decides the finding's weight.
 //   - provenance.unresolved concludes the same about a reference, which may
-//     also answer to the unread file's lesson slug.
+//     also answer to the unread file's unit slug.
 //   - course.disk_mismatch concludes that a course entry names no note, which is
 //     the broken link above under the course's own rule.
-//   - course.disk_unlisted concludes that no course of a domain lists a lesson,
+//   - course.disk_unlisted concludes that no course of a domain lists a unit,
 //     and the unread file may be the course that lists it.
 //
 // Every other rule concludes only from material this run holds: a note it read
@@ -40,14 +36,14 @@ const unreadableRule RuleID = "scan.unreadable"
 // notes sharing an alias go unnoticed when one of them did not open — but never
 // with a wrong verdict, and an under-report is what an unread file is. The
 // rules that ask what another note says answer for no note they could not read:
-// a live course linking an archived lesson, and a fragment addressing a section
+// a live course linking an archived unit, and a fragment addressing a section
 // or a block, each decline that one target rather than guess at it.
 var withheldOnPartialCorpus = []RuleID{
-	"link.broken",
-	"link.title_not_alias",
-	"course.disk_mismatch",
-	"course.disk_unlisted",
-	"provenance.unresolved",
+	RuleLinkBroken,
+	RuleLinkTitleNotAlias,
+	RuleCourseDiskMismatch,
+	RuleCourseDiskUnlisted,
+	RuleProvenanceUnresolved,
 }
 
 // dropWithheldOnPartialCorpus removes every finding whose rule answers from the
@@ -89,14 +85,14 @@ func checkUnreadable(entries []unreadableEntry, authority scanAuthority) []Findi
 // consumer's baseline the day a release reworded an error.
 func unreadableFinding(path, cause string) Finding {
 	return Finding{
-		RuleID:          unreadableRule,
+		RuleID:          RuleScanUnreadable,
 		Severity:        SeverityError,
 		Path:            path,
 		Message:         "this file could not be read, so nothing was judged from it, and the rules that answer from the whole vault were withheld from this run",
 		Evidence:        "the scan observed the path and the read could not open it: " + cause,
 		SuggestedAction: "restore read access to the file, or remove it if nothing needs it, then judge the vault again",
 		SourceRule:      sourceYomihon,
-		Fingerprint:     fingerprint(unreadableRule, path, ""),
+		Fingerprint:     fingerprint(RuleScanUnreadable, path, ""),
 	}
 }
 
@@ -107,12 +103,12 @@ func unreadableFinding(path, cause string) Finding {
 // would describe the folder by arithmetic.
 func withheldUnreadableFinding() Finding {
 	return Finding{
-		RuleID:          unreadableRule,
+		RuleID:          RuleScanUnreadable,
 		Severity:        SeverityError,
 		Message:         "a file under a directory this vault's rules file withholds from agent-facing output could not be read, so the rules that answer from the whole vault were withheld from this run",
 		Evidence:        "naming the file, or the reason the machine gave for it, would describe ground the rules file closed",
 		SuggestedAction: "check read access under the withheld directories, which only someone at the vault itself can see, then judge the vault again",
 		SourceRule:      sourceYomihon,
-		Fingerprint:     fingerprint(unreadableRule, "", ""),
+		Fingerprint:     fingerprint(RuleScanUnreadable, "", ""),
 	}
 }

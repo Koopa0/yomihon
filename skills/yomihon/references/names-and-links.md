@@ -231,8 +231,10 @@ before the file exists, and that link is tracked, not broken. Two ways to say
 so, and both drop the finding from `warn` to `info`:
 
 **Under a heading containing a gap word.** The softening runs from that heading
-down to the next heading at the same or a higher level, and the plain-text
-names listed under it become planned names for the whole vault. The finding
+down to the next heading at the same or a higher level, and the names listed
+under it become planned names for the whole vault. A list row names its entry
+in plain text or as `[[links]]`, and a task row's `[ ]` or `[x]` is not part
+of the name. The finding
 changes its `evidence` as well as its severity, to *a tracked forward-reference
 (under a gap heading or listed as a planned concept)*.
 

@@ -2,8 +2,8 @@ package judge
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,55 +18,6 @@ func missingImageVault(t *testing.T) string {
 		t.Fatalf("copy missing image fixture: %v", err)
 	}
 	return root
-}
-
-// TestMissingImageFindings pins the fixture's findings to the golden twice: as
-// decoded records, so a difference names the field, and as the exact bytes the
-// pipelines read.
-func TestMissingImageFindings(t *testing.T) {
-	t.Parallel()
-	root := missingImageVault(t)
-	wantBytes, err := os.ReadFile("testdata/golden/missing-images.jsonl")
-	if err != nil {
-		t.Fatalf("read missing image golden: %v", err)
-	}
-	var want []Finding
-	for line := range strings.SplitSeq(strings.TrimSuffix(string(wantBytes), "\n"), "\n") {
-		var wire struct {
-			Finding
-
-			Severity string `json:"severity"`
-		}
-		if decodeErr := json.Unmarshal([]byte(line), &wire); decodeErr != nil {
-			t.Fatalf("decode golden: %v", decodeErr)
-		}
-		if wire.Severity != "warn" {
-			t.Fatalf("golden severity %q, want every record at warn", wire.Severity)
-		}
-		wire.Finding.Severity = SeverityWarn
-		want = append(want, wire.Finding)
-	}
-	if len(want) != 8 {
-		t.Fatalf("golden holds %d records, want 8", len(want))
-	}
-	got, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Check findings (-want +got):\n%s", diff)
-	}
-	gotBytes, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-	if err != nil || exit != 0 {
-		t.Fatalf("RunCheck: exit=%d error=%v", exit, err)
-	}
-	if !bytes.Equal(wantBytes, gotBytes) {
-		t.Errorf("RunCheck JSONL:\nwant %s\ngot  %s", wantBytes, gotBytes)
-	}
-	_, exit, err = checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.broken.image"}})
-	if err != nil || exit != 1 {
-		t.Errorf("RunCheck --deny link.broken.image: exit=%d error=%v, want exit 1", exit, err)
-	}
 }
 
 // TestMissingImageTargets pins which occurrences the rule reports, and that a
@@ -133,7 +84,7 @@ func TestMissingImageTargets(t *testing.T) {
 			for _, path := range tt.hold {
 				write(t, root, path, "held")
 			}
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check: %v", err)
 			}
@@ -205,26 +156,10 @@ func TestMissingImagePartialCorpus(t *testing.T) {
 	root := missingImageVault(t)
 	write(t, root, "Notes/Images.md", "![](direct.png)\n![[alias.png]]\n")
 	write(t, root, "Notes/Unread.md", "---\naliases: [alias.png]\n---\nbody\n")
-	a, err := openAction(t.Context(), root, actionHooks{parseNote: func(rel string, data []byte, marks plannedMarks) note {
-		if rel == "Notes/Unread.md" {
-			panic("controlled unreadable alias source")
-		}
-		return parseNoteWithMarks(rel, data, marks)
-	}})
+	unreadable(t, filepath.Join(root, "Notes", "Unread.md"))
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
-		t.Fatalf("openAction: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := a.close(); closeErr != nil {
-			t.Errorf("close action: %v", closeErr)
-		}
-	})
-	if !a.partialCorpus() {
-		t.Fatal("the controlled panic left the corpus whole")
-	}
-	findings, err := checkAction(a, nil, false)
-	if err != nil {
-		t.Fatalf("checkAction: %v", err)
+		t.Fatalf("Check: %v", err)
 	}
 	var targets []string
 	for _, f := range findings {

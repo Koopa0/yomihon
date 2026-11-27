@@ -13,11 +13,6 @@ import (
 // names a note answers to cannot be one thing to `exists` and another to the
 // link on the page. This holds the two readings to each other over the
 // spellings of the field an author is likely to write.
-//
-// A bare date, an integer with underscores and a 0b integer are not among them:
-// the check reads those as text, as the YAML core schema does, and the page's
-// map types them as yaml.v3 does, so a note whose alias is a date answers to
-// that date in `exists` and not in a link.
 func TestTheCheckAndThePageReadTheSameAliases(t *testing.T) {
 	t.Parallel()
 	for name, frontmatter := range map[string]string{
@@ -32,6 +27,12 @@ func TestTheCheckAndThePageReadTheSameAliases(t *testing.T) {
 		"an empty list":         "aliases: []",
 		"empty":                 "aliases:",
 		"null":                  "aliases: null",
+		"Null":                  "aliases: Null",
+		"NULL":                  "aliases: NULL",
+		"a bare date":           "aliases: 2026-11-27",
+		"underscored digits":    "aliases: 1_000",
+		"a 0b integer":          "aliases: 0b101",
+		"a signed hex":          "aliases: 0x-1",
 		"a number":              "aliases: 7",
 		"a bool":                "aliases: true",
 		"yes":                   "aliases: yes",

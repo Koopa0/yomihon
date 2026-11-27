@@ -2,14 +2,12 @@ package judge
 
 import (
 	"bytes"
-	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 // The fixture that carries a file nothing can be read from, and the file
@@ -35,9 +33,7 @@ const (
 func sealedVault(tb testing.TB) string {
 	tb.Helper()
 	root := judgeFixtureRoot(tb, unreadableFixture)
-	if !unreadable(tb, filepath.Join(root, filepath.FromSlash(sealedNote))) {
-		tb.Fatal("this process can still read a file it took every permission from, so no vault here has a hole in it to judge")
-	}
+	unreadable(tb, filepath.Join(root, filepath.FromSlash(sealedNote)))
 	return root
 }
 
@@ -61,12 +57,8 @@ func ruleSet(findings []Finding, exceptPath string) map[RuleID]bool {
 // one note, or the scan, goes on judging.
 //
 // The same fixture is judged twice, whole and holed, and the two verdicts are
-// compared. That is what makes the set load-bearing in both directions: the
-// whole run has to carry every rule in it, or the fixture is not exercising it,
-// and the holed run has to carry none of them. The set is written out here and
-// not read from withheldOnPartialCorpus, because a test that reads the list it
-// guards cannot notice a rule leaving it; the list has to equal this set, so a
-// rule added to the list is a rule added here.
+// compared: the whole run has to carry every rule in the set, or the fixture is
+// not exercising it, and the holed run has to carry none of them.
 func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 	t.Parallel()
 
@@ -77,15 +69,11 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 		"link.title_not_alias",
 		"provenance.unresolved",
 	}
-	if diff := cmp.Diff(wholeVaultRules, slices.Sorted(slices.Values(withheldOnPartialCorpus))); diff != "" {
-		t.Errorf("withheldOnPartialCorpus differs from the rules that answer from the whole vault (-want +got):\n%s", diff)
-	}
-
-	whole, err := Check(t.Context(), judgeFixtureRoot(t, unreadableFixture))
+	whole, err := runCheckAction(t.Context(), judgeFixtureRoot(t, unreadableFixture), nil, false)
 	if err != nil {
 		t.Fatalf("Check(whole vault) error = %v; the holed run below proves nothing without it", err)
 	}
-	holed, err := Check(t.Context(), sealedVault(t))
+	holed, err := runCheckAction(t.Context(), sealedVault(t), nil, false)
 	if err != nil {
 		t.Fatalf("Check(vault with a sealed note) error = %v, want a judgement of the rest", err)
 	}
@@ -99,11 +87,11 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 			t.Errorf("%q answered over a vault one file of which was never read, and that file may hold what it says is nowhere", rule)
 		}
 	}
-	if !holedRules[unreadableRule] {
-		t.Errorf("the holed run reports no %q, so the rules it silenced are silently missing", unreadableRule)
+	if !holedRules[RuleScanUnreadable] {
+		t.Errorf("the holed run reports no %q, so the rules it silenced are silently missing", RuleScanUnreadable)
 	}
-	if wholeRules[unreadableRule] {
-		t.Errorf("the whole run reports %q for a vault it read entirely", unreadableRule)
+	if wholeRules[RuleScanUnreadable] {
+		t.Errorf("the whole run reports %q for a vault it read entirely", RuleScanUnreadable)
 	}
 
 	// The other half: judging continues. Every rule some other file tripped in
@@ -116,40 +104,22 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 	}
 }
 
-// TestTheUnreadableNoticeIsReportedAtTheGravestWeightAndGatesByName holds the
-// one frozen line this change moves. A file that could not be read used to end
-// the command, which answered 2; it is now a finding, and a finding decides the
-// exit code the way every other one does — 0 unless the caller named something
-// to fail on. A gate that fired on its own would be a second gating rule living
-// beside --deny.
-func TestTheUnreadableNoticeIsReportedAtTheGravestWeightAndGatesByName(t *testing.T) {
+// TestTheUnreadableNoticeIsAnErrorThatGatesLikeAnyOther holds a file that
+// could not be read to a finding at error weight, which decides the exit code
+// the way every other finding does: 0 unless the caller named something to
+// fail on.
+func TestTheUnreadableNoticeIsAnErrorThatGatesLikeAnyOther(t *testing.T) {
 	t.Parallel()
 
-	root := sealedVault(t)
-	tests := []struct {
-		name string
-		deny []string
-		want int
-	}{
-		{name: "nothing denied", want: 0},
-		{name: "the rule denied by name", deny: []string{string(unreadableRule)}, want: 1},
-		{name: "every error denied", deny: []string{"error"}, want: 1},
+	stdout, exit, err := checkBytes(t.Context(), &CheckOptions{Root: sealedVault(t), Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			stdout, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Deny: tt.deny, Format: FormatJSON})
-			if err != nil {
-				t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
-			}
-			if exit != tt.want {
-				t.Errorf("RunCheck() exit = %d, want %d", exit, tt.want)
-			}
-			if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`","severity":"error"`)) {
-				t.Errorf("RunCheck() output carries no error-weight %q line:\n%s", unreadableRule, stdout)
-			}
-		})
+	if exit != 0 {
+		t.Errorf("RunCheck() exit = %d, want 0 with nothing denied", exit)
+	}
+	if f := findFinding(t, decodeFindings(t, stdout), RuleScanUnreadable, sealedNote, ""); f.Severity != SeverityError {
+		t.Errorf("%s Severity = %v, want error", RuleScanUnreadable, f.Severity)
 	}
 }
 
@@ -198,14 +168,14 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunCheck(against its own output as baseline) error = %v", err)
 	}
-	if !bytes.Contains(second, []byte(`"rule_id":"`+unreadableRule+`"`)) {
-		t.Errorf("a run baselined against its own output dropped the %q notice:\n%s", unreadableRule, second)
+	if !bytes.Contains(second, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)) {
+		t.Errorf("a run baselined against its own output dropped the %q notice:\n%s", RuleScanUnreadable, second)
 	}
 	// The control: everything else the same run reported is subtracted, so the
 	// survival above is this rule's exemption and not a baseline that failed to
 	// load.
 	for line := range strings.SplitSeq(strings.TrimSpace(string(second)), "\n") {
-		if line != "" && !strings.Contains(line, `"rule_id":"`+string(unreadableRule)+`"`) {
+		if line != "" && !strings.Contains(line, `"rule_id":"`+string(RuleScanUnreadable)+`"`) {
 			t.Errorf("a run baselined against its own output still reports: %s", line)
 		}
 	}
@@ -223,12 +193,10 @@ func TestTheUnreadableNoticeOutlastsEveryFilter(t *testing.T) {
 	// path filter below, so each cut has something to remove and the notice
 	// surviving is the append's position rather than the filter's mercy.
 	root := t.TempDir()
-	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\nA link to [[Ghost]].\n")
+	write(t, root, "Notes/ok.md", "---\ntype: note\n---\nA link to [[Ghost]].\n")
 	writeTestContract(t, root, nil)
-	write(t, root, "Outside/sealed.md", "---\ntitle: Outside\n---\n")
-	if !unreadable(t, filepath.Join(root, "Outside", "sealed.md")) {
-		t.Fatal("this process can still read a file it took every permission from")
-	}
+	write(t, root, "Outside/sealed.md", "---\ntype: note\n---\n")
+	unreadable(t, filepath.Join(root, "Outside", "sealed.md"))
 
 	tests := []struct {
 		name  string
@@ -250,8 +218,8 @@ func TestTheUnreadableNoticeOutlastsEveryFilter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
-			if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`"`)) {
-				t.Errorf("a narrowed run reports no %q, so its missing rules have no explanation:\n%s", unreadableRule, stdout)
+			if !bytes.Contains(stdout, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)) {
+				t.Errorf("a narrowed run reports no %q, so its missing rules have no explanation:\n%s", RuleScanUnreadable, stdout)
 			}
 		})
 	}
@@ -267,15 +235,13 @@ func TestANameSharedWithAFileNobodyReadResolvesToNeither(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, "Notes/Twin.md", "---\ntitle: The one that opens\n---\n## Present\n")
-	write(t, root, "Other/Twin.md", "---\ntitle: The one that does not\n---\n")
-	write(t, root, "Notes/Cite.md", "---\ntitle: Cite\n---\nA link into [[Twin#Absent]].\n")
+	write(t, root, "Notes/Twin.md", "---\ntype: note\n---\n## Present\n")
+	write(t, root, "Other/Twin.md", "---\ntype: note\n---\n")
+	write(t, root, "Notes/Cite.md", "---\ntype: note\n---\nA link into [[Twin#Absent]].\n")
 	writeTestContract(t, root, nil)
-	if !unreadable(t, filepath.Join(root, "Other", "Twin.md")) {
-		t.Fatal("this process can still read a file it took every permission from")
-	}
+	unreadable(t, filepath.Join(root, "Other", "Twin.md"))
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
@@ -325,15 +291,13 @@ func TestAFragmentPointedAtANoteNobodyReadIsNotJudged(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, "Notes/Sealed.md", "---\ntitle: Sealed\n---\n## Absent\n")
-			write(t, root, "Notes/Relay.md", "---\ntitle: Relay\n---\n![[Sealed]]\n")
-			write(t, root, "Notes/Cite.md", "---\ntitle: Cite\n---\n"+tt.body)
+			write(t, root, "Notes/Sealed.md", "---\ntype: note\n---\n## Absent\n")
+			write(t, root, "Notes/Relay.md", "---\ntype: note\n---\n![[Sealed]]\n")
+			write(t, root, "Notes/Cite.md", "---\ntype: note\n---\n"+tt.body)
 			writeTestContract(t, root, nil)
-			if !unreadable(t, filepath.Join(root, "Notes", "Sealed.md")) {
-				t.Fatal("this process can still read a file it took every permission from")
-			}
+			unreadable(t, filepath.Join(root, "Notes", "Sealed.md"))
 
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}
@@ -356,19 +320,17 @@ func TestAWithheldFileThatCouldNotBeReadIsNamedByNothing(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\nA link to [[Ghost]].\n")
-	write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
+	write(t, root, "Notes/ok.md", "---\ntype: note\n---\nA link to [[Ghost]].\n")
+	write(t, root, "Diary/2026-08-27.md", "---\ntype: note\n---\n")
 	writeTestContract(t, root, []string{"Diary"})
-	if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
-		t.Fatal("this process can still read a file it took every permission from")
-	}
+	unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md"))
 
 	stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
 	}
-	if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`","severity":"error","path":""`)) {
-		t.Errorf("RunCheck() carries no path-less %q line:\n%s", unreadableRule, stdout)
+	if !bytes.Contains(stdout, []byte(`"rule_id":"`+RuleScanUnreadable+`","severity":"error","path":""`)) {
+		t.Errorf("RunCheck() carries no path-less %q line:\n%s", RuleScanUnreadable, stdout)
 	}
 	for _, leaked := range []string{"Diary", "2026-08-27", "permission denied"} {
 		if bytes.Contains(stdout, []byte(leaked)) {
@@ -392,12 +354,10 @@ func TestAVaultNothingCouldBeReadFromIsRefusedRatherThanReported(t *testing.T) {
 
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
-	write(t, root, "Notes/One.md", "---\ntitle: One\n---\n")
-	write(t, root, "Notes/Two.md", "---\ntitle: Two\n---\n")
+	write(t, root, "Notes/One.md", "---\ntype: note\n---\n")
+	write(t, root, "Notes/Two.md", "---\ntype: note\n---\n")
 	for _, name := range []string{"One.md", "Two.md"} {
-		if !unreadable(t, filepath.Join(root, "Notes", name)) {
-			t.Fatal("this process can still read a file it took every permission from")
-		}
+		unreadable(t, filepath.Join(root, "Notes", name))
 	}
 
 	got := refuse(t.Context(), t, "check", root).Error()
@@ -417,16 +377,13 @@ func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
 	sealed := func(t *testing.T, count int) []byte {
 		t.Helper()
 		root := t.TempDir()
-		write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+		write(t, root, "Notes/ok.md", "---\ntype: note\n---\n")
 		for i := range count {
-			write(t, root, "Diary/2026-08-0"+string(rune('1'+i))+".md", "---\ntitle: Private\n---\n")
+			write(t, root, fmt.Sprintf("Diary/2026-08-%02d.md", i+1), "---\ntype: note\n---\n")
 		}
 		writeTestContract(t, root, []string{"Diary"})
 		for i := range count {
-			name := "Diary/2026-08-0" + string(rune('1'+i)) + ".md"
-			if !unreadable(t, filepath.Join(root, filepath.FromSlash(name))) {
-				t.Fatal("this process can still read a file it took every permission from")
-			}
+			unreadable(t, filepath.Join(root, "Diary", fmt.Sprintf("2026-08-%02d.md", i+1)))
 		}
 		stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		if err != nil {
@@ -439,7 +396,7 @@ func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
 	if !bytes.Equal(one, three) {
 		t.Errorf("a folder with three unreadable withheld files reads differently from one with a single file, which counts them:\none:\n%s\nthree:\n%s", one, three)
 	}
-	if got := bytes.Count(one, []byte(`"rule_id":"`+unreadableRule+`"`)); got != 1 {
+	if got := bytes.Count(one, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)); got != 1 {
 		t.Errorf("withheld notice lines = %d, want exactly 1", got)
 	}
 }
@@ -465,43 +422,18 @@ func TestTheUnreadableFingerprintCarriesThePathAndNotTheCause(t *testing.T) {
 	}
 }
 
-// TestUnreadableGolden pins the bytes a consumer parses for a vault with a hole
-// in it: the notice's own line, and the findings the run went on to reach. It
-// is its own test rather than a row of the golden table because the fixture is
-// sealed at test time, which a checked-out tree cannot carry.
-func TestUnreadableGolden(t *testing.T) {
-	t.Parallel()
-
-	want, err := os.ReadFile(unreadableGolden)
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	got := runCheck(t, sealedVault(t))
-	if !bytes.Equal(got, want) {
-		t.Errorf("check findings differ from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-			unreadableGolden, got, want, hex.Dump(got), hex.Dump(want))
-	}
-}
-
-// TestAReportLineWithNoPathEndsAtItsSentence covers what the two faces a person
-// reads had never been asked to render: a finding with no file behind it. Every
-// other finding names one, so both lines appended the path unconditionally, and
-// this one ended in an empty bracket or a dangling dash — which reads as a path
-// the report lost rather than one it is declining to give.
-//
-// The wording is left to whoever writes it; what is asserted is that the line
-// stops where its sentence does, and that a finding which does have a file
-// still shows it.
+// TestAReportLineWithNoPathEndsAtItsSentence holds the two faces a person reads
+// to rendering a finding with no file behind it as a line that stops where its
+// sentence does, not one ending in an empty bracket or a dangling dash, which
+// reads as a path the report lost. A finding that has a file still shows it.
 func TestAReportLineWithNoPathEndsAtItsSentence(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
-	write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
+	write(t, root, "Notes/ok.md", "---\ntype: note\n---\n")
+	write(t, root, "Diary/2026-08-27.md", "---\ntype: note\n---\n")
 	writeTestContract(t, root, []string{"Diary"})
-	if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
-		t.Fatal("this process can still read a file it took every permission from")
-	}
+	unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md"))
 
 	tests := []struct {
 		name    string

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -79,11 +78,7 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 		t.Errorf("GET /search indexed a note beneath an excluded directory; page = %q", inside)
 	}
 
-	findings, checkErr := judge.Check(t.Context(), root)
-	if checkErr != nil {
-		t.Fatalf("check: %v", checkErr)
-	}
-	for _, finding := range findings {
+	for _, finding := range checkFindings(t, root) {
 		if strings.Contains(finding.Path, "/lab/") || strings.Contains(finding.Message, "main.go") {
 			t.Errorf("check judged a file beneath an excluded directory: %+v", finding)
 		}

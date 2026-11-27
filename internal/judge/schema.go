@@ -59,7 +59,7 @@ func checkKnowledgeScope(scan vault.Scan, contract *schema.Contract) []Finding {
 // keys on it alone, the fault being one line of the contract.
 func unmatchedKnowledgeDir(dir string) Finding {
 	return Finding{
-		RuleID:          "schema.unmatched_knowledge_dir",
+		RuleID:          RuleSchemaUnmatchedKnowledgeDir,
 		Severity:        SeverityError,
 		Path:            dir,
 		Message:         "knowledge directory \"" + dir + "\" matches nothing in this vault, so the frontmatter rules reach nothing there",
@@ -67,54 +67,42 @@ func unmatchedKnowledgeDir(dir string) Finding {
 		SuggestedAction: "correct the spelling in the rules file, or drop the entry if the directory is gone",
 		SourceRule:      sourceContractFolders,
 		Target:          new(dir),
-		Fingerprint:     fingerprint("schema.unmatched_knowledge_dir", "", dir),
+		Fingerprint:     fingerprint(RuleSchemaUnmatchedKnowledgeDir, "", dir),
 	}
 }
 
-// lintRun is one contract resolved into everything the frontmatter rules read,
-// held together for the length of one scan. Every field is derived from the
-// contract exactly once, and they travel together because they have to agree:
-// passed separately, a caller could mix them from two different contracts.
+// lintRun is one contract and the values the frontmatter rules read from it
+// that cost a copy or a search to ask for, resolved once for a scan.
 type lintRun struct {
-	contract            *schema.Contract
-	scope               schema.KnowledgeScope
-	skip                []string
-	requiresFrontmatter bool
-	conceptType         string
-	conceptDeclared     bool
-	lessonType          string
-	provenance          []string
-	enums               []schema.EnumDefinition
-	domains             schema.Domains
+	contract   *schema.Contract
+	unitType   string
+	provenance []string
+	enums      []schema.EnumDefinition
+	domains    schema.Domains
 }
 
 // newLintRun resolves a contract into the run the rules read from.
 func newLintRun(contract *schema.Contract) *lintRun {
 	definition := contract.Definition()
-	run := &lintRun{
-		contract:            contract,
-		scope:               contract.KnowledgeScope(),
-		skip:                contract.SkipBasenames(),
-		requiresFrontmatter: contract.RequiresFrontmatter(),
-		provenance:          definition.Rules.ConceptRequiresProvenance,
-		enums:               definition.Enums,
-		domains:             contract.Domains(),
+	unitType, _ := contract.LessonType()
+	return &lintRun{
+		contract:   contract,
+		unitType:   unitType,
+		provenance: definition.Rules.ConceptRequiresProvenance,
+		enums:      definition.Enums,
+		domains:    contract.Domains(),
 	}
-	run.conceptType, run.conceptDeclared = contract.ConceptType()
-	run.lessonType, _ = contract.LessonType()
-	return run
 }
 
 // check returns the frontmatter findings of every note the run's contract
 // governs: those inside its knowledge scope whose file name its scan does not
 // skip.
 func (r *lintRun) check(notes []note) []Finding {
+	scope := r.contract.KnowledgeScope()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		seg := strings.Split(n.path, "/")
-		skipped := slices.Contains(r.skip, seg[len(seg)-1])
-		if r.scope.Includes(n.path) && !skipped {
+		if scope.Includes(n.path) && !r.contract.SkipsBasename(n.path) {
 			out = append(out, r.note(n)...)
 		}
 	}
@@ -123,7 +111,7 @@ func (r *lintRun) check(notes []note) []Finding {
 
 // note returns the frontmatter findings for one in-scope note, in the
 // contract's reading order: the type enum, unknown keys, the article language,
-// the draft flag, the lesson slug, reference shapes, then the required fields,
+// the draft flag, the unit slug, reference shapes, then the required fields,
 // the value enums and the structural rules. That order is the tiebreak the
 // stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
@@ -135,30 +123,30 @@ func (r *lintRun) note(n *note) []Finding {
 		if n.unclosedFrontmatter {
 			return []Finding{unclosedFrontmatterFinding(n)}
 		}
-		if r.requiresFrontmatter {
-			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
+		if r.contract.RequiresFrontmatter() {
+			return []Finding{schemaFinding(n, RuleSchemaFrontmatter, "", "", "is missing")}
 		}
 		return nil
 	}
 	if n.badFrontmatter {
-		return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}
+		return []Finding{schemaFinding(n, RuleSchemaFrontmatter, "", "", "is not valid YAML")}
 	}
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	if hasType && !slices.Contains(r.contract.EnumValues("type"), schema.NormalizeWord(ty)) {
-		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
+		out = append(out, schemaFinding(n, RuleSchemaEnum, "type", ty, "is not an allowed type"))
 	}
 
-	isLesson := hasType && ty == r.lessonType
+	isUnit := hasType && n.noteType == r.unitType
 	out = append(out, r.unknownKeys(n, ty)...)
 	out = append(out, r.articleLanguage(n)...)
 	out = append(out, r.draft(n)...)
-	if isLesson {
-		out = append(out, r.lessonSlug(n, ty)...)
+	if isUnit {
+		out = append(out, r.unitSlug(n, ty)...)
 	}
 	out = append(out, r.referenceNestedSequences(n)...)
-	out = append(out, r.required(n, ty, isLesson)...)
+	out = append(out, r.required(n, ty, isUnit)...)
 	out = append(out, r.enumFields(n)...)
 	out = append(out, r.structural(n)...)
 	return out
@@ -173,15 +161,15 @@ func (r *lintRun) referenceNestedSequences(n *note) []Finding {
 			continue
 		}
 		out = append(out, Finding{
-			RuleID:          "schema.reference_nested_sequence",
+			RuleID:          RuleSchemaReferenceNestedSequence,
 			Severity:        SeverityError,
 			Path:            n.path,
 			Field:           new(field.name),
 			Message:         field.name + " contains a nested YAML list instead of a reference",
 			Evidence:        "a reference item was read as a YAML sequence",
 			SuggestedAction: "quote the reference, for example " + field.name + ": [\"[[Note]]\"] or " + field.name + ": [\"Note\"]",
-			SourceRule:      field.sourceRule,
-			Fingerprint:     fingerprint("schema.reference_nested_sequence", n.path, field.name+"\x1f"),
+			SourceRule:      sourceYomihon,
+			Fingerprint:     fingerprint(RuleSchemaReferenceNestedSequence, n.path, field.name+"\x1f"),
 		})
 	}
 	return out
@@ -197,11 +185,14 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 	if !ok {
 		return nil
 	}
-	if value.isList || !value.scalarIsString || value.scalar == "" {
-		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "must be a non-empty BCP 47 language tag")}
+	if !value.isList && value.scalar == "" {
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", "", "must be a non-empty BCP 47 language tag")}
+	}
+	if value.isList || !value.scalarIsString {
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "is not text; write a BCP 47 language tag")}
 	}
 	if _, err := schema.ParseLanguageTag(value.scalar); err != nil {
-		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "is not a valid BCP 47 language tag")}
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "is not a valid BCP 47 language tag")}
 	}
 	return nil
 }
@@ -223,11 +214,11 @@ func (r *lintRun) unknownKeys(n *note, noteType string) []Finding {
 			deferred = true
 			continue
 		case schema.FieldUnknown:
-			out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+			out = append(out, schemaFinding(n, RuleSchemaUnknownKey, "", key, "is not a known field"))
 		}
 	}
 	if deferred {
-		finding := schemaFinding(n, "schema.type_dependent", "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
+		finding := schemaFinding(n, RuleSchemaTypeDependent, "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
 		finding.SuggestedAction = "fix type before judging type-only fields"
 		out = append(out, finding)
 	}
@@ -246,34 +237,32 @@ func (r *lintRun) draft(n *note) []Finding {
 	if !v.isList && !v.scalarIsString && (v.scalar == "true" || v.scalar == "false") {
 		return nil
 	}
-	return []Finding{schemaFinding(n, "schema.draft", schema.DraftField, v.scalar, "must be true or false")}
+	return []Finding{schemaFinding(n, RuleSchemaDraft, schema.DraftField, v.scalar, "must be true or false")}
 }
 
-// lessonSlug reports the slug faults of a note holding the lesson role.
-func (r *lintRun) lessonSlug(n *note, noteType string) []Finding {
-	var out []Finding
-	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
-	case !ok:
-		out = append(out, schemaFinding(n, "schema.required", "slug", "", "is required for a unit"))
-	default:
-		if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
-			out = append(out, schemaFinding(n, "schema.slug", "slug", sl, "is not a valid slug"))
-		}
+// unitSlug reports the slug faults of a note holding the unit role.
+func (r *lintRun) unitSlug(n *note, noteType string) []Finding {
+	sl, ok := fmScalar(n.frontmatter, "slug")
+	if !ok {
+		return []Finding{schemaFinding(n, RuleSchemaRequired, "slug", "", "is required for a unit")}
 	}
-	return out
+	if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
+		return []Finding{schemaFinding(n, RuleSchemaSlug, "slug", sl, "is not a valid slug")}
+	}
+	return nil
 }
 
 // required reports each required field that is absent or blank: the fields
-// every note must carry, then those its type adds. A lesson's slug has its own
+// every note must carry, then those its type adds. A unit's slug has its own
 // finding and is not asked twice.
-func (r *lintRun) required(n *note, noteType string, isLesson bool) []Finding {
+func (r *lintRun) required(n *note, noteType string, isUnit bool) []Finding {
 	var out []Finding
 	for _, key := range r.contract.RequiredFields(noteType) {
-		if isLesson && key == schema.FieldSlug {
+		if isUnit && key == schema.FieldSlug {
 			continue
 		}
 		if v, ok := n.frontmatter[key]; !ok || !v.present() {
-			out = append(out, schemaFinding(n, "schema.required", key, "", "is required"))
+			out = append(out, schemaFinding(n, RuleSchemaRequired, key, "", "is required"))
 		}
 	}
 	return out
@@ -299,7 +288,7 @@ func (r *lintRun) enumFields(n *note) []Finding {
 			continue
 		}
 		if v, ok := fmScalar(n.frontmatter, enum.Field); ok && !slices.Contains(enum.Values, schema.NormalizeWord(v)) {
-			out = append(out, schemaFinding(n, "schema.enum", enum.Field, v, "is not an allowed value"))
+			out = append(out, schemaFinding(n, RuleSchemaEnum, enum.Field, v, "is not an allowed value"))
 		}
 	}
 	return out
@@ -311,9 +300,9 @@ func (r *lintRun) structural(n *note) []Finding {
 	// Which type holds the corpus of distilled ideas, and whether this vault
 	// keeps one at all, is the contract's to say; a vault declaring none has
 	// nothing for this rule to be about.
-	if ty, ok := fmScalar(n.frontmatter, "type"); ok && r.conceptDeclared && ty == r.conceptType &&
+	if conceptType, declared := r.contract.ConceptType(); declared && n.noteType == conceptType &&
 		!hasProvenance(n.frontmatter, r.provenance) {
-		return []Finding{schemaFinding(n, "schema.provenance", "", "", "concept has neither based_on nor source_locator")}
+		return []Finding{schemaFinding(n, RuleSchemaProvenance, "", "", "concept has neither based_on nor source_locator")}
 	}
 	return nil
 }
@@ -345,13 +334,16 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 // schemaRuleSource names the artifact holding one frontmatter rule's
 // authority. The slug rule enforces the pattern a type's own table states, and
 // the provenance rule a key the [rules] table declares, so each anchors there;
-// every other rule reads several tables and cites the file without an anchor.
+// the draft flag is the product's own key, whatever the rules file lists; every
+// other rule reads several tables and cites the file without an anchor.
 func schemaRuleSource(ruleID RuleID) string {
 	switch ruleID {
-	case "schema.slug":
+	case RuleSchemaSlug:
 		return sourceContractTypes
-	case "schema.provenance":
+	case RuleSchemaProvenance:
 		return sourceContractRules
+	case RuleSchemaDraft:
+		return sourceYomihon
 	default:
 		return sourceContract
 	}
@@ -400,7 +392,7 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 // there is no frontmatter to fix: the evidence says where the value came from
 // and the action moves the note or widens the vocabulary.
 func unlistedDomainFinding(n *note, domain string) Finding {
-	f := schemaFinding(n, "schema.enum", "domain", domain, "is not an allowed value")
+	f := schemaFinding(n, RuleSchemaEnum, "domain", domain, "is not an allowed value")
 	f.Evidence = "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the rules file's enums.domain does not list that name"
 	f.SuggestedAction = "move the note into a folder named for a domain the rules file declares, or add the folder's name to enums.domain in the rules file"
 	return f
@@ -412,25 +404,17 @@ func unlistedDomainFinding(n *note, domain string) Finding {
 // wants one, and it keeps the identity those two share: one per path. The
 // action is its own, because nothing here is a mismatch with the schema to fix.
 func unclosedFrontmatterFinding(n *note) Finding {
-	f := schemaFinding(n, "schema.frontmatter", "", "", "opens on line 1 and never closes")
+	f := schemaFinding(n, RuleSchemaFrontmatter, "", "", "opens on line 1 and never closes")
 	f.SuggestedAction = "add the closing --- line, or remove the opening --- if the note has no frontmatter"
 	return f
 }
 
-// LintFrontmatter reports what the check command would say about one note's
+// FrontmatterLinter reports what the check command would say about a note's
 // frontmatter, so a reading page and the command cannot disagree about a file.
-// It takes the note's own bytes rather than a frontmatter parsed elsewhere,
-// because this parse walks the YAML nodes to see a key written twice; linting
-// the reading parse would be a second, quieter set of rules. The findings come
-// back in the order the command puts them in.
-func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) []Finding {
-	return NewFrontmatterLinter(contract).Lint(relPath, data)
-}
-
-// FrontmatterLinter is LintFrontmatter for a caller with many notes to judge
-// against one contract: the contract is resolved once, rather than once per
-// note, and a note is read for its frontmatter alone, because the frontmatter
-// rules read nothing of the body. The zero value, which is what a folder no
+// The contract is resolved once for many notes, and a note is read from its
+// own bytes, because this parse walks the YAML nodes to see a key written
+// twice, and for its frontmatter alone, because those rules read nothing of
+// the body. The zero value, which is what a folder no
 // contract governs gets, says nothing about any note.
 type FrontmatterLinter struct {
 	run *lintRun
@@ -446,8 +430,7 @@ func NewFrontmatterLinter(contract *schema.Contract) FrontmatterLinter {
 }
 
 // Lint reports what the check command would say about one note's frontmatter,
-// in the order the command puts the findings in. Like LintFrontmatter it takes
-// the note's own bytes.
+// in the order the command puts the findings in.
 func (l FrontmatterLinter) Lint(relPath string, data []byte) []Finding {
 	if l.run == nil {
 		return nil

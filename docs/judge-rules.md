@@ -39,7 +39,7 @@ rules and does not define new behavior.
 | `provenance.unresolved` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `scan.skipped` | `yomihon` | [`internal/judge/skipped.go`](../internal/judge/skipped.go) |
 | `scan.unreadable` | `yomihon` | [`internal/judge/unreadable.go`](../internal/judge/unreadable.go) |
-| `schema.draft` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.draft` | `yomihon` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.enum` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.frontmatter` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.language` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
@@ -79,7 +79,7 @@ not own the study-path grammar.
 
 When a rule, authority, or source file changes, reconcile this table with the
 finding's construction path, the registry in
-[`internal/judge/command.go`](../internal/judge/command.go), and the
+[`internal/judge/rules.go`](../internal/judge/rules.go), and the
 [`JSONL goldens`](../internal/judge/testdata/golden).
 Keep one row per distinct `(RuleID, SourceRule)` pair.
 A new rule needs a fixture under `internal/judge/testdata/` that emits it

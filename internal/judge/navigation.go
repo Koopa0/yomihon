@@ -7,10 +7,6 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// navigationUnavailableRule is the rule id of a contract whose type roles
-// could not be used.
-const navigationUnavailableRule RuleID = "schema.navigation_unavailable"
-
 // checkNavigation reports a contract whose navigation roles could not be
 // honoured. Without them no note type is known to be a course or an index, so the
 // rules that read those roles skip every note, and a run that says nothing
@@ -30,25 +26,24 @@ func checkNavigation(roles schema.NavigationRoles) []Finding {
 // past the scope filters, so the contract living under System does not drop it.
 func navigationUnavailableFinding() Finding {
 	return Finding{
-		RuleID:          navigationUnavailableRule,
+		RuleID:          RuleSchemaNavigationUnavailable,
 		Severity:        SeverityError,
 		Path:            schema.ContractRelPath,
 		Message:         "course and index rules did not run, because a type role in the rules file could not be used",
 		Evidence:        "without the roles no note type is known to be a course or an index, so those rules skipped every note; the reason is not quoted here, because it would repeat the rules file's own text",
 		SuggestedAction: "correct the role of the type in the rules file (yomihon serve logs the reason at startup), then judge the vault again",
 		SourceRule:      sourceContract,
-		Fingerprint:     fingerprint(navigationUnavailableRule, schema.ContractRelPath, ""),
+		Fingerprint:     fingerprint(RuleSchemaNavigationUnavailable, schema.ContractRelPath, ""),
 	}
 }
 
 // silencedWithoutNavigation reports whether a rule reads the navigation roles
-// and so reports nothing when they are unavailable: the study-path grammar's
+// and so reports nothing when they are unavailable: the course grammar's
 // rules and the two that reconcile a course against disk. A gate on any of them
 // cannot be answered by their silence, so it is answered by the finding that
 // says they did not run.
 func silencedWithoutNavigation(rule string) bool {
-	switch rule {
-	case "course.disk_mismatch", "course.disk_unlisted":
+	if id := RuleID(rule); id == RuleCourseDiskMismatch || id == RuleCourseDiskUnlisted {
 		return true
 	}
 	return slices.Contains(sequence.Rules(), sequence.Rule(rule))

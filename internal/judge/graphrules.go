@@ -15,37 +15,31 @@ import (
 
 // The graph rules turn the resolved link graph into findings: a wikilink that
 // resolves to no note (broken, or resolving only to a title), an alias two
-// notes both claim, a provenance reference that names nothing, and a syllabus
-// that disagrees with the lessons on disk. They read the notes and the resolver
-// the same way the vault's linker does; the diagnostic strings are frozen.
-
-// normalizeKey folds a name to the key its resolution is stored under, so the
-// title, alias and slug indexes built here agree with the resolver about what a
-// written name matches. It is the resolver's own function, because any drift
-// would show as two faces disagreeing about a name neither saw as ambiguous.
-func normalizeKey(name string) string {
-	return graph.NormalizeKey(name)
-}
+// notes both claim, a provenance reference that names nothing, and a course
+// that disagrees with the units on disk. They read the notes and the resolver
+// the same way the vault's linker does.
 
 // runGraphRules runs the graph rules over the notes and the resolver, in the
-// order the wire format ties break on: link health, alias collisions, name
-// collisions, provenance, then map-vs-disk.
-func runGraphRules(a *action, idx *graph.Index) []Finding {
+// order the wire format ties break on: link health, fragments, alias
+// collisions, name collisions, provenance, alias-resolved citations, then
+// course against disk and course structure.
+func runGraphRules(a *action, idx *graph.Index, paths *fragmentPaths) []Finding {
 	notes, authority := a.notes, a.authority
 	titles := titleIndex(notes, authority)
 	slugs := slugIndex(notes, authority)
 	planned := plannedNamesSet(notes, authority)
 	aliases := aliasCollisions(notes, authority)
-	lessonType, _ := authority.lessonType()
+	roles := authority.contract.NavigationRoles()
+	unitType, _ := authority.contract.LessonType()
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned, authority, a.partialCorpus()),
-		fragmentFindings(notes, a.unreadable, idx),
+		paths.fragmentFindings(notes),
 		collisionAlias(aliases),
 		collisionName(notes, idx, aliases, authority, a.partialCorpus()),
 		provenanceUnresolved(notes, idx, slugs),
 		aliasResolvedBasedOn(notes, idx, authority),
-		mapDiskMismatch(notes, idx, authority.roles(), lessonType),
-		pathFindings(notes, authority.roles()),
+		courseDiskMismatch(notes, idx, roles, unitType),
+		pathFindings(notes, roles),
 	)
 }
 
@@ -60,7 +54,7 @@ func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 		if n.title == "" || !authority.gate.Allows(n.path) {
 			continue
 		}
-		key := normalizeKey(n.title)
+		key := graph.NormalizeKey(n.title)
 		if key == "" {
 			continue
 		}
@@ -72,7 +66,7 @@ func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 	return idx
 }
 
-// slugIndex maps a lesson slug to its note path. A reference may name a slug,
+// slugIndex maps a unit slug to its note path. A reference may name a slug,
 // not a filename, so it resolves here rather than through the resolver.
 // A repeated slug keeps the last note, matching the reference reading.
 func slugIndex(notes []note, authority scanAuthority) map[string]string {
@@ -100,11 +94,12 @@ func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 	return set
 }
 
-// linkHealth classifies every note's unresolved or suffix-ambiguous wikilinks. A study-path's links
-// are its course list, owned by the map rule, so they are not double-reported
-// here. An embed naming a file is the image rule's; a link whose target is some
-// note's title is the title case; any other unresolved link is broken. partial
-// says a file in the vault could not be read.
+// linkHealth classifies every note's unresolved or suffix-ambiguous wikilinks.
+// A course's unit rows are reconciled against disk by the course rule, so they
+// are not reported twice here. An embed naming a file is the image rule's; a
+// link whose target is some note's title is the title case; any other
+// unresolved link is broken. partial says a file in the vault could not be
+// read.
 func linkHealth(
 	notes []note,
 	idx *graph.Index,
@@ -113,36 +108,33 @@ func linkHealth(
 	authority scanAuthority,
 	partial bool,
 ) []Finding {
-	roles := authority.roles()
+	roles := authority.contract.NavigationRoles()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		// A course's own lesson rows are reconciled against disk by the
-		// study-path rule; every other link in the file is ordinary prose.
-		lessons := map[int]bool{}
+		// Every link in a course other than its unit rows is ordinary prose.
+		units := map[int]bool{}
 		if roles.IsPathType(n.noteType) {
-			lessons = courseLessonLinks(n)
+			units = courseUnitLinks(n)
 		}
 		for l := range n.wikilinks {
 			link := &n.wikilinks[l]
-			if lessons[link.offset] {
+			if units[link.offset] {
 				continue
 			}
-			// A name two files share is the collision rule's to report. A
-			// path suffix several files end with is a name none of them
-			// carries, so no collision reports it; the page links nothing and
-			// check reports the same broken link it always has.
-			if idx.Names(link.target) {
+			targetNotes := titles[graph.NormalizeKey(link.target)]
+			standing := Standing(Citation{Target: link.target, Owed: link.underGapHeading}, idx, planned, len(targetNotes) > 0)
+			if standing == LinkResolves {
 				continue
 			}
 			if link.embed && render.NamesAFile(link.target) {
 				out = appendMissingEmbed(out, n, link, authority, partial)
 				continue
 			}
-			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
+			if standing == LinkTitleOnly {
 				out = append(out, titleNotAlias(n, link, targetNotes))
 			} else {
-				out = append(out, brokenLink(n, link, planned))
+				out = append(out, brokenLink(n, link, standing == LinkOwed))
 			}
 		}
 	}
@@ -156,14 +148,14 @@ func linkHealth(
 // here counts them, so a title held only publicly once reads as singly held.
 func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 	f := Finding{
-		RuleID:      "link.title_not_alias",
+		RuleID:      RuleLinkTitleNotAlias,
 		Severity:    SeverityWarn,
 		Path:        n.path,
 		Line:        new(link.line),
 		Message:     "[[" + link.target + "]] resolves to no filename or alias",
 		SourceRule:  sourceYomihon,
 		Target:      new(link.target),
-		Fingerprint: fingerprint("link.title_not_alias", n.path, link.target),
+		Fingerprint: fingerprint(RuleLinkTitleNotAlias, n.path, link.target),
 	}
 	if len(targetNotes) > 1 {
 		f.Evidence = "the target is the title of " + strconv.Itoa(len(targetNotes)) + " notes: " + strings.Join(targetNotes, ", ")
@@ -171,20 +163,15 @@ func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 		f.CollisionMembers = targetNotes
 		return f
 	}
-	targetNote := ""
-	if len(targetNotes) > 0 {
-		targetNote = targetNotes[0]
-	}
+	targetNote := targetNotes[0]
 	f.Evidence = "the target is the title of " + targetNote + " but not one of its aliases"
 	f.SuggestedAction = "add the title to " + targetNote + "'s aliases, or link an existing filename/alias"
 	return f
 }
 
 // brokenLink is a link that resolves to nothing. It is informational when it is
-// a tracked forward-reference — under a gap heading, or naming a planned
-// concept — and a warning otherwise.
-func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
-	tracked := link.underGapHeading || planned.Has(link.target)
+// owed, a tracked forward-reference, and a warning otherwise.
+func brokenLink(n *note, link *wikiLink, tracked bool) Finding {
 	severity := SeverityWarn
 	evidence := "no filename or alias matches the target"
 	action := "create the target note, or change the link to an existing filename/alias"
@@ -194,7 +181,7 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 		action = "if it is written, check the filename/alias matches; otherwise leave it tracked"
 	}
 	return Finding{
-		RuleID:          "link.broken",
+		RuleID:          RuleLinkBroken,
 		Severity:        severity,
 		Path:            n.path,
 		Line:            new(link.line),
@@ -203,7 +190,7 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
-		Fingerprint:     fingerprint("link.broken", n.path, link.target),
+		Fingerprint:     fingerprint(RuleLinkBroken, n.path, link.target),
 	}
 }
 
@@ -233,7 +220,7 @@ func aliasCollisions(notes []note, authority scanAuthority) map[string][]string 
 			continue
 		}
 		for _, alias := range n.aliases {
-			key := normalizeKey(alias)
+			key := graph.NormalizeKey(alias)
 			if key == "" {
 				continue
 			}
@@ -275,7 +262,7 @@ func collisionAlias(byAlias map[string][]string) []Finding {
 // the reason a withheld note is no source of planned names: whether a finding
 // exists would otherwise say that some withheld note cites the name. A run that
 // could not read a note cannot say no link uses a name, so it reports every
-// shared name, as it did before links mattered.
+// shared name.
 func collisionName(notes []note, idx *graph.Index, byAlias map[string][]string, authority scanAuthority, partial bool) []Finding {
 	describable := make(map[string][]string)
 	for name, members := range idx.Collisions() {
@@ -327,7 +314,7 @@ func citedTargets(notes []note, authority scanAuthority) iter.Seq[string] {
 // alone, so a third file joining the collision does not read as a new finding.
 func nameCollisionFinding(name string, members []string) Finding {
 	return Finding{
-		RuleID:           "collision.name",
+		RuleID:           RuleCollisionName,
 		Severity:         SeverityWarn,
 		Path:             members[0],
 		Message:          "\"" + name + "\" is the name of " + strconv.Itoa(len(members)) + " files, so [[" + name + "]] cannot resolve deterministically",
@@ -336,7 +323,7 @@ func nameCollisionFinding(name string, members []string) Finding {
 		SourceRule:       sourceYomihon,
 		Target:           new(name),
 		CollisionMembers: members,
-		Fingerprint:      fingerprint("collision.name", "", name),
+		Fingerprint:      fingerprint(RuleCollisionName, "", name),
 	}
 }
 
@@ -344,14 +331,10 @@ func nameCollisionFinding(name string, members []string) Finding {
 // smallest member, and the fingerprint keys on the alias alone — not a member
 // path — so a new note joining the collision does not read as a new finding.
 func collisionFinding(alias string, members []string) Finding {
-	path := ""
-	if len(members) > 0 {
-		path = members[0]
-	}
 	return Finding{
-		RuleID:           "collision.alias",
+		RuleID:           RuleCollisionAlias,
 		Severity:         SeverityWarn,
-		Path:             path,
+		Path:             members[0],
 		Field:            new("aliases"),
 		Message:          "alias \"" + alias + "\" is declared by " + strconv.Itoa(len(members)) + " notes, so [[" + alias + "]] cannot resolve deterministically",
 		Evidence:         "shared alias across: " + strings.Join(members, ", "),
@@ -359,14 +342,13 @@ func collisionFinding(alias string, members []string) Finding {
 		SourceRule:       sourceYomihon,
 		Target:           new(alias),
 		CollisionMembers: members,
-		Fingerprint:      fingerprint("collision.alias", "", alias),
+		Fingerprint:      fingerprint(RuleCollisionAlias, "", alias),
 	}
 }
 
 type referenceField struct {
-	name       string
-	values     []string
-	sourceRule string
+	name   string
+	values []string
 }
 
 // provenanceUnresolved reports provenance references that resolve to no note.
@@ -383,7 +365,7 @@ func provenanceUnresolved(
 		for _, field := range noteReferenceFields(n) {
 			for _, value := range field.values {
 				if !provenanceResolves(idx, slugs, value) {
-					out = append(out, provenanceFinding(n, field.name, value, field.sourceRule))
+					out = append(out, provenanceFinding(n, field.name, value))
 				}
 			}
 		}
@@ -395,23 +377,18 @@ func provenanceUnresolved(
 // resolution and YAML-shape diagnostics.
 func noteReferenceFields(n *note) []referenceField {
 	return []referenceField{
-		{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
-		{name: "related", values: n.related, sourceRule: sourceYomihon},
+		{name: "based_on", values: n.basedOn},
+		{name: "related", values: n.related},
 	}
 }
 
 // provenanceResolves reports whether a provenance value resolves, either as a
-// wikilink (filename or alias) or as a lesson slug. The value may be a bare slug
+// wikilink (filename or alias) or as a unit slug. The value may be a bare slug
 // or a [[wikilink]] carrying |display, #heading, or ^block, which are stripped
 // the same way a body link is. A value that strips to nothing counts as
 // resolved, so a bare anchor never invents a finding.
 func provenanceResolves(idx *graph.Index, slugs map[string]string, value string) bool {
-	v := strings.TrimSpace(value)
-	inner := v
-	if len(v) >= 4 && strings.HasPrefix(v, "[[") && strings.HasSuffix(v, "]]") {
-		inner = v[2 : len(v)-2]
-	}
-	target, ok := stripTarget(inner)
+	target, ok := referenceTarget(value)
 	if !ok {
 		return true
 	}
@@ -421,22 +398,22 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if _, listed := slugs[target]; listed {
 		return true
 	}
-	_, listed := slugs[normalizeKey(target)]
+	_, listed := slugs[graph.NormalizeKey(target)]
 	return listed
 }
 
-func provenanceFinding(n *note, field, value, sourceRule string) Finding {
+func provenanceFinding(n *note, field, value string) Finding {
 	return Finding{
-		RuleID:          "provenance.unresolved",
+		RuleID:          RuleProvenanceUnresolved,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Field:           new(field),
 		Message:         field + " -> " + value + " resolves to nothing",
 		Evidence:        "no note, alias, or unit slug matches the reference",
 		SuggestedAction: "fix the reference, or create the target note",
-		SourceRule:      sourceRule,
+		SourceRule:      sourceYomihon,
 		Target:          new(value),
-		Fingerprint:     fingerprint("provenance.unresolved", n.path, value),
+		Fingerprint:     fingerprint(RuleProvenanceUnresolved, n.path, value),
 	}
 }
 
@@ -448,7 +425,7 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // thought is asked: it is the one note whose reaction is evidence about the
 // words it cites.
 func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthority) []Finding {
-	thought := authority.roles().AnswerType()
+	thought := authority.contract.NavigationRoles().AnswerType()
 	if thought == "" {
 		return nil
 	}
@@ -459,7 +436,7 @@ func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthorit
 			continue
 		}
 		for _, value := range n.basedOn {
-			target, ok := basedOnTarget(value)
+			target, ok := referenceTarget(value)
 			if !ok {
 				continue
 			}
@@ -471,10 +448,11 @@ func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthorit
 	return out
 }
 
-// basedOnTarget is the name a based_on value cites: the words inside its
-// wikilink brackets, or the bare value, with any |display, #heading or ^block
-// taken off the way a body link is read.
-func basedOnTarget(value string) (string, bool) {
+// referenceTarget is the name a frontmatter reference cites: the words inside
+// its wikilink brackets, or the bare value, with any |display, #heading or
+// ^block taken off the way a body link is read. ok is false for a value that
+// strips to nothing.
+func referenceTarget(value string) (string, bool) {
 	v := strings.TrimSpace(value)
 	inner := v
 	if len(v) >= 4 && strings.HasPrefix(v, "[[") && strings.HasSuffix(v, "]]") {
@@ -485,7 +463,7 @@ func basedOnTarget(value string) (string, bool) {
 
 func aliasResolvedFinding(n *note, value, resolved string) Finding {
 	return Finding{
-		RuleID:          "provenance.alias_resolved",
+		RuleID:          RuleProvenanceAliasResolved,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Field:           new("based_on"),
@@ -495,86 +473,85 @@ func aliasResolvedFinding(n *note, value, resolved string) Finding {
 		SourceRule:      sourceYomihon,
 		Target:          new(value),
 		ResolvedTo:      new(resolved),
-		Fingerprint:     fingerprint("provenance.alias_resolved", n.path, value),
+		Fingerprint:     fingerprint(RuleProvenanceAliasResolved, n.path, value),
 	}
 }
 
-// mapDiskMismatch reconciles study-paths against the lessons on disk. Its
-// first direction reports a syllabus link that resolves to nothing; its
-// second reports a lesson of a domain that no study path of that domain
-// lists. Listed is collected across every path of the domain before that
-// second walk, so a lesson another parallel path owns is not unlisted.
-// The second walk emits one finding per such lesson, attached to the first
-// path of the domain in check order — the file the reader opens next to add
-// the lesson. A lesson declared a draft is expected work-in-progress and is
-// not reported at all.
-func mapDiskMismatch(
+// courseDiskMismatch reconciles courses against the units on disk. Its first
+// direction reports a course entry that resolves to nothing; its second
+// reports a unit of a domain that no course of that domain lists. Listed is
+// collected across every course of the domain before that second walk, so a
+// unit another parallel course owns is not unlisted. The second walk emits one
+// finding per such unit, attached to the first course of the domain in check
+// order — the file the reader opens next to add the unit. A unit declared a
+// draft is expected work in progress and is not reported at all.
+func courseDiskMismatch(
 	notes []note,
 	idx *graph.Index,
 	roles schema.NavigationRoles,
-	lessonType string,
+	unitType string,
 ) []Finding {
-	byDomain := lessonsByDomain(notes, lessonType)
+	byDomain := unitsByDomain(notes, unitType)
 	listedByDomain := make(map[string]map[string]bool)
 	var out []Finding
 	for i := range notes {
-		syllabus := &notes[i]
-		if !roles.IsPathType(syllabus.noteType) {
+		course := &notes[i]
+		if !roles.IsPathType(course.noteType) {
 			continue
 		}
-		listed, mismatches := reconcileSyllabus(syllabus, idx)
+		listed, mismatches := reconcileCourse(course, idx)
 		out = append(out, mismatches...)
-		if syllabus.domain == "" {
+		if course.domain == "" {
 			continue
 		}
-		union := listedByDomain[syllabus.domain]
+		union := listedByDomain[course.domain]
 		if union == nil {
-			listedByDomain[syllabus.domain] = listed
+			listedByDomain[course.domain] = listed
 			continue
 		}
 		maps.Copy(union, listed)
 	}
 	seenDomain := make(map[string]bool)
 	for i := range notes {
-		syllabus := &notes[i]
-		if !roles.IsPathType(syllabus.noteType) || syllabus.domain == "" {
+		course := &notes[i]
+		if !roles.IsPathType(course.noteType) || course.domain == "" {
 			continue
 		}
-		if seenDomain[syllabus.domain] {
+		if seenDomain[course.domain] {
 			continue
 		}
-		seenDomain[syllabus.domain] = true
-		out = append(out, unlistedLessons(
-			syllabus,
-			byDomain[syllabus.domain],
-			listedByDomain[syllabus.domain],
+		seenDomain[course.domain] = true
+		out = append(out, unlistedUnits(
+			course,
+			byDomain[course.domain],
+			listedByDomain[course.domain],
 		)...)
 	}
 	return out
 }
 
-// lessonsByDomain groups every lesson note by its domain. A supplementary file
-// without a domain is not a lesson node and self-excludes.
-func lessonsByDomain(notes []note, lessonType string) map[string][]*note {
+// unitsByDomain groups every unit note by its domain. A supplementary file
+// without a domain is not a unit node and self-excludes.
+func unitsByDomain(notes []note, unitType string) map[string][]*note {
 	byDomain := make(map[string][]*note)
 	for i := range notes {
-		if n := &notes[i]; n.noteType == lessonType && n.domain != "" {
+		if n := &notes[i]; n.noteType == unitType && n.domain != "" {
 			byDomain[n.domain] = append(byDomain[n.domain], n)
 		}
 	}
 	return byDomain
 }
 
-// reconcileSyllabus reports one study-path's links that resolve to nothing,
-// and the set of lessons it lists. The unlisted walk waits until every path
-// of the domain has been collected.
-func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Finding) {
+// reconcileCourse reports one course's entries that resolve to nothing, and
+// the set of units it lists. The unlisted walk waits until every course of the
+// domain has been collected.
+func reconcileCourse(course *note, idx *graph.Index) (map[string]bool, []Finding) {
 	var out []Finding
 	listed := make(map[string]bool)
-	lessons := courseLessonLinks(syllabus)
-	for l := range syllabus.wikilinks {
-		link := &syllabus.wikilinks[l]
-		if !lessons[link.offset] {
+	units := courseUnitLinks(course)
+	for l := range course.wikilinks {
+		link := &course.wikilinks[l]
+		if !units[link.offset] {
 			continue
 		}
 		res := idx.Resolve(link.target)
@@ -586,10 +563,10 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 			// suffix several files end with is a name none of them carries, so
 			// no collision reports it and the row lists a note that is missing.
 			if !idx.Claimed(link.target) {
-				out = append(out, syllabusListsMissing(syllabus, link))
+				out = append(out, courseListsMissing(course, link))
 			}
 		case graph.KindUnresolved:
-			out = append(out, syllabusListsMissing(syllabus, link))
+			out = append(out, courseListsMissing(course, link))
 		default:
 			panic("judge: unknown graph.Kind: " + res.Kind.String())
 		}
@@ -597,66 +574,61 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 	return listed, out
 }
 
-// unlistedLessons reports each lesson of the syllabus's domain that no study
-// path of that domain lists and that is not a draft. The listed set is the
-// domain union, already collected. The caller invokes this once per domain,
-// against the first path in check order, so one unlisted lesson is one finding.
-//
-// A lesson the author declared a draft is expected work in progress, so it is
-// not reported until the flag comes off.
-func unlistedLessons(
-	syllabus *note,
-	lessons []*note,
+// unlistedUnits reports each unit of the course's domain that no course of
+// that domain lists and that is not a draft. The listed set is the domain
+// union, already collected. The caller invokes this once per domain, against
+// the first course in check order, so one unlisted unit is one finding.
+func unlistedUnits(
+	course *note,
+	units []*note,
 	listed map[string]bool,
 ) []Finding {
 	var out []Finding
-	for _, lesson := range lessons {
-		if !listed[lesson.path] && !lesson.draft {
-			out = append(out, diskUnlisted(syllabus, lesson))
+	for _, unit := range units {
+		if !listed[unit.path] && !unit.draft {
+			out = append(out, diskUnlisted(course, unit))
 		}
 	}
 	return out
 }
 
-// syllabusListsMissing is a study-path entry that resolves to nothing — a
-// syllabus promising a note that does not exist. It is informational under a
-// planned-gap heading and a warning otherwise.
-func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
+// courseListsMissing is a course entry that resolves to nothing — a course
+// promising a note that does not exist. It is informational under a gap
+// heading and a warning otherwise.
+func courseListsMissing(course *note, link *wikiLink) Finding {
 	severity := SeverityWarn
 	if link.underGapHeading {
 		severity = SeverityInfo
 	}
 	return Finding{
-		RuleID:          "course.disk_mismatch",
+		RuleID:          RuleCourseDiskMismatch,
 		Severity:        severity,
-		Path:            syllabus.path,
+		Path:            course.path,
 		Line:            new(link.line),
 		Message:         "course links [[" + link.target + "]] but it resolves to nothing",
 		Evidence:        "a course entry that resolves to no note on disk",
 		SuggestedAction: "create the note, fix the entry, or mark it a planned gap",
 		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
-		Fingerprint:     fingerprint("course.disk_mismatch", syllabus.path, link.target),
+		Fingerprint:     fingerprint(RuleCourseDiskMismatch, course.path, link.target),
 	}
 }
 
-// diskUnlisted is a lesson on disk, past the status a lesson starts at, that
-// no study path of its domain lists. Writing a lesson before adding it to a
-// syllabus is normal, so it is reported at warning level and nothing here
-// decides more than that: whether a warning stops a run belongs to whoever
-// starts it. Denying warnings, or naming this rule, makes it gate like any
-// other.
-func diskUnlisted(syllabus, lesson *note) Finding {
+// diskUnlisted is a unit on disk, not declared a draft, that no course of its
+// domain lists. Writing a unit before adding it to a course is normal, so it is
+// reported at warning level; whether a warning stops a run belongs to whoever
+// starts it.
+func diskUnlisted(course, unit *note) Finding {
 	return Finding{
-		RuleID:          "course.disk_unlisted",
+		RuleID:          RuleCourseDiskUnlisted,
 		Severity:        SeverityWarn,
-		Path:            lesson.path,
-		Message:         "unit is on disk but not listed in course " + syllabus.path,
+		Path:            unit.path,
+		Message:         "unit is on disk but not listed in course " + course.path,
 		Evidence:        "the unit exists but the course for its domain does not list it",
 		SuggestedAction: "add the unit to the course, or confirm it is intentionally excluded",
 		SourceRule:      sourceYomihon,
-		Target:          new(lesson.path),
-		ResolvedTo:      new(syllabus.path),
-		Fingerprint:     fingerprint("course.disk_unlisted", lesson.path, syllabus.path),
+		Target:          new(unit.path),
+		ResolvedTo:      new(course.path),
+		Fingerprint:     fingerprint(RuleCourseDiskUnlisted, unit.path, course.path),
 	}
 }

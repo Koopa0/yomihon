@@ -1,18 +1,12 @@
 package judge
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
-	"io"
-	"os"
-	"regexp"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The fragment rules must judge a link's "#section" and "#^block" half the
@@ -34,162 +28,98 @@ func fragmentRun(t *testing.T, files map[string]string) []Finding {
 			resources = append(resources, path)
 		}
 	}
-	return fragmentFindings(notes, nil, buildIndex(notes, nil, resources))
+	return newFragmentPaths(notes, nil, buildIndex(notes, nil, resources)).fragmentFindings(notes)
 }
 
-// ruleTargets reduces findings to "rule rule-target" strings, the identity the
-// table tests compare.
-func ruleTargets(findings []Finding) []string {
-	var out []string
-	for i := range findings {
-		out = append(out, string(findings[i].RuleID)+" "+*findings[i].Target)
-	}
-	return out
-}
-
-type blockAddressFinding struct {
-	Rule     RuleID
-	Path     string
-	Target   string
-	Line     int
-	Resolved string
-}
-
-// checkBlockAddressFindings exercises the public scan and retains every link
-// and embed diagnostic, so a failed resolver cannot masquerade as a good block.
-func checkBlockAddressFindings(t *testing.T, files map[string]string) []blockAddressFinding {
+// linkAndEmbed cites address from Notes/Citer.md once as a link and once as a
+// transclusion, beside files, and compares each run's fragment findings with
+// the one rule it should draw, "" for none.
+func linkAndEmbed(t *testing.T, files map[string]string, address, wantLink, wantEmbed string) {
 	t.Helper()
-	root := t.TempDir()
-	for path, body := range files {
-		write(t, root, path, body)
-	}
-	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check(block address vault) error = %v", err)
-	}
-	var got []blockAddressFinding
-	for i := range findings {
-		f := &findings[i]
-		if !strings.HasPrefix(string(f.RuleID), "link.") && !strings.HasPrefix(string(f.RuleID), "embed.") {
-			continue
-		}
-		if f.Target == nil || f.Line == nil {
-			t.Fatalf("Check() link/embed finding lacks target or line: %+v", *f)
-		}
-		resolved := ""
-		if f.ResolvedTo != nil {
-			resolved = *f.ResolvedTo
-		}
-		got = append(got, blockAddressFinding{Rule: f.RuleID, Path: f.Path, Target: *f.Target, Line: *f.Line, Resolved: resolved})
-	}
-	return got
-}
-
-func TestAdjacentNoteReferenceDoesNotDeclareABlock(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name string
-		note bool
-		want []blockAddressFinding
-	}{
-		{
-			name: "known note reference",
-			note: true,
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "same reference with note missing",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 2, Resolved: "Notes/Target.md"},
-				{Rule: "link.broken", Path: "Notes/Target.md", Target: "Note", Line: 1},
-			},
-		},
+	for _, face := range []struct{ cite, want string }{
+		{cite: "[[" + address + "]]\n", want: wantLink},
+		{cite: "![[" + address + "]]\n", want: wantEmbed},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			t.Logf("hit: judge adjacent note case %s", tt.name)
-			files := map[string]string{
-				"Notes/Target.md": "Some text ^ref[[Note]]\n",
-				"Notes/Citer.md":  "[[Target#^ref]]\n![[Target#^ref]]\n",
-			}
-			if tt.note {
-				files["Notes/Note.md"] = "A real note.\n"
-			}
-			got := checkBlockAddressFindings(t, files)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("caught: adjacent note reference lost or invented block accepted by judge: Check() (-want +got):\n%s", diff)
-			}
-		})
+		vault := map[string]string{"Notes/Citer.md": face.cite}
+		maps.Copy(vault, files)
+		var want []string
+		if face.want != "" {
+			want = []string{face.want + " " + address}
+		}
+		if diff := cmp.Diff(want, findingKeys(fragmentRun(t, vault))); diff != "" {
+			t.Errorf("%q fragment findings (-want +got):\n%s", face.cite, diff)
+		}
 	}
 }
 
+// A link's section is judged the way the page resolves it, generously; an
+// embed's the way the page cuts an excerpt, by one exact line scan over the
+// embedded note's own body. The rows show where the two agree and where an
+// embed misses a section a link to the same name reaches.
 func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 	t.Parallel()
 
-	target := "# Top\n" +
-		"## Real Section\n" +
-		"words\n" +
-		"## Twice\n" +
-		"## Twice\n" +
-		"> ## Quoted Heading\n" +
-		"\n" +
-		"Setext Name\n" +
-		"===\n" +
-		"\n" +
-		"## About [[Other|Bar]]\n" +
-		"## がん\n" +
-		"## Result<T> 的取捨\n" +
-		"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n" +
-		"\n" +
-		"```\n" +
-		"# Fenced Words\n" +
-		"```\n" +
-		"\n" +
-		"%%\n" +
-		"## Hidden Heading\n" +
-		"%%\n"
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{name: "a missing section is reported", body: "[[Target#Nowhere]]\n", want: []string{"link.section_missing Target#Nowhere"}},
-		{name: "an existing section is not", body: "[[Target#Real Section]]\n"},
-		{name: "case folds the way the page's ids fold", body: "[[Target#REAL SECTION]]\n"},
-		{name: "punctuation folds the way the page's ids fold", body: "[[Target#real, section!]]\n"},
-		{name: "any one of a repeated heading answers", body: "[[Target#Twice]]\n"},
-		{name: "a heading inside a quote answers", body: "[[Target#Quoted Heading]]\n"},
-		{name: "an underlined heading answers", body: "[[Target#Setext Name]]\n"},
-		{name: "a heading citing a note answers by its display words", body: "[[Target#About Bar]]\n"},
-		{name: "the display words are the name, not the bracket text", body: "[[Target#About Other Bar]]\n", want: []string{"link.section_missing Target#About Other Bar"}},
-		{name: "a heading naming a generic type answers", body: "[[Target#Result<T> 的取捨]]\n"},
-		{name: "a ruby heading named by its rendered text answers", body: "[[Target#讀本 ①　加藤さん]]\n"},
-		{name: "a decomposed spelling reaches a composed heading", body: "[[Target#がん]]\n"},
-		{name: "a heading shape inside a fence stays out of reports", body: "[[Target#Fenced Words]]\n"},
-		{name: "a heading hidden in a comment is not on the page", body: "[[Target#Hidden Heading]]\n", want: []string{"link.section_missing Target#Hidden Heading"}},
+	const linkMiss, embedMiss = "link.section_missing", "embed.section_missing"
+	files := map[string]string{
+		"Notes/Other.md": "other\n",
+		"Notes/Target.md": "# Top\n" +
+			"## Real Section\n" +
+			"words\n" +
+			"## Twice\n" +
+			"## Twice\n" +
+			"> ## Quoted Heading\n" +
+			"\n" +
+			"- ## Listed Heading\n" +
+			"\n" +
+			"Setext Name\n" +
+			"===\n" +
+			"\n" +
+			"## About [[Other|Bar]]\n" +
+			"## がん\n" +
+			"## Result<T> 的取捨\n" +
+			"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n" +
+			"\n" +
+			"```\n" +
+			"# Fenced Words\n" +
+			"```\n" +
+			"\n" +
+			"<div>\n" +
+			"# Blocked Words\n" +
+			"</div>\n" +
+			"\n" +
+			"%%\n" +
+			"## Hidden Heading\n" +
+			"%%\n",
 	}
-	for _, tt := range tests {
+	for _, tt := range []struct {
+		name, address string
+		link, embed   string
+	}{
+		{name: "a missing section is reported", address: "Target#Nowhere", link: linkMiss, embed: embedMiss},
+		{name: "an existing section is not", address: "Target#Real Section"},
+		{name: "case folds the way the page's ids fold", address: "Target#REAL SECTION"},
+		{name: "punctuation folds the way the page's ids fold", address: "Target#real, section!"},
+		{name: "any one of a repeated heading answers", address: "Target#Twice"},
+		{name: "a heading inside a quote answers a link but is not cut to", address: "Target#Quoted Heading", embed: embedMiss},
+		{name: "a heading inside a list item answers a link but is not cut to", address: "Target#Listed Heading", embed: embedMiss},
+		{name: "an underlined heading answers", address: "Target#Setext Name"},
+		{name: "a heading citing a note answers by its display words", address: "Target#About Bar"},
+		{name: "the display words are the name, not the bracket text", address: "Target#About Other Bar", link: linkMiss, embed: embedMiss},
+		{name: "a heading naming a generic type answers", address: "Target#Result<T> 的取捨"},
+		{name: "a ruby heading named by its rendered text answers", address: "Target#讀本 ①　加藤さん"},
+		{name: "a decomposed spelling reaches a composed heading", address: "Target#がん"},
+		{name: "a heading shape inside a fence stays out of link reports and is code to an excerpt", address: "Target#Fenced Words", embed: embedMiss},
+		{name: "a heading shape inside an authored html block is text to an excerpt", address: "Target#Blocked Words", embed: embedMiss},
+		{name: "a heading hidden in a comment is not on the page", address: "Target#Hidden Heading", link: linkMiss, embed: embedMiss},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
-				"Notes/Target.md": target,
-				"Notes/Other.md":  "other\n",
-				"Notes/Citer.md":  tt.body,
-			}))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
+			linkAndEmbed(t, files, tt.address, tt.link, tt.embed)
 		})
 	}
 }
 
-// A study path declares each branch's part in the course order at the end of
+// A course declares each branch's part in the course order at the end of
 // the heading that opens it, and the reading page takes the declaration off
 // before stamping the section's id. This face answers about that same page, so
 // a citation naming a branch by the name a reader sees reaches it, and one
@@ -251,7 +181,7 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
+			got := findingKeys(fragmentRun(t, map[string]string{
 				"Notes/Target.md": target,
 				"Notes/Citer.md":  tt.body,
 			}))
@@ -265,114 +195,78 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 func TestFragmentBlockMatchingMirrorsTheReadingPage(t *testing.T) {
 	t.Parallel()
 
-	target := "## Real Section\n" +
-		"\n" +
-		"some words ^blk1\n" +
-		"\n" +
-		"| cell | row | ^tabled\n" +
-		"\n" +
-		"```\n" +
-		"code ^fenced\n" +
-		"```\n" +
-		"\n" +
-		"> quoted words ^quoted\n" +
-		"\n" +
-		// Two stray backticks with a heading between them are two blocks, not
-		// one span, so the ordinary paragraph in the middle keeps its address
-		// here exactly as it keeps its anchor on the page.
-		"Before `\n" +
-		"## Heading\n" +
-		"a paragraph ^crossblock\n" +
-		"## Other\n" +
-		"After `\n"
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{name: "a missing block is reported", body: "[[Target#^ghost]]\n", want: []string{"link.block_missing Target#^ghost"}},
-		{name: "an address between two blocks holding stray backticks answers", body: "[[Target#^crossblock]]\n"},
-		{name: "an existing address is not", body: "[[Target#^blk1]]\n"},
-		{name: "the bare caret spelling reads the same address", body: "[[Target^blk1]]\n"},
-		{name: "the address folds case like every fragment", body: "[[Target#^BLK1]]\n"},
-		{name: "an address at the end of a quoted line answers", body: "[[Target#^quoted]]\n"},
-		{name: "an address on a table row is not an anchor", body: "[[Target#^tabled]]\n", want: []string{"link.block_missing Target#^tabled"}},
-		{name: "an address inside a fence is code", body: "[[Target#^fenced]]\n", want: []string{"link.block_missing Target#^fenced"}},
-		{name: "a block beats a section when both are written", body: "[[Target^ghost2#Real Section]]\n", want: []string{"link.block_missing Target^ghost2#Real Section"}},
+	const linkMiss, embedMiss = "link.block_missing", "embed.block_missing"
+	files := map[string]string{
+		"Notes/Target.md": "## Real Section\n" +
+			"\n" +
+			"some words ^blk1\n" +
+			"\n" +
+			"| cell | row | ^tabled\n" +
+			"\n" +
+			"```\n" +
+			"code ^fenced\n" +
+			"```\n" +
+			"\n" +
+			"> quoted words ^quoted\n" +
+			"\n" +
+			// Two stray backticks with a heading between them are two blocks,
+			// not one span, so the paragraph in the middle keeps its address.
+			"Before `\n" +
+			"## Heading\n" +
+			"a paragraph ^crossblock\n" +
+			"## Other\n" +
+			"After `\n",
 	}
-	for _, tt := range tests {
+	for _, tt := range []struct {
+		name, address string
+		link, embed   string
+	}{
+		{name: "a missing block is reported", address: "Target#^ghost", link: linkMiss, embed: embedMiss},
+		{name: "an address between two blocks holding stray backticks answers", address: "Target#^crossblock"},
+		{name: "an existing address is not", address: "Target#^blk1"},
+		{name: "the bare caret spelling reads the same address", address: "Target^blk1"},
+		{name: "the address folds case like every fragment", address: "Target#^BLK1"},
+		{name: "an address at the end of a quoted line answers", address: "Target#^quoted"},
+		{name: "an address on a table row is not an anchor", address: "Target#^tabled", link: linkMiss, embed: embedMiss},
+		{name: "an address inside a fence is code", address: "Target#^fenced", link: linkMiss, embed: embedMiss},
+		{name: "a block beats a section when both are written", address: "Target^ghost2#Real Section", link: linkMiss, embed: embedMiss},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
-				"Notes/Target.md": target,
-				"Notes/Citer.md":  tt.body,
-			}))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
+			linkAndEmbed(t, files, tt.address, tt.link, tt.embed)
 		})
 	}
 }
 
-func TestFragmentRulesJudgeOnlyUniquelyResolvedNoteLinks(t *testing.T) {
+func TestFragmentRulesJudgeOnlyUniquelyResolvedNotes(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		files map[string]string
-		want  []string
+	for _, tt := range []struct {
+		name        string
+		files       map[string]string
+		address     string
+		link, embed string
 	}{
+		{name: "a broken name is the broken-link rule's alone", address: "Ghost#Section"},
 		{
-			name: "a broken name is the broken-link rule's alone",
-			files: map[string]string{
-				"Notes/Citer.md": "[[Ghost#Section]]\n",
-			},
+			name:    "an ambiguous name is the collision rules' alone",
+			files:   map[string]string{"Notes/Dup.md": "a\n", "Other/Dup.md": "b\n"},
+			address: "Dup#Section",
 		},
+		{name: "a picture has no sections", files: map[string]string{"Notes/shot.png": ""}, address: "shot.png#Section"},
+		{name: "a same-file fragment is never resolved at all", address: "#Nowhere"},
+		{name: "a whole note names no fragment", files: map[string]string{"Notes/Target.md": "words\n"}, address: "Target"},
 		{
-			name: "an ambiguous name is the collision rules' alone",
-			files: map[string]string{
-				"Notes/Citer.md": "[[Dup#Section]]\n",
-				"Notes/Dup.md":   "a\n",
-				"Other/Dup.md":   "b\n",
-			},
+			name:    "a fragment on a resolved note reports under its own rule",
+			files:   map[string]string{"Notes/Target.md": "words\n"},
+			address: "Target#Nowhere",
+			link:    "link.section_missing",
+			embed:   "embed.section_missing",
 		},
-		{
-			name: "a picture has no sections",
-			files: map[string]string{
-				"Notes/Citer.md": "[[shot.png#Section]]\n",
-				"Notes/shot.png": "",
-			},
-		},
-		{
-			name: "a same-file fragment is never resolved at all",
-			files: map[string]string{
-				"Notes/Citer.md": "[[#Nowhere]]\n",
-			},
-		},
-		{
-			name: "a transclusion's fragment is the embed rules' own",
-			files: map[string]string{
-				"Notes/Citer.md":  "![[Target#Nowhere]]\n",
-				"Notes/Target.md": "words\n",
-			},
-			want: []string{"embed.section_missing Target#Nowhere"},
-		},
-		{
-			name: "a fragment on a plain link still reports beside those",
-			files: map[string]string{
-				"Notes/Citer.md":  "[[Target#Nowhere]]\n",
-				"Notes/Target.md": "words\n",
-			},
-			want: []string{"link.section_missing Target#Nowhere"},
-		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ruleTargets(fragmentRun(t, tt.files))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
+			linkAndEmbed(t, tt.files, tt.address, tt.link, tt.embed)
 		})
 	}
 }
@@ -386,7 +280,7 @@ func TestATranscludedNoteAnswersForItsHostsSections(t *testing.T) {
 		"Notes/Inner.md":  "## Inner Heading\n![[Deeper]]\n",
 		"Notes/Deeper.md": "## Deeper Heading\n",
 	}
-	got := ruleTargets(fragmentRun(t, files))
+	got := findingKeys(fragmentRun(t, files))
 	// The page expands one level, so Inner's headings are on Host's page and
 	// Deeper's are not: a citation into the first stays quiet and a citation
 	// into the second is a real miss.
@@ -396,84 +290,30 @@ func TestATranscludedNoteAnswersForItsHostsSections(t *testing.T) {
 	}
 }
 
-func TestFragmentFindingCarriesTheWireShape(t *testing.T) {
+// TestFragmentFindingsNameTheAddressUnderTheirOwnRule holds what a fragment
+// finding owes the wire beyond its golden: the target is the written address
+// without the display words, and a link and a transclusion of one address
+// carry different fingerprints, so a baseline that subtracts one keeps the
+// other.
+func TestFragmentFindingsNameTheAddressUnderTheirOwnRule(t *testing.T) {
 	t.Parallel()
 
-	files := map[string]string{
-		"Notes/Citer.md":  "intro\n\n[[Target#Nowhere|shown words]]\n[[Target#^ghost]]\n",
+	findings := fragmentRun(t, map[string]string{
+		"Notes/Citer.md":  "[[Target#Nowhere|shown words]]\n![[Target#Nowhere|shown words]]\n",
 		"Notes/Target.md": "words\n",
+	})
+	want := []string{"link.section_missing Target#Nowhere", "embed.section_missing Target#Nowhere"}
+	if diff := cmp.Diff(want, findingKeys(findings)); diff != "" {
+		t.Fatalf("fragment findings (-want +got):\n%s", diff)
 	}
-	findings := fragmentRun(t, files)
-	if len(findings) != 2 {
-		t.Fatalf("findings = %d, want 2:\n%+v", len(findings), findings)
-	}
-	for _, f := range findings {
-		if f.Severity != SeverityWarn {
-			t.Errorf("%s Severity = %v, want SeverityWarn", f.RuleID, f.Severity)
-		}
-		if f.SourceRule != sourceYomihon {
-			t.Errorf("%s SourceRule = %q, want %q", f.RuleID, f.SourceRule, sourceYomihon)
-		}
-		if f.Path != "Notes/Citer.md" {
-			t.Errorf("%s Path = %q, want the citing note", f.RuleID, f.Path)
-		}
-		if f.ResolvedTo == nil || *f.ResolvedTo != "Notes/Target.md" {
-			t.Errorf("%s ResolvedTo = %v, want the resolved note", f.RuleID, f.ResolvedTo)
-		}
-		if f.Line == nil {
-			t.Errorf("%s Line is nil, want the link's line", f.RuleID)
-		}
-		if f.Evidence == "" || f.SuggestedAction == "" || f.Message == "" {
-			t.Errorf("%s is missing prose: %+v", f.RuleID, f)
-		}
-		if !strings.HasPrefix(f.Fingerprint, "v1:") {
-			t.Errorf("%s Fingerprint = %q, want a versioned value", f.RuleID, f.Fingerprint)
-		}
-	}
-	section, block := findings[0], findings[1]
-	if section.RuleID != "link.section_missing" || *section.Target != "Target#Nowhere" {
-		t.Errorf("section finding = %s %q, want link.section_missing on the address without the display alias", section.RuleID, *section.Target)
-	}
-	if *section.Line != 3 {
-		t.Errorf("section Line = %d, want 3", *section.Line)
-	}
-	if block.RuleID != "link.block_missing" || *block.Target != "Target#^ghost" {
-		t.Errorf("block finding = %s %q, want link.block_missing on the written address", block.RuleID, *block.Target)
-	}
-	if section.Fingerprint == block.Fingerprint {
-		t.Error("the two findings share a fingerprint; the address must separate them")
+	if findings[0].Fingerprint == findings[1].Fingerprint {
+		t.Errorf("the link and embed findings for one address share fingerprint %q", findings[0].Fingerprint)
 	}
 }
 
-// TestRunCheckDeniesFragmentRules proves the new rules gate end to end: a
-// deny token naming either one turns the fixture's findings into exit 1, so
-// an operator who asks for the gate really gets it.
-func TestRunCheckDeniesFragmentRules(t *testing.T) {
-	t.Parallel()
-
-	for _, ruleID := range []string{"link.section_missing", "link.block_missing", "embed.section_missing", "embed.block_missing"} {
-		t.Run(ruleID, func(t *testing.T) {
-			t.Parallel()
-
-			root := judgeFixtureRoot(t, "testdata/vault-fragments")
-			_, exit, err := checkBytes(t.Context(), &CheckOptions{
-				Root:   root,
-				Format: FormatJSON,
-				Deny:   []string{ruleID},
-			})
-			if err != nil {
-				t.Fatalf("RunCheck(--deny %q) error = %v", ruleID, err)
-			}
-			if exit != 1 {
-				t.Errorf("RunCheck(--deny %q) exit = %d, want 1", ruleID, exit)
-			}
-		})
-	}
-}
-
-// An anchor copied from the rendered heading must resolve through the public
-// check composition. A real missing section keeps both its record and deny exit.
-func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
+// An anchor copied from the rendered heading reaches that heading, as a link
+// and as an excerpt.
+func TestHeadingAttributeFragments(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -487,296 +327,32 @@ func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
 		{name: "wikilink alias prefix", body: "## [[Other|日本]] <u title=\"<\">a</u>\n", address: "日本-u-title-a"},
 		{name: "multiline setext", body: "Setext <u title=\"<\">a</u>\nsecond line\n===\n", address: "setext-u-title-a-second-line"},
 	} {
-		for _, kind := range []struct{ name, prefix string }{{name: "link"}, {name: "embed", prefix: "!"}} {
-			t.Run(tt.name+"/"+kind.name, func(t *testing.T) {
-				t.Parallel()
-				root := t.TempDir()
-				write(t, root, "Concepts/golang/Target.md", tt.body+"\nINSIDE\n")
-				write(t, root, "Concepts/golang/Other.md", "Other words.\n")
-				write(t, root, "Concepts/golang/Citer.md", kind.prefix+"[[Target#"+tt.address+"]]\n")
-				writeTestContract(t, root, nil)
-				findings, exit := headingAttributeCheck(t, root)
-				if diff := cmp.Diff(0, exit); diff != "" {
-					t.Errorf("caught: heading attribute check exit (-want +got):\n%s", diff)
-				}
-				if diff := cmp.Diff([]Finding(nil), findings); diff != "" {
-					t.Errorf("caught: heading attribute check records (-want +got):\n%s", diff)
-				}
-			})
-		}
-	}
-
-	for _, tt := range []struct {
-		name, body string
-		want       Finding
-	}{
-		{
-			name: "missing link",
-			body: "[[Target#Missing Section]]\n",
-			want: Finding{
-				RuleID:          "link.section_missing",
-				Severity:        SeverityWarn,
-				Path:            "Concepts/golang/Citer.md",
-				Line:            new(1),
-				Message:         "[[Target#Missing Section]] resolves, but no heading matches \"Missing Section\"",
-				Evidence:        "the note exists and none of its headings answers the section name",
-				SuggestedAction: "fix the section name after #, or add the heading to the target note",
-				SourceRule:      "yomihon",
-				Target:          new("Target#Missing Section"),
-				ResolvedTo:      new("Concepts/golang/Target.md"),
-				Fingerprint:     "v1:74cee29c287e6a4e",
-			},
-		},
-		{
-			name: "missing embed",
-			body: "![[Target#Missing Section]]\n",
-			want: Finding{
-				RuleID:          "embed.section_missing",
-				Severity:        SeverityWarn,
-				Path:            "Concepts/golang/Citer.md",
-				Line:            new(1),
-				Message:         "![[Target#Missing Section]] resolves, but no heading matches \"Missing Section\"",
-				Evidence:        "the note exists and none of its headings answers the section name, so there is no excerpt to cut",
-				SuggestedAction: "fix the section name after #, or add the heading to the embedded note",
-				SourceRule:      "yomihon",
-				Target:          new("Target#Missing Section"),
-				ResolvedTo:      new("Concepts/golang/Target.md"),
-				Fingerprint:     "v1:1c7a8f34aaaaddcb",
-			},
-		},
-	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := t.TempDir()
-			write(t, root, "Concepts/golang/Target.md", "## <u title=\"<\">a</u>\n\nINSIDE\n")
-			write(t, root, "Concepts/golang/Citer.md", tt.body)
-			writeTestContract(t, root, nil)
-			findings, exit := headingAttributeCheck(t, root)
-			if diff := cmp.Diff(1, exit); diff != "" {
-				t.Errorf("caught: heading attribute check deny exit (-want +got):\n%s", diff)
-			}
-			if diff := cmp.Diff([]Finding{tt.want}, findings); diff != "" {
-				t.Errorf("caught: heading attribute check deny records (-want +got):\n%s", diff)
-			}
+			linkAndEmbed(t, map[string]string{
+				"Notes/Target.md": tt.body + "\nINSIDE\n",
+				"Notes/Other.md":  "Other words.\n",
+			}, "Target#"+tt.address, "", "")
 		})
 	}
 }
 
-func headingAttributeCheck(t *testing.T, root string) (findings []Finding, exit int) {
-	t.Helper()
-	stdout, exit, err := checkBytes(t.Context(), &CheckOptions{
-		Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing"},
-	})
+// TestHeadingAttributeFragmentsRunCheck holds the same through the check
+// command: the copied anchor is quiet and a missing section is still reported.
+func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "Concepts/golang/Target.md", "## <u title=\"<\">a</u>\n\nINSIDE\n")
+	write(t, root, "Concepts/golang/Citer.md", "[[Target#u-title-a]]\n![[Target#u-title-a]]\n[[Target#Missing Section]]\n![[Target#Missing Section]]\n")
+	writeTestContract(t, root, nil)
+	out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
-		t.Fatalf("RunCheck heading attributes: %v", err)
+		t.Fatalf("RunCheck() error = %v", err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(stdout))
-	for {
-		var record struct {
-			Finding
-
-			Severity string `json:"severity"`
-		}
-		if err := decoder.Decode(&record); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			t.Fatalf("decode RunCheck heading attributes: %v", err)
-		}
-		finding := record.Finding
-		switch record.Severity {
-		case "info":
-			finding.Severity = SeverityInfo
-		case "warn":
-			finding.Severity = SeverityWarn
-		case "error":
-			finding.Severity = SeverityError
-		default:
-			t.Fatalf("decode RunCheck heading attributes severity %q", record.Severity)
-		}
-		if finding.RuleID == "link.section_missing" || finding.RuleID == "embed.section_missing" {
-			findings = append(findings, finding)
-		}
-	}
-	t.Log("producer-hit: heading attribute public check composition")
-	return findings, exit
-}
-
-// The embed rules judge a transclusion's fragment the way the reading page
-// cuts an excerpt to it, which is a stricter reading than a link's: one exact
-// line scan over the embedded note's own body, no generous second look, and no
-// heading arriving through a further transclusion. The cases below pin where
-// that reading agrees with the link rules and, more importantly, where it does
-// not — an embed can miss a section a link to the same name would reach.
-
-func TestEmbedSectionMatchingMirrorsTheExcerptScan(t *testing.T) {
-	t.Parallel()
-
-	target := "# Top\n" +
-		"## Real Section\n" +
-		"words\n" +
-		"## Twice\n" +
-		"## Twice\n" +
-		"> ## Quoted Heading\n" +
-		"\n" +
-		"- ## Listed Heading\n" +
-		"\n" +
-		"Setext Name\n" +
-		"===\n" +
-		"\n" +
-		"## About [[Other|Bar]]\n" +
-		"## がん\n" +
-		"## Result<T> 的取捨\n" +
-		"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n" +
-		"\n" +
-		"```\n" +
-		"# Fenced Words\n" +
-		"```\n" +
-		"\n" +
-		"<div>\n" +
-		"# Blocked Words\n" +
-		"</div>\n" +
-		"\n" +
-		"%%\n" +
-		"## Hidden Heading\n" +
-		"%%\n"
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{name: "a missing section is reported", body: "![[Target#Nowhere]]\n", want: []string{"embed.section_missing Target#Nowhere"}},
-		{name: "an existing section is not", body: "![[Target#Real Section]]\n"},
-		{name: "case folds the way the excerpt scan folds", body: "![[Target#REAL SECTION]]\n"},
-		{name: "punctuation folds the way the excerpt scan folds", body: "![[Target#real, section!]]\n"},
-		{name: "a repeated heading is shown, not missing", body: "![[Target#Twice]]\n"},
-		{name: "a heading inside a quote is not cut to", body: "![[Target#Quoted Heading]]\n", want: []string{"embed.section_missing Target#Quoted Heading"}},
-		{name: "a heading inside a list item is not cut to", body: "![[Target#Listed Heading]]\n", want: []string{"embed.section_missing Target#Listed Heading"}},
-		{name: "an underlined heading answers", body: "![[Target#Setext Name]]\n"},
-		{name: "a heading citing a note answers by its display words", body: "![[Target#About Bar]]\n"},
-		{name: "the display words are the name, not the bracket text", body: "![[Target#About Other Bar]]\n", want: []string{"embed.section_missing Target#About Other Bar"}},
-		{name: "a heading naming a generic type answers", body: "![[Target#Result<T> 的取捨]]\n"},
-		{name: "a ruby heading named by its rendered text answers", body: "![[Target#讀本 ①　加藤さん]]\n"},
-		{name: "a decomposed spelling reaches a composed heading", body: "![[Target#がん]]\n"},
-		{name: "a heading shape inside a fence is code", body: "![[Target#Fenced Words]]\n", want: []string{"embed.section_missing Target#Fenced Words"}},
-		{name: "a heading shape inside an authored html block is text", body: "![[Target#Blocked Words]]\n", want: []string{"embed.section_missing Target#Blocked Words"}},
-		{name: "a heading hidden in a comment is not on the page", body: "![[Target#Hidden Heading]]\n", want: []string{"embed.section_missing Target#Hidden Heading"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
-				"Notes/Target.md": target,
-				"Notes/Other.md":  "other\n",
-				"Notes/Citer.md":  tt.body,
-			}))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestEmbedBlockMatchingMirrorsTheExcerptScan(t *testing.T) {
-	t.Parallel()
-
-	target := "## Real Section\n" +
-		"\n" +
-		"some words ^blk1\n" +
-		"\n" +
-		"| cell | row | ^tabled\n" +
-		"\n" +
-		"```\n" +
-		"code ^fenced\n" +
-		"```\n" +
-		"\n" +
-		"> quoted words ^quoted\n"
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{name: "a missing block is reported", body: "![[Target#^ghost]]\n", want: []string{"embed.block_missing Target#^ghost"}},
-		{name: "an existing address is not", body: "![[Target#^blk1]]\n"},
-		{name: "the bare caret spelling reads the same address", body: "![[Target^blk1]]\n"},
-		{name: "the address folds case like every fragment", body: "![[Target#^BLK1]]\n"},
-		{name: "an address at the end of a quoted line answers", body: "![[Target#^quoted]]\n"},
-		{name: "an address on a table row is not an anchor", body: "![[Target#^tabled]]\n", want: []string{"embed.block_missing Target#^tabled"}},
-		{name: "an address inside a fence is code", body: "![[Target#^fenced]]\n", want: []string{"embed.block_missing Target#^fenced"}},
-		{name: "a block beats a section when both are written", body: "![[Target^ghost2#Real Section]]\n", want: []string{"embed.block_missing Target^ghost2#Real Section"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
-				"Notes/Target.md": target,
-				"Notes/Citer.md":  tt.body,
-			}))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestEmbedRulesJudgeOnlyUniquelyResolvedNoteEmbeds(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		files map[string]string
-		want  []string
-	}{
-		{
-			name: "a broken name is the broken-link rule's alone",
-			files: map[string]string{
-				"Notes/Citer.md": "![[Ghost#Section]]\n![[Ghost#^blk]]\n",
-			},
-		},
-		{
-			name: "an ambiguous name is the collision rules' alone",
-			files: map[string]string{
-				"Notes/Citer.md": "![[Dup#Section]]\n",
-				"Notes/Dup.md":   "a\n",
-				"Other/Dup.md":   "b\n",
-			},
-		},
-		{
-			name: "a picture has no sections",
-			files: map[string]string{
-				"Notes/Citer.md": "![[shot.png#Section]]\n",
-				"Notes/shot.png": "",
-			},
-		},
-		{
-			name: "a same-file embed is never resolved at all",
-			files: map[string]string{
-				"Notes/Citer.md": "![[#Nowhere]]\n",
-			},
-		},
-		{
-			name: "a whole-note transclusion names no fragment",
-			files: map[string]string{
-				"Notes/Citer.md":  "![[Target]]\n",
-				"Notes/Target.md": "words\n",
-			},
-		},
-		{
-			name: "a fragment on a transclusion reports beside those",
-			files: map[string]string{
-				"Notes/Citer.md":  "![[Target#Nowhere]]\n![[Target#^ghost]]\n",
-				"Notes/Target.md": "words\n",
-			},
-			want: []string{"embed.section_missing Target#Nowhere", "embed.block_missing Target#^ghost"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := ruleTargets(fragmentRun(t, tt.files))
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-			}
-		})
+	want := []string{"link.section_missing Target#Missing Section", "embed.section_missing Target#Missing Section"}
+	if diff := cmp.Diff(want, findingKeys(decodeFindings(t, out))); diff != "" {
+		t.Errorf("RunCheck() findings (-want +got):\n%s", diff)
 	}
 }
 
@@ -793,68 +369,10 @@ func TestATransclusionDoesNotAnswerForWhatItsHostEmbeds(t *testing.T) {
 		"Notes/Host.md":  "![[Inner]]\n",
 		"Notes/Inner.md": "## Inner Heading\n",
 	}
-	got := ruleTargets(fragmentRun(t, files))
+	got := findingKeys(fragmentRun(t, files))
 	want := []string{"embed.section_missing Host#Inner Heading"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestEmbedFindingCarriesTheWireShape(t *testing.T) {
-	t.Parallel()
-
-	files := map[string]string{
-		"Notes/Citer.md":  "intro\n\n![[Target#Nowhere|shown words]]\n![[Target#^ghost]]\n[[Target#Nowhere]]\n",
-		"Notes/Target.md": "words\n",
-	}
-	findings := fragmentRun(t, files)
-	if len(findings) != 3 {
-		t.Fatalf("findings = %d, want 3:\n%+v", len(findings), findings)
-	}
-	section, block, asLink := findings[0], findings[1], findings[2]
-	for _, f := range []Finding{section, block} {
-		if f.Severity != SeverityWarn {
-			t.Errorf("%s Severity = %v, want SeverityWarn", f.RuleID, f.Severity)
-		}
-		if f.SourceRule != sourceYomihon {
-			t.Errorf("%s SourceRule = %q, want %q", f.RuleID, f.SourceRule, sourceYomihon)
-		}
-		if f.Path != "Notes/Citer.md" {
-			t.Errorf("%s Path = %q, want the citing note", f.RuleID, f.Path)
-		}
-		if f.ResolvedTo == nil || *f.ResolvedTo != "Notes/Target.md" {
-			t.Errorf("%s ResolvedTo = %v, want the resolved note", f.RuleID, f.ResolvedTo)
-		}
-		if f.Line == nil {
-			t.Errorf("%s Line is nil, want the embed's line", f.RuleID)
-		}
-		if f.Evidence == "" || f.SuggestedAction == "" || f.Message == "" {
-			t.Errorf("%s is missing prose: %+v", f.RuleID, f)
-		}
-		if !strings.HasPrefix(f.Fingerprint, "v1:") {
-			t.Errorf("%s Fingerprint = %q, want a versioned value", f.RuleID, f.Fingerprint)
-		}
-	}
-	if section.RuleID != "embed.section_missing" || *section.Target != "Target#Nowhere" {
-		t.Errorf("section finding = %s %q, want embed.section_missing on the address without the display alias", section.RuleID, *section.Target)
-	}
-	if *section.Line != 3 {
-		t.Errorf("section Line = %d, want 3", *section.Line)
-	}
-	if block.RuleID != "embed.block_missing" || *block.Target != "Target#^ghost" {
-		t.Errorf("block finding = %s %q, want embed.block_missing on the written address", block.RuleID, *block.Target)
-	}
-	if section.Fingerprint == block.Fingerprint {
-		t.Error("the two embed findings share a fingerprint; the address must separate them")
-	}
-	// The same address written as a link and as a transclusion is two
-	// findings under two rules, and a baseline that subtracts one must not
-	// subtract the other.
-	if asLink.RuleID != "link.section_missing" {
-		t.Fatalf("third finding = %s, want the link rule for the same address", asLink.RuleID)
-	}
-	if section.Fingerprint == asLink.Fingerprint {
-		t.Error("the embed and link findings for one address share a fingerprint; the rule must separate them")
 	}
 }
 
@@ -872,48 +390,6 @@ func TestExtractKeepsTheFragmentBesideTheTarget(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, links, cmp.AllowUnexported(wikiLink{})); diff != "" {
 		t.Errorf("extractWikilinks mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// atxHeadingLiteral is the heading pattern the shared scanner compiles. It is
-// written here so this test pins the owner file against a copy that is not
-// that file: comparing the compiled value to the MustCompile it came from
-// cannot fail, because both sides are one declaration.
-const atxHeadingLiteral = `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`
-
-// The generous line scan reads a heading through graph.ATXHeading. This
-// watches the three call sites still name that identifier, keeps the owner
-// file's declaration as one MustCompile literal, and pins that pattern to
-// atxHeadingLiteral, so an in-place edit of the owner file fails here and a
-// face that stops calling the shared scanner fails here too.
-func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
-	t.Parallel()
-
-	for _, path := range []string{"fragment.go", "../render/section.go", "../render/wikilink.go"} {
-		source, err := os.ReadFile(path) // #nosec G304 -- a fixed source path from this table
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", path, err)
-		}
-		if !bytes.Contains(source, []byte("graph.ATXHeading")) {
-			t.Errorf("%s no longer reads a heading through graph.ATXHeading", path)
-		}
-	}
-
-	const path = "../graph/linescan.go"
-	source, err := os.ReadFile(path) // #nosec G304 -- the owner file this lock reads, not operator input
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
-	}
-	declaration := regexp.MustCompile("(?m)^\tATXHeading = regexp\\.MustCompile\\(`([^`]*)`\\)$")
-	m := declaration.FindSubmatch(source)
-	if m == nil {
-		t.Fatalf("%s no longer declares ATXHeading as one literal, so this test compares nothing", path)
-	}
-	if got, want := string(m[1]), atxHeadingLiteral; got != want {
-		t.Errorf("%s reads a heading with %q; this lock holds %q", path, got, want)
-	}
-	if got, want := graph.ATXHeading.String(), atxHeadingLiteral; got != want {
-		t.Errorf("this face reads a heading with %q; this lock holds %q", got, want)
 	}
 }
 
@@ -969,7 +445,7 @@ func TestFragmentSectionAcceptsTheGitHubSpellingThePageFollows(t *testing.T) {
 		"Citer.md":  "[[Target#whats-new]]\n[[Target#intro-1]]\n[[Target#intro-3]]\n[[Target#nothing-here]]\n",
 	})
 	want := []string{"link.section_missing Target#nothing-here"}
-	if diff := cmp.Diff(want, ruleTargets(got)); diff != "" {
+	if diff := cmp.Diff(want, findingKeys(got)); diff != "" {
 		t.Errorf("fragment findings (-want +got):\n%s", diff)
 	}
 }
@@ -982,7 +458,7 @@ func TestBracketsInANameMakeNoLinkForTheCheckEither(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "Notes/Citer.md", "pairs [[1,2],[1,100]]\n")
 	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1003,11 +479,75 @@ func TestAHeadingCarryingABlockAddressHasOneIdOnBothFaces(t *testing.T) {
 		"T.md": "# T\n\n## Sub heading ^sub-one\n\ntext\n",
 		"S.md": "[[T#Sub heading]]\n\n[[T#Sub heading ^sub-one]]\n\n[[T#^sub-one]]\n",
 	}
-	got := ruleTargets(fragmentRun(t, files))
+	got := findingKeys(fragmentRun(t, files))
 	// The words alone name the heading, as the page's own id does; the words
 	// with the address after them name nothing on either face. The address
 	// itself still names a block.
 	if len(got) != 1 || !strings.Contains(got[0], "Sub heading ^sub-one") {
 		t.Errorf("findings = %v, want only the link that spells the address into the heading's words", got)
+	}
+}
+
+func TestFragmentMarksRemainDistinct(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ name, heading, missing string }{
+		{"Hindi spacing mark", "की", "कि"},
+		{"Thai nonspacing mark", "ปู่", "ปู"},
+		{"Kana combining mark", "か゚", "か"},
+		{"supplementary variation selector", "葛\U000e0100城", "葛城"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			files := map[string]string{"Notes/Target.md": "## " + tt.heading + "\n\nPassage.\n"}
+			linkAndEmbed(t, files, "Target#"+tt.heading, "", "")
+			linkAndEmbed(t, files, "Target#"+tt.missing, "link.section_missing", "embed.section_missing")
+		})
+	}
+}
+
+// TestFragmentNormalizationRunCheck holds through the check command that a
+// fragment is matched in its canonical form, with a link read generously and
+// an excerpt exactly.
+func TestFragmentNormalizationRunCheck(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, target, citer string
+		want                []string
+	}{
+		{name: "canonical heading and block", target: "## Y̊\n\nPASSAGE\n\nQuote. ^QUOTE-1\n", citer: "[[N#ẙ]]\n![[N#ẙ]]\n[[N#ẙ]]\n![[N#ẙ]]\n[[N#^quote-1]]\n![[N#^quote-1]]\n"},
+		{name: "canonical heading path", target: "## Y̊\n### Y̊\nPASSAGE\n", citer: "[[N#ẙ#ẙ]]\n![[N#ẙ#ẙ]]\n"},
+		{name: "generous link and exact embed", target: "```\n## Y̊\n```\n", citer: "[[N#ẙ]]\n![[N#ẙ]]\n", want: []string{"embed.section_missing N#ẙ"}},
+		{name: "missing sections and blocks", target: "## Y̊\n\nQuote. ^QUOTE-1\n", citer: "[[N#Absent]]\n![[N#Absent]]\n[[N#^quote1]]\n![[N#^quote1]]\n", want: []string{"embed.block_missing N#^quote1", "embed.section_missing N#Absent", "link.block_missing N#^quote1", "link.section_missing N#Absent"}},
+		{name: "hidden and fenced excerpts", target: "%%\n## Y̊\n%%\n\n```\n## Fenced\n```\n", citer: "![[N#ẙ]]\n![[N#Fenced]]\n", want: []string{"embed.section_missing N#Fenced", "embed.section_missing N#ẙ"}},
+		{name: "closed parent", target: "## Y̊\n## Other\n### Child\n", citer: "[[N#ẙ#Child]]\n![[N#ẙ#Child]]\n", want: []string{"embed.section_missing N#ẙ#Child", "link.section_missing N#ẙ#Child"}},
+		{name: "resource and ambiguous scope", target: "## Y̊\n", citer: "[[Asset.txt#ẙ]]\n[[Twin#ẙ]]\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			write(t, root, "Concepts/N.md", tt.target)
+			write(t, root, "Concepts/Citer.md", tt.citer)
+			write(t, root, "Concepts/Asset.txt", "resource\n")
+			write(t, root, "Concepts/A/Twin.md", "one\n")
+			write(t, root, "Concepts/B/Twin.md", "two\n")
+			writeTestContract(t, root, nil)
+			out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+			if err != nil {
+				t.Fatalf("RunCheck() error = %v", err)
+			}
+			var got []string
+			for _, f := range decodeFindings(t, out) {
+				switch f.RuleID {
+				case "link.section_missing", "embed.section_missing", "link.block_missing", "embed.block_missing":
+					got = append(got, string(f.RuleID)+" "+*f.Target)
+				default:
+					// The other rules are not what this test is about.
+				}
+			}
+			slices.Sort(got)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("RunCheck() fragment findings (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

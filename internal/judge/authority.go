@@ -35,9 +35,6 @@ type scanAuthority struct {
 // rule enforces the same declaration, so both read one key rather than each
 // carrying a copy of this vault's layout.
 func (a scanAuthority) domainRoots() domainRoots {
-	if a.contract == nil {
-		return nil
-	}
 	return a.contract.Domains().Roots()
 }
 
@@ -55,13 +52,6 @@ func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority
 	return scanAuthority{gate: gate, contract: gate.Rules()}, nil
 }
 
-// roles answers which note types take part in path and map behaviour. The
-// judge asks the contract rather than naming a type, so a vault that calls
-// its courses something else is read the same way the reader reads it.
-func (a scanAuthority) roles() schema.NavigationRoles {
-	return a.contract.NavigationRoles()
-}
-
 // outsideScan reports whether relPath lies where this vault's scan does not
 // look: under a dot-prefixed name, a directory the contract excludes, or
 // anything the walk left out by the vault's .gitignore or its built-in rules.
@@ -74,25 +64,4 @@ func (a scanAuthority) outsideScan(relPath string) bool {
 // passes before its membership is inspected.
 func (a scanAuthority) readable(relPath string) bool {
 	return a.gate.Allows(relPath) && !a.outsideScan(relPath)
-}
-
-// conceptType is the note type this vault files as its distilled ideas, and
-// whether the contract declares it. The name comes from the contract layer for
-// the same reason the map and path roles do: a vault names its own vocabulary,
-// and a judge that spelled the word itself would judge a vault that never uses
-// it against a corpus it does not have.
-func (a scanAuthority) conceptType() (name string, declared bool) {
-	return a.contract.ConceptType()
-}
-
-// lessonType is the note type this vault files its course members as, asked of
-// the contract layer for the same reason conceptType is: the word belongs to
-// the vault's vocabulary, not to this package.
-func (a scanAuthority) lessonType() (name string, declared bool) {
-	return a.contract.LessonType()
-}
-
-// declaresType reports whether the contract lists noteType at all.
-func (a scanAuthority) declaresType(noteType string) bool {
-	return a.contract.DeclaresType(noteType)
 }

@@ -27,12 +27,14 @@ type Health struct {
 	// generation was handed was declared and could not be honoured.
 	InstanceScopeUnknown string
 
-	// Unwritten are citations to names no file carries and no ledger declared.
-	// A name the vault has planned is owed rather than wrong, and is not here.
+	// Unwritten are citations to names no file carries and nothing tracks as
+	// owed. A name the vault has planned, or a link under a gap heading, is
+	// owed rather than wrong, and is not here.
 	Unwritten []HealthLink
-	// TitleOnly are citations naming a note's title. The note exists; the link
-	// fails because a title is never a name this vault resolves by. It is kept
-	// apart from the unwritten because the two need opposite repairs.
+	// TitleOnly are citations naming a note's title, one row for each note
+	// carrying it. The note exists; the link fails because a title is never a
+	// name this vault resolves by. It is kept apart from the unwritten because
+	// the two need opposite repairs.
 	TitleOnly []HealthTitleLink
 	// Islands are notes nothing cites in the body, grouped by the folder they
 	// live in so the shape of the number is visible before the rows are read. A
@@ -53,12 +55,12 @@ type Health struct {
 	FrontmatterUnreadable []HealthNoteFindings
 	SchemaFaults          []HealthNoteFindings
 
-	// UnmappedConcepts are the notes of the contract's concept type that no
-	// note of a map type links to in its text, so that no map reaches them. They
-	// are how the folder's maps cover its concepts, said for the author to see,
-	// and not findings: a concept waiting for its map is not a fault, and the
-	// page holds no weight for it. Empty where the contract declares no concept
-	// type.
+	// UnmappedConcepts are the notes of the rules file's concept type that no
+	// index reaches, counted the way the coverage command counts a concept as
+	// mounted. They are how the folder's indexes cover its concepts, said for
+	// the author to see, and not findings: a concept waiting for its index is
+	// not a fault, and the page holds no weight for it. Empty where the rules
+	// file declares no concept type.
 	UnmappedConcepts []nav.NoteRef
 	// EmptyBranches are the headings of the folder's maps that no note stands
 	// under, which a map's own tree leaves out. They are said here for the same
@@ -117,7 +119,7 @@ func schemaFaultRows(
 			Severity: heaviestFinding(found),
 			Count:    len(found),
 		}
-		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
+		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == judge.RuleSchemaFrontmatter }) {
 			unreadable = append(unreadable, row)
 			continue
 		}
@@ -170,13 +172,18 @@ func (h *Health) Empty() bool {
 }
 
 // newHealth gathers the whole-folder view from projections this generation
-// already built, through the same extractor as every other link answer here.
-// links is what each note cites, by path, as it was read when the note was.
-func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles, coverage *mapCoverage) Health {
+// already built. cited is what each note cites, by path, as it was read when
+// the note was, and every citation is weighed by judge.Standing, the verdict
+// the check's link rules give it, so the page and the command list the same
+// links. Three differences are the page's own: the page reads every note,
+// where the check leaves out what the rules file withholds; a template's
+// citations are its slots; and a course's rows and an embed naming a file are
+// listed here as unwritten where the check reports them under the course and
+// image rules.
+func newHealth(notes []*vault.Note, cited map[string][]judge.Citation, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles, coverage *mapCoverage) Health {
 	var h Health
 	h.EmptyBranches = emptyBranchRows(coverage.maps)
 	var uncited []nav.NoteRef
-	titleReferenced := make(map[string]bool)
 	if idx == nil {
 		return h
 	}
@@ -187,7 +194,7 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 	// different case and keeps its answers.
 	if !policy.Trustworthy() {
 		h.InstanceScopeUnknown = policy.Diagnostic()
-		h.Collisions = collisions(idx, links)
+		h.Collisions = collisions(idx, cited)
 		sortHealth(&h)
 		return h
 	}
@@ -200,23 +207,10 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 			continue
 		}
 		from := nav.NoteRef{Name: graph.TitleOf(n), RelPath: n.RelPath}
-		seen := make(map[string]bool)
-		for _, target := range links[n.RelPath] {
-			switch {
-			case idx.Names(target) || planned.Has(target) || seen[target]:
-				// Resolved, owed, or already reported for this note.
-			// One holder only: naming a note out of several would be a guess.
-			case len(titles[graph.NormalizeKey(target)]) == 1:
-				seen[target] = true
-				titleReferenced[titles[graph.NormalizeKey(target)][0].RelPath] = true
-				h.TitleOnly = append(h.TitleOnly, HealthTitleLink{
-					From: from, Target: target, Note: titles[graph.NormalizeKey(target)][0],
-				})
-			default:
-				seen[target] = true
-				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
-			}
-		}
+		h.addCitations(from, cited[n.RelPath], func(c judge.Citation) ([]nav.NoteRef, judge.LinkStanding) {
+			holders := titles[graph.NormalizeKey(c.Target)]
+			return holders, judge.Standing(c, idx, planned, len(holders) > 0)
+		})
 		if back.Citing(n.RelPath) == 0 && !roles.IsPathType(n.Type()) && !roles.IsMapType(n.Type()) {
 			uncited = append(uncited, from)
 		}
@@ -227,12 +221,40 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 	// pass rather than inside it: asked inside, a note was spared only when the
 	// note naming it sorted ahead of it, and renaming either file changed the
 	// answer for a folder nobody had edited.
+	titleReferenced := make(map[string]bool, len(h.TitleOnly))
+	for _, link := range h.TitleOnly {
+		titleReferenced[link.Note.RelPath] = true
+	}
 	islands := slices.DeleteFunc(uncited, func(n nav.NoteRef) bool { return titleReferenced[n.RelPath] })
-	h.Collisions = collisions(idx, links)
+	h.Collisions = collisions(idx, cited)
 	h.Islands = groupByFolder(islands)
-	h.UnmappedConcepts = unmappedConcepts(notes, back, policy, roles, coverage)
+	h.UnmappedConcepts = unmappedConcepts(notes, cited, idx, policy, roles, coverage)
 	sortHealth(&h)
 	return h
+}
+
+// addCitations files one note's citations that land nowhere: once per name,
+// under the reason weigh gives, and a title once for every note it belongs to,
+// since picking one of several would be a guess.
+func (h *Health) addCitations(from nav.NoteRef, cited []judge.Citation, weigh func(judge.Citation) ([]nav.NoteRef, judge.LinkStanding)) {
+	seen := make(map[string]bool)
+	for _, c := range cited {
+		if seen[c.Target] {
+			continue
+		}
+		holders, standing := weigh(c)
+		switch standing {
+		case judge.LinkResolves, judge.LinkOwed:
+			continue
+		case judge.LinkUnwritten:
+			h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: c.Target})
+		case judge.LinkTitleOnly:
+			for _, holder := range holders {
+				h.TitleOnly = append(h.TitleOnly, HealthTitleLink{From: from, Target: c.Target, Note: holder})
+			}
+		}
+		seen[c.Target] = true
+	}
 }
 
 // mapCoverage is what the two coverage groups are worked out from: the
@@ -260,27 +282,35 @@ func emptyBranchRows(maps []nav.Map) []HealthEmptyBranch {
 	return rows
 }
 
-// unmappedConcepts lists the concept notes no map links to in its text, in path
-// order. A concept is reached by a map when a note of a map type cites it; one
-// cited only by other notes is still waiting to be placed on one. Notes outside
-// the knowledge layer and declared non-instances are no concepts of this vault.
-func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.ArtifactPolicy, roles schema.NavigationRoles, coverage *mapCoverage) []nav.NoteRef {
+// unmappedConcepts lists the concept notes no index reaches, in path order. An
+// index reaches a note the way the coverage command counts it, through
+// judge.Reaches over its body links and its frontmatter references; a concept
+// reached only by other notes is still waiting to be placed on one. Notes
+// outside the knowledge layer and declared non-instances are no concepts of
+// this vault, and no index either.
+func unmappedConcepts(notes []*vault.Note, cited map[string][]judge.Citation, idx *graph.Index, policy schema.ArtifactPolicy, roles schema.NavigationRoles, coverage *mapCoverage) []nav.NoteRef {
 	if coverage.conceptType == "" {
 		return nil
 	}
-	types := make(map[string]string, len(notes))
+	inLayer := func(n *vault.Note) bool {
+		return n != nil && !policy.IsNonInstance(n.RelPath) && coverage.knowledge.Includes(n.RelPath)
+	}
+	mapped := make(map[string]bool)
 	for _, n := range notes {
-		if n != nil {
-			types[n.RelPath] = n.Type()
+		if !inLayer(n) || !roles.IsMapType(n.Type()) {
+			continue
+		}
+		names := slices.Concat(n.ListOrText(schema.FieldBasedOn), n.ListOrText("related"))
+		for _, c := range cited[n.RelPath] {
+			names = append(names, c.Target)
+		}
+		for _, path := range judge.Reaches(idx, names) {
+			mapped[path] = true
 		}
 	}
 	var out []nav.NoteRef
 	for _, n := range notes {
-		if n == nil || schema.NormalizeWord(n.Type()) != coverage.conceptType ||
-			policy.IsNonInstance(n.RelPath) || !coverage.knowledge.Includes(n.RelPath) {
-			continue
-		}
-		if slices.ContainsFunc(back.To(n.RelPath), func(citer nav.NoteRef) bool { return roles.IsMapType(types[citer.RelPath]) }) {
+		if !inLayer(n) || schema.NormalizeWord(n.Type()) != coverage.conceptType || mapped[n.RelPath] {
 			continue
 		}
 		out = append(out, nav.NoteRef{Name: graph.TitleOf(n), RelPath: n.RelPath})
@@ -295,17 +325,17 @@ func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.Artifa
 // page and the gate count the same names: two files sharing a name nobody
 // writes a link against break nothing, and a course vault repeats main.go in
 // every lab. Which of them count is the resolver's own answer.
-func collisions(idx *graph.Index, links map[string][]string) []HealthCollision {
-	cited := func(yield func(string) bool) {
-		for _, targets := range links {
-			for _, target := range targets {
-				if !yield(target) {
+func collisions(idx *graph.Index, cited map[string][]judge.Citation) []HealthCollision {
+	targets := func(yield func(string) bool) {
+		for _, citations := range cited {
+			for _, c := range citations {
+				if !yield(c.Target) {
 					return
 				}
 			}
 		}
 	}
-	byName := graph.WithoutRestatedNames(graph.LinkedNames(idx.Collisions(), cited))
+	byName := graph.WithoutRestatedNames(graph.LinkedNames(idx.Collisions(), targets))
 	out := make([]HealthCollision, 0, len(byName))
 	for name, members := range byName {
 		out = append(out, HealthCollision{Name: name, Candidates: members})
@@ -339,7 +369,8 @@ func sortHealth(h *Health) {
 		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target))
 	})
 	slices.SortFunc(h.TitleOnly, func(a, b HealthTitleLink) int {
-		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target))
+		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target),
+			vault.ComparePaths(a.Note.RelPath, b.Note.RelPath))
 	})
 	slices.SortFunc(h.Collisions, func(a, b HealthCollision) int {
 		return vault.ComparePaths(a.Name, b.Name)

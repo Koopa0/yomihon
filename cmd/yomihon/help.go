@@ -86,11 +86,10 @@ var commandHelp = map[string]string{
 		"2 when the command itself could not run. Findings alone do not fail the\n" +
 		"command: without --deny it reports and exits 0, an unreadable file\n" +
 		"included.\n",
-	"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n" +
+	"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human]\n" +
 		"\n" +
 		"Writes a compact JSON object when the output is not a terminal, and a\n" +
-		"human summary when it is; --format decides instead of the terminal, and\n" +
-		"md falls back to the human view.\n" +
+		"human summary when it is; --format decides instead of the terminal.\n" +
 		"\n" +
 		"When folders.checked names directories, only that layer is tallied.\n" +
 		"A concept or index outside it cannot change a public concept's mount\n" +
@@ -103,11 +102,10 @@ var commandHelp = map[string]string{
 		"\n" +
 		"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
 		"command itself could not run, an unreadable file included.\n",
-	"exists": "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n" +
+	"exists": "Usage: yomihon exists [--root <dir>] [--format json|human] <name>\n" +
 		"\n" +
 		"Writes a compact JSON object when the output is not a terminal, and a\n" +
-		"human answer when it is; --format decides instead of the terminal, and\n" +
-		"md falls back to the human view.\n" +
+		"human answer when it is; --format decides instead of the terminal.\n" +
 		"\n" +
 		"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
 		"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
@@ -122,7 +120,7 @@ var commandHelp = map[string]string{
 		"is never described here — no path, no matched field. It still answers:\n" +
 		"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 		"second note under a withheld note's own name.\n",
-	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md] [--adopt <earlier path>] [--export]\n" +
+	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human] [--adopt <earlier path>] [--export]\n" +
 		"\n" +
 		"Lists the marks in a vault: the questions you marked, and the notes of\n" +
 		"the rules' answer type that still declare draft: true — newest first,\n" +
@@ -135,8 +133,7 @@ var commandHelp = map[string]string{
 		"folder the rules leave out of the scan is not listed.\n" +
 		"\n" +
 		"Writes one JSON object per line when the output is not a terminal, and a\n" +
-		"human list when it is; --format decides instead of the terminal, and md\n" +
-		"falls back to the human view.\n" +
+		"human list when it is; --format decides instead of the terminal.\n" +
 		"\n" +
 		"A folder that moved has no marks, because they are found by its path.\n" +
 		"--adopt takes the path it had, as an absolute path spelled as it was, and\n" +

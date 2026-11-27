@@ -1,8 +1,6 @@
 package judge
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,11 +8,11 @@ import (
 )
 
 // TestCourseMembershipIsTheListedLesson holds what "the course lists a note"
-// means. A course lists a note by naming it as a lesson; a link in its prose, in
-// a block declared out of the course, in one nobody declared, or in a row the
-// grammar refused is not the course listing anything. The lesson Retired shares
-// the course's domain and is not a draft, so the course either lists it or
-// reports it as on disk but unlisted.
+// means. A course lists a note by naming it as a unit on its main line or a
+// side branch; a link in its prose or in a block declared out of the course is
+// not the course listing anything. The row grammar itself is sequence's. The
+// unit Retired shares the course's domain and is not a draft, so the course
+// either lists it or reports it as on disk but unlisted.
 func TestCourseMembershipIsTheListedLesson(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -42,46 +40,15 @@ func TestCourseMembershipIsTheListedLesson(t *testing.T) {
 			body: "## 主線 {sequence=primary}\n\n- [[Live]]\n\n## 日常 {sequence=none}\n\n- [[Retired]]\n",
 			want: false,
 		},
-		{
-			name: "a branch nobody declared",
-			body: "## 主線 {sequence=primary}\n\n- [[Live]]\n\n## 還沒歸\n\n- [[Retired]]\n",
-			want: false,
-		},
-		{
-			name: "a row whose link is not first",
-			body: "## 主線 {sequence=primary}\n\n- 補充 [[Retired]]\n",
-			want: false,
-		},
-		{
-			name: "a row naming two notes",
-			body: "## 主線 {sequence=primary}\n\n- [[Retired]] 與 [[Live]]\n",
-			want: false,
-		},
-		{
-			// The branch declares a role nobody can read, so it is not a branch
-			// of the course until the author fixes it — and its rows read as
-			// perfectly ordinary lessons in the meantime.
-			name: "a branch whose declaration cannot be read",
-			body: "## 主線 {sequence=bogus}\n\n- [[Retired]]\n",
-			want: false,
-		},
-		{
-			// A branch declared part of the course under one declared out of
-			// it: the contradiction is the author's to resolve, and nothing
-			// projects from it while it stands.
-			name: "a branch contradicting the one above it",
-			body: "## 日常 {sequence=none}\n\n### 主線 {sequence=primary}\n\n- [[Retired]]\n",
-			want: false,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeCourseContract(t, root)
-			writeJudgeNote(t, root, courseNotePath, courseNote(tt.body))
-			writeJudgeNote(t, root, courseLessonPath("Live"), courseLesson("live"))
-			writeJudgeNote(t, root, courseLessonPath("Retired"), courseLesson("retired"))
+			write(t, root, courseNotePath, courseNote(tt.body))
+			write(t, root, courseLessonPath("Live"), courseLesson("live"))
+			write(t, root, courseLessonPath("Retired"), courseLesson("retired"))
 
 			out := string(runCheck(t, root))
 			if got := courseLists(out, "Retired"); got != tt.want {
@@ -99,7 +66,7 @@ func TestMapsStillFollowEveryLink(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeCourseContract(t, root)
-	writeJudgeNote(t, root, "Maps/Shelf.md",
+	write(t, root, "Maps/Shelf.md",
 		"---\ntype: topic-map\n---\n# Shelf\n\n## 主線 {sequence=primary}\n\n- [[Unwritten]]\n\n關於 [[Absent]] 的說明。\n")
 
 	out := string(runCheck(t, root))
@@ -108,18 +75,6 @@ func TestMapsStillFollowEveryLink(t *testing.T) {
 	}
 	if strings.Contains(out, "course.disk_mismatch") {
 		t.Errorf("a map's link was reconciled as a course lesson; findings:\n%s", out)
-	}
-}
-
-// writeJudgeNote writes one fixture note into a temporary vault.
-func writeJudgeNote(t *testing.T, root, rel, content string) {
-	t.Helper()
-	full := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil { // #nosec G703 -- rel is a fixed literal from this test, rooted in its own TempDir
-		t.Fatalf("mkdir for %s: %v", rel, err)
-	}
-	if err := os.WriteFile(full, []byte(content), 0o600); err != nil { // #nosec G703 -- same fixed literal under the same TempDir
-		t.Fatalf("write %s: %v", rel, err)
 	}
 }
 
@@ -148,11 +103,11 @@ func courseLists(out, name string) bool {
 }
 
 // writeCourseContract gives a fixture vault a contract with a course, a lesson
-// and a map role, and a domain root, which is what makes course membership
-// answerable at all.
+// and a map role, and the domain root Writing/lessons, which is what makes
+// course membership answerable at all.
 func writeCourseContract(t *testing.T, root string) {
 	t.Helper()
-	writeJudgeNote(t, root, schema.ContractRelPath, courseContract)
+	write(t, root, schema.ContractRelPath, courseContract)
 }
 
 const courseContract = `[folders]

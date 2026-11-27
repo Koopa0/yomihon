@@ -31,13 +31,13 @@ func TestAnUnclosedFenceKeepsTheIdentityEveryReasonOfItsRuleShares(t *testing.T)
 	const path = "Writing/lessons/golang/L1.md"
 	fingerprints := map[string]string{}
 	for reason, body := range map[string]string{
-		"opens on line 1 and never closes": "---\ntitle: L1\ntype: lesson\nstatus: draft\n--\n\nbody\n",
+		"opens on line 1 and never closes": "---\ntype: lesson\n--\n\nbody\n",
 		"is missing":                       "body\n",
-		"is not valid YAML":                "---\ntitle: [\n---\n",
+		"is not valid YAML":                "---\ntype: [\n---\n",
 	} {
-		findings := LintFrontmatter(path, []byte(body), contract)
+		findings := lintFrontmatter(path, []byte(body), contract)
 		if len(findings) != 1 || !strings.HasSuffix(findings[0].Message, reason) {
-			t.Fatalf("LintFrontmatter(%q) = %+v, want exactly one finding ending %q", body, findings, reason)
+			t.Fatalf("lintFrontmatter(%q) = %+v, want exactly one finding ending %q", body, findings, reason)
 		}
 		fingerprints[reason] = findings[0].Fingerprint
 	}

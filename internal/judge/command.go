@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -11,67 +12,16 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/egress"
-	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // The three subcommands — check, coverage, exists — run as stateless actions:
 // a process opens the selected vault once, captures its complete file domain,
 // prints, and exits. Each runner takes already-parsed options and returns the
 // bytes to print and the process exit code, so the binary's main only wires
-// arguments in and the exit code out. Those codes are the frozen contract the
-// pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
-// error, which a runner reports as a non-nil error.
+// arguments in and the exit code out: 0 clean, 1 a gate hit or a "does not
+// exist", 2 a tool error, which a runner reports as a non-nil error.
 
-// ruleIDs is every rule a finding can carry. A --deny value is validated
-// against it so a typo fails loudly instead of silently disabling the gate.
-var ruleIDs = allRuleIDs()
-
-// allRuleIDs lists the rules this package decides for itself, then appends the
-// study-path rules from the grammar that names them. The grammar's half is
-// asked for rather than copied, so a rule it gains later can still be gated on
-// by name instead of being silently undeniable.
-func allRuleIDs() []RuleID {
-	ids := []RuleID{
-		"link.title_not_alias",
-		"link.broken",
-		"link.broken.image",
-		"link.unused.definition",
-		"link.section_missing",
-		"link.block_missing",
-		"embed.section_missing",
-		"embed.block_missing",
-		"collision.alias",
-		"provenance.unresolved",
-		"course.disk_mismatch",
-		"course.disk_unlisted",
-		"link.broken.path",
-		"schema.enum",
-		"schema.required",
-		"schema.unknown_key",
-		"schema.type_dependent",
-		"schema.slug",
-		"schema.provenance",
-		"schema.reference_nested_sequence",
-		"schema.frontmatter",
-		"schema.unmatched_knowledge_dir",
-		navigationUnavailableRule,
-		"scan.skipped",
-		unreadableRule,
-		"collision.name",
-		calloutTitleMarkupRule,
-		// The authoring contract's own rules. This list has to match what the
-		// rules emit, in both directions.
-		"schema.language",
-		"schema.draft",
-		"provenance.alias_resolved",
-	}
-	for _, rule := range sequence.Rules() {
-		ids = append(ids, RuleID(rule))
-	}
-	return ids
-}
-
-// Format is the output format of a subcommand.
+// Format is the shape a command's answer is printed in.
 type Format int
 
 const (
@@ -80,14 +30,12 @@ const (
 	FormatJSON Format = iota
 	// FormatHuman is the terminal format for a person.
 	FormatHuman
-	// FormatMarkdown is a fileable markdown report body. It is a check-only
-	// format; coverage and exists fall back to the human view.
+	// FormatMarkdown is check's report as a markdown body. Coverage and exists
+	// have no such view and refuse it.
 	FormatMarkdown
 )
 
-// String names a format with the spelling ParseFormat accepts, so a message
-// and the flag a reader would type are the same word. A value outside the three
-// constants has no spelling and panics rather than inventing one.
+// String names a format; a value outside the three constants panics.
 func (f Format) String() string {
 	switch f {
 	case FormatJSON:
@@ -99,34 +47,6 @@ func (f Format) String() string {
 	default:
 		panic("judge: unknown Format: " + strconv.Itoa(int(f)))
 	}
-}
-
-// ParseFormat maps a --format value to a Format, reporting false for a value
-// that is none of json, human, or md.
-func ParseFormat(s string) (Format, bool) {
-	switch s {
-	case "json":
-		return FormatJSON, true
-	case "human":
-		return FormatHuman, true
-	case "md":
-		return FormatMarkdown, true
-	default:
-		return 0, false
-	}
-}
-
-// ResolveFormat picks the output format: an explicit flag wins; otherwise the
-// machine format for a pipe and the human format for a terminal, so an agent
-// reading a pipe gets JSON and a person at a terminal gets the readable view.
-func ResolveFormat(explicit *Format, isTTY bool) Format {
-	if explicit != nil {
-		return *explicit
-	}
-	if isTTY {
-		return FormatHuman
-	}
-	return FormatJSON
 }
 
 // CheckOptions is the parsed check command. Paths only filter the output; the
@@ -163,24 +83,25 @@ func (p *preparedCommand) seal() (egress.Payload, error) {
 	return a.seal(p.stdout)
 }
 
+// sealPrepared seals what a command prepared, or passes on why it could not
+// prepare it.
+func sealPrepared(p preparedCommand, err error) (egress.Payload, int, error) {
+	if err != nil {
+		return egress.Payload{}, 0, err
+	}
+	payload, err := p.seal()
+	if err != nil {
+		return egress.Payload{}, 0, err
+	}
+	return payload, p.exit, nil
+}
+
 // RunCheck scans the vault and renders the findings. It returns the bytes to
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
 func RunCheck(ctx context.Context, o *CheckOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareCheck(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
-	return prepareCheckWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareCheckWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
@@ -198,39 +119,48 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 		return preparedCommand{}, a.abort(err)
 	}
 	if o.Baseline != "" {
-		data, err := os.ReadFile(o.Baseline) // #nosec G304 -- the baseline path is an operator-supplied CLI argument, not untrusted input
-		if err != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("read baseline %s: %w", o.Baseline, err))
+		if findings, err = subtractBaseline(findings, o.Baseline); err != nil {
+			return preparedCommand{}, a.abort(err)
 		}
-		baseline, parseErr := parseBaseline(string(data))
-		if parseErr != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("baseline %s: %w", o.Baseline, parseErr))
-		}
-		findings = retainNew(findings, baseline)
 	}
-	var stdout []byte
-	switch o.Format {
-	case FormatJSON:
-		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("serialize findings: %w", err))
-		}
-		stdout = buf.Bytes()
-	case FormatHuman:
-		stdout = []byte(humanReport(findings, a.authority.domainRoots()))
-		if a.authority.noRules() {
-			stdout = append([]byte(noRulesChecks+"\n"), stdout...)
-		}
-	case FormatMarkdown:
-		stdout = []byte(markdownReport(findings, a.authority.domainRoots(), a.authority.contract))
-	default:
-		panic("judge: unknown Format: " + o.Format.String())
+	stdout, err := renderCheck(findings, a.authority, o.Format)
+	if err != nil {
+		return preparedCommand{}, a.abort(err)
 	}
 	exit := 0
 	if gated(findings, o.Deny) {
 		exit = 1
 	}
 	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
+}
+
+// renderCheck prints the findings in the format asked for. A person is told
+// first when the folder has no rules file, since the frontmatter rules did not
+// run.
+func renderCheck(findings []Finding, authority scanAuthority, format Format) ([]byte, error) {
+	var out []byte
+	switch format {
+	case FormatJSON:
+		var buf bytes.Buffer
+		if err := writeJSONL(&buf, findings); err != nil {
+			return nil, fmt.Errorf("serialize findings: %w", err)
+		}
+		return buf.Bytes(), nil
+	case FormatHuman:
+		out = []byte(humanReport(findings, authority.domainRoots()))
+	case FormatMarkdown:
+		out = []byte(markdownReport(findings, authority.domainRoots()))
+	default:
+		panic(fmt.Sprintf("judge: unknown Format: %d", format))
+	}
+	if authority.noRules() {
+		lead := noRulesChecks + "\n"
+		if format == FormatMarkdown {
+			lead += "\n"
+		}
+		out = append([]byte(lead), out...)
+	}
+	return out, nil
 }
 
 // CoverageOptions is the parsed coverage command.
@@ -243,22 +173,13 @@ type CoverageOptions struct {
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
 func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareCoverage(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
-	return prepareCoverageWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareCoverageWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	if o.Format == FormatMarkdown {
+		return preparedCommand{}, errors.New("coverage has no markdown view; use json or human")
+	}
 	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
@@ -280,7 +201,6 @@ func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks act
 		}
 		stdout = out
 	} else {
-		// md is a check-only format; coverage falls back to the human view.
 		stdout = []byte(renderCoverage(&cov))
 	}
 	return preparedCommand{stdout: stdout, action: a}, nil
@@ -298,22 +218,13 @@ type ExistsOptions struct {
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
 func RunExists(ctx context.Context, o *ExistsOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareExists(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {
-	return prepareExistsWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareExistsWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	if o.Format == FormatMarkdown {
+		return preparedCommand{}, errors.New("exists has no markdown view; use json or human")
+	}
 	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
@@ -339,7 +250,6 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 		}
 		stdout = out
 	} else {
-		// md is a check-only format; exists falls back to the human view.
 		stdout = []byte(renderExists(report))
 	}
 	exit := 1
@@ -365,7 +275,7 @@ func gated(findings []Finding, deny []string) bool {
 		if f.Severity >= SeverityWarn && slices.Contains(deny, string(f.RuleID)) {
 			return true
 		}
-		if f.RuleID == navigationUnavailableRule && slices.ContainsFunc(deny, silencedWithoutNavigation) {
+		if f.RuleID == RuleSchemaNavigationUnavailable && slices.ContainsFunc(deny, silencedWithoutNavigation) {
 			return true
 		}
 	}
@@ -443,6 +353,20 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 	return set, nil
 }
 
+// subtractBaseline drops the findings a prior run's JSONL at path already
+// carried.
+func subtractBaseline(findings []Finding, path string) ([]Finding, error) {
+	data, err := os.ReadFile(path) // #nosec G304 -- the baseline path is an operator-supplied CLI argument, not untrusted input
+	if err != nil {
+		return nil, fmt.Errorf("read baseline %s: %w", path, err)
+	}
+	baseline, err := parseBaseline(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("baseline %s: %w", path, err)
+	}
+	return retainNew(findings, baseline), nil
+}
+
 // retainNew drops findings whose fingerprint is already in the baseline,
 // leaving only what this run newly introduced.
 //
@@ -453,6 +377,6 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 // leave a report that is short of those rules and says nothing about why.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return f.RuleID != unreadableRule && baseline[f.Fingerprint]
+		return f.RuleID != RuleScanUnreadable && baseline[f.Fingerprint]
 	})
 }

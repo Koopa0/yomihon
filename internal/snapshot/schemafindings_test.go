@@ -28,7 +28,7 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 	gen := store.Current()
 
-	want := judge.LintFrontmatter(faulty, []byte(faultyBody), contract)
+	want := judge.NewFrontmatterLinter(contract).Lint(faulty, []byte(faultyBody))
 	if len(want) == 0 {
 		t.Fatal("the fixture note draws no schema findings, so this test would pass on any implementation")
 	}

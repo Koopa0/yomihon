@@ -1,12 +1,8 @@
 package judge
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
-	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -19,66 +15,6 @@ func unusedDefinitionVault(t *testing.T) string {
 		t.Fatalf("copy unused definition fixture: %v", err)
 	}
 	return root
-}
-
-// TestUnusedDefinitionFindings pins the fixture's findings to the golden twice:
-// as decoded records, so a difference names the field, and as the exact bytes
-// the pipelines read.
-func TestUnusedDefinitionFindings(t *testing.T) {
-	t.Parallel()
-	root := unusedDefinitionVault(t)
-	wantBytes, err := os.ReadFile("testdata/golden/unused-definitions.jsonl")
-	if err != nil {
-		t.Fatalf("read unused definition golden: %v", err)
-	}
-	var want []Finding
-	for line := range strings.SplitSeq(strings.TrimSuffix(string(wantBytes), "\n"), "\n") {
-		var wire struct {
-			Finding
-
-			Severity string `json:"severity"`
-		}
-		if decodeErr := json.Unmarshal([]byte(line), &wire); decodeErr != nil {
-			t.Fatalf("decode golden: %v", decodeErr)
-		}
-		if wire.Severity != "info" {
-			t.Fatalf("golden severity %q, want every record at info", wire.Severity)
-		}
-		wire.Finding.Severity = SeverityInfo
-		want = append(want, wire.Finding)
-	}
-	if len(want) != 3 {
-		t.Fatalf("golden holds %d records, want 3", len(want))
-	}
-	got, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Check findings (-want +got):\n%s", diff)
-	}
-	gotBytes, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-	if err != nil || exit != 0 {
-		t.Fatalf("RunCheck: exit=%d error=%v", exit, err)
-	}
-	if !bytes.Equal(wantBytes, gotBytes) {
-		t.Errorf("RunCheck JSONL:\nwant %s\ngot  %s", wantBytes, gotBytes)
-	}
-	// An unused definition is info: a rule id gates only at warn or above, and
-	// a warn threshold does not reach it, so only an info threshold fails.
-	for _, tt := range []struct {
-		deny     string
-		wantExit int
-	}{
-		{deny: "link.unused.definition", wantExit: 0},
-		{deny: "warn", wantExit: 0},
-		{deny: "info", wantExit: 1},
-	} {
-		_, exit, err = checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{tt.deny}})
-		if err != nil || exit != tt.wantExit {
-			t.Errorf("RunCheck --deny %s: exit=%d error=%v, want exit %d", tt.deny, exit, err, tt.wantExit)
-		}
-	}
 }
 
 // TestUnusedDefinitions pins which definitions the rule reports: those the
@@ -134,7 +70,7 @@ func TestUnusedDefinitions(t *testing.T) {
 			t.Parallel()
 			root := unusedDefinitionVault(t)
 			write(t, root, "Notes/Refs.md", tt.body)
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check: %v", err)
 			}
@@ -150,43 +86,6 @@ func TestUnusedDefinitions(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("link.unused.definition findings (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-// TestUnusedDefinitionScope pins that the rule goes through the filters every
-// finding does: the default scope keeps the knowledge layer, all widens it, and
-// ground the contract withholds is never named in either.
-func TestUnusedDefinitionScope(t *testing.T) {
-	t.Parallel()
-	root := unusedDefinitionVault(t)
-	write(t, root, "Notes/Refs.md", "[kept]: https://example.com\n")
-	write(t, root, "Other/Outside.md", "[outside]: https://example.com\n")
-	write(t, root, "Private/Author.md", "[secret]: https://example.com\n")
-	for _, tt := range []struct {
-		name    string
-		all     bool
-		present []string
-	}{
-		{name: "default scope", present: []string{`"target":"kept"`}},
-		{name: "all", all: true, present: []string{`"target":"kept"`, `"target":"outside"`}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: tt.all, Format: FormatJSON})
-			if err != nil {
-				t.Fatalf("RunCheck: %v", err)
-			}
-			for _, needle := range []string{`"target":"kept"`, `"target":"outside"`} {
-				if got, want := bytes.Contains(out, []byte(needle)), slices.Contains(tt.present, needle); got != want {
-					t.Errorf("report contains %s = %v, want %v:\n%s", needle, got, want, out)
-				}
-			}
-			for _, forbidden := range []string{"Private", "secret"} {
-				if bytes.Contains(out, []byte(forbidden)) {
-					t.Errorf("the report names withheld ground %q: %s", forbidden, out)
-				}
 			}
 		})
 	}

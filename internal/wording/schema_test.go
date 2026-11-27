@@ -108,3 +108,21 @@ func TestAllowedEnumFoldSaysWhatTheSentenceSays(t *testing.T) {
 		})
 	}
 }
+
+// TestAnUnknownSchemaRuleStillSaysSomething holds the fallback: a rule nobody
+// wrote words for is still answered, by a sentence naming the rule a reader
+// would have to ask about.
+func TestAnUnknownSchemaRuleStillSaysSomething(t *testing.T) {
+	t.Parallel()
+
+	const invented = "schema.not_a_rule_anyone_wrote"
+	for _, lang := range []Lang{ZhHant, En} {
+		var said strings.Builder
+		for _, part := range SchemaSentence(lang, invented, "", "") {
+			said.WriteString(part.Text)
+		}
+		if !strings.Contains(said.String(), invented) {
+			t.Errorf("SchemaSentence(%s, %q) = %q, want it to name the rule", lang, invented, said.String())
+		}
+	}
+}

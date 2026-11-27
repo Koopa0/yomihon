@@ -1,164 +1,73 @@
 package judge
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// atlasContract declares a vault whose maps are called "atlas". A vault is free
-// to name its map types anything its contract lists, so the coverage face has
-// to read the vocabulary from the contract rather than recognise a fixed set.
-const atlasContract = `[folders]
-checked = ["Concepts", "Atlases"]
-templates = []
-
-[enums]
-
-[fields]
-common = ["type", "based_on"]
-required = ["type"]
-
-[types.concept]
-
-[types.atlas]
-role = "map"
-
-[rules]
-concept_requires_provenance = ["based_on"]
-
-[privacy]
-never_egress_dirs = []
-`
-
-// noConceptContract declares a vault with no concept type at all: its notes are
-// called "note" and its maps "atlas". Nothing in it can be a concept, so the
-// concept tally has nothing to be about.
-const noConceptContract = `[folders]
-checked = ["Notes", "Atlases"]
-templates = []
-
-[enums]
-
-[fields]
-common = ["type"]
-required = ["type"]
-
-[types.note]
-
-[types.atlas]
-role = "map"
-
-[privacy]
-never_egress_dirs = []
-`
+// atlasContract is the fixture contract with its first map type named atlas and
+// the knowledge layer set to checked, so the coverage face has to read the map
+// vocabulary from the contract rather than recognise a fixed set.
+func atlasContract(t *testing.T, checked string, replacements ...[2]string) string {
+	t.Helper()
+	return contractFixture(t, nil, append([][2]string{
+		{`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, "checked = " + checked},
+		{"[types.moc]", "[types.atlas]"},
+	}, replacements...)...)
+}
 
 // TestCoverageMountsOnContractMapTypes asserts a concept is mounted by an edge
-// from the type its own contract declares as a map. The vault below calls its
-// maps "atlas"; a face that recognised a fixed list of map type names would
-// call the mounted concept unmounted and report a gap the vault does not have.
+// from the type its own contract declares as a map, whatever that type is
+// called.
 func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, atlasContract)
+	write(t, root, schema.ContractRelPath, atlasContract(t, `["Concepts", "Atlases"]`))
 	write(t, root, "Concepts/Slice.md", "---\ntype: concept\nbased_on:\n  - \"[[Go Atlas]]\"\n---\n# Slice\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Slice]]\n")
 
-	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if exit != 0 {
-		t.Errorf("RunCoverage() exit = %d, want 0", exit)
-	}
-	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
+	wantMounts(t, coverageOf(t, root), []domainCoverage{{Domain: "(none)", Concepts: 1, Mounted: 1}}, nil, nil)
 }
 
-// TestCoveragePendingMountIsANonMapReference pins the advisory state the
-// report fixture no longer exercises: a concept reached only by another
-// concept, never by a map. coverage.golden's pending_mount is empty because
-// the atlas that used to mount Map.md and Slice.md sits outside that vault's
-// declared layer.
+// TestCoveragePendingMountIsANonMapReference pins the advisory state: a concept
+// reached only by another concept, never by a map, is pending a map, and one
+// nothing reaches is an orphan.
 func TestCoveragePendingMountIsANonMapReference(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, atlasContract)
+	write(t, root, schema.ContractRelPath, atlasContract(t, `["Concepts", "Atlases"]`))
 	write(t, root, "Concepts/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Nowhere]]\"\n---\n# Idea\n\nBody.\n")
 	write(t, root, "Concepts/Seed.md", "---\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n# Seed\n\nBody.\n")
 
-	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if exit != 0 {
-		t.Errorf("RunCoverage() exit = %d, want 0", exit)
-	}
-	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":1,"orphan":1}],"pending_mount":["Concepts/Idea.md"],"orphans":["Concepts/Seed.md"],"unrouted":[]}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
-}
-
-// TestCoverageWithholdsTheRouteFromAnUndeclaredType asserts a vault whose
-// contract never names the research brief is not told to file one under the
-// index note of the vault this route was written for. The route cannot be
-// derived from a contract, so it is offered only where the contract declares
-// the type it is about.
-func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Brief.md", "---\ntype: research-brief\n---\n# Brief\n\nBody.\n")
-
-	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if !bytes.Contains(got, []byte(`"unrouted":[]`)) {
-		t.Errorf("a vault that never declared the type was given a route:\n%s", got)
-	}
-	if bytes.Contains(got, []byte("Brief")) {
-		t.Errorf("coverage named a note of a type the contract does not declare:\n%s", got)
-	}
+	wantMounts(t, coverageOf(t, root),
+		[]domainCoverage{{Domain: "(none)", Concepts: 2, PendingMount: 1, Orphan: 1}},
+		[]string{"Concepts/Idea.md"}, []string{"Concepts/Seed.md"})
 }
 
 // TestCoverageSaysSoWhenNoConceptTypeIsDeclared asserts a vault whose contract
-// names no concept type is told the concept tally does not apply to it, rather
-// than handed a zero tally that reads as a clean vault.
+// names no concept type is told, on both faces, that the concept tally does not
+// apply to it, rather than handed a zero tally that reads as a clean vault.
 func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, noConceptContract)
+	write(t, root, schema.ContractRelPath, atlasContract(t, `["Notes", "Atlases"]`, [2]string{"[types.concept]\n", ""}))
 	write(t, root, "Notes/Alpha.md", "---\ntype: note\n---\n# Alpha\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Alpha]]\n")
 
-	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
+	cov := coverageOf(t, root)
+	if cov.NotApplicable == "" || cov.TotalConcepts != 0 {
+		t.Errorf("coverage = %+v, want a not-applicable reason and no tally", cov)
 	}
-	if exit != 0 {
-		t.Errorf("RunCoverage() exit = %d, want 0", exit)
-	}
-	want := `{"total_concepts":0,"domains":[],"pending_mount":[],"orphans":[],"unrouted":[],` +
-		`"not_applicable":"the rules file declares no \"concept\" type, so there is no concept corpus to judge"}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
-
+	wantMounts(t, cov, nil, nil, nil)
 	human, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("RunCoverage(human) error = %v", err)
 	}
-	wantHuman := "the rules file declares no \"concept\" type, so there is no concept corpus to judge\n"
-	if string(human) != wantHuman {
-		t.Errorf("RunCoverage(human) = %q, want %q", human, wantHuman)
+	if got, want := string(human), cov.NotApplicable+"\n"; got != want {
+		t.Errorf("RunCoverage(human) = %q, want the JSON's reason %q", got, want)
 	}
 }

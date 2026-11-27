@@ -12,12 +12,11 @@ import (
 
 // The exists oracle answers "does a note for this name, including a vault
 // path or path suffix, already exist?" for a dedup check before writing. It
-// is deliberately wider than the resolver, matching filename, path, title,
-// alias and English title, and each hit reports which field matched. A false
-// "no" would make a caller write a duplicate, so it over-recalls. Fold-equal
-// names — a fullwidth colon beside its ASCII twin — are reported as near
-// matches, distinct from an exact hit, and do not flip the exit code. The
-// shape is part of the frozen output.
+// is deliberately wider than the resolver, matching filename, path, title and
+// alias, and each hit reports which field matched. A false "no" would make a
+// caller write a duplicate, so it over-recalls. Fold-equal names — a fullwidth
+// colon beside its ASCII twin — are reported as near matches, distinct from an
+// exact hit, and do not flip the exit code.
 
 // existsMatch is one note that exposes the queried name, and the field it
 // matched on.
@@ -32,16 +31,15 @@ type existsReport struct {
 	Query   string        `json:"query"`
 	Matches []existsMatch `json:"matches"`
 	// NearMatches are notes that answer under the search index's fold
-	// (fullwidth ASCII narrowed, then Unicode simple case folding) but not under the resolver
-	// key. They are omitted when the second pass finds nothing, so an
-	// ordinary answer's bytes stay unchanged — the same omitempty contract
-	// Withheld already ships under.
+	// (fullwidth ASCII narrowed, then Unicode simple case folding) but not
+	// under the resolver key. They are omitted when the second pass finds
+	// nothing, so an ordinary answer carries no key for them.
 	NearMatches []existsMatch `json:"near_matches,omitempty"`
 	// Withheld says a note the contract keeps out of agent-facing output
 	// answers to the name. It carries nothing else, because the caller needs
 	// only two warnings: do not create a second note under the name, and do not
 	// assume a link to it resolves cleanly. The field is omitted when nothing
-	// was withheld, so an ordinary answer's bytes are unchanged.
+	// was withheld.
 	Withheld bool `json:"withheld,omitempty"`
 	// NoRules is what the person at a terminal is told first about a folder
 	// with no rules file. It is not in the machine payload, whose fields a
@@ -65,7 +63,7 @@ func (r existsReport) found() bool {
 // exact is a near match. A note that exposes the name on more than one field
 // yields one match per field. Matches are ordered by path, then field.
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
-	key := normalizeKey(query)
+	key := graph.NormalizeKey(query)
 	foldKey := lexical.Fold(query)
 	matches := []existsMatch{}
 	var near []existsMatch
@@ -107,6 +105,8 @@ func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, aut
 		paths = res.Candidates
 	case graph.KindUnresolved:
 		return
+	default:
+		panic("judge: unknown graph.Kind: " + res.Kind.String())
 	}
 	for i := range notes {
 		n := &notes[i]
@@ -128,7 +128,7 @@ func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, aut
 // noteMatches returns every field of n that exposes the normalized key: its
 // filename stem, full filename, title and each alias.
 func noteMatches(n *note, key string) []existsMatch {
-	return collectFieldMatches(n, key, normalizeKey)
+	return collectFieldMatches(n, key, graph.NormalizeKey)
 }
 
 // noteMatchesFolded is the second pass: the same fields, keyed through the
@@ -200,12 +200,9 @@ func filenameStem(path string) string {
 	return strings.TrimSuffix(filename(path), ".md")
 }
 
-// notesAmong counts the notes the matches name, not the matches. One note
-// answers to a name once per way it carries it — a filename and a title, a
-// title and an alias — so counting rows told a reader two notes hold a name and
-// then printed one path twice. The reader of this line is deciding whether to
-// write a note under that name, and the count is the part of the answer they
-// act on.
+// notesAmong counts the notes the matches name, not the matches: one note
+// answers to a name once per field that carries it, and the reader is deciding
+// whether to write a note under that name.
 func notesAmong(matches []existsMatch) int {
 	seen := make(map[string]struct{}, len(matches))
 	for _, m := range matches {

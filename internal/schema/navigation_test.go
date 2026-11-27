@@ -188,3 +188,17 @@ func TestAnswerTypeAcceptsDeclaredUnicodeWord(t *testing.T) {
 func answerContract(declaration string) string {
 	return strings.Replace(validContract, "[rules]\n", declaration+"\n[rules]\n", 1)
 }
+
+// A role only one type may hold, given to two, leaves no answer to which of
+// them is meant, so the roles are refused as a whole.
+func TestARoleTwoTypesHoldRefusesTheRoles(t *testing.T) {
+	t.Parallel()
+
+	contract, err := loadContractBytes(t, []byte(answerContract("[types.lecture]\nrole = \"lesson\"\nfields = [\"slug\"]\n")))
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+	if contract.NavigationRoles().Available() {
+		t.Error("NavigationRoles().Available() = true for a lesson role two types hold")
+	}
+}

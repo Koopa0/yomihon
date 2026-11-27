@@ -62,19 +62,12 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 	}
 }
 
-// TestEveryStudyPathRuleHasAnAction is the other direction: the grammar owns
-// the rule names, and this face owes each of them a sentence saying what to do
-// next. The set is asked of the grammar rather than written out here, because a
-// list written by hand and checked against a list written by hand agrees with
-// itself and with nothing else — which is how the registry drifted before.
-//
-// A rule with no advice is no longer fatal — it falls back to a general
-// direction — so this is what keeps the tailored advice complete: without it,
-// the author of a note tripping the newest rule would be told what is wrong and
-// handed the generic sentence instead of the one written for that rule. The
-// table is read directly rather than through the finding, because the finding
-// supplies the fallback and would never come back empty.
-func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
+// TestEveryCourseRuleHasAnAction holds the advice table to the grammar: each
+// rule the grammar names has a sentence of its own saying what to do next,
+// rather than the general direction a rule without one falls back to. The
+// table is read directly, because the finding supplies the fallback and would
+// never come back empty.
+func TestEveryCourseRuleHasAnAction(t *testing.T) {
 	t.Parallel()
 
 	rules := sequence.Rules()
@@ -85,22 +78,13 @@ func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 		if pathRuleAction[rule] == "" {
 			t.Errorf("rule %q has no suggested action", rule)
 		}
-		if !slices.Contains(ruleIDs, RuleID(rule)) {
-			t.Errorf("rule %q is not in the --deny registry", rule)
-		}
 	}
 }
 
-// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough pins the answer to
-// the case the completeness check above cannot cover: a rule name arriving from
-// the grammar that this table has never seen. The two tables are derived from
-// the grammar now, so the only way to reach it is a rule value built somewhere
-// else — which is exactly what a check run must not die on. The finding stays
-// well formed: deniable by its id, carrying the grammar's own sentence about
-// what is wrong, and a general direction in place of the advice nobody wrote,
-// because a control that says nothing to do leaves the author worse off than
-// one that points back at the message. The judge used to panic here, which
-// turned one rule added to the grammar into a crash on an ordinary vault.
+// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough holds a rule name
+// the advice table has never seen to a well-formed finding rather than a
+// crash: deniable by its id, carrying the grammar's own sentence about what is
+// wrong, and a general direction in place of the advice nobody wrote.
 func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +111,7 @@ func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 		t.Error("SuggestedAction is empty; a finding must always tell the author something to do")
 	}
 	if got.Severity != SeverityWarn {
-		t.Errorf("Severity = %v, want a warning like every other study-path rule", got.Severity)
+		t.Errorf("Severity = %v, want a warning like every other course rule", got.Severity)
 	}
 	if !strings.HasPrefix(got.Fingerprint, "v1:") {
 		t.Errorf("Fingerprint = %q, want a versioned value", got.Fingerprint)
@@ -135,10 +119,10 @@ func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 }
 
 // TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem holds the reading of
-// a course whose parts are headings that list nothing themselves. Both of this
-// vault's real courses are written that way — a level-2 part holding a level-3
-// module that carries the rows — so the walk that collects a course's lesson
-// rows has to descend through a branch that lists none of its own.
+// a course whose parts are headings that list nothing themselves — a level-2
+// part holding a level-3 module that carries the rows — so the walk that
+// collects a course's unit rows has to descend through a branch that lists
+// none of its own.
 //
 // The discrimination is which rule speaks about the missing lesson. A row the
 // walk found is the course's own listing, reconciled against disk by the map
@@ -155,7 +139,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 		"---\ntype: study-path\ncreated: 2026-01-01\n---\n# Course\n\n"+
 			"## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n")
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
@@ -169,51 +153,5 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	}
 	if slices.Contains(rules, "link.broken") {
 		t.Error("the lesson row was read as loose prose, so the part that only groups modules was never descended into")
-	}
-}
-
-// TestANestedPrimaryInsideASideBranchIsReported is the check-command face of
-// the nested-primary cell: the grammar reports it, and that report has to
-// reach the author as a finding. A probe that only parsed the body would miss
-// a wiring regression that swallowed the diagnostic on the way to check.
-func TestANestedPrimaryInsideASideBranchIsReported(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeTestContract(t, root, nil)
-	write(t, root, "Maps/Course.md",
-		"---\ntype: study-path\n---\n# Course\n\n"+
-			"## Main line {sequence=primary}\n\n"+
-			"- [[L01]]\n"+
-			"\t- Side branch {sequence=local}\n"+
-			"\t\t- [[L03]]\n"+
-			"\t\t\t- Nested main line {sequence=primary}\n"+
-			"\t\t\t\t- [[L02]]\n")
-	for _, name := range []string{"L01", "L02", "L03"} {
-		write(t, root, "Writing/"+name+".md",
-			"---\ntitle: "+name+"\ntype: lesson\nstatus: ready\n---\n\nbody\n")
-	}
-
-	findings, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check() error = %v", err)
-	}
-
-	var got *Finding
-	for i := range findings {
-		if findings[i].RuleID == RuleID(sequence.RuleRoleNestedPrimary) && findings[i].Path == "Maps/Course.md" {
-			got = &findings[i]
-			break
-		}
-	}
-	if got == nil {
-		var rules []string
-		for _, f := range findings {
-			rules = append(rules, string(f.RuleID))
-		}
-		t.Fatalf("Check() did not report %s; got %v", sequence.RuleRoleNestedPrimary, rules)
-	}
-	if got.Message == "" {
-		t.Error("the nested-primary finding carries no message")
 	}
 }

@@ -10,10 +10,9 @@ package judge
 // judged as one, because the parser answers every reference from the first.
 //
 // The finding is info, not warn: an unused definition breaks nothing the reader
-// sees, so it is a tidy-up signal. At warn it outnumbered the broken links on a
-// large vault and buried the findings check exists to surface. Because a rule
-// id gates only at warn or above, "--deny link.unused.definition" does not fail
-// on it; "--deny info" does.
+// sees, so it is a tidy-up signal that must not bury the broken links. Because
+// a rule id gates only at warn or above, "--deny link.unused.definition" does
+// not fail on it; "--deny info" does.
 
 // checkUnusedDefinitions reports each note's unused link reference definitions.
 func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {
@@ -33,7 +32,7 @@ func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {
 // unusedDefinition is a link reference definition nothing in its note uses.
 func unusedDefinition(n *note, def linkDefinition) Finding {
 	return Finding{
-		RuleID:          "link.unused.definition",
+		RuleID:          RuleLinkUnusedDefinition,
 		Severity:        SeverityInfo,
 		Path:            n.path,
 		Line:            new(def.line),
@@ -42,6 +41,6 @@ func unusedDefinition(n *note, def linkDefinition) Finding {
 		SuggestedAction: "use the definition, remove it, or put a space between adjacent references such as [E1] [E2]",
 		SourceRule:      sourceYomihon,
 		Target:          new(def.label),
-		Fingerprint:     fingerprint("link.unused.definition", n.path, def.label),
+		Fingerprint:     fingerprint(RuleLinkUnusedDefinition, n.path, def.label),
 	}
 }

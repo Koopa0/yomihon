@@ -1,8 +1,9 @@
 // Package judge implements the vault diagnostics behind the check, exists and
-// coverage commands, and their JSONL wire format; the reading server consumes
-// the same findings, so a page and a command cannot disagree. The format is
-// frozen — external pipelines parse the lines and exit codes byte for byte,
-// the goldens pin them, and the diagnostic strings are part of those bytes.
+// coverage commands and their JSONL wire format. The reading server asks it
+// the same questions: a note's frontmatter findings, the planned names, and
+// the verdict on each wikilink, so a page and a command give one answer. The
+// goldens under testdata record the output; a change to it regenerates them
+// and explains each changed line.
 package judge
 
 import (
@@ -54,32 +55,27 @@ func (s Severity) MarshalText() ([]byte, error) {
 	return []byte(s.String()), nil
 }
 
-// RuleID is the stable identifier of one thing this face reports, following
-// the study-path grammar's own Rule. The set is closed and [ruleIDs] is all of
-// it, so a consumer covering every rule asks for the set rather than keeping a
-// list that falls behind.
-//
-// It is a string underneath and serializes as one: the rule_id an external
-// pipeline parses is frozen bytes, and naming the type changes what the
-// compiler knows, never what a consumer reads.
+// RuleID is the stable identifier of one thing the check reports, carried on
+// the wire as the rule_id string. The set is closed: the Rule constants and the
+// course grammar's rules.
 type RuleID string
 
-// Finding is one diagnostic, serialized as one JSONL line. The struct layout
-// is the wire contract: fields serialize in declaration order, and only the
-// four pointer fields and the slice are omitted when empty. Reordering fields,
-// renaming a key, or changing an omitempty option changes frozen bytes.
+// Finding is one diagnostic, serialized as one JSONL line. Fields serialize in
+// declaration order, and only the four pointer fields and the slice are
+// omitted when empty, so a finding not tied to a line or a field carries no key
+// for it.
 type Finding struct {
 	RuleID   RuleID   `json:"rule_id"`
 	Severity Severity `json:"severity"`
 	// Path is the file that carries the finding, relative to the vault root.
 	Path string `json:"path"`
-	// Line is the 1-based body line the finding points at, or nil when the
+	// Line is the 1-based file line the finding points at, or nil when the
 	// finding is not tied to a line.
 	Line *int `json:"line,omitempty"`
 	// Field names the frontmatter field at fault, when one is.
 	Field *string `json:"field,omitempty"`
-	// Message, Evidence, SuggestedAction and SourceRule are frozen diagnostic
-	// strings.
+	// Message, Evidence and SuggestedAction are the diagnostic's sentences,
+	// and SourceRule names where its rule's authority is written down.
 	Message         string `json:"message"`
 	Evidence        string `json:"evidence"`
 	SuggestedAction string `json:"suggested_action"`
@@ -115,27 +111,20 @@ const (
 	sourceContractTypes = "vault-schema.toml#types"
 	// sourceYomihon is the product itself, for the rules that are its own
 	// dialect — link resolution, name and alias collisions, reference and path
-	// liveness, and the study-path grammar. No vault artifact declares them;
-	// this repository's goldens do.
+	// liveness, the draft flag and the course grammar. No vault artifact
+	// declares them.
 	sourceYomihon = "yomihon"
 )
 
-// WriteJSONL writes findings to w, one compact JSON object and a trailing
-// newline per finding. It is the only serialization path for findings here,
-// because the frozen format departs from encoding/json's defaults twice: HTML
-// characters are left unescaped, and U+2028 and U+2029 are carried as raw
-// UTF-8, which the encoder offers no switch for and which is rewritten after
-// encoding. A plain json.Marshal elsewhere would reintroduce both.
-func WriteJSONL(w io.Writer, findings []Finding) error {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
+// writeJSONL writes findings to w, one compact JSON object and a trailing
+// newline per finding, through marshalWire.
+func writeJSONL(w io.Writer, findings []Finding) error {
 	for i := range findings {
-		buf.Reset()
-		if err := enc.Encode(&findings[i]); err != nil {
+		line, err := marshalWire(&findings[i])
+		if err != nil {
 			return fmt.Errorf("encode finding %d: %w", i, err)
 		}
-		if _, err := w.Write(unescapeLineSeparators(buf.Bytes())); err != nil {
+		if _, err := w.Write(line); err != nil {
 			return fmt.Errorf("write finding %d: %w", i, err)
 		}
 	}
@@ -143,8 +132,10 @@ func WriteJSONL(w io.Writer, findings []Finding) error {
 }
 
 // marshalWire encodes v as a compact JSON object and a trailing newline, the
-// on-wire form for the coverage and exists payloads. It makes the same two
-// departures from the encoder's defaults that WriteJSONL names.
+// one on-wire form of a finding and of the coverage and exists payloads. It
+// departs from encoding/json's defaults twice: HTML characters are left
+// unescaped, and U+2028 and U+2029 are carried as raw UTF-8, which the encoder
+// offers no switch for and which is rewritten after encoding.
 func marshalWire(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -178,7 +169,7 @@ func sortFindings(findings []Finding) {
 }
 
 // unescapeLineSeparators rewrites the escape sequences the encoder produces
-// for U+2028 and U+2029 into the raw UTF-8 bytes the frozen format carries. It
+// for U+2028 and U+2029 into the raw UTF-8 bytes the wire format carries. It
 // steps over escape sequences pairwise, so a doubled backslash in a value
 // cannot be misread as the start of one of the two sequences.
 func unescapeLineSeparators(line []byte) []byte {

@@ -1,8 +1,8 @@
 package judge
 
 import (
-	"context"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,45 +12,13 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Check scans the vault rooted at root for corpus-level findings and returns
-// them in the deterministic wire order. The graph is always built from the
-// whole vault; findings touching a contract-declared private path are dropped
-// in every scope, and the default scope also drops findings that touch
-// nothing inside the declared knowledge layer. A missing or privacy-incomplete
-// contract is an error, because agent-facing output has no authority without
-// one. A cancelled ctx stops the scan at the contract load, the walk, or any
-// note read.
-func Check(ctx context.Context, root string) ([]Finding, error) {
-	return runCheckAction(ctx, root, nil, false)
-}
-
-// runCheckAction is the whole-engine scan, with the two knobs a command line
-// can turn on top of what Check describes: a scope filter keeping only findings
-// that touch one of the given paths, and all, which keeps the findings
-// touching nothing inside the declared knowledge layer. Neither widens what
-// is read — the graph is built from the whole vault either way — and neither
-// reaches a path the contract withholds, which is dropped ahead of both.
-func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
-	a, err := openAction(ctx, root, actionHooks{})
-	if err != nil {
-		return nil, err
-	}
-	findings, err := checkAction(a, paths, all)
-	if err != nil {
-		return nil, a.abort(err)
-	}
-	if err := a.finish(); err != nil {
-		return nil, err
-	}
-	return findings, nil
-}
-
 func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	idx := buildIndex(a.notes, a.unreadable, a.resources)
+	fragments := newFragmentPaths(a.notes, a.unreadable, idx)
 
-	findings := runGraphRules(a, idx)
+	findings := runGraphRules(a, idx, fragments)
 	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
-	findings = append(findings, markdownFragmentFindings(a.notes, a.unreadable, idx, a.scan, a.authority)...)
+	findings = append(findings, fragments.markdownFragmentFindings(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkImages(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkUnusedDefinitions(a.notes, a.authority)...)
 	findings = append(findings, checkSchema(a.notes, a.authority.contract)...)
@@ -76,10 +44,10 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	// wants judged; it does not make the hole in the judgement somebody else's
 	// business, and a filter that kept the missing rules while removing the
 	// sentence explaining them would leave a report that reads complete. The
-	// navigation finding is a hole of the same kind: the course and map rules
+	// navigation finding is a hole of the same kind: the course and index rules
 	// that went silent did so for every scope.
 	findings = append(findings, checkUnreadable(a.unreadable, a.authority)...)
-	findings = append(findings, checkNavigation(a.authority.roles())...)
+	findings = append(findings, checkNavigation(a.authority.contract.NavigationRoles())...)
 	sortFindings(findings)
 	return findings, nil
 }
@@ -111,15 +79,8 @@ func buildIndex(notes []note, unreadable []unreadableEntry, resources []string) 
 // every finding the privacy cut left standing.
 func dropOutsideKnowledgeScope(findings []Finding, scope schema.KnowledgeScope) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return !touchesInsideKnowledgeScope(&f, scope)
+		return !anyTouchedPath(&f, scope.Includes)
 	})
-}
-
-// touchesInsideKnowledgeScope reports whether a finding touches any path
-// inside the declared knowledge layer, counting its citing path and every
-// collision member.
-func touchesInsideKnowledgeScope(f *Finding, scope schema.KnowledgeScope) bool {
-	return anyTouchedPath(f, scope.Includes)
 }
 
 // dropEgressDenied removes every finding whose resolution touches a path the
@@ -157,8 +118,8 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
-		if prefixes[i] == "" {
-			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
+		if !fs.ValidPath(prefixes[i]) {
+			return nil, fmt.Errorf("path filter %q is not a vault-relative path; give one such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 		if prefixes[i] != vaultRoot && !authority.gate.Allows(prefixes[i]) {
 			return nil, fmt.Errorf("path filter %q lies under a directory this vault's rules file withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)

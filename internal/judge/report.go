@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -15,26 +16,30 @@ import (
 // actionable findings grouped by domain and folded by identity, and the
 // retained informational occurrences. Both renderers share one packing, so
 // their counts agree; the human listing also names each occurrence's line
-// when available. Existing output bytes remain frozen.
+// when available.
 
 // domainRoots are the folders under which a note's own folder names its
 // knowledge domain. The contract declares them, under the same key the
 // frontmatter rule reads, so the report groups a vault the way that vault says
 // it is arranged rather than the way this repository's own vault happens to be.
-// A vault that files its lessons flat has no domain in those paths, and they
+// A vault that files its units flat has no domain in those paths, and they
 // land under the no-domain heading — which is the truth about the path, not a
 // gap in the report.
 // Grouping applies to the findings supplied to the report; the frontmatter
 // checker separately selects which notes require validation.
 type domainRoots []string
 
+// noDomain is what the reports call a path with no domain folder under a
+// declared root.
+const noDomain = "(none)"
+
 // of infers a finding's knowledge domain from its vault path, and reports
-// "(other)" when the path carries no domain folder under a declared root.
+// noDomain when the path carries no domain folder under a declared root.
 func (r domainRoots) of(path string) string {
 	if folder, ok := schema.DomainFolder(r, path); ok {
 		return folder
 	}
-	return "(other)"
+	return noDomain
 }
 
 // packedItem is one folded group of identical findings — same rule and target
@@ -70,8 +75,9 @@ type domainSection struct {
 }
 
 // packed is the report ready to render: the counts, the scoreboard, the
-// leverage callout, the per-domain sections, and the hidden split of tracked
-// forward-references (planned) and external paths.
+// leverage callout, the per-domain sections, and the hidden findings split by
+// kind: tracked forward-references (planned), external paths, and every other
+// informational finding.
 type packed struct {
 	errors     int
 	warns      int
@@ -80,39 +86,43 @@ type packed struct {
 	sections   []domainSection
 	planned    int
 	external   int
+	otherInfo  int
 }
 
-// pack computes the shared view once. The hidden count is derived from the
-// total minus the errors and warns, and the external slice is subtracted from
-// it to leave the planned count, so planned plus external always equals hidden
-// and the count line can never under-report a hidden finding.
+// hidden is the number of informational findings, which the report folds out
+// of its sections.
+func (p *packed) hidden() int {
+	return p.planned + p.external + p.otherInfo
+}
+
+// pack computes the shared view once. Every informational finding lands in
+// exactly one of the three hidden counts, so the count line can never
+// under-report one.
 func pack(findings []Finding, roots domainRoots) packed {
-	errors, warns := 0, 0
-	for i := range findings {
-		switch findings[i].Severity {
-		case SeverityError:
-			errors++
-		case SeverityWarn:
-			warns++
-		case SeverityInfo:
-		}
-	}
-	external := 0
-	for i := range findings {
-		if findings[i].RuleID == "link.broken.path" && findings[i].Severity == SeverityInfo {
-			external++
-		}
-	}
-	hidden := len(findings) - errors - warns
-	return packed{
-		errors:     errors,
-		warns:      warns,
+	p := packed{
 		scoreboard: scoreboard(findings, roots),
 		leverage:   leverage(findings, roots),
 		sections:   domainSections(findings, roots),
-		planned:    hidden - external,
-		external:   external,
 	}
+	for i := range findings {
+		f := &findings[i]
+		switch f.Severity {
+		case SeverityError:
+			p.errors++
+		case SeverityWarn:
+			p.warns++
+		case SeverityInfo:
+			switch f.RuleID {
+			case RuleLinkBroken, RuleCourseDiskMismatch:
+				p.planned++
+			case RuleLinkBrokenPath:
+				p.external++
+			default:
+				p.otherInfo++
+			}
+		}
+	}
+	return p
 }
 
 // scoreboard tallies error and warn counts per domain, dropping domains with
@@ -154,41 +164,35 @@ func scoreboard(findings []Finding, roots domainRoots) []scoreRow {
 // targets more than one reference names. A target is planned only when every
 // reference to it is planned. The result is ordered by fan-in, then by target.
 func leverage(findings []Finding, roots domainRoots) []leverageEntry {
-	type agg struct {
-		target  string
-		count   int
-		planned bool
-		domains []string
-	}
-	byTarget := make(map[string]*agg)
+	byTarget := make(map[string]*leverageEntry)
 	for i := range findings {
 		f := &findings[i]
-		if f.RuleID != "link.broken" && f.RuleID != "link.title_not_alias" {
+		if f.RuleID != RuleLinkBroken && f.RuleID != RuleLinkTitleNotAlias {
 			continue
 		}
 		if f.Target == nil {
 			continue
 		}
-		key := normalizeKey(*f.Target)
-		a := byTarget[key]
-		if a == nil {
-			a = &agg{target: *f.Target, planned: true}
-			byTarget[key] = a
+		key := graph.NormalizeKey(*f.Target)
+		e := byTarget[key]
+		if e == nil {
+			e = &leverageEntry{target: *f.Target, planned: true}
+			byTarget[key] = e
 		}
-		a.count++
-		a.planned = a.planned && f.Severity == SeverityInfo
-		if d := roots.of(f.Path); !slices.Contains(a.domains, d) {
-			a.domains = append(a.domains, d)
+		e.count++
+		e.planned = e.planned && f.Severity == SeverityInfo
+		if d := roots.of(f.Path); !slices.Contains(e.domains, d) {
+			e.domains = append(e.domains, d)
 		}
 	}
 	var out []leverageEntry
 	for _, key := range slices.Sorted(maps.Keys(byTarget)) {
-		a := byTarget[key]
-		if a.count <= 1 {
+		e := byTarget[key]
+		if e.count <= 1 {
 			continue
 		}
-		slices.Sort(a.domains)
-		out = append(out, leverageEntry{target: a.target, count: a.count, planned: a.planned, domains: a.domains})
+		slices.Sort(e.domains)
+		out = append(out, *e)
 	}
 	slices.SortStableFunc(out, func(a, b leverageEntry) int {
 		if c := cmp.Compare(b.count, a.count); c != 0 {
@@ -269,8 +273,8 @@ func sumBlast(items []packedItem) int {
 func humanReport(findings []Finding, roots domainRoots) string {
 	p := pack(findings, roots)
 	var s strings.Builder
-	fmt.Fprintf(&s, "%d findings: %d error, %d warn, %d hidden (%d planned forward-refs, %d external paths)\n",
-		len(findings), p.errors, p.warns, p.planned+p.external, p.planned, p.external)
+	fmt.Fprintf(&s, "%d findings: %d error, %d warn, %d hidden (%d planned forward-refs, %d external paths, %d other)\n",
+		len(findings), p.errors, p.warns, p.hidden(), p.planned, p.external, p.otherInfo)
 
 	if len(p.scoreboard) > 0 {
 		s.WriteString("\ndebt by domain:\n")
@@ -311,18 +315,13 @@ func humanReport(findings []Finding, roots domainRoots) string {
 	return s.String()
 }
 
-// markdownReport renders the packed findings as a fileable markdown note body.
-// Frontmatter is only what this vault's contract would itself accept: a type
-// it declares and no required field left blank.
-// A vault that cannot host that note is told so and gets the triage body
-// without a frontmatter block its own check would reject. There is no
+// markdownReport renders the packed findings as a markdown body. There is no
 // timestamp; the caller stamps and routes it.
-func markdownReport(findings []Finding, roots domainRoots, contract *schema.Contract) string {
+func markdownReport(findings []Finding, roots domainRoots) string {
 	p := pack(findings, roots)
 	var s strings.Builder
-	s.WriteString(checkReportPreamble(contract))
 	s.WriteString("# yomihon check\n\n")
-	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.planned+p.external)
+	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.hidden())
 
 	if len(p.scoreboard) > 0 {
 		s.WriteString("## Debt by domain\n\n| domain | error | warn |\n|---|--:|--:|\n")
@@ -348,8 +347,8 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 		s.WriteByte('\n')
 	}
 
-	if p.planned+p.external > 0 {
-		fmt.Fprintf(&s, "<details><summary>%d tracked forward-references · %d external paths (info)</summary>\n\n", p.planned, p.external)
+	if p.hidden() > 0 {
+		fmt.Fprintf(&s, "<details><summary>%d tracked forward-references · %d external paths · %d other (info)</summary>\n\n", p.planned, p.external, p.otherInfo)
 		for i := range findings {
 			f := &findings[i]
 			if f.Severity == SeverityInfo {
@@ -359,45 +358,6 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 		s.WriteString("\n</details>\n")
 	}
 	return s.String()
-}
-
-const (
-	checkReportType = "report"
-)
-
-// checkReportPreamble is the leading bytes of a markdown check body: either a
-// frontmatter block this vault's own check would accept, or a one-line notice
-// that the contract cannot host that note. The triage headings follow either
-// way, so a reader who asked for markdown still gets the report.
-func checkReportPreamble(contract *schema.Contract) string {
-	if contract == nil {
-		return noRulesChecks + " This body is not a fileable note.\n\n"
-	}
-	if block := checkReportFrontmatter(contract); block != "" {
-		return block
-	}
-	return "This vault's rules file does not accept a fileable check report, so this body is not a note.\n\n"
-}
-
-// checkReportFrontmatter builds a frontmatter block from only the keys and
-// values this contract would accept on a check-report note. It is empty when
-// the type is undeclared, a required field cannot be filled, or the candidate
-// still fails the frontmatter rules — the caller then tells the reader instead
-// of handing them a note their own check would reject. The note's title is
-// the report's own first heading, so the block carries only its type.
-func checkReportFrontmatter(contract *schema.Contract) string {
-	if !contract.DeclaresType(checkReportType) {
-		return ""
-	}
-	block := "---\ntype: " + checkReportType + "\n---\n\n"
-	n := parseNote("report.md", []byte(block+"body\n"))
-	findings := newLintRun(contract).note(&n)
-	for i := range findings {
-		if findings[i].Severity == SeverityError {
-			return ""
-		}
-	}
-	return block
 }
 
 // leverageTag labels a leverage target planned when every reference to it is a
@@ -412,10 +372,8 @@ func leverageTag(planned bool) string {
 // humanWhere and markdownWhere are the trailing "where" a line carries, and
 // nothing at all when the finding has no path to give. A finding is normally
 // about a file, and the one that is not says a file under a withheld directory
-// could not be read — naming which would describe the ground the contract
-// closed. Written unconditionally, that line ended in an empty bracket or a
-// dangling dash, which reads as a path the report lost rather than one it is
-// declining to give.
+// could not be read — naming which would describe the ground the rules file
+// closed — and that line ends at its message rather than at an empty bracket.
 func humanWhere(path string) string {
 	if path == "" {
 		return ""

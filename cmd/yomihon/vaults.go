@@ -10,7 +10,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -56,7 +55,7 @@ func runVaults(_ context.Context, args []string, cfg config, stdout, stderr io.W
 	if removing {
 		return removeVault(store, parsed.positionals[0], stdout, stderr)
 	}
-	return listVaults(store, judge.ResolveFormat(parsed.format, stdoutIsTerminal), stdout, stderr)
+	return listVaults(store, resolveFormat(parsed.format, stdoutIsTerminal), stdout, stderr)
 }
 
 func checkVaultsArgs(parsed *commandArgs, removing bool) error {
@@ -68,10 +67,10 @@ func checkVaultsArgs(parsed *commandArgs, removing bool) error {
 	case !removing && len(parsed.positionals) > 0:
 		return errors.New("usage: yomihon vaults [--format json|human]")
 	}
-	return nil
+	return refuseMarkdown(vaultsCommand, parsed.format)
 }
 
-func listVaults(store *vaults.Store, format judge.Format, stdout, stderr io.Writer) int {
+func listVaults(store *vaults.Store, format outputFormat, stdout, stderr io.Writer) int {
 	list, err := store.List()
 	if err != nil {
 		return commandError(stderr, fmt.Errorf("read the list of vaults: %w", err))
@@ -80,7 +79,7 @@ func listVaults(store *vaults.Store, format judge.Format, stdout, stderr io.Writ
 	for i := range list {
 		lines = append(lines, vaultsLine{Name: list[i].Name, Path: list[i].Path, Address: addressOf(list[i].Port)})
 	}
-	if format == judge.FormatJSON {
+	if format == formatJSON {
 		payload, marshalErr := json.Marshal(lines)
 		if marshalErr != nil {
 			return commandError(stderr, fmt.Errorf("encode the list of vaults: %w", marshalErr))

@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -11,8 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 )
 
-const calloutTitleMarkupRule RuleID = "callout.title_markup"
-
 // calloutTitle is one recognised callout's opening-line title, with the
 // 1-based file line the opening sits on.
 type calloutTitle struct {
@@ -20,25 +17,20 @@ type calloutTitle struct {
 	line  int
 }
 
-func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) []calloutTitle {
+// extractCalloutTitlesFrom reads the title of every recognised callout in
+// body whose opening line starts outside the comment zones, a fence and an
+// indented code block, each with its file line.
+func extractCalloutTitlesFrom(body string, bodyStartLine int, comments []byteRange) []calloutTitle {
 	var out []calloutTitle
-	inFence, fenceByte, fenceLen := false, byte(0), 0
+	var fence fenceTracker
 	offset := 0
 	for i, line := range strings.Split(body, "\n") {
 		lineStart := offset
 		offset += len(line) + 1
-		if graph.In(skip, lineStart) {
+		if graph.In(comments, lineStart) {
 			continue
 		}
-		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
-		if inFence {
-			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
-				inFence = false
-			}
-			continue
-		}
-		if marker, n, ok := graph.FenceOpens(unquoted); ok {
-			inFence, fenceByte, fenceLen = true, marker, n
+		if fence.fenced(line) {
 			continue
 		}
 		if graph.IndentedCodeLine.MatchString(line) {
@@ -91,7 +83,7 @@ func calloutTitleFindings(notes []note) []Finding {
 
 func calloutTitleMarkupFinding(n *note, title calloutTitle) Finding {
 	return Finding{
-		RuleID:          calloutTitleMarkupRule,
+		RuleID:          RuleCalloutTitleMarkup,
 		Severity:        SeverityInfo,
 		Path:            n.path,
 		Line:            new(title.line),
@@ -100,7 +92,7 @@ func calloutTitleMarkupFinding(n *note, title calloutTitle) Finding {
 		SuggestedAction: "move the markup into the callout body, or write the title as plain text",
 		SourceRule:      sourceYomihon,
 		Target:          new(title.title),
-		Fingerprint:     fingerprint(calloutTitleMarkupRule, n.path, strconv.Itoa(title.line)+"\x1f"+title.title),
+		Fingerprint:     fingerprint(RuleCalloutTitleMarkup, n.path, title.title),
 	}
 }
 
@@ -110,21 +102,13 @@ func titleCarriesMarkup(title string) bool {
 	if titleCarriesWikilink(title) {
 		return true
 	}
-	doc := mdParser.Parse(text.NewReader([]byte(title)))
 	found := false
-	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
+	walkNodes(mdParser.Parse(text.NewReader([]byte(title))), func(n ast.Node) {
 		switch n.(type) {
 		case *ast.Emphasis, *ast.CodeSpan, *ast.RawHTML, *ast.HTMLBlock, *ast.Link, *ast.AutoLink, *ast.Image:
 			found = true
-			return ast.WalkStop, nil
 		}
-		return ast.WalkContinue, nil
-	}); err != nil {
-		return false
-	}
+	})
 	return found
 }
 

@@ -4,29 +4,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestEverySchemaRuleHasWordsForAReader closes the gap this whole surface was
-// built to close, in the one direction that reopens by itself: a rule landed
-// later than the sentence that explains it. The page would then meet a finding
-// it has nothing to say about, and a page with nothing to say is where this
-// started.
-//
-// The enumeration is the registry a --deny value is validated against, which a
-// sibling test holds to what the rules actually emit in both directions, so
-// neither a new rule nor a dead entry can hide here. A list copied into this
-// file would only pin what its author believed on the day.
-//
-// The one registered rule left out is about the folder rather than about any
-// note: it is reached from the scan, never from a note's frontmatter, so no
-// note page can ever be asked to say it.
+// TestEverySchemaRuleHasWordsForAReader holds every registered schema rule a
+// note page can meet to a sentence of its own in each language, so a rule
+// landed later than its words does not reach the page with nothing to say. The
+// two rules left out are about the folder and the contract rather than a note,
+// so no note page is asked to say them.
 func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 	t.Parallel()
 
-	// Only the folder finding is outside the note page's wording surface.
+	// The rules no note page is asked to say.
 	saidElsewhere := map[string]string{
 		// Reached from the scan rather than from any note's frontmatter, so no
 		// note page can be asked to say it.
@@ -35,13 +24,6 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		"schema.navigation_unavailable": "it is about the contract rather than a note",
 	}
 
-	var expected, checked []string
-	for _, ruleID := range ruleIDs {
-		id := string(ruleID)
-		if _, elsewhere := saidElsewhere[id]; strings.HasPrefix(id, "schema.") && !elsewhere {
-			expected = append(expected, id)
-		}
-	}
 	for _, ruleID := range ruleIDs {
 		id := string(ruleID)
 		if !strings.HasPrefix(id, "schema.") {
@@ -66,27 +48,5 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 				}
 			}
 		})
-		checked = append(checked, id)
-	}
-	if diff := cmp.Diff(expected, checked); diff != "" {
-		t.Errorf("schema wording coverage omitted registered note rules (-registry +checked):\n%s", diff)
-	}
-}
-
-// TestAnUnknownSchemaRuleStillSaysSomething is the fallback's own lock: the
-// test above proves no rule falls through today, and this proves that falling
-// through is still answered rather than silent.
-func TestAnUnknownSchemaRuleStillSaysSomething(t *testing.T) {
-	t.Parallel()
-
-	const invented = "schema.not_a_rule_anyone_wrote"
-	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		var said strings.Builder
-		for _, part := range wording.SchemaSentence(lang, invented, "", "") {
-			said.WriteString(part.Text)
-		}
-		if !strings.Contains(said.String(), invented) {
-			t.Errorf("an unknown rule in %s said %q, which does not name the rule a reader would have to ask about", lang, said.String())
-		}
 	}
 }

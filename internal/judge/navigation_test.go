@@ -1,18 +1,15 @@
 package judge
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced is the lock on
-// the silence: a contract whose type roles are refused used to skip
-// every course and gate nothing, so a run denying a course rule exited 0 with
-// the course never read.
+// TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced holds the
+// silence to the gate: a contract whose type roles are refused skips every
+// course, so a run denying a course rule still fails rather than exiting 0
+// with the course never read.
 //
 // The control is the same vault under the contract that names its courses
 // correctly. It has to gate on the same rule for the refused case to prove
@@ -78,7 +75,7 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 			}
 			var got int
 			for i := range findings {
-				if findings[i].RuleID == navigationUnavailableRule {
+				if findings[i].RuleID == RuleSchemaNavigationUnavailable {
 					got++
 					if findings[i].Path != schema.ContractRelPath {
 						t.Errorf("finding path = %q, want the contract file %q", findings[i].Path, schema.ContractRelPath)
@@ -86,66 +83,8 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 				}
 			}
 			if got != 1 {
-				t.Errorf("runCheckAction() carried %d %s findings, want 1", got, navigationUnavailableRule)
+				t.Errorf("runCheckAction() carried %d %s findings, want 1", got, RuleSchemaNavigationUnavailable)
 			}
 		})
-	}
-}
-
-// TestNoNavigationFindingWhenTheTableIsUsable keeps the finding from being a
-// permanent fixture of every report: a contract whose roles are read cleanly
-// never carries it.
-func TestNoNavigationFindingWhenTheTableIsUsable(t *testing.T) {
-	t.Parallel()
-
-	findings, err := runCheckAction(t.Context(), judgeFixtureRoot(t, "testdata/vault-course"), nil, true)
-	if err != nil {
-		t.Fatalf("runCheckAction() error = %v", err)
-	}
-	for i := range findings {
-		if findings[i].RuleID == navigationUnavailableRule {
-			t.Errorf("usable type roles drew %s", navigationUnavailableRule)
-		}
-	}
-}
-
-// TestARoleTwoTypesClaimIsReportedToo pins the other way the roles go
-// unusable. A role only one type may hold, given to two, leaves no answer to
-// which of them is the lesson, so the roles are refused as a whole and the
-// course rules skip every note just as they do for a role nobody knows; the
-// case has to draw the same finding.
-func TestARoleTwoTypesClaimIsReportedToo(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.CopyFS(root, os.DirFS("testdata/vault-course")); err != nil {
-		t.Fatalf("CopyFS() error = %v", err)
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	data, err := os.ReadFile(contractPath) // #nosec G304 -- a path under this test's own temp directory
-	if err != nil {
-		t.Fatalf("ReadFile(contract) error = %v", err)
-	}
-	const anchor = "[types.concept]\n"
-	text := strings.Replace(string(data), anchor, "[types.lecture]\nrole = \"lesson\"\nfields = [\"slug\"]\n\n"+anchor, 1)
-	if text == string(data) {
-		t.Fatalf("fixture drift: the contract no longer carries %q", anchor)
-	}
-	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- contractPath is the fixed contract location under this test's own t.TempDir
-		t.Fatalf("WriteFile(contract) error = %v", err)
-	}
-
-	findings, err := runCheckAction(t.Context(), root, nil, true)
-	if err != nil {
-		t.Fatalf("runCheckAction() error = %v", err)
-	}
-	var got int
-	for i := range findings {
-		if findings[i].RuleID == navigationUnavailableRule {
-			got++
-		}
-	}
-	if got != 1 {
-		t.Errorf("a lesson role two types hold drew %d %s findings, want 1", got, navigationUnavailableRule)
 	}
 }

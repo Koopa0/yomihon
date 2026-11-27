@@ -2,7 +2,6 @@ package judge
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -26,18 +25,18 @@ func TestDraftMustBeABoolean(t *testing.T) {
 	}{
 		{name: "true", draft: "draft: true\n"},
 		{name: "false", draft: "draft: false\n"},
-		{name: "quoted yes", draft: "draft: \"yes\"\n", want: []string{`schema.draft draft "yes" must be true or false target=yes`}},
-		{name: "quoted true", draft: "draft: \"true\"\n", want: []string{`schema.draft draft "true" must be true or false target=true`}},
-		{name: "list", draft: "draft: [true]\n", want: []string{"schema.draft draft must be true or false"}},
-		{name: "empty", draft: "draft:\n", want: []string{"schema.draft draft must be true or false"}},
+		{name: "quoted yes", draft: "draft: \"yes\"\n", want: []string{"schema.draft draft yes"}},
+		{name: "quoted true", draft: "draft: \"true\"\n", want: []string{"schema.draft draft true"}},
+		{name: "list", draft: "draft: [true]\n", want: []string{"schema.draft draft"}},
+		{name: "empty", draft: "draft:\n", want: []string{"schema.draft draft"}},
 		{name: "absent", draft: ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			body := "---\ntype: note\ncreated: 2026-01-01\n" + tt.draft + "---\n# Probe\n"
-			got := LintFrontmatter("Writing/Probe.md", []byte(body), contract)
-			if diff := cmp.Diff(tt.want, describeFindings(got)); diff != "" {
-				t.Errorf("LintFrontmatter(%q) mismatch (-want +got):\n%s", tt.draft, diff)
+			got := lintFrontmatter("Writing/Probe.md", []byte(body), contract)
+			if diff := cmp.Diff(tt.want, findingKeys(got)); diff != "" {
+				t.Errorf("lintFrontmatter(%q) mismatch (-want +got):\n%s", tt.draft, diff)
 			}
 		})
 	}
@@ -57,7 +56,7 @@ func TestTheFieldListIsClosed(t *testing.T) {
 		`common = ["type", "created"]`,
 	})
 	unknown := func(key string) string {
-		return `schema.unknown_key frontmatter "` + key + `" is not a known field target=` + key
+		return "schema.unknown_key " + key
 	}
 	for _, tt := range []struct {
 		name   string
@@ -86,10 +85,7 @@ func TestTheFieldListIsClosed(t *testing.T) {
 			name:   "a lesson's field on an undeclared type",
 			path:   "Writing/Probe.md",
 			fields: "type: Lessen\nslug: probe\n",
-			want: []string{
-				`schema.enum type "Lessen" is not an allowed type target=Lessen`,
-				`schema.type_dependent type "Lessen" is not valid, so type-only fields cannot be judged until type is valid target=Lessen`,
-			},
+			want:   []string{"schema.enum type Lessen", "schema.type_dependent type Lessen"},
 		},
 		{
 			name:   "a concept's provenance field",
@@ -102,13 +98,19 @@ func TestTheFieldListIsClosed(t *testing.T) {
 			fields: "type: note\nsource_locator: p. 1\n",
 			want:   []string{unknown("source_locator")},
 		},
+		{
+			name:   "keys a value would read as a null, a time or a number",
+			path:   "Writing/Probe.md",
+			fields: "type: note\nNull: x\nNULL: x\n2024-01-01: x\n1_000: x\n~: x\n",
+			want:   []string{unknown("1_000"), unknown("2024-01-01"), unknown("NULL"), unknown("Null"), unknown("~")},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			body := "---\n" + tt.fields + "created: 2026-01-01\n---\n# Probe\n"
-			got := LintFrontmatter(tt.path, []byte(body), contract)
-			if diff := cmp.Diff(tt.want, describeFindings(got)); diff != "" {
-				t.Errorf("LintFrontmatter() mismatch (-want +got):\n%s", diff)
+			got := lintFrontmatter(tt.path, []byte(body), contract)
+			if diff := cmp.Diff(tt.want, findingKeys(got)); diff != "" {
+				t.Errorf("lintFrontmatter() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -142,31 +144,16 @@ func TestTheDomainIsReadOffTheFolder(t *testing.T) {
 		return root
 	}
 
-	t.Run("derived", func(t *testing.T) {
-		t.Parallel()
-		collected, err := collectNotes(t.Context(), vaultWith(t))
-		if err != nil {
-			t.Fatalf("collectNotes() error = %v", err)
-		}
-		got := map[string]string{}
-		for i := range collected {
-			got[collected[i].path] = collected[i].domain
-		}
-		if diff := cmp.Diff(notes, got); diff != "" {
-			t.Errorf("note domains (-want +got):\n%s", diff)
-		}
-	})
-
 	enumFindings := func(t *testing.T, root string) []string {
 		t.Helper()
-		findings, err := Check(t.Context(), root)
+		findings, err := runCheckAction(t.Context(), root, nil, false)
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
 		var got []string
 		for i := range findings {
 			if findings[i].RuleID == "schema.enum" {
-				got = append(got, findings[i].Path+" "+findings[i].Message)
+				got = append(got, findings[i].Path+" "+*findings[i].Target)
 			}
 		}
 		return got
@@ -175,7 +162,7 @@ func TestTheDomainIsReadOffTheFolder(t *testing.T) {
 	t.Run("declared vocabulary", func(t *testing.T) {
 		t.Parallel()
 		got := enumFindings(t, vaultWith(t))
-		want := []string{`Writing/lessons/rust/deep/C.md domain "rust" is not an allowed value`}
+		want := []string{"Writing/lessons/rust/deep/C.md rust"}
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("domain enum findings (-want +got):\n%s", diff)
 		}
@@ -258,23 +245,11 @@ func TestAThoughtCitingAnAliasIsTold(t *testing.T) {
 				t.Errorf("check named the withheld note:\n%s", out)
 			}
 			var got []string
-			for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-				if line == "" {
+			for _, f := range decodeFindings(t, out) {
+				if f.Path != "Thoughts/Reaction.md" || !strings.HasPrefix(string(f.RuleID), "provenance.") {
 					continue
 				}
-				var f struct {
-					RuleID     string  `json:"rule_id"`
-					Path       string  `json:"path"`
-					Target     *string `json:"target"`
-					ResolvedTo *string `json:"resolved_to"`
-				}
-				if err := json.Unmarshal([]byte(line), &f); err != nil {
-					t.Fatalf("decode %q: %v", line, err)
-				}
-				if f.Path != "Thoughts/Reaction.md" || !strings.HasPrefix(f.RuleID, "provenance.") {
-					continue
-				}
-				entry := f.RuleID + " " + *f.Target + " -> "
+				entry := string(f.RuleID) + " " + *f.Target + " -> "
 				if f.ResolvedTo != nil {
 					entry += *f.ResolvedTo
 				}
@@ -320,9 +295,7 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 				if err != nil {
 					t.Fatalf("check(all=%v) error = %v", all, err)
 				}
-				if _, ok := findingByRule(findings, tt.rule); !ok {
-					t.Errorf("check(all=%v) reported no %s, so its silence about %s proves nothing", all, tt.rule, prefix)
-				}
+				findFinding(t, findings, tt.rule, "", "")
 				for i := range findings {
 					f := &findings[i]
 					named := strings.HasPrefix(f.Path, prefix) || f.ResolvedTo != nil && strings.HasPrefix(*f.ResolvedTo, prefix)
@@ -337,17 +310,20 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 			for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
 				out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: format})
 				if err != nil {
-					t.Fatalf("RunCheck(%d) error = %v", format, err)
+					t.Fatalf("RunCheck(%v) error = %v", format, err)
 				}
 				if bytes.Contains(out, []byte(prefix)) {
-					t.Errorf("RunCheck(%d) named a withheld note:\n%s", format, out)
+					t.Errorf("RunCheck(%v) named a withheld note:\n%s", format, out)
+				}
+				if format == FormatMarkdown {
+					continue
 				}
 				out, _, err = coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
 				if err != nil {
-					t.Fatalf("RunCoverage(%d) error = %v", format, err)
+					t.Fatalf("RunCoverage(%v) error = %v", format, err)
 				}
 				if bytes.Contains(out, []byte(prefix)) {
-					t.Errorf("RunCoverage(%d) named a withheld note:\n%s", format, out)
+					t.Errorf("RunCoverage(%v) named a withheld note:\n%s", format, out)
 				}
 			}
 

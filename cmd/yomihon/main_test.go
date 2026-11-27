@@ -329,8 +329,8 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	}
 
 	// The adjudicator reads the whole vault as well; it reports, never repairs.
-	if _, err := judge.Check(t.Context(), root); err != nil {
-		t.Fatalf("judge.Check(t.Context(), %q) = %v", root, err)
+	if _, _, err := checkBytes(t.Context(), &judge.CheckOptions{Root: root, Format: judge.FormatJSON}); err != nil {
+		t.Fatalf("check %q = %v", root, err)
 	}
 
 	after := hashTree(t, root)

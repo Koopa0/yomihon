@@ -95,5 +95,16 @@ func checkFrontmatterSplit(t *testing.T, data []byte, block FrontmatterSplit, fo
 	}
 	if !bytes.HasSuffix(data, block.Body) {
 		t.Errorf("SplitFrontmatter(%q) body %q is not a source suffix", data, block.Body)
+		return
+	}
+	// The body begins on the line after the closing fence, which is its own
+	// line even when nothing follows it.
+	prefix := data[:len(data)-len(block.Body)]
+	prefixLines := bytes.Count(prefix, []byte("\n"))
+	if len(prefix) > 0 && prefix[len(prefix)-1] != '\n' {
+		prefixLines++
+	}
+	if want := 1 + prefixLines; block.BodyStartLine != want {
+		t.Errorf("SplitFrontmatter(%q) BodyStartLine = %d, want %d", data, block.BodyStartLine, want)
 	}
 }

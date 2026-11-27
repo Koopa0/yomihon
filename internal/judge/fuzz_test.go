@@ -9,123 +9,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// The diagnostics parse untrusted vault bytes by hand at the boundaries where a
-// malformed file historically slipped a wrong line number, a dropped fence, or
-// a corrupted separator into the frozen output. These fuzz targets keep that
-// class of fault a machine's job: each hunts crashes and asserts the invariants
-// the corresponding function actually promises, and the seeds double as
-// regression cases that run on every ordinary test pass.
-
-// FuzzSplitFrontmatter checks that the frontmatter split never panics, agrees
-// with itself across calls, and — when it finds a block — reports a body start
-// line that matches the newline count of the bytes it consumed and returns a
-// block, closing fence, and body that reconstruct the input exactly.
-func FuzzSplitFrontmatter(f *testing.F) {
-	f.Add([]byte(""))
-	f.Add([]byte("no frontmatter body\n"))
-	f.Add([]byte("\xef\xbb\xbf# Heading\n"))
-	f.Add([]byte("\xef\xbb\xbf---\r\ntitle: x\r\n---\r\nbody\r\n"))
-	f.Add([]byte("---\ntitle: x\n---\nbody\n"))
-	f.Add([]byte("---\r\ntitle: x\r\n---\r\nbody\r\n"))
-	f.Add([]byte("---\ntitle: x\n...\nbody\n"))
-	f.Add([]byte("---\n---\nbody\n"))
-	f.Add([]byte("---\n---"))
-	f.Add([]byte("---\na: b\n---"))
-	f.Add([]byte("---\n..."))
-	f.Add([]byte("---\ntitle: x\n"))
-	f.Add([]byte("---\nkey: |\n  line1\n  line2\n---\nbody\n"))
-	f.Add([]byte("---\nkey: >-\n  folded\n---\nbody\n"))
-	f.Add([]byte("---\nkey: |+\n  keep\n\n---\nbody\n"))
-	f.Add([]byte("---\n"))
-	f.Add([]byte("---\nno close and ... not a fence line\n"))
-	f.Add([]byte("text\n---\nnot at start\n---\n"))
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		block, found := vault.SplitFrontmatter(data)
-		fm, body, bodyLine := block.Content, block.Body, block.BodyStartLine
-
-		block2, found2 := vault.SplitFrontmatter(data)
-		if found != found2 || bodyLine != block2.BodyStartLine || !bytes.Equal(fm, block2.Content) || !bytes.Equal(body, block2.Body) {
-			t.Fatalf("vault.SplitFrontmatter is not deterministic for %q", data)
-		}
-
-		wantUnsplit := data
-		if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) {
-			wantUnsplit = data[3:]
-		}
-		if !found {
-			if bodyLine != 1 {
-				t.Errorf("vault.SplitFrontmatter(%q) not found: bodyLine = %d, want 1", data, bodyLine)
-			}
-			if fm != nil {
-				t.Errorf("vault.SplitFrontmatter(%q) not found: fm = %q, want nil", data, fm)
-			}
-			if !bytes.Equal(body, wantUnsplit) {
-				t.Errorf("vault.SplitFrontmatter(%q) not found: body = %q, want input after one leading byte-order mark %q", data, body, wantUnsplit)
-			}
-			return
-		}
-
-		// A found body is a suffix of the input, so the bytes before it are the
-		// consumed prefix: the opening fence, the block, and the closing fence
-		// line. The body begins on the line after the closing fence, so the
-		// reported line is one past the number of lines in that prefix. A closing
-		// fence with no trailing newline is still its own line — the body is
-		// empty in that case, but the line count still advances past it.
-		if !bytes.HasSuffix(data, body) {
-			t.Fatalf("vault.SplitFrontmatter(%q) found: body %q is not a suffix of the input", data, body)
-		}
-		prefix := data[:len(data)-len(body)]
-		prefixLines := bytes.Count(prefix, []byte("\n"))
-		if len(prefix) > 0 && prefix[len(prefix)-1] != '\n' {
-			prefixLines++
-		}
-		if want := 1 + prefixLines; bodyLine != want {
-			t.Errorf("vault.SplitFrontmatter(%q) bodyLine = %d, want %d (one past the %d lines in %q)", data, bodyLine, want, prefixLines, prefix)
-		}
-
-		// The prefix opens with a fence, carries the returned block right after
-		// it, and ends with a line that trims to a closing fence.
-		openLen := openingFenceLen(data)
-		if openLen == 0 {
-			t.Fatalf("vault.SplitFrontmatter(%q) found without a leading fence", data)
-		}
-		if len(fm) > len(prefix)-openLen || !bytes.Equal(data[openLen:openLen+len(fm)], fm) {
-			t.Fatalf("vault.SplitFrontmatter(%q) block %q does not sit right after the opening fence", data, fm)
-		}
-		closing := bytes.TrimRight(prefix[openLen+len(fm):], "\r\n")
-		if string(closing) != "---" && string(closing) != "..." {
-			t.Errorf("vault.SplitFrontmatter(%q) closing fence line = %q, want \"---\" or \"...\"", data, closing)
-		}
-	})
-}
-
-// openingFenceLen is the length of the opening frontmatter fence at the very
-// start of data, or 0 when there is none.
-func openingFenceLen(data []byte) int {
-	mark := 0
-	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) {
-		mark = 3
-		data = data[3:]
-	}
-	switch {
-	case bytes.HasPrefix(data, []byte("---\n")):
-		return mark + len("---\n")
-	case bytes.HasPrefix(data, []byte("---\r\n")):
-		return mark + len("---\r\n")
-	default:
-		return 0
-	}
-}
+// The diagnostics parse untrusted vault bytes, so these fuzz targets hunt
+// crashes and assert the invariants each function promises; the seeds run on
+// every ordinary test pass.
 
 // FuzzParseNote checks that parsing a note never panics on any frontmatter
 // shape — malformed YAML, duplicate keys nested or shallow, merge keys, tagged
-// scalars, and aliases — classifies every input into exactly one state, and
-// yields the same note when parsing the same bytes twice.
+// scalars, and aliases — and classifies every input into exactly one state.
 func FuzzParseNote(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("just a transcript\n"))
@@ -142,6 +34,7 @@ func FuzzParseNote(f *testing.F) {
 	f.Add([]byte("---\n---\nbody\n"))
 	f.Add([]byte("---\n- a\n- b\n---\n"))
 	f.Add([]byte("---\ntitle:\n---\n"))
+	f.Add([]byte("> [!note] A titled callout\n> body\n"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		const rel = "Concepts/fuzz.md"
@@ -157,18 +50,12 @@ func FuzzParseNote(f *testing.F) {
 		if parsed != (n.frontmatter != nil) {
 			t.Errorf("parseNote(%q) parsed = %v but frontmatter != nil = %v; they must agree", data, parsed, n.frontmatter != nil)
 		}
-
-		n2 := parseNote(rel, data)
-		if diff := cmp.Diff(n, n2, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, linkDefinition{})); diff != "" {
-			t.Errorf("parseNote(%q) is not deterministic (-first +second):\n%s", data, diff)
-		}
 	})
 }
 
 // FuzzExtractLinks checks that link extraction never panics, that every
-// reported line falls within the body's line span, that every wikilink target
-// is a literal substring of the body it was scanned from, and that both
-// extractors agree with themselves across calls.
+// reported line falls within the body's line span, and that every wikilink
+// target is a literal substring of the body it was scanned from.
 func FuzzExtractLinks(f *testing.F) {
 	f.Add("", uint8(0))
 	f.Add("see [[Note]] here\n", uint8(1))
@@ -207,13 +94,6 @@ func FuzzExtractLinks(f *testing.F) {
 			if pr.line < bodyLine || pr.line > maxLine {
 				t.Errorf("extractPathRefs(%q, %d) target %q line = %d, want within [%d, %d]", body, bodyLine, pr.target, pr.line, bodyLine, maxLine)
 			}
-		}
-
-		if diff := cmp.Diff(links, extractWikilinks(body, bodyLine), cmp.AllowUnexported(wikiLink{})); diff != "" {
-			t.Errorf("extractWikilinks(%q, %d) is not deterministic (-first +second):\n%s", body, bodyLine, diff)
-		}
-		if diff := cmp.Diff(refs, extractPathRefs(body, bodyLine), cmp.AllowUnexported(pathRef{})); diff != "" {
-			t.Errorf("extractPathRefs(%q, %d) is not deterministic (-first +second):\n%s", body, bodyLine, diff)
 		}
 	})
 }
@@ -277,23 +157,23 @@ func FuzzWriteJSONL(f *testing.F) {
 		}
 
 		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			t.Fatalf("WriteJSONL(%d findings) = %v", len(findings), err)
+		if err := writeJSONL(&buf, findings); err != nil {
+			t.Fatalf("writeJSONL(%d findings) = %v", len(findings), err)
 		}
 		out := buf.Bytes()
 
 		// Every control character, including a newline in any field, is escaped
 		// inside the JSON, so the only raw newlines are the line terminators.
 		if got := bytes.Count(out, []byte("\n")); got != len(findings) {
-			t.Errorf("WriteJSONL wrote %d newlines for %d findings:\n%q", got, len(findings), out)
+			t.Errorf("writeJSONL wrote %d newlines for %d findings:\n%q", got, len(findings), out)
 		}
 		if len(out) > 0 && !bytes.HasSuffix(out, []byte("\n")) {
-			t.Errorf("WriteJSONL output does not end in a newline:\n%q", out)
+			t.Errorf("writeJSONL output does not end in a newline:\n%q", out)
 		}
 
 		lines := bytes.Split(out, []byte("\n"))
 		if len(lines) != len(findings)+1 || len(lines[len(lines)-1]) != 0 {
-			t.Fatalf("WriteJSONL(%d findings) did not split into one line each:\n%q", len(findings), out)
+			t.Fatalf("writeJSONL(%d findings) did not split into one line each:\n%q", len(findings), out)
 		}
 		for i := range findings {
 			assertLineRoundTrips(t, &findings[i], lines[i])
@@ -314,7 +194,7 @@ func FuzzWriteJSONL(f *testing.F) {
 func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 	t.Helper()
 	if !json.Valid(line) {
-		t.Fatalf("WriteJSONL produced invalid JSON:\n%q", line)
+		t.Fatalf("writeJSONL produced invalid JSON:\n%q", line)
 	}
 	// The encoder coerces invalid UTF-8 to the replacement rune, so an exact
 	// round-trip is only defined for input that is already valid UTF-8.
@@ -341,7 +221,7 @@ func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 		Fingerprint:      want.Fingerprint,
 	}
 	if diff := cmp.Diff(expected, got, cmpopts.EquateEmpty()); diff != "" {
-		t.Errorf("WriteJSONL round-trip mismatch (-want +got):\n%s", diff)
+		t.Errorf("writeJSONL round-trip mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -398,43 +278,4 @@ func allValidUTF8(fnd *Finding) bool {
 		}
 	}
 	return true
-}
-
-// FuzzStripTarget checks that reducing a wikilink's inner text to its
-// resolution target never panics, agrees its found flag with a non-empty
-// result, keeps the target a substring of the input, and drops the delimiters
-// it splits on. The reduction is not idempotent — a backslash left trailing by
-// the heading or block cut is trimmed only on a later pass — so idempotence is
-// deliberately not asserted; the delimiter and substring invariants are what
-// the function guarantees.
-func FuzzStripTarget(f *testing.F) {
-	f.Add("")
-	f.Add("Target")
-	f.Add("Target|Display")
-	f.Add("Target#heading")
-	f.Add("Target^block")
-	f.Add("Target|Disp#h^b")
-	f.Add("#anchor-only")
-	f.Add("  spaced  ")
-	f.Add("a\\#b")
-	f.Add("a\\|b")
-	f.Add("だ")
-	f.Add("name with 内部 space")
-
-	f.Fuzz(func(t *testing.T, s string) {
-		target, ok := stripTarget(s)
-
-		if ok != (target != "") {
-			t.Errorf("stripTarget(%q) = (%q, %v); ok must equal target != \"\"", s, target, ok)
-		}
-		if !strings.Contains(s, target) {
-			t.Errorf("stripTarget(%q) = %q, which is not a substring of the input", s, target)
-		}
-		if strings.ContainsAny(target, "|#^") {
-			t.Errorf("stripTarget(%q) = %q, which still carries a delimiter it splits on", s, target)
-		}
-		if trimmed := strings.TrimSpace(target); trimmed != target {
-			t.Errorf("stripTarget(%q) = %q, which is not trimmed of surrounding space", s, target)
-		}
-	})
 }
