@@ -1,12 +1,10 @@
 package ledger
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand/v2"
 	"os"
@@ -17,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/childtest"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
@@ -81,12 +80,9 @@ func runChild(mode, config, writer string) error {
 		return err
 	}
 	l := Open(dir, slog.New(slog.DiscardHandler))
-	out := bufio.NewWriter(os.Stdout)
 	say := func(format string, args ...any) error {
-		if _, writeErr := fmt.Fprintf(out, format+"\n", args...); writeErr != nil {
-			return writeErr
-		}
-		return out.Flush()
+		_, sayErr := fmt.Fprintf(os.Stdout, format+"\n", args...)
+		return sayErr
 	}
 	switch mode {
 	case "together":
@@ -119,13 +115,8 @@ func runChild(mode, config, writer string) error {
 	}
 }
 
-// child is a running second process and what it has said.
-type child struct {
-	cmd   *exec.Cmd
-	lines chan string
-}
-
-func startChild(t *testing.T, mode, config, writer string) *child {
+// startChild runs this test binary again as a writer of mode over config.
+func startChild(t *testing.T, mode, config, writer string) *childtest.Child {
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // #nosec G204 G702 -- this test binary, run again as the writer
 	cmd.Env = append(os.Environ(), childModeVar+"="+mode, childConfigVar+"="+config, childWriterVar+"="+writer)
@@ -137,19 +128,11 @@ func startChild(t *testing.T, mode, config, writer string) *child {
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	// The pipe is read to its end whatever the test does with what it says, so
-	// the child never waits on a full pipe; 64 lines is more than it says
-	// between two kills.
-	c := &child{cmd: cmd, lines: make(chan string, 64)}
-	go func() {
-		defer close(c.lines)
-		scanner := bufio.NewScanner(out)
-		for scanner.Scan() {
-			c.lines <- scanner.Text()
-		}
-		_, _ = io.Copy(io.Discard, out) //nolint:errcheck // what is left after a kill says nothing
-	}()
-	return c
+	return childtest.Watch(out, func() error {
+		err := cmd.Process.Kill()
+		_ = cmd.Wait() //nolint:errcheck // a killed process answers that it was killed
+		return err
+	})
 }
 
 // done is a line the child said Record answered for: its seq and which line it
@@ -159,53 +142,19 @@ type done struct {
 	i   int
 }
 
-// killAfter kills the child once it has begun begins lines, then, when until
-// is not nil, once until holds, and then a little longer, wait; and answers
+// killAfter is the child killed as childtest.Child.KillAfter kills it, and
 // every line it said Record answered for.
-func (c *child) killAfter(t *testing.T, begins int, until func() bool, wait time.Duration) []done {
+func killAfter(t *testing.T, c *childtest.Child, begins int, until func() bool, wait time.Duration) []done {
 	t.Helper()
 	var answered []done
-	read := func(line string) {
-		if rest, ok := strings.CutPrefix(line, "done "); ok {
-			seq, i, _ := strings.Cut(rest, " ")
-			s, err1 := strconv.ParseUint(seq, 10, 64)
-			n, err2 := strconv.Atoi(i)
-			if err1 != nil || err2 != nil {
-				t.Fatalf("the child said %q", line)
-			}
-			answered = append(answered, done{s, n})
+	for _, words := range c.KillAfter(t, begins, until, wait) {
+		seq, i, _ := strings.Cut(words, " ")
+		s, err1 := strconv.ParseUint(seq, 10, 64)
+		n, err2 := strconv.Atoi(i)
+		if err1 != nil || err2 != nil {
+			t.Fatalf("the child said done %q", words)
 		}
-	}
-	for begun := 0; begun < begins; {
-		line, ok := <-c.lines
-		if !ok {
-			t.Fatal("the child stopped before it was killed")
-		}
-		if strings.HasPrefix(line, "begin ") {
-			begun++
-		}
-		read(line)
-	}
-	for deadline := time.Now().Add(time.Minute); until != nil && !until(); {
-		if time.Now().After(deadline) {
-			t.Fatal("what the kill waits for did not happen in a minute")
-		}
-		select {
-		case line, ok := <-c.lines:
-			if !ok {
-				t.Fatal("the child stopped before it was killed")
-			}
-			read(line)
-		case <-time.After(50 * time.Microsecond):
-		}
-	}
-	time.Sleep(wait)
-	if err := c.cmd.Process.Kill(); err != nil {
-		t.Fatal(err)
-	}
-	_ = c.cmd.Wait() //nolint:errcheck // a killed process answers that it was killed
-	for line := range c.lines {
-		read(line)
+		answered = append(answered, done{s, n})
 	}
 	return answered
 }
@@ -293,7 +242,7 @@ func TestAWriterKilledWhileItAppendsLosesNoCommittedLine(t *testing.T) {
 			wait = time.Duration(rand.IntN(1000)) * time.Microsecond // #nosec G404 -- the moment of a kill, not a secret
 		}
 		c := startChild(t, "append", config, "")
-		answered := c.killAfter(t, 1, grown, wait)
+		answered := killAfter(t, c, 1, grown, wait)
 		data, err := os.ReadFile(dir.Join(fileName))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Fatal(err)
@@ -349,7 +298,7 @@ func TestAWriterKilledWhileItCompactsLosesNoLiveLine(t *testing.T) {
 	for kills < maxKills && (kills < minKills || caught == 0) {
 		kills++
 		c := startChild(t, "compact", config, "")
-		answered := c.killAfter(t, 1+rand.IntN(16), nil, time.Duration(rand.IntN(20000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
+		answered := killAfter(t, c, 1+rand.IntN(16), nil, time.Duration(rand.IntN(20000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
 		// A first kill that lands before the child's first Record has made the
 		// vault's directory leaves nothing there at all.
 		entries, err := os.ReadDir(dir.Path())
