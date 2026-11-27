@@ -44,8 +44,8 @@ func Watch(out io.Reader, kill func() error) *Child {
 // every step it said was done, in the order it said them. A child that stops
 // before it is killed, or an until that does not hold within a minute, fails
 // the test.
-func (c *Child) KillAfter(t testing.TB, begins int, until func() bool, wait time.Duration) []string {
-	t.Helper()
+func (c *Child) KillAfter(tb testing.TB, begins int, until func() bool, wait time.Duration) []string {
+	tb.Helper()
 	var done []string
 	read := func(line string) {
 		if words, ok := strings.CutPrefix(line, "done "); ok {
@@ -55,7 +55,7 @@ func (c *Child) KillAfter(t testing.TB, begins int, until func() bool, wait time
 	for begun := 0; begun < begins; {
 		line, ok := <-c.lines
 		if !ok {
-			t.Fatal("the child stopped before it was killed")
+			tb.Fatal("the child stopped before it was killed")
 		}
 		if strings.HasPrefix(line, "begin ") {
 			begun++
@@ -64,12 +64,12 @@ func (c *Child) KillAfter(t testing.TB, begins int, until func() bool, wait time
 	}
 	for deadline := time.Now().Add(time.Minute); until != nil && !until(); {
 		if time.Now().After(deadline) {
-			t.Fatal("what the kill waits for did not happen in a minute")
+			tb.Fatal("what the kill waits for did not happen in a minute")
 		}
 		select {
 		case line, ok := <-c.lines:
 			if !ok {
-				t.Fatal("the child stopped before it was killed")
+				tb.Fatal("the child stopped before it was killed")
 			}
 			read(line)
 		case <-time.After(50 * time.Microsecond):
@@ -77,7 +77,7 @@ func (c *Child) KillAfter(t testing.TB, begins int, until func() bool, wait time
 	}
 	time.Sleep(wait)
 	if err := c.kill(); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	for line := range c.lines {
 		read(line)

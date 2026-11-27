@@ -112,8 +112,8 @@ type courseBookmark struct {
 // it refuses stays in the file and holds nothing else back.
 func decodeMarks(data []byte) (marks []machinemarks.Mark, recorded string, err error) {
 	var doc marksDocument
-	if err = decodeStrict(data, &doc); err != nil {
-		return nil, "", err
+	if decodeErr := decodeStrict(data, &doc); decodeErr != nil {
+		return nil, "", decodeErr
 	}
 	if doc.Version != documentVersion || doc.Marks == nil {
 		return nil, "", fmt.Errorf("%w: not a version %d marks file", ErrUnreadable, documentVersion)
@@ -126,7 +126,7 @@ func decodeMarks(data []byte) (marks []machinemarks.Mark, recorded string, err e
 	for i := range doc.Marks {
 		m, convErr := doc.Marks[i].machine()
 		if convErr != nil {
-			return nil, "", fmt.Errorf("%w: %v", ErrUnreadable, convErr)
+			return nil, "", fmt.Errorf("%w: %w", ErrUnreadable, convErr)
 		}
 		if seen[m.ID] {
 			return nil, "", fmt.Errorf("%w: two marks carry the id %s", ErrUnreadable, m.ID)
@@ -163,7 +163,7 @@ func checkFinished(held []Finished) error {
 	seen := make(map[string]bool, len(held))
 	for i := range held {
 		if err := validateFinished(&held[i]); err != nil {
-			return fmt.Errorf("%w: %v", ErrUnreadable, err)
+			return fmt.Errorf("%w: %v", ErrUnreadable, err) //nolint:errorlint // ErrInvalid stays unwrapped: a damaged file is not a refused request
 		}
 		if seen[held[i].RelPath] {
 			return fmt.Errorf("%w: one note finished twice", ErrUnreadable)
@@ -180,7 +180,7 @@ func checkBookmarks(held []courseBookmark) error {
 	seen := make(map[string]bool, len(held))
 	for i := range held {
 		if err := validateBookmark(held[i].Course, &held[i].Bookmark); err != nil {
-			return fmt.Errorf("%w: %v", ErrUnreadable, err)
+			return fmt.Errorf("%w: %v", ErrUnreadable, err) //nolint:errorlint // ErrInvalid stays unwrapped: a damaged file is not a refused request
 		}
 		if seen[held[i].Course] {
 			return fmt.Errorf("%w: two bookmarks for one course", ErrUnreadable)

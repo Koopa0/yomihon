@@ -187,20 +187,15 @@ func (m *Mark) shape() error {
 	switch {
 	case !ValidID(m.ID):
 		return errors.New("the id is not 32 lowercase hex digits")
-	case !m.Kind.valid():
-		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
 	case m.At.IsZero():
 		return errors.New("the mark has no time")
-	case m.Kind == Highlight && m.Body != "":
-		return errors.New("a highlight carries no words of its own")
-	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
-		return errors.New("a highlight is a passage and has its words")
-	case m.Kind == Thought && m.Body == "" && !m.Deleted:
-		return errors.New("a thought says something")
 	case m.Quote == "" && (m.Before != "" || m.After != ""):
 		return errors.New("words around nothing")
 	case m.Identity != "" && !ValidIdentity(m.Identity):
 		return errors.New("the identity is not a content identity")
+	}
+	if err := m.kindHolds(); err != nil {
+		return err
 	}
 	if err := vault.CheckStoredPath(m.Path, maxPathBytes); err != nil {
 		return fmt.Errorf("the note path: %w", err)
@@ -224,6 +219,22 @@ func (m *Mark) shape() error {
 		case len(f.value) > f.limit:
 			return fmt.Errorf("%s is too long", f.name)
 		}
+	}
+	return nil
+}
+
+// kindHolds says the mark's kind is one there is, and carries what that kind
+// carries.
+func (m *Mark) kindHolds() error {
+	switch {
+	case !m.Kind.valid():
+		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
+	case m.Kind == Highlight && m.Body != "":
+		return errors.New("a highlight carries no words of its own")
+	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
+		return errors.New("a highlight is a passage and has its words")
+	case m.Kind == Thought && m.Body == "" && !m.Deleted:
+		return errors.New("a thought says something")
 	}
 	return nil
 }

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"golang.org/x/net/html"
+
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // annotateMarkAnchors identifies positions the marks file can hold after all

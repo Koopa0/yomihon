@@ -115,7 +115,7 @@ func legacyBookmark(dir confdir.Dir) (held Bookmark, found bool, err error) {
 		return Bookmark{}, false, nil
 	}
 	if err = validateBookmark(NoCourse, doc.Continuation); err != nil {
-		return Bookmark{}, false, fmt.Errorf("%w: %s: %v", ErrUnreadable, legacyBookmarkFile, err)
+		return Bookmark{}, false, fmt.Errorf("%w: %s: %v", ErrUnreadable, legacyBookmarkFile, err) //nolint:errorlint // ErrInvalid stays unwrapped: a damaged file is not a refused request
 	}
 	return *doc.Continuation, true, nil
 }

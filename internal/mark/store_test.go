@@ -59,6 +59,7 @@ func marksJSON(t *testing.T, vaultRoot string, marks ...machinemarks.Mark) strin
 	t.Helper()
 	type earlier struct {
 		machinemarks.Mark
+
 		Reason string `json:"reason,omitempty"`
 	}
 	entries := make([]string, len(marks))

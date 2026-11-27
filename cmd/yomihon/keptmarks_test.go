@@ -124,13 +124,14 @@ func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...machi
 	// The earlier file kept a question's words as its reason.
 	type earlier struct {
 		machinemarks.Mark
+
 		Reason string `json:"reason,omitempty"`
 	}
 	held := make([]earlier, len(marks))
-	for i, m := range marks {
-		held[i] = earlier{Mark: m}
-		if m.Kind == machinemarks.Question {
-			held[i].Reason, held[i].Mark.Body = m.Body, ""
+	for i := range marks {
+		held[i] = earlier{Mark: marks[i]}
+		if marks[i].Kind == machinemarks.Question {
+			held[i].Reason, held[i].Body = marks[i].Body, ""
 		}
 	}
 	data, err := json.Marshal(struct {

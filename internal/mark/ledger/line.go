@@ -80,6 +80,7 @@ func decode(raw []byte) (Event, verdict) {
 		return Event{}, cut
 	case sealedline.Changed:
 		return Event{}, changed
+	case sealedline.Whole:
 	}
 	var w wire
 	if json.Unmarshal(raw, &w) != nil || w.Seq == 0 || w.Kind == "" {

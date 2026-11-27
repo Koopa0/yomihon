@@ -104,9 +104,9 @@ func latestIn(l *Ledger, machine string) (map[string]Event, error) {
 		return nil, err
 	}
 	latest := map[string]Event{}
-	for _, e := range events {
-		if e.Kind == KindMark && e.Machine == machine && e.Mark != "" && e.Seq > latest[e.Mark].Seq {
-			latest[e.Mark] = e
+	for i := range events {
+		if e := &events[i]; e.Kind == KindMark && e.Machine == machine && e.Mark != "" && e.Seq > latest[e.Mark].Seq {
+			latest[e.Mark] = *e
 		}
 	}
 	return latest, nil

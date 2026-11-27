@@ -374,26 +374,30 @@ func (m *Marks) settle(v *view, adopted []Mark, record func(*ledger.Event) error
 		}
 	}
 	if m.legacy != nil && !v.st.converted && !v.ownFound {
-		legacy, err := m.legacy()
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrLegacy, err)
-		}
-		if err = m.convert(v, legacy, false, record); err != nil {
-			return nil, err
-		}
-		if err = apply(); err != nil {
-			return nil, err
-		}
-	}
-	if len(adopted) > 0 {
-		if err := m.convert(v, adopted, true, record); err != nil {
+		if err := m.takeInEarlier(v, record); err != nil {
 			return nil, err
 		}
 		if err := apply(); err != nil {
 			return nil, err
 		}
 	}
-	return v, nil
+	if len(adopted) == 0 {
+		return v, nil
+	}
+	if err := m.convert(v, adopted, true, record); err != nil {
+		return nil, err
+	}
+	return v, apply()
+}
+
+// takeInEarlier takes in this vault's earlier file of marks, which a machine's
+// first write does.
+func (m *Marks) takeInEarlier(v *view, record func(*ledger.Event) error) error {
+	legacy, err := m.legacy()
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrLegacy, err)
+	}
+	return m.convert(v, legacy, false, record)
 }
 
 // convert takes in marks as one line of the ledger holding every line, so
@@ -423,8 +427,7 @@ func (m *Marks) convert(v *view, marks []Mark, adopted bool, record func(*ledger
 	t := m.now().UnixMilli()
 	for i := range marks {
 		mark := &marks[i]
-		if v.has(mark.ID) || adopted && (v.st.skipped[mark.ID] || v.holdsSame(mark) ||
-			slices.ContainsFunc(taken, func(other *Mark) bool { return other.ID == mark.ID || SameAct(other, mark) })) {
+		if v.has(mark.ID) || adopted && v.adoptedAlready(mark, taken) {
 			continue
 		}
 		raw, why := m.legacyLine(v, mark, t)
@@ -450,6 +453,14 @@ func (m *Marks) convert(v *view, marks []Mark, adopted bool, record func(*ledger
 		return nil
 	}
 	return record(&ledger.Event{Kind: kindConverted, Machine: v.st.id, Process: m.currentSession(), Content: batch})
+}
+
+// adoptedAlready says a mark an adoption brings is one the vault has in some
+// form, or that the adoption took already: one skipped before, or the same act
+// as a mark that is there or that is being taken in with it.
+func (v *view) adoptedAlready(mark *Mark, taken []*Mark) bool {
+	return v.st.skipped[mark.ID] || v.holdsSame(mark) ||
+		slices.ContainsFunc(taken, func(other *Mark) bool { return other.ID == mark.ID || SameAct(other, mark) })
 }
 
 // legacyLine is the line a mark of the earlier file becomes, or why it cannot.
