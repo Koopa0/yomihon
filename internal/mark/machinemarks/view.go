@@ -85,7 +85,7 @@ func (m *Marks) load() (*view, error) {
 		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
 	}
 	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*kept{}}
-	files, err := m.folder.ReadMachineFiles()
+	files, err := m.folder.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("read the machine files: %w", err)
 	}

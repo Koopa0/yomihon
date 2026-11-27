@@ -112,7 +112,7 @@ func TestThisMachinesOwnFileConflictsOnABranch(t *testing.T) {
 		t.Fatalf("the merge did not conflict: %s", cmd)
 	}
 	file := filepath.Join(a.marksDir(), a.id()+".jsonl")
-	if machinefile.ConflictMarkers(readFile(t, file)) == 0 {
+	if markersIn(readFile(t, file)) == 0 {
 		t.Fatal("the merged file has no markers")
 	}
 	v := a.view()
@@ -125,7 +125,7 @@ func TestThisMachinesOwnFileConflictsOnABranch(t *testing.T) {
 		t.Fatalf("reads %q", got)
 	}
 	a.say(2, "written after the merge")
-	if machinefile.ConflictMarkers(readFile(t, file)) != 0 || a.view().Markers() != 0 {
+	if markersIn(readFile(t, file)) != 0 || a.view().Markers() != 0 {
 		t.Fatal("a write left the markers in the file")
 	}
 	// The markers' bytes, the damaged line among them if any, are in the ledger.
@@ -355,4 +355,38 @@ func TestAMarkIsHeldToTheShapeTheEarlierFileHolds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// git writes these markers into a file it could not merge. A line of marks is a
+// JSON object, so it is never one, and a line that only begins like one is not.
+func TestConflictMarkersAreGitsLinesAndNoOthers(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		data string
+		want int
+	}{
+		{"a merge that stopped", "{\"a\":1}\n<<<<<<< HEAD\n{\"a\":2}\n=======\n{\"a\":3}\n>>>>>>> branch\n", 3},
+		{"with the base, as diff3 writes it", "<<<<<<< ours\n{}\n||||||| base\n{}\n=======\n{}\n>>>>>>> theirs\n", 4},
+		{"written on Windows", "<<<<<<< HEAD\r\n{}\r\n=======\r\n{}\r\n>>>>>>> b\r\n", 3},
+		{"bare markers and a longer marker size", "<<<<<<<\n========\n>>>>>>>>>>\n", 3},
+		{"lines of marks", "{\"a\":1}\n{\"b\":\"<<<<<<< x\"}\n", 0},
+		{"only like a marker", "<<<<<< six\n<<<<<<<x\n======= text\n=======x\n<<<<<<=\n", 0},
+		{"nothing", "", 0},
+	} {
+		if got := markersIn([]byte(tt.data)); got != tt.want {
+			t.Errorf("%s: markersIn(%q) = %d, want %d", tt.name, tt.data, got, tt.want)
+		}
+	}
+}
+
+// markersIn is how many lines of data are git's conflict markers.
+func markersIn(data []byte) int {
+	n := 0
+	for line := range bytes.SplitSeq(data, []byte("\n")) {
+		if conflictMarker(bytes.TrimSuffix(line, []byte("\r"))) {
+			n++
+		}
+	}
+	return n
 }

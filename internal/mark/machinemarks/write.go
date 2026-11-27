@@ -592,7 +592,7 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 	if err := m.keep(v, line, setAside(v, p, line), record); err != nil {
 		return err
 	}
-	measured, err := m.folder.ReplaceMachineFile(v.st.id, data)
+	measured, err := m.folder.Replace(v.st.id, data)
 	res.Write, res.Install, res.ReadBack, res.Bytes = measured.Write, measured.Install, measured.ReadBack, measured.Bytes
 	if err != nil {
 		if line == nil {

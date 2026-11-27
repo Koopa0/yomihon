@@ -12,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -149,7 +148,7 @@ const (
 
 // decode reads one line, without its newline.
 func decode(raw []byte) (Line, verdict) {
-	if machinefile.ConflictMarkers(raw) > 0 {
+	if conflictMarker(raw) {
 		return Line{}, marker
 	}
 	// A line of a later format is judged first, since the way a later format is
@@ -262,6 +261,28 @@ func checkAnchor(a string) error {
 		return errors.New("the anchor carries a character an id cannot hold")
 	}
 	return nil
+}
+
+// conflictMarker says a line is one of git's conflict markers: a run of seven
+// or more '<', '>' or '|' alone or followed by a space, or a line of seven or
+// more '=' alone. A line of marks is a JSON object, which begins with '{', so
+// no line of marks is one.
+func conflictMarker(line []byte) bool {
+	if len(line) < 7 {
+		return false
+	}
+	c := line[0]
+	if c != '<' && c != '>' && c != '|' && c != '=' {
+		return false
+	}
+	run := len(line) - len(bytes.TrimLeft(line, string(c)))
+	if run < 7 {
+		return false
+	}
+	if run == len(line) {
+		return true
+	}
+	return c != '=' && line[run] == ' '
 }
 
 func (k Kind) valid() bool { return k == Highlight || k == Thought || k == Question }
