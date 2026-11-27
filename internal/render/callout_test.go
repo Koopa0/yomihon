@@ -130,7 +130,7 @@ func TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd(t *testing.T) {
 	}
 
 	// The cases above are only an enumeration if every member of the set has
-	// one. A kind added to graph.HTMLBlockKinds with no case here would be closed by
+	// one. A kind added to graph.HTMLBlockKinds() with no case here would be closed by
 	// code nothing exercises.
 	//
 	// A kind is matched to a case by the line that opens it, which is what tells
@@ -140,8 +140,8 @@ func TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd(t *testing.T) {
 	// declaration's own end — would arrive already spoken for.
 	t.Run("every kind of block has a case", func(t *testing.T) {
 		t.Parallel()
-		for i := range graph.HTMLBlockKinds {
-			kind := &graph.HTMLBlockKinds[i]
+		for i := range htmlBlockKinds {
+			kind := &htmlBlockKinds[i]
 			spoken := false
 			for _, tc := range cases {
 				if kind.Opens.MatchString(tc.opener) {
@@ -261,10 +261,10 @@ func TestAnIndentedCodeLineOpensNoBlock(t *testing.T) {
 		"    <!-- x", "    <?php", "    <![CDATA[", "    <!DOCTYPE html",
 		"\t<pre>", "        <pre>",
 	} {
-		for i := range graph.HTMLBlockKinds {
-			if graph.HTMLBlockKinds[i].Opens.MatchString(line) {
+		for i := range htmlBlockKinds {
+			if htmlBlockKinds[i].Opens.MatchString(line) {
 				t.Errorf("the block ending at %q claims to be opened by %q, which is a line an indented code block shows as written",
-					graph.HTMLBlockKinds[i].Ends, line)
+					htmlBlockKinds[i].Ends, line)
 			}
 		}
 	}

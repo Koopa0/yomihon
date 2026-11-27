@@ -2,6 +2,7 @@ package graph
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -138,12 +139,12 @@ type HTMLBlockKind struct {
 // rawTextEnd closes any of the four raw-text HTML elements.
 var rawTextEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
 
-// HTMLBlockKinds are the HTML blocks a blank line does not end, in the order a
+// htmlBlockKinds are the HTML blocks a blank line does not end, in the order a
 // line is asked: CDATA before a declaration, since both begin "<!". Each
 // raw-text opening also takes its self-closing form (`<pre/>`): CommonMark does
 // not close a raw-text block on "/>", so the lines after it are raw text until
 // an end tag, and a heading-shaped one of them is not a heading.
-var HTMLBlockKinds = []HTMLBlockKind{
+var htmlBlockKinds = []HTMLBlockKind{
 	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`), rawTextEnd, "</pre>"},
 	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`), rawTextEnd, "</script>"},
 	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`), rawTextEnd, "</style>"},
@@ -153,6 +154,11 @@ var HTMLBlockKinds = []HTMLBlockKind{
 	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), regexp.MustCompile(`\]\]>`), "]]>"},
 	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), regexp.MustCompile(`>`), ">"},
 }
+
+// HTMLBlockKinds are the HTML blocks a blank line does not end, in the order a
+// line is asked. The slice is the caller's own; the patterns in it are shared
+// and safe to use from any goroutine.
+func HTMLBlockKinds() []HTMLBlockKind { return slices.Clone(htmlBlockKinds) }
 
 // lineScan carries the running state a line-by-line walk needs to tell a
 // heading from a heading-shaped line inside fenced code or an authored HTML
@@ -293,13 +299,13 @@ func Headings(body string, zones []Span) []Heading {
 }
 
 // htmlBlockOpens reports whether a line opens an authored HTML block, and
-// returns the test for the line that closes it. A kind in HTMLBlockKinds closes
+// returns the test for the line that closes it. A kind in htmlBlockKinds closes
 // on its own end marker, which may sit on the opening line itself; an element
 // block runs to the next blank line.
 func htmlBlockOpens(line string) (closes func(string) bool, ok bool) {
-	for i := range HTMLBlockKinds {
-		if HTMLBlockKinds[i].Opens.MatchString(line) {
-			return HTMLBlockKinds[i].Ends.MatchString, true
+	for i := range htmlBlockKinds {
+		if htmlBlockKinds[i].Opens.MatchString(line) {
+			return htmlBlockKinds[i].Ends.MatchString, true
 		}
 	}
 	if htmlBlockElement.MatchString(line) {

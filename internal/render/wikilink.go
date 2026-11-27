@@ -596,6 +596,10 @@ func (st *preprocessState) source() string {
 	return strings.Join(closed, "\n")
 }
 
+// htmlBlockKinds is this package's copy of the kinds of HTML block a blank
+// line does not end, taken once so the scan asks it line by line for nothing.
+var htmlBlockKinds = graph.HTMLBlockKinds()
+
 // trackHTMLBlock records whether line leaves an HTML block open. It only reads
 // the line; what the line renders as is decided elsewhere, so noticing a block
 // here changes nothing about the page unless the scan stops while one is open.
@@ -613,8 +617,8 @@ func (st *preprocessState) trackHTMLBlock(line string) {
 		}
 		return
 	}
-	for i := range graph.HTMLBlockKinds {
-		kind := &graph.HTMLBlockKinds[i]
+	for i := range htmlBlockKinds {
+		kind := &htmlBlockKinds[i]
 		opener := kind.Opens.FindStringIndex(line)
 		if opener == nil {
 			continue
