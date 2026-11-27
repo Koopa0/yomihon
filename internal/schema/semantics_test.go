@@ -716,7 +716,7 @@ func TestLoadDomainRoots(t *testing.T) {
 		{name: "siblings reverse", roots: `["Writing/lessonship", "Writing/lessons"]`, want: []string{"Writing/lessonship", "Writing/lessons"}},
 		{name: "folded siblings forward", roots: `["Writing/lessons", "writing/lessonship"]`, want: []string{"Writing/lessons", "writing/lessonship"}},
 		{name: "folded siblings reverse", roots: `["writing/lessonship", "Writing/lessons"]`, want: []string{"writing/lessonship", "Writing/lessons"}},
-		{name: "normalization distinct", roots: `["Caf\u00e9", "Cafe\u0301/studies"]`, want: []string{"Caf\u00e9", "Cafe\u0301/studies"}},
+		{name: "decomposed root composed", roots: `["Cafe\u0301/studies"]`, want: []string{"Caf\u00e9/studies"}},
 		{name: "unicode expansion distinct", roots: `["Stra\u00dfe", "STRASSE/lessons"]`, want: []string{"Stra\u00dfe", "STRASSE/lessons"}},
 		{name: "leading whitespace distinct", roots: `[" Writing", "Writing/lessons"]`, want: []string{" Writing", "Writing/lessons"}},
 		{name: "trailing whitespace distinct", roots: `["Writing ", "Writing/lessons"]`, want: []string{"Writing ", "Writing/lessons"}},
@@ -735,6 +735,7 @@ func TestLoadDomainRoots(t *testing.T) {
 		{name: "nonadjacent ancestor reverse", roots: `["Writing/lessons", "Concepts", "Writing"]`, wantErr: overlap},
 		{name: "nonadjacent folded ancestor forward", roots: `["Writing", "Concepts", "writing/lessons"]`, wantErr: overlap},
 		{name: "nonadjacent folded ancestor reverse", roots: `["writing/lessons", "Concepts", "Writing"]`, wantErr: overlap},
+		{name: "composed ancestor of decomposed", roots: `["Caf\u00e9", "Cafe\u0301/studies"]`, wantErr: overlap},
 		{name: "unicode folded ancestor forward", roots: `["\u03a3", "\u03c2/studies"]`, wantErr: overlap},
 		{name: "unicode folded ancestor reverse", roots: `["\u03c2/studies", "\u03a3"]`, wantErr: overlap},
 		{name: "duplicate", roots: `["Writing", "Writing"]`, wantErr: `folders.domain_from: duplicate value "Writing"`},
@@ -780,6 +781,28 @@ func TestLoadDomainRoots(t *testing.T) {
 	}
 }
 
+// TestDeclaredFoldersMatchTheirNotesHoweverTheyAreComposed holds domain_from
+// and checked to the spelling rule every other declared directory follows: a
+// folder written decomposed still names the notes the scan reports, composed,
+// under it.
+func TestDeclaredFoldersMatchTheirNotesHoweverTheyAreComposed(t *testing.T) {
+	t.Parallel()
+
+	data := replaceContractText(t, semanticallyValidContract, `domain_from = ["Writing"]`, `domain_from = ["Cafe\u0301/studies"]`)
+	data = replaceContractText(t, data, `checked = ["Writing"]`, `checked = ["Cafe\u0301"]`)
+	contract, err := decodeContract([]byte(data), policySource{})
+	if err != nil {
+		t.Fatalf("decodeContract() error = %v", err)
+	}
+	const rel = "Caf\u00e9/studies/rust/L1.md"
+	if got := contract.Domains().Of(rel); got != "rust" {
+		t.Errorf("Domains().Of(%+q) = %q, want %q", rel, got, "rust")
+	}
+	if !contract.KnowledgeScope().Includes(rel) {
+		t.Errorf("KnowledgeScope().Includes(%+q) = false, want true", rel)
+	}
+}
+
 // TestDomainFolder catches guessed roots, positional or deepest-folder
 // selection, filename selection, and normalization of authored path bytes.
 func TestDomainFolder(t *testing.T) {
@@ -802,7 +825,7 @@ func TestDomainFolder(t *testing.T) {
 		{name: "top level direct child", roots: []string{"Concepts"}, path: "Concepts/Overview.md"},
 		{name: "nested direct child", roots: []string{"Writing/lessons"}, path: "Writing/lessons/Overview.md"},
 		{name: "sibling prefix", roots: []string{"Writing/lessons"}, path: "Writing/lessons-extra/golang/L1.md"},
-		{name: "case distinct", roots: []string{"Writing/lessons"}, path: "writing/lessons/golang/L1.md"},
+		{name: "case folded", roots: []string{"Writing/lessons"}, path: "writing/LESSONS/golang/L1.md", want: "golang", found: true},
 		{name: "normalization distinct", roots: []string{"Caf\u00e9/studies"}, path: "Cafe\u0301/studies/rust/L1.md"},
 		{name: "normalization distinct reverse", roots: []string{"Cafe\u0301/studies"}, path: "Caf\u00e9/studies/rust/L1.md"},
 		{name: "unicode match", roots: []string{"Caf\u00e9/studies"}, path: "Caf\u00e9/studies/\u65e5\u672c\u8a9e/L1.md", want: "\u65e5\u672c\u8a9e", found: true},

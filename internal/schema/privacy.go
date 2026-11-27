@@ -127,14 +127,14 @@ func (p PrivacyPolicy) WithheldDirs() []string {
 	return slices.Clone(p.state.neverEgressDirs)
 }
 
-// SameDirName reports whether two path components name the same directory. It
-// is the one comparison every vault directory scope makes, so no scope drifts
-// from another on how a directory name is spelled.
+// SameDirName reports whether two composed path components name the same
+// directory. It is the one comparison every vault directory scope makes, so no
+// scope drifts from another on how a directory name is spelled.
 //
 // Case folds because a case-insensitive filesystem opens the same file under
 // any case spelling; strings.EqualFold folds per rune, so ß matches ẞ but never
-// "ss". Composition is deliberately not folded: a scan reports composed paths,
-// so a contract spelling a directory in decomposed form matches nothing.
+// "ss". Composition is not folded here: the loader composes every directory a
+// contract declares, and the scan reports composed paths.
 func SameDirName(a, b string) bool {
 	return strings.EqualFold(a, b)
 }
@@ -147,15 +147,13 @@ func SameDirName(a, b string) bool {
 func pathHasFoldedPrefix(rel, dir string) bool {
 	relComponents := strings.Split(rel, "/")
 	dirComponents := strings.Split(dir, "/")
-	if len(relComponents) < len(dirComponents) {
-		return false
-	}
-	for index, component := range dirComponents {
-		if !SameDirName(relComponents[index], component) {
-			return false
-		}
-	}
-	return true
+	return len(relComponents) >= len(dirComponents) && sameDirs(relComponents[:len(dirComponents)], dirComponents)
+}
+
+// sameDirs reports whether two equally long runs of path components name the
+// same directories, one [SameDirName] at a time.
+func sameDirs(a, b []string) bool {
+	return slices.EqualFunc(a, b, SameDirName)
 }
 
 // PrivacyWithoutRules is the policy of a folder in which reader found no rules

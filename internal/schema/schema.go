@@ -476,10 +476,12 @@ func (c *Contract) declareEnums(enums map[string][]string) {
 // a note's own value is the only side left to fold when something compares the
 // two. A contract is written in an editor and a note's frontmatter is read back
 // off a filesystem, and the two hand over different byte strings for the same
-// word; a lookup keyed on the bytes then loses that note's whole type. This
-// runs before the contract is validated, so a contract declaring one word
-// twice is refused as the duplicate it is. Case is left alone: two words
-// differing only in case are two declarations the contract meant.
+// word; a lookup keyed on the bytes then loses that note's whole type. The
+// knowledge layer and the domain roots are folded the same way, since the scan
+// reports composed paths. This runs before the contract is validated, so a
+// contract declaring one word twice is refused as the duplicate it is. Case is
+// left alone: two words differing only in case are two declarations the
+// contract meant.
 func foldDeclaredWords(contract *Contract) {
 	for i := range contract.types {
 		contract.types[i].name = NormalizeWord(contract.types[i].name)
@@ -487,6 +489,8 @@ func foldDeclaredWords(contract *Contract) {
 	for i := range contract.enums {
 		foldWords(contract.enums[i].values)
 	}
+	foldWords(contract.folders.Checked)
+	foldWords(contract.folders.DomainFrom)
 	contract.typeByName = make(map[string]int, len(contract.types))
 	for i := range contract.types {
 		if _, duplicate := contract.typeByName[contract.types[i].name]; !duplicate {
@@ -831,17 +835,16 @@ func validDomainRoot(value string) bool {
 
 // DomainFolder returns the first directory after a matching declared root.
 // Roots must be validated vault-relative directory paths with no overlap under
-// [SameDirName]. relPath must be a canonical vault-relative file path; matching
-// is byte-exact.
-// A file directly under a root, or outside every root, has no domain folder.
+// [SameDirName], as a loaded contract's are. relPath is a canonical
+// vault-relative file path, compared one whole component at a time the way
+// every other directory scope compares one. A file directly under a root, or
+// outside every root, has no domain folder.
 func DomainFolder(roots []string, relPath string) (string, bool) {
+	parts := strings.Split(relPath, "/")
 	for _, root := range roots {
-		if rest, ok := strings.CutPrefix(relPath, root+"/"); ok {
-			folder, _, found := strings.Cut(rest, "/")
-			if found {
-				return folder, true
-			}
-			return "", false
+		dirs := strings.Split(root, "/")
+		if len(parts) >= len(dirs)+2 && sameDirs(parts[:len(dirs)], dirs) {
+			return parts[len(dirs)], true
 		}
 	}
 	return "", false
