@@ -82,6 +82,26 @@ func TestTheLessonTypeSurvivesRolesThatCannotBeHonoured(t *testing.T) {
 	}
 }
 
+// TestAuthorityReadsTheLessonTypeHoweverItIsComposed holds the lesson type to
+// the spelling rule every other type lookup follows: a note read off a
+// filesystem that decomposes its names still gets the reading aids.
+func TestAuthorityReadsTheLessonTypeHoweverItIsComposed(t *testing.T) {
+	t.Parallel()
+
+	const composed, decomposed = "le\u00e7on", "lec\u0327on"
+	data := strings.Replace(validContract, "[types.lesson]\n", "[types.\""+composed+"\"]\n", 1)
+	contract, err := loadContractBytes(t, []byte(data))
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+	authority := CaptureAuthority(contract, contract.Governance())
+	for _, noteType := range []string{composed, decomposed} {
+		if !authority.IsLessonType(noteType) {
+			t.Errorf("Authority.IsLessonType(%+q) = false, want true", noteType)
+		}
+	}
+}
+
 func TestTheZeroNavigationRolesNameNoLessonType(t *testing.T) {
 	t.Parallel()
 

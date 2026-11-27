@@ -70,5 +70,5 @@ func (a Authority) IsLessonType(noteType string) bool {
 		return builtInNavigationRoles().IsLessonType(noteType)
 	}
 	lesson, _ := a.contract.LessonType()
-	return noteType == lesson
+	return NormalizeWord(noteType) == lesson
 }
