@@ -12,7 +12,7 @@ import (
 func FuzzSeal(f *testing.F) {
 	f.Add("words", 3, 7)
 	f.Add("\"quoted\" \\ and 字 ,\"h\":\"0123456789abcdef\"}", 0, 0)
-	f.Add("\xff\x00 ", 1000, 1000)
+	f.Add("\xff\x00\u2028", 1000, 1000)
 	f.Fuzz(func(t *testing.T, words string, cut, flip int) {
 		line, err := Seal(struct {
 			Words string `json:"words"`
