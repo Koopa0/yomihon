@@ -257,12 +257,26 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 
 			// One rescan per scan interval, as the ticker drives it. The first three
 			// attempts land on ticks 0, 1 and 3, and the third is where retention ends.
-			mustNotPanic(t, "rebuild", func() {
-				for tick := range 4 {
-					clock = base.Add(time.Duration(tick) * scanInterval)
-					store.rescan(t.Context())
-				}
-			})
+			rescanTicks := func(from, to int) {
+				mustNotPanic(t, "rebuild", func() {
+					for tick := from; tick < to; tick++ {
+						clock = base.Add(time.Duration(tick) * scanInterval)
+						store.rescan(t.Context())
+					}
+				})
+			}
+			rescanTicks(0, 1)
+			// Until then the whole generation is served with its readable copy,
+			// and already names the attempt that failed.
+			if store.Current() != whole {
+				t.Fatal("a first failed parse published half a folder")
+			}
+			if held, ok := whole.Note(panicPoisoned); !ok || held.Stale || !strings.Contains(held.Body, "poisoned as first read") {
+				t.Errorf("retained note = %+v, present %t; want the copy first read, not stale", held, ok)
+			}
+			assertParseCause(t, whole.Freshness().Blocked, true, "panic while parsing this note: "+panicValue)
+
+			rescanTicks(1, 4)
 			degraded := store.Current()
 			if degraded == whole {
 				t.Fatal("the rebuild never published: one note's panic held the whole folder at its old generation")
@@ -281,10 +295,10 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			if got := snapshotSearch(t, degraded.Search(), "first read"); len(got) != 1 || got[0].RelPath != panicPoisoned {
 				t.Errorf("search for the carried words = %+v, want the carried note: its search entry was not carried with it", got)
 			}
-			fresh := degraded.Freshness()
-			if fresh.Complete || len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != panicPoisoned {
-				t.Errorf("Freshness() = %+v, want an incomplete generation naming only %q", fresh, panicPoisoned)
+			if degraded.Freshness().Complete {
+				t.Error("Freshness().Complete = true for a generation that could not parse one of its notes")
 			}
+			assertParseCause(t, degraded.Freshness().Blocked, true, "panic while parsing this note: "+panicValue)
 
 			// Fixing the note is the ordinary path: it parses again, the next attempt
 			// publishes a whole generation, and every degraded fact clears.

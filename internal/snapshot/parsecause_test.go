@@ -2,11 +2,11 @@ package snapshot
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -62,58 +62,10 @@ func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
 	})
 }
 
-func assertParseCause(t *testing.T, blocked []BlockedSource, want bool, reason string) {
+func assertParseCause(t *testing.T, blocked []BlockedSource, parsePanic bool, reason string) {
 	t.Helper()
-	data, err := json.Marshal(blocked)
-	if err != nil {
-		t.Fatal(err)
+	want := []BlockedSource{{Path: panicPoisoned, Reason: reason, ParsePanic: parsePanic}}
+	if diff := cmp.Diff(want, blocked); diff != "" {
+		t.Errorf("blocked sources mismatch (-want +got):\n%s", diff)
 	}
-	var observed []struct {
-		Path       string
-		Reason     string
-		ParsePanic bool
-	}
-	if err := json.Unmarshal(data, &observed); err != nil {
-		t.Fatal(err)
-	}
-	if len(observed) != 1 {
-		t.Fatalf("caught: blocked set = %s", data)
-	}
-	got := observed[0]
-	if got.Path != panicPoisoned || got.Reason != reason || got.ParsePanic != want {
-		t.Errorf("caught: blocked cause = %+v, want path %q reason %q parse=%t", got, panicPoisoned, reason, want)
-	}
-}
-
-// TestRetainedReadingNamesTheFailedParseAttempt observes the live failure on
-// the same generation still serving its previous readable body.
-func TestRetainedReadingNamesTheFailedParseAttempt(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writePanicVault(t, root)
-	store := buildStore(t, openReader(t, root), discardLogger(), nil)
-	whole := store.Current()
-	breakStage(store, 0)
-	writeNote(t, root, panicPoisoned, "---\n---\npoisoned newly saved content\n")
-	base := time.Now()
-	clock := base
-	store.now = func() time.Time { return clock }
-	store.rescan(t.Context())
-	if store.Current() != whole {
-		t.Fatal("caught: grace did not retain the whole generation")
-	}
-	held, ok := whole.Note(panicPoisoned)
-	if !ok || held.Stale || !strings.Contains(held.Body, "poisoned as first read") {
-		t.Fatalf("caught: retained reading = %+v", held)
-	}
-	assertParseCause(t, whole.Freshness().Blocked, true, "panic while parsing this note: "+panicValue)
-	for tick := 1; tick <= 3; tick++ {
-		clock = base.Add(time.Duration(tick) * scanInterval)
-		store.rescan(t.Context())
-	}
-	carried, ok := store.Current().Note(panicPoisoned)
-	if !ok || !carried.Stale || !strings.Contains(carried.Body, "poisoned as first read") {
-		t.Fatalf("caught: published carried reading = %+v", carried)
-	}
-	assertParseCause(t, store.Current().Freshness().Blocked, true, "panic while parsing this note: "+panicValue)
 }

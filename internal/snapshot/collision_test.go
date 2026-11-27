@@ -124,36 +124,6 @@ func TestACollidingPairIsNamedAndFreezesPublicationUntilOneOfThemIsGone(t *testi
 	}
 }
 
-// TestAFolderThatReturnsToWhatWasPublishedLeavesNoCollision holds the one case
-// the test above cannot reach: the pair appears and goes again before anything
-// else changes, so the next scan is level with what was published and the loop
-// stops before it builds. A collision cleared only where a build is begun would
-// stand over a folder that is whole. It needs a filesystem that keeps both
-// spellings apart, so it skips on one that folds them; the test at the end of
-// this file holds the same clear on every filesystem.
-func TestAFolderThatReturnsToWhatWasPublishedLeavesNoCollision(t *testing.T) {
-	t.Parallel()
-
-	store, root, _ := collisionFolder(t)
-	before := store.Current()
-
-	addTheTwin(t, root)
-	store.rescan(t.Context())
-	if store.Current().Freshness().Collision == nil {
-		t.Fatalf("the pair left no collision, so nothing below is under test")
-	}
-
-	removeTheTwin(t, root)
-	store.rescan(t.Context())
-
-	if store.Current() != before {
-		t.Fatal("a folder level with what was published was rebuilt, so the loop never took the short way out")
-	}
-	if pair := store.Current().Freshness().Collision; pair != nil {
-		t.Errorf("the collision stands over a folder with no pair in it: %q", pair)
-	}
-}
-
 // TestStartingOnACollidingPairNamesBothFiles is the same refusal at the other
 // place it is met. A server started on such a folder exits, and what it prints
 // as it goes is all anyone has to repair the folder with.

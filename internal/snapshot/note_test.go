@@ -56,23 +56,6 @@ func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
 	}
 }
 
-// TestCaptureNoteKeepsEmptyBlockApartFromAbsent holds the projection to the
-// split's own answer: an empty fence pair is a present block, and a file with
-// no delimiters is not. Deriving the flag from a nil field map collapses them.
-func TestCaptureNoteKeepsEmptyBlockApartFromAbsent(t *testing.T) {
-	t.Parallel()
-
-	empty := []byte("---\n---\nbody\n")
-	if got := newReading(vault.Parse("Empty.md", empty), empty, schema.ArticleLanguage{}); !got.HasFrontmatter {
-		t.Fatal("empty frontmatter block was projected as absent")
-	}
-
-	absent := []byte("body\n")
-	if got := newReading(vault.Parse("Absent.md", absent), absent, schema.ArticleLanguage{}); got.HasFrontmatter {
-		t.Fatal("a file with no delimiters was projected as a frontmatter block")
-	}
-}
-
 // TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent holds the second
 // projection of a file the split read no block from. A note whose closing fence
 // lost a character and a note that never wrote frontmatter both have no block,
@@ -88,7 +71,7 @@ func TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent(t *testing.T) {
 		wantUnclosed bool
 	}{
 		{name: "the closing fence lost a dash", content: "---\ntype: note\n--\n\n# Body\n", wantUnclosed: true},
-		{name: "a block that closes", content: "---\n---\nbody\n", wantBlock: true},
+		{name: "a block that closes", content: "---\ntype: note\n---\n\n# Body\n", wantBlock: true},
 		{name: "an empty fence pair", content: "---\n---\nbody\n", wantBlock: true},
 		{name: "a thematic break and prose", content: "---\n\nbody\n"},
 		{name: "no delimiters", content: "body\n"},

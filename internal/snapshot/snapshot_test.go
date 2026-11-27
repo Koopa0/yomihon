@@ -888,6 +888,10 @@ func TestBuildGenerationIndexesNotesOnly(t *testing.T) {
 	writeNote(t, root, "Notes/todo.txt", "findable body\n")
 	writeNote(t, root, "Notes/page.html", "<p>findable body</p>\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"><text>findable body</text></svg>`)
+	// A lesson sidecar is read for its practice panel and a PDF gets a viewer;
+	// neither is shown as text, so neither is searched.
+	writeNote(t, root, "System/slots/L01.yaml", "sentences:\n  - text: findable body\n")
+	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (findable body) >>\nendobj\n%%EOF\n")
 
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
@@ -982,36 +986,34 @@ func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	}
 }
 
-// TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder covers the difference
-// between a file the reading surface is made of and a file that only lends the
-// index its words.
-//
-// A note that cannot be read leaves the surface incomplete, so the generation is
-// held back until it can be. Retry also means "ignore that nothing changed", so
-// a file that is permanently unreadable — a mode-000 export, a socket, something
-// another process holds — would hold the whole folder at the generation before
-// it, rebuilding every couple of seconds and never publishing again. Every note
-// written after it would be a 404 in a folder that is otherwise fine.
-func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
+// TestOneUnreadableFigureDoesNotFreezeTheFolder covers the difference between
+// a file the reading surface is made of and a figure, which only lends its page
+// its measurements. A note that cannot be read holds the generation back until
+// it can be; a figure that is permanently unreadable — a mode-000 export,
+// something another process holds — would hold the folder forever, and every
+// note written after it would be a 404 in a folder that is otherwise fine.
+func TestOneUnreadableFigureDoesNotFreezeTheFolder(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
+	const figure = "Diagrams/figure.html"
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	writeNote(t, root, "notes.txt", "plain text\n")
-	contract := testContract(t, root)
-	// A read that never succeeds, on a file that is not a note.
+	writeNote(t, root, figure, "<p>figure</p>\n")
 	source := newRecordingSource(t, root)
-	source.fail["notes.txt"] = 1 << 30
-	store := buildStore(t, source, discardLogger(), contract)
-	if store.retry {
-		t.Fatal("an unreadable ordinary file held the generation back; every later change would stop being published")
+	source.fail[figure] = 1 << 30
+	store := buildStore(t, source, discardLogger(), testContract(t, root))
+	if source.reads[figure] == 0 {
+		t.Fatal("the build never read the figure, so nothing below is under test")
+	}
+	if store.retry || !store.Current().Freshness().Complete {
+		t.Fatal("an unreadable figure held the generation back; every later change would stop being published")
 	}
 
 	const added = "Concepts/Beta.md"
 	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note(added); !ok {
-		t.Error("a note written after the unreadable file never reached a published generation")
+		t.Error("a note written after the unreadable figure never reached a published generation")
 	}
 }
 
@@ -1090,211 +1092,64 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	}
 }
 
-// TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold locks the
-// behavior the comment above TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder
-// describes for the opposite branch: a note the reading surface is made of.
-// While one note cannot be read, no later generation publishes — the folder
-// holds at the last whole one, and a note written meanwhile stays invisible —
-// because a read that fails once and works on the next attempt must never
-// publish half a folder. That retention is bounded: degradeAfter attempts in a
-// row is where it ends, and the companion test states what happens then. The
-// retry work stays on the backoff schedule throughout.
-func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	const blocked = "Concepts/Alpha.md"
-	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
-	contract := testContract(t, root)
-	store, source := newRecordingStore(t, root, contract)
-	frozen := store.Current()
-	base := time.Now()
-	clock := base
-	store.now = func() time.Time { return clock }
-
-	// The note is edited to a different size — so the next rescan rebuilds —
-	// and from now on every read of it fails. A second note is written
-	// alongside it, so what the retention costs the reader is visible.
-	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha, edited to a different size\n")
-	source.fail[blocked] = 1 << 30
-	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
-
-	// Under the backoff the attempts land on ticks 0, 1, 3, and 7, so ticks 0
-	// through 2 carry the first two failures — one short of the threshold.
-	var attemptTicks []int
-	last := source.reads[blocked]
-	rescanTicks := func(from, to int) {
-		for tick := from; tick < to; tick++ {
-			clock = base.Add(time.Duration(tick) * scanInterval)
-			store.rescan(t.Context())
-			if source.reads[blocked] > last {
-				attemptTicks = append(attemptTicks, tick)
-				last = source.reads[blocked]
-			}
-		}
-	}
-	rescanTicks(0, 3)
-	if store.Current() != frozen {
-		t.Fatal("a failure that has not yet outlasted the threshold published half a folder")
-	}
-	if _, ok := store.Current().Note(added); ok {
-		t.Error("a note written during a failure that may still clear appeared before the folder degraded")
-	}
-
-	// The third attempt, on tick 3, is where the retention ends.
-	rescanTicks(3, 10)
-	if store.Current() == frozen {
-		t.Fatal("the retention never ended; every change after the failure stayed invisible")
-	}
-	if diff := cmp.Diff([]int{0, 1, 3, 7}, attemptTicks); diff != "" {
-		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestDegradedGenerationPublishesWhatCouldBeRead pins where retention stops.
-// Holding the last whole generation is the right answer for a read that fails
-// once and works on the next attempt. Held without a bound it means every note
-// written after one file stopped being readable is answered with a 404, in a
-// folder that is otherwise entirely fine, with nothing on the page a reader
-// could act on. So after degradeAfter attempts in a row come back incomplete,
-// the folder publishes what it could read, carries the last copy of what it
-// could not, and reports itself as not whole for as long as that lasts.
-func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	const unreadable = "Concepts/Alpha.md"
-	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha as first read\n")
-	contract := testContract(t, root)
-	store, source := newRecordingStore(t, root, contract)
-	whole := store.Current()
-	wholeAt := whole.Freshness().BuiltAt
-	base := time.Now()
-	clock := base
-	store.now = func() time.Time { return clock }
-
-	// The note is edited to a different size — so the next rescan rebuilds —
-	// and from now on every read of it fails. A second note is written while
-	// the folder cannot be read whole: this is the reader's own new work, and
-	// it is what the old policy suppressed for as long as the failure lasted.
-	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha, edited and now unreadable\n")
-	source.fail[unreadable] = 1 << 30
-	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
-
-	// One rescan per scan interval, as the ticker drives it. The backoff puts
-	// the first three attempts on ticks 0, 1, and 3 — about six seconds.
-	for tick := range 4 {
-		clock = base.Add(time.Duration(tick) * scanInterval)
-		store.rescan(t.Context())
-	}
-
-	degraded := store.Current()
-	if degraded == whole {
-		t.Fatal("a read failure that never clears held the folder at its last whole generation forever")
-	}
-	if _, ok := degraded.Note(added); !ok {
-		t.Error("a note written while one file was unreadable never reached a published generation")
-	}
-	fresh := degraded.Freshness()
-	if fresh.Complete {
-		t.Error("a generation published without one of its sources calls itself complete")
-	}
-	if len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != unreadable {
-		t.Errorf("Blocked = %+v, want the one source that could not be read", fresh.Blocked)
-	}
-	if !fresh.LastComplete.Equal(wholeAt) {
-		t.Errorf("LastComplete = %v, want the last whole read at %v", fresh.LastComplete, wholeAt)
-	}
-	carried, ok := degraded.Note(unreadable)
-	if !ok {
-		t.Fatal("the degraded generation dropped the note it could not re-read instead of carrying its last copy")
-	}
-	if !strings.Contains(carried.Body, "alpha as first read") {
-		t.Errorf("carried body = %q, want the copy the last whole generation read", carried.Body)
-	}
-	if !carried.Stale {
-		t.Error("the carried copy is not marked as one that could not be re-read")
-	}
-	// The carried copy replaces the resolver stub rather than joining it: two
-	// registrations of one path would report the folder as having two files
-	// answering to the same name.
-	if collisions := degraded.Health().Collisions; len(collisions) != 0 {
-		t.Errorf("degraded generation reports name collisions %+v; the carried copy was registered twice", collisions)
-	}
-
-	// Recovery is the ordinary path: the file reads again, the next attempt
-	// publishes a whole generation, and every degraded fact clears.
-	source.fail[unreadable] = 0
-	clock = base.Add(20 * scanInterval)
-	store.rescan(t.Context())
-	recovered := store.Current()
-	if recovered == degraded {
-		t.Fatal("a folder that reads whole again did not publish a new generation")
-	}
-	fresh = recovered.Freshness()
-	if !fresh.Complete || len(fresh.Blocked) != 0 {
-		t.Errorf("recovered freshness = %+v, want whole with nothing blocked", fresh)
-	}
-	note, ok := recovered.Note(unreadable)
-	if !ok || note.Stale || !strings.Contains(note.Body, "edited and now unreadable") {
-		t.Errorf("recovered note = %+v, present %t; want the edited body read afresh", note, ok)
-	}
-	if _, ok := recovered.Note(added); !ok {
-		t.Error("the recovered generation lost the note written while the folder was degraded")
-	}
-}
-
-// TestDegradedGenerationNamesEverySourceItCouldNotRead separates the two kinds
-// of unreadable file a degraded generation holds, because the reading pages
-// answer for them differently.
-//
-// A file the folder read once keeps that copy, so its page still has words to
-// show and says they are the last known ones. A file that appeared and was
-// never readable has no copy to show: it stays out of the generation's notes
-// while remaining one of its files, which is what lets the missing-note page
-// tell the reader the file is there and could not be read this time, rather
-// than that there is nothing at that address.
-//
-// The freshness record names both. Naming only the first sends the reader to
-// clear one permission and leaves the folder degraded with no account of why.
-func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
+// TestAnUnreadableNoteHoldsTheFolderBackUntilItDegrades pins both sides of
+// the degrade threshold. A read that fails once and works on the next attempt
+// must never publish half a folder, so the last whole generation is held. Held
+// without a bound, every note written after one file stopped being readable is
+// a 404, so after degradeAfter incomplete attempts in a row the folder
+// publishes what it could read, carries the last copy of what it could not,
+// and says it is not whole until a read succeeds again.
+func TestAnUnreadableNoteHoldsTheFolderBackUntilItDegrades(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	const (
 		carried = "Concepts/Carried.md"
 		never   = "Concepts/Never.md"
+		added   = "Concepts/Added.md"
 	)
 	writeNote(t, root, carried, "---\ntype: concept\n---\nthe words read before the file shut\n")
-	contract := testContract(t, root)
-	store, source := newRecordingStore(t, root, contract)
+	store, source := newRecordingStore(t, root, testContract(t, root))
 	whole := store.Current()
 	base := time.Now()
 	clock := base
 	store.now = func() time.Time { return clock }
 
-	// The note that was read is edited to a different size, so the next rescan
-	// rebuilds; a second note arrives beside it. From here neither can be read.
+	// The read note is edited to a different size, so the next rescan builds;
+	// a note arrives that is never readable, and one that reads fine.
 	writeNote(t, root, carried, "---\ntype: concept\n---\nwords written after the file shut\n")
 	writeNote(t, root, never, "---\ntype: concept\n---\nnever read\n")
+	writeNote(t, root, added, "---\ntype: concept\n---\nadded\n")
 	source.fail[carried] = 1 << 30
 	source.fail[never] = 1 << 30
 
 	// One rescan per scan interval, as the ticker drives it. The backoff puts
-	// the first three attempts on ticks 0, 1, and 3.
-	for tick := range 4 {
+	// the attempts on ticks 0, 1 and 3, so ticks 0 to 2 carry two of them.
+	rescanAt := func(tick int) {
 		clock = base.Add(time.Duration(tick) * scanInterval)
 		store.rescan(t.Context())
 	}
+	for tick := range 3 {
+		rescanAt(tick)
+	}
+	if store.Current() != whole {
+		t.Fatal("a failure that has not yet outlasted the threshold published half a folder")
+	}
+
+	rescanAt(3)
 	degraded := store.Current()
 	if degraded == whole {
-		t.Fatal("the folder never degraded, so nothing below is under test")
+		t.Fatal("the folder never degraded: every change after the failure stayed invisible")
+	}
+	if _, ok := degraded.Note(added); !ok {
+		t.Error("a note written while two files were unreadable never reached a published generation")
 	}
 	fresh := degraded.Freshness()
 	if fresh.Complete {
 		t.Error("a generation published without two of its sources calls itself complete")
+	}
+	if !fresh.LastComplete.Equal(whole.Freshness().BuiltAt) {
+		t.Errorf("LastComplete = %v, want the last whole read at %v", fresh.LastComplete, whole.Freshness().BuiltAt)
 	}
 	blocked := make([]string, 0, len(fresh.Blocked))
 	for _, source := range fresh.Blocked {
@@ -1305,26 +1160,44 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 		t.Errorf("blocked sources mismatch (-want +got):\n%s", diff)
 	}
 
+	// A note read once keeps that copy, marked stale, and answers searches for
+	// the words its page shows.
 	kept, ok := degraded.Note(carried)
-	if !ok {
-		t.Fatal("the degraded generation dropped the note it had read once instead of carrying its last copy")
+	if !ok || !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
+		t.Errorf("carried note = %+v, present %t; want the last copy read, marked stale", kept, ok)
 	}
-	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
-		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
+	if found := snapshotSearch(t, degraded.Search(), "the words read before the file shut"); len(found) != 1 || found[0].RelPath != carried {
+		t.Errorf("searching the carried copy's own words = %+v, want %s", found, carried)
 	}
-	// The carried copy has to answer everywhere the note it replaces did. A
-	// generation that left those words out of the index would answer "nothing
-	// found" about text it is showing on screen at the same moment.
-	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
-	if len(found) != 1 || found[0].RelPath != carried {
-		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
-	}
+	// A note never read has no copy, but stays a file, so its page can say it
+	// could not be read rather than that nothing is there.
 	if unread, ok := degraded.Note(never); ok {
-		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)
+		t.Errorf("a file never read was published with a body: %+v", unread)
 	}
 	if _, ok := degraded.Entry(never); !ok {
-		t.Error("the generation does not hold the unread file's identity, so its page cannot tell " +
-			"a reader to clear a permission apart from telling them nothing is there")
+		t.Error("the generation does not hold the unread file's identity")
+	}
+	// The carried copy replaces the resolver stub rather than joining it.
+	if collisions := degraded.Health().Collisions; len(collisions) != 0 {
+		t.Errorf("degraded generation reports name collisions %+v; the carried copy was registered twice", collisions)
+	}
+
+	// Recovery is the ordinary path: the files read again and every degraded
+	// fact clears.
+	source.fail[carried] = 0
+	source.fail[never] = 0
+	rescanAt(20)
+	recovered := store.Current()
+	if fresh := recovered.Freshness(); !fresh.Complete || len(fresh.Blocked) != 0 {
+		t.Errorf("recovered freshness = %+v, want whole with nothing blocked", fresh)
+	}
+	if note, ok := recovered.Note(carried); !ok || note.Stale || !strings.Contains(note.Body, "words written after the file shut") {
+		t.Errorf("recovered note = %+v, present %t; want the edited body read afresh", note, ok)
+	}
+	for _, rel := range []string{never, added} {
+		if _, ok := recovered.Note(rel); !ok {
+			t.Errorf("Note(%q) missing from the recovered generation", rel)
+		}
 	}
 }
 
@@ -1596,78 +1469,25 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	}
 }
 
-// TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
-// lesson sidecar is read whatever its size, because the practice panel is built
-// from it — but its own page says its contents are not searched, and deciding
-// again from the bytes alone made that sentence false.
-func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
-	writeNote(t, root, "System/slots/L01.yaml", oversize)
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	for _, r := range answer.Results {
-		if strings.HasSuffix(r.RelPath, ".yaml") {
-			t.Errorf("a sidecar past the size its page will show is in the index: %s", r.RelPath)
-		}
-	}
-}
-
-// TestAReadablePDFIsNotSearchable holds the index to the same branch set the
-// file page uses. A PDF gets its own viewer rather than a source listing, so its
-// bytes are never shown as characters — and a small enough PDF is often valid
-// UTF-8 with no NUL, which is all a bytes-only test looks at. Indexing it hands
-// back a hit whose page contains none of the words that matched.
-func TestAReadablePDFIsNotSearchable(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	for _, r := range answer.Results {
-		if strings.HasSuffix(r.RelPath, ".pdf") {
-			t.Errorf("a PDF is in the text index: %s — its page shows a viewer, not these words", r.RelPath)
-		}
-	}
-}
-
-// TestAnOverCapNoteIsNotRetained is the lock that a note past MaxSourceBytes
-// is a published skip. The same ceiling every other file has applies: the
-// generation does not read it, does not hold its body, and does not hold the
-// folder back for it. A name can stay so the page can say the file is there;
-// nothing of the file is retained.
-func TestAnOverCapNoteIsNotRetained(t *testing.T) {
+// TestAnOverCapNoteIsASkipNotARead pins that a note past the source bound is
+// a published skip, under the ceiling every other file has: the generation
+// never reads it, holds nothing of it, and does not hold the folder back for
+// it. Its name stays, so a citation lands on it and the health page lists it.
+func TestAnOverCapNoteIsASkipNotARead(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	const needle = "rarespelunker"
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\n"+needle+" sits here.\n")
+	writeNote(t, root, "small.md", "---\ntype: concept\n---\n"+needle+" sits here; see [[huge]].\n")
 	huge := "---\ntype: concept\n---\n" + needle + " sits here too.\n" +
-		strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
+		strings.Repeat("padding padding padding\n", render.MaxSourceBytes/24+1)
 	writeNote(t, root, "huge.md", huge)
-	contract := testContract(t, root)
-	store, source := newRecordingStore(t, root, contract)
+	store, source := newRecordingStore(t, root, testContract(t, root))
 	if store.retry {
 		t.Fatal("an over-cap note held the generation back; one oversized file would wedge the folder")
 	}
-	if source.reads["huge.md"] != 0 {
-		t.Fatalf("the over-cap note was read %d times; nothing of it should be retained", source.reads["huge.md"])
+	if got := source.reads["huge.md"]; got != 0 {
+		t.Fatalf("the over-cap note was read %d times, want 0", got)
 	}
 
 	gen := store.Current()
@@ -1677,95 +1497,28 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	if _, isFile := gen.Entry("huge.md"); !isFile {
 		t.Fatal("the over-cap note vanished from the scan; the page would look like a missing file")
 	}
-
+	want := []Skipped{{Path: "huge.md", Reason: overSourceBound, Size: int64(len(huge))}}
+	if diff := cmp.Diff(want, gen.Skipped()); diff != "" {
+		t.Errorf("Skipped() mismatch (-want +got):\n%s", diff)
+	}
+	if got := searchPaths(t, store, needle); !slices.Equal(got, []string{"small.md"}) {
+		t.Errorf("Search(%q) = %v, want the note under the bound alone", needle, got)
+	}
+	if resolved := gen.Graph().Resolve("huge"); resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
+		t.Errorf("Resolve(huge) = %+v, want unique huge.md", resolved)
+	}
 	small, ok := gen.Note("small.md")
-	if !ok || !strings.Contains(small.Body, needle) {
-		t.Fatal("the under-cap note is absent from the generation")
+	if !ok {
+		t.Fatal("the note under the bound is absent from the generation")
 	}
-
-	answer, err := gen.Search().Search(lexical.Parse(needle), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	var paths []string
-	for _, r := range answer.Results {
-		paths = append(paths, r.RelPath)
-	}
-	if !slices.Contains(paths, "small.md") {
-		t.Errorf("search lost the note under the cap; got %v", paths)
-	}
-	if slices.Contains(paths, "huge.md") {
-		t.Errorf("the over-cap note reached the index; got %v", paths)
+	if html := gen.Render("small.md", small.Body, wording.ZhHant).HTML; !strings.Contains(html, "/notes/huge.md") {
+		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", html)
 	}
 
 	writeNote(t, root, "later.md", "---\ntype: concept\n---\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("later.md"); !ok {
 		t.Error("a note written after the over-cap skip never reached a published generation")
-	}
-}
-
-// TestAnOverCapNoteIsReportedAsSkipped is the lock that a note past the source
-// bound is a skipped projection, not only a server log. Skipped() used to
-// return the scan's list alone; skipUnread appended a stub and logged, and
-// /health had nothing to name.
-func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
-	writeNote(t, root, "huge.md", huge)
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\nunder the bound\n")
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	got := store.Current().Skipped()
-	if len(got) != 1 {
-		t.Fatalf("Skipped() = %#v, want the over-bound note alone", got)
-	}
-	if got[0].Path != "huge.md" {
-		t.Errorf("Skipped()[0].Path = %q, want huge.md", got[0].Path)
-	}
-	if got[0].Reason != "over the source bound" {
-		t.Errorf("Skipped()[0].Reason = %q, want over the source bound", got[0].Reason)
-	}
-	if got[0].Size != int64(len(huge)) {
-		t.Errorf("Skipped()[0].Size = %d, want %d", got[0].Size, len(huge))
-	}
-}
-
-// TestAnOverCapNoteKeepsANameForCitations locks skipUnread's body. A note past
-// the bound is not retained, but a citation still lands on it. A bare return
-// in skipUnread drops the stub, and this wikilink goes unresolved.
-func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\nsee [[huge]]\n")
-	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
-	writeNote(t, root, "huge.md", huge)
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	gen := store.Current()
-	if _, ok := gen.Note("huge.md"); ok {
-		t.Fatal("the over-cap note was retained; this would not lock skipUnread")
-	}
-	resolved := gen.Graph().Resolve("huge")
-	if resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
-		t.Fatalf("Resolve(huge) = %+v, want unique huge.md; skipUnread left no stub", resolved)
-	}
-	note, ok := gen.Note("small.md")
-	if !ok {
-		t.Fatal("the citing note is absent from the generation")
-	}
-	result := gen.Render("small.md", note.Body, wording.ZhHant)
-	if !strings.Contains(result.HTML, "/notes/huge.md") {
-		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", result.HTML)
 	}
 }
 

@@ -126,14 +126,6 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	if diff := cmp.Diff(want, h.Islands); diff != "" {
 		t.Errorf("Islands mismatch (-want +got):\n%s", diff)
 	}
-
-	total := 0
-	for _, g := range h.Islands {
-		total += len(g.Notes)
-	}
-	if total != len(notes) {
-		t.Errorf("grouping lost rows: %d notes in, %d out", len(notes), total)
-	}
 }
 
 // A note reached only by its title is spared the island list, and the order the

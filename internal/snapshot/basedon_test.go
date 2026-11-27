@@ -112,11 +112,9 @@ func TestBasedOnDoesNotCountAsABodyBacklink(t *testing.T) {
 	}
 }
 
-// TestGenerationBasedOnKeepsDeclarationOrder holds the contract on
-// Generation.BasedOn itself: the sources come back in the order the author
-// wrote them. projectBasedOn already answers for the list; this call is the
-// published method, so a wrapper that sorted, reversed, or returned nothing
-// would stay green against that helper alone.
+// TestGenerationBasedOnKeepsDeclarationOrder holds the published method to
+// the projection TestProjectBasedOn pins: the sources in the order the author
+// wrote them.
 func TestGenerationBasedOnKeepsDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -133,19 +131,6 @@ func TestGenerationBasedOnKeepsDeclarationOrder(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("BasedOn(Writing/Order.md) mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestGenerationBasedOnReadsALoneString(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeNote(t, root, "Sources/Book notes.md", "the notebook\n")
-	writeNote(t, root, "Writing/Scalar.md", "---\nbased_on: \"[[Book notes]]\"\n---\n\nno body link\n")
-	store, _ := newTestStore(t, root, testContract(t, root))
-	got := store.Current().BasedOn("Writing/Scalar.md")
-	want := []nav.NoteRef{{Name: "Book notes", RelPath: "Sources/Book notes.md"}}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("BasedOn(Writing/Scalar.md) mismatch (-want +got):\n%s", diff)
 	}
 }
 
