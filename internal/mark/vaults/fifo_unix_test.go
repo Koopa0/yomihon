@@ -11,8 +11,8 @@ import (
 
 // A named pipe where the list should be is not read: opening one waits for a
 // writer that never comes, and that hung every start and ignored the interrupt
-// that should end it. It is set aside as damage and the list starts fresh.
-func TestAListThatIsANamedPipeIsNotOpenedAndIsSetAside(t *testing.T) {
+// that should end it. It is saved as damaged and the list starts fresh.
+func TestAListThatIsANamedPipeIsNotOpenedAndIsSavedAsDamaged(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
 	if err := mkdirHome(s); err != nil {
@@ -38,13 +38,13 @@ func TestAListThatIsANamedPipeIsNotOpenedAndIsSetAside(t *testing.T) {
 
 	added := make(chan error, 1)
 	go func() {
-		_, _, err := s.Add(folder(t, "a"), startPort)
+		_, _, err := s.Add(folder(t, "a"), startPort, firstRead)
 		added <- err
 	}()
 	select {
 	case err := <-added:
 		if err != nil {
-			t.Fatalf("Add over a named pipe = %v, want the pipe set aside and the vault taken in", err)
+			t.Fatalf("Add over a named pipe = %v, want the pipe saved as damaged and the vault taken in", err)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("adding a vault waited on a named pipe")

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -99,7 +100,7 @@ func (h *Handler) openThoughtShelf(snap *snapshot.Generation, governed bool, lan
 // rows the marks page lists, which the sidebar's row for it states. A mark file
 // that cannot be read counts for nothing here; the marks page is where that is
 // said.
-func OpenCount(snap *snapshot.Generation, questions func() ([]mark.Mark, error)) int {
+func OpenCount(snap *snapshot.Generation, questions func() ([]machinemarks.Mark, error)) int {
 	marks, err := openMarksOf(questions)
 	if err != nil {
 		return len(snap.MarkItems(nil))
@@ -109,7 +110,7 @@ func OpenCount(snap *snapshot.Generation, questions func() ([]mark.Mark, error))
 
 // openMarksOf reads the reader's stored marks as the open items the snapshot
 // selects among. A nil source is a process with nowhere to keep any.
-func openMarksOf(questions func() ([]mark.Mark, error)) (marks []snapshot.MarkedQuestion, err error) {
+func openMarksOf(questions func() ([]machinemarks.Mark, error)) (marks []snapshot.MarkedQuestion, err error) {
 	if questions == nil {
 		return nil, nil
 	}
@@ -176,10 +177,10 @@ func boolWeight(b bool) int {
 
 // MarkedQuestions is the copy of the reader's stored questions the list of
 // marks reads.
-func MarkedQuestions(kept []mark.Mark) []snapshot.MarkedQuestion {
+func MarkedQuestions(kept []machinemarks.Mark) []snapshot.MarkedQuestion {
 	marks := make([]snapshot.MarkedQuestion, 0, len(kept))
 	for i := range kept {
-		marks = append(marks, snapshot.MarkedQuestion{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
+		marks = append(marks, snapshot.MarkedQuestion{RelPath: kept[i].Path, Anchor: kept[i].Anchor, At: kept[i].At})
 	}
 	return marks
 }
@@ -277,7 +278,7 @@ func openMarkRow(kept *snapshot.MarkedQuestion, places *placeResolver, lang word
 	if !removable {
 		return row
 	}
-	row.Removal = &pages.QuestionRemoval{Endpoint: mark.Paths.Question, Path: kept.RelPath, Anchor: kept.Anchor,
+	row.Removal = &pages.QuestionRemoval{Endpoint: mark.QuestionPath, Path: kept.RelPath, Anchor: kept.Anchor,
 		Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
 		Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 	}

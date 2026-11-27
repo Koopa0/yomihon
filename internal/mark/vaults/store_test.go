@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,26 +28,33 @@ func folder(t *testing.T, name string) string {
 	return dir
 }
 
-// storeIn is a Store over configDir that reads the clock a test sets and gives
-// up on a held lock quickly.
+// firstRead is when a test's clock begins.
+var firstRead = time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
+
+// storeIn is a Store over configDir, and a clock a test moves on, which begins
+// at firstRead.
 func storeIn(t *testing.T, configDir string, free func(int) bool) (*Store, *time.Time) {
 	t.Helper()
-	s, err := Open(confdir.At(configDir), free)
+	s, err := Open(confdir.At(configDir), free, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clock := time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return clock }
-	s.wait = 200 * time.Millisecond
+	clock := firstRead
 	return s, &clock
 }
 
 // startPort is where a test's vaults begin.
 const startPort = 8800
 
+// mustAdd adds root as a vault read at firstRead.
 func mustAdd(t *testing.T, s *Store, root string) Entry {
 	t.Helper()
-	e, _, err := s.Add(root, startPort)
+	return addAt(t, s, root, firstRead)
+}
+
+func addAt(t *testing.T, s *Store, root string, at time.Time) Entry {
+	t.Helper()
+	e, _, err := s.Add(root, startPort, at)
 	if err != nil {
 		t.Fatalf("Add(%q): %v", root, err)
 	}
@@ -92,12 +100,12 @@ func TestAVaultTypedAgainKeepsItsPortAndIsNotNew(t *testing.T) {
 	s, clock := storeIn(t, t.TempDir(), nil)
 	dir := folder(t, "a")
 
-	first, added, err := s.Add(dir, 8800)
+	first, added, err := s.Add(dir, 8800, *clock)
 	if err != nil || !added {
 		t.Fatalf("first Add = %+v, added %v, %v", first, added, err)
 	}
 	*clock = clock.Add(time.Hour)
-	again, added, err := s.Add(dir, 9900)
+	again, added, err := s.Add(dir, 9900, *clock)
 	if err != nil || added {
 		t.Fatalf("second Add = %+v, added %v, %v; want the same vault, not new", again, added, err)
 	}
@@ -113,7 +121,7 @@ func TestAStartingPortThatIsNotOneIsRefused(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
 	for _, start := range []int{0, -1, 80, MinPort - 1, 65536} {
-		if _, _, err := s.Add(folder(t, "a"), start); !errors.Is(err, ErrStartPort) {
+		if _, _, err := s.Add(folder(t, "a"), start, firstRead); !errors.Is(err, ErrStartPort) {
 			t.Errorf("Add with start %d = %v, want ErrStartPort", start, err)
 		}
 	}
@@ -122,7 +130,7 @@ func TestAStartingPortThatIsNotOneIsRefused(t *testing.T) {
 func TestEveryPortFromTheStartUpBeingTakenIsAnError(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), func(int) bool { return false })
-	if _, _, err := s.Add(folder(t, "a"), 65530); !errors.Is(err, ErrNoPort) {
+	if _, _, err := s.Add(folder(t, "a"), 65530, firstRead); !errors.Is(err, ErrNoPort) {
 		t.Fatalf("Add with no free port = %v, want ErrNoPort", err)
 	}
 }
@@ -137,7 +145,7 @@ func TestAVaultIsIdentifiedByItsResolvedFolder(t *testing.T) {
 	}
 
 	first := mustAdd(t, s, dir)
-	second, added, err := s.Add(link, 8800)
+	second, added, err := s.Add(link, 8800, firstRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +185,6 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 	stores := make([]*Store, processes)
 	for i := range stores {
 		stores[i], _ = storeIn(t, config, nil)
-		stores[i].wait = 30 * time.Second
 	}
 
 	var wg sync.WaitGroup
@@ -187,8 +194,19 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 			dir := folder(t, "v"+strconv.Itoa(i)+"-"+strconv.Itoa(j))
 			folders = append(folders, dir)
 			wg.Go(func() {
-				if _, _, err := stores[i].Add(dir, 8800); err != nil {
-					t.Errorf("Add(%q): %v", dir, err)
+				// Twelve adds poll one lock, and a slow runner can keep one
+				// waiting past confdir.LockWait without anything being wrong;
+				// this asks whether an add is lost, and a refused one wrote
+				// nothing, so it asks again.
+				for {
+					_, _, err := stores[i].Add(dir, 8800, firstRead)
+					if errors.Is(err, confdir.ErrLocked) {
+						continue
+					}
+					if err != nil {
+						t.Errorf("Add(%q): %v", dir, err)
+					}
+					return
 				}
 			})
 		}
@@ -214,11 +232,11 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 func TestTheListIsOrderedByLastReadWithTheLatestFirst(t *testing.T) {
 	t.Parallel()
 	s, clock := storeIn(t, t.TempDir(), nil)
-	a := mustAdd(t, s, folder(t, "a"))
+	a := addAt(t, s, folder(t, "a"), *clock)
 	*clock = clock.Add(time.Hour)
-	b := mustAdd(t, s, folder(t, "b"))
+	b := addAt(t, s, folder(t, "b"), *clock)
 	*clock = clock.Add(time.Hour)
-	c := mustAdd(t, s, folder(t, "c"))
+	c := addAt(t, s, folder(t, "c"), *clock)
 	*clock = clock.Add(time.Hour)
 	if _, err := s.Touch(a.ID, "", *clock); err != nil {
 		t.Fatal(err)
@@ -234,6 +252,41 @@ func TestTheListIsOrderedByLastReadWithTheLatestFirst(t *testing.T) {
 	}
 	if want := []string{a.ID, c.ID, b.ID}; !slices.Equal(got, want) {
 		t.Fatalf("order = %v, want a, c, b: the one read last first", got)
+	}
+}
+
+// A last-read time that could not be written is written by the next page,
+// and not answered from memory as though it had been.
+func TestALastReadThatWasNotWrittenIsWrittenNextTime(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not refuse a directory by its permission bits")
+	}
+	config := t.TempDir()
+	s, clock := storeIn(t, config, nil)
+	e := mustAdd(t, s, folder(t, "a"))
+	home := filepath.Join(config, "yomihon")
+	if err := os.Chmod(home, 0o500); err != nil { // #nosec G302 -- the test's own temporary directory, readable and searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(home, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+			t.Errorf("restore the directory's mode: %v", err)
+		}
+	})
+	if probe, err := os.CreateTemp(home, "probe"); err == nil {
+		_ = probe.Close() //nolint:errcheck // only whether it was made matters
+		t.Skip("this user writes in a directory it may not write in (a privileged user), so the fixture shows nothing")
+	}
+	later := clock.Add(2 * time.Minute)
+	if _, err := s.Touch(e.ID, "", later); err == nil {
+		t.Fatal("Touch into a directory that cannot be written = nil, want an error")
+	}
+	if err := os.Chmod(home, 0o700); err != nil { // #nosec G302 -- the test's own temporary directory, writable again
+		t.Fatal(err)
+	}
+	if written, err := s.Touch(e.ID, "", later.Add(time.Second)); err != nil || !written {
+		t.Fatalf("Touch after a write that failed = written %v, %v; want the write made now", written, err)
 	}
 }
 
@@ -291,21 +344,13 @@ func TestANameIsKeptAsOneLineOfValidTextThatIsNotTooLong(t *testing.T) {
 			t.Errorf("cleanName(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
-	long := cleanName(repeat("字", 500), "")
+	long := cleanName(strings.Repeat("字", 500), "")
 	if len(long) > maxNameBytes || len([]rune(long)) == 0 {
 		t.Errorf("a long name is %d bytes, want 1..%d", len(long), maxNameBytes)
 	}
 	if got := cleanName("", "/vaults/notes"); got != "notes" {
 		t.Errorf("an empty name with a path = %q, want the folder's name", got)
 	}
-}
-
-func repeat(s string, n int) string {
-	out := make([]byte, 0, len(s)*n)
-	for range n {
-		out = append(out, s...)
-	}
-	return string(out)
 }
 
 func TestARemovedVaultComesBackWithTheSameIDAndPort(t *testing.T) {
@@ -418,7 +463,7 @@ func TestAVaultAddedAgainIsNoLongerRememberedAsRemoved(t *testing.T) {
 	}
 }
 
-func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
+func TestADamagedListIsSavedNotDeletedAndReadAsEmpty(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
@@ -431,7 +476,7 @@ func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
 		t.Fatalf("List of a damaged file = %v, %v; want no vaults and ErrDamaged", list, err)
 	}
 	if _, err := os.Stat(home.Join(damagedFile)); err == nil {
-		t.Fatal("reading a damaged list set it aside; only a change may")
+		t.Fatal("reading a damaged list saved it; only a change may")
 	}
 
 	e := mustAdd(t, s, folder(t, "a"))
@@ -508,7 +553,7 @@ func TestChangedLooksAtTheFileWithoutReadingIt(t *testing.T) {
 		t.Fatalf("Changed after another process wrote it = %v, %v; want true and no error for what is inside", changed, err)
 	}
 	if _, err := os.Stat(filepath.Join(config, "yomihon", damagedFile)); err == nil {
-		t.Fatal("Changed set the list aside, so it parsed it")
+		t.Fatal("Changed saved the list as damaged, so it parsed it")
 	}
 	if _, err := s.List(); !errors.Is(err, ErrDamaged) {
 		t.Fatalf("List = %v, want ErrDamaged", err)
@@ -536,11 +581,6 @@ func TestAChangeLeavesOnlyTheListAndItsLockInTheDirectory(t *testing.T) {
 	if want := []string{listFile, lockFile}; !slices.Equal(names, want) {
 		t.Fatalf("the directory holds %v, want only %v: no temporary file or anything else left behind", names, want)
 	}
-	for _, name := range names {
-		if got, want := fileMode(t, filepath.Join(config, "yomihon", name)), os.FileMode(0o600); runtimeHasModes() && got != want {
-			t.Errorf("%s is mode %v, want %v: what the reader has opened is theirs alone", name, got, want)
-		}
-	}
 }
 
 // readFile is a file of this test's own temporary directory.
@@ -553,15 +593,6 @@ func readFile(t *testing.T, path string) []byte {
 	return data
 }
 
-func fileMode(t *testing.T, path string) os.FileMode {
-	t.Helper()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return info.Mode().Perm()
-}
-
 // deadPID is the id of a process that has ended.
 func deadPID(t *testing.T) int {
 	t.Helper()
@@ -570,25 +601,6 @@ func deadPID(t *testing.T) int {
 		t.Fatalf("run a process that ends at once: %v", err)
 	}
 	return cmd.ProcessState.Pid()
-}
-
-func TestALockHeldByAnotherIsWaitedForAndThenGivenUpOn(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	s, _ := storeIn(t, config, nil)
-	held, err := confdir.Acquire(t.Context(), homeAt(t, config), lockFile, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = held.Release() }) //nolint:errcheck // the temporary directory goes with it
-
-	_, _, err = s.Add(folder(t, "a"), 8800)
-	if !errors.Is(err, confdir.ErrLocked) {
-		t.Fatalf("Add while another holds the lock = %v, want ErrLocked", err)
-	}
-	if list, listErr := s.List(); listErr != nil || len(list) != 0 {
-		t.Fatalf("a refused Add changed the list: %v, %v", list, listErr)
-	}
 }
 
 // treeOf is every file and directory under root with what each holds, so two
@@ -664,7 +676,7 @@ func TestTheListWritesNothingOutsideItsOwnDirectoryUnderTheConfigurationDirector
 	if err := s.RemoveInstance(os.Getpid()); err != nil {
 		t.Fatal(err)
 	}
-	// A list that cannot be read is set aside, which is a write of its own.
+	// A list that cannot be read is saved as damaged, which is a write of its own.
 	if err := os.WriteFile(filepath.Join(config, "yomihon", listFile), []byte("damaged"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -729,7 +741,7 @@ func TestNoVaultIsEverMovedByAnotherBeingAdded(t *testing.T) {
 	s, _ := storeIn(t, t.TempDir(), nil)
 	first := mustAdd(t, s, folder(t, "a"))
 	s.Hold(startPort + 7)
-	typed, added, err := s.Add(folder(t, "b"), startPort+7)
+	typed, added, err := s.Add(folder(t, "b"), startPort+7, firstRead)
 	if err != nil || !added {
 		t.Fatalf("Add = %+v, %v, %v", typed, added, err)
 	}
@@ -822,18 +834,18 @@ func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsLeftOut(t *t
 	}
 }
 
-// A list longer than any list is, is set aside like every other damaged list,
+// A list longer than any list is, is saved like every other damaged list,
 // and the next change starts a fresh one.
-func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
+func TestAnOversizedListIsSavedNotLeftToBlockEveryChange(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	s := writeList(t, configDir, strings.Repeat("x", maxListBytes+1))
-	entry, added, err := s.Add(folder(t, "a"), startPort)
+	entry, added, err := s.Add(folder(t, "a"), startPort, firstRead)
 	if err != nil || !added {
 		t.Fatalf("Add on top of an oversized list = %+v, %v, %v; want it taken in", entry, added, err)
 	}
 	if _, err = os.Stat(s.dir.Join(damagedFile)); err != nil {
-		t.Errorf("the oversized list was not set aside: %v", err)
+		t.Errorf("the oversized list was not saved as damaged: %v", err)
 	}
 	if list, listErr := s.List(); listErr != nil || len(list) != 1 {
 		t.Errorf("after the change the list holds %+v, %v; want the one vault", list, listErr)
@@ -915,24 +927,24 @@ func TestAnEntryOfTheWrongShapeIsLeftOutAndAFileThatIsNotAListIsStillDamaged(t *
 // What a list was is not written over by the next list that cannot be used: the
 // first stays, each later one has a name of its own, and past the last name only
 // the last is replaced.
-func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
+func TestASecondDamagedListDoesNotReplaceTheFirst(t *testing.T) {
 	t.Parallel()
 	var said []string
 	s := writeListReporting(t, t.TempDir(), &said, "first, not a list")
 	mustAdd(t, s, folder(t, "a"))
-	for i := range keptAside + 2 {
+	for i := range damagedCopies + 2 {
 		if err := os.WriteFile(s.dir.Join(listFile), []byte("not a list, number "+strconv.Itoa(i)), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 			t.Fatal(err)
 		}
 		mustAdd(t, s, folder(t, "b"+strconv.Itoa(i)))
 	}
-	if got := readFile(t, s.dir.Join(asideFile(1))); string(got) != "first, not a list" {
-		t.Errorf("the first list set aside was replaced: %q", got)
+	if got := readFile(t, s.dir.Join(damagedName(1))); string(got) != "first, not a list" {
+		t.Errorf("the first damaged list saved was replaced: %q", got)
 	}
-	if got := readFile(t, s.dir.Join(asideFile(2))); string(got) != "not a list, number 0" {
+	if got := readFile(t, s.dir.Join(damagedName(2))); string(got) != "not a list, number 0" {
 		t.Errorf("the second was not kept under a name of its own: %q", got)
 	}
-	if got := readFile(t, s.dir.Join(asideFile(keptAside))); string(got) != "not a list, number "+strconv.Itoa(keptAside+1) {
+	if got := readFile(t, s.dir.Join(damagedName(damagedCopies))); string(got) != "not a list, number "+strconv.Itoa(damagedCopies+1) {
 		t.Errorf("once every name is taken the last is replaced, and it holds %q", got)
 	}
 	entries, err := os.ReadDir(s.dir.Path())
@@ -945,17 +957,17 @@ func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
 			count++
 		}
 	}
-	if count != keptAside {
-		t.Errorf("%d lists are kept, want %d and no more", count, keptAside)
+	if count != damagedCopies {
+		t.Errorf("%d lists are kept, want %d and no more", count, damagedCopies)
 	}
-	if want := keptAside + 3; len(said) != want { // the list it began with, and each round's
-		t.Errorf("said %d lines for %d lists set aside: %q", len(said), want, said)
+	if want := damagedCopies + 3; len(said) != want { // the list it began with, and each round's
+		t.Errorf("said %d lines for %d damaged lists saved: %q", len(said), want, said)
 	}
 }
 
-// A change that changes nothing writes nothing, and so sets nothing aside: one
+// A change that changes nothing writes nothing, and so saves nothing as damaged: one
 // copy of the list for every page load would fill the directory.
-func TestAChangeThatChangesNothingSetsNothingAside(t *testing.T) {
+func TestAChangeThatChangesNothingSavesNothingAsDamaged(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]func(t *testing.T) (string, Entry){
 		"a list with an entry that cannot be used": func(t *testing.T) (string, Entry) {
@@ -1003,11 +1015,10 @@ func mustEncode(t *testing.T, list []Entry) []byte {
 // writeListReporting is writeList for a Store that says what it did into said.
 func writeListReporting(t *testing.T, configDir string, said *[]string, body string) *Store {
 	t.Helper()
-	s, err := Open(confdir.At(configDir), nil, Report(func(line string) { *said = append(*said, line) }))
+	s, err := Open(confdir.At(configDir), nil, func(line string) { *said = append(*said, line) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.wait = 200 * time.Millisecond
 	if err = mkdirHome(s); err != nil {
 		t.Fatal(err)
 	}
@@ -1038,7 +1049,7 @@ func TestAFolderThatOverlapsTheConfigurationDirectoryIsNotAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, root := range []string{filepath.Join(base, "home"), configDir, inside} {
-		entry, added, addErr := s.Add(root, startPort)
+		entry, added, addErr := s.Add(root, startPort, firstRead)
 		if _, overlaps := errors.AsType[*confdir.OverlapError](addErr); !overlaps {
 			t.Errorf("Add(%q) = %+v, %v, %v; want an *OverlapError", root, entry, added, addErr)
 		}

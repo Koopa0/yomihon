@@ -97,8 +97,10 @@ var ErrMoved = errors.New("the vault's folder is no longer where it was opened")
 // ErrMachineID means a machine id is not 8 lowercase hexadecimal digits.
 var ErrMachineID = errors.New("a machine id is 8 lowercase hexadecimal digits")
 
-// ErrTooLarge means the data is longer than MaxFileBytes.
-var ErrTooLarge = errors.New("the machine file would be longer than its limit")
+// ErrTooLarge means a machine file, written or read, is longer than
+// MaxFileBytes: one being written is refused, and one being read was not
+// written by any machine.
+var ErrTooLarge = errors.New("the machine file is longer than its limit")
 
 // Folder is the vault's reader folder, as a capability to write this machine's
 // file in it. Only Open makes one, and nothing outside this package can fill
@@ -185,21 +187,7 @@ func (f *Folder) ReadOnly() (readOnly bool, err error) {
 	return runtime.GOOS != "windows" && info.Mode().Perm()&ownerWrite == 0, nil
 }
 
-// Measurement is what one replacement took, for the write log. It holds no
-// path and no content.
-type Measurement struct {
-	// Bytes is the length of the data written.
-	Bytes int
-	// Write is the folders made and entered, and the temporary file written and
-	// synced.
-	Write time.Duration
-	// Install is the rename and the sync of each folder it changed.
-	Install time.Duration
-	// ReadBack is the file read back and compared.
-	ReadBack time.Duration
-}
-
-// ReplaceMachineFile installs data as the machine file of machineID, making the
+// Replace installs data as the machine file of machineID, making the
 // folders on the way on the first write.
 //
 // machineID is this machine's own id, which the caller keeps and passes. Only
@@ -217,29 +205,25 @@ type Measurement struct {
 // the marks folder or the read back, means the new file is installed and
 // whether it is on stable storage is not known. A temporary file older than ten
 // minutes, which only a crash leaves, is removed first.
-//
-// The measurement says what each step that ran took, whether or not it failed.
-func (f *Folder) ReplaceMachineFile(machineID string, data []byte) (Measurement, error) {
-	m := Measurement{Bytes: len(data)}
+func (f *Folder) Replace(machineID string, data []byte) error {
 	if f == nil || f.vault == nil {
-		return m, errors.New("replace the machine file: no folder")
+		return errors.New("replace the machine file: no folder")
 	}
 	name, err := machineFile(machineID)
 	if err != nil {
-		return m, err
+		return err
 	}
 	if len(data) > MaxFileBytes {
-		return m, fmt.Errorf("%w: %d bytes", ErrTooLarge, len(data))
+		return fmt.Errorf("%w: %d bytes", ErrTooLarge, len(data))
 	}
-	start := time.Now()
 	d, err := f.prepare()
 	if err == nil {
-		err = d.replace(name, data, &m, start)
+		err = d.replace(name, data, time.Now())
 	}
-	return m, errors.Join(err, d.close())
+	return errors.Join(err, d.close())
 }
 
-// File is one machine file as ReadMachineFiles found it.
+// File is one machine file as ReadAll found it.
 type File struct {
 	// ID is the machine id the file's name says.
 	ID string
@@ -251,16 +235,11 @@ type File struct {
 	Err error
 }
 
-// ErrNotRegular means a name in the marks folder that ends as a machine file's
-// does is a folder, a link, a named pipe or some other thing than a file. It is
-// not opened: a named pipe would wait for ever for a writer that never comes.
-var ErrNotRegular = errors.New("is not a regular file")
+// errNotRegular means a name in the marks folder that ends as a machine file's
+// does is a folder, a link, a named pipe or some other thing than a file.
+var errNotRegular = errors.New("is not a regular file")
 
-// ErrFileTooLarge means a machine file is longer than MaxFileBytes, the most
-// any machine writes, so it was not written by one.
-var ErrFileTooLarge = errors.New("is longer than a machine file may be")
-
-// ReadMachineFiles reads every machine file in the marks folder, in the order
+// ReadAll reads every machine file in the marks folder, in the order
 // of their names: every entry whose name is a machine id and the extension. It
 // reads through the folders it enters one at a time, as a write does, so a link
 // on the way is refused, and it makes nothing and changes nothing: a vault with
@@ -269,7 +248,7 @@ var ErrFileTooLarge = errors.New("is longer than a machine file may be")
 // The folder is listed and each file then opened, so a file replaced between
 // the two is read as the new one, whole, and one removed is left out. A rename
 // never shows a reader part of a file.
-func (f *Folder) ReadMachineFiles() (files []File, err error) {
+func (f *Folder) ReadAll() (files []File, err error) {
 	if f == nil || f.vault == nil {
 		return nil, errors.New("read the machine files: no folder")
 	}
@@ -289,9 +268,9 @@ func (f *Folder) ReadMachineFiles() (files []File, err error) {
 		}
 		file := File{ID: id}
 		if !entry.Type().IsRegular() {
-			file.Err = fmt.Errorf("%s %w", entry.Name(), ErrNotRegular)
-		} else if file.Data, file.Err = readWhole(d.marks, entry.Name()); file.Err != nil {
-			file.Data = nil
+			file.Err = fmt.Errorf("%s %w", entry.Name(), errNotRegular)
+		} else {
+			file.Data, file.Err = readWhole(d.marks, entry.Name())
 		}
 		files = append(files, file)
 	}
@@ -306,7 +285,7 @@ func readWhole(marks *os.Root, name string) ([]byte, error) {
 	}
 	info, err := file.Stat()
 	if err == nil && !info.Mode().IsRegular() {
-		err = fmt.Errorf("%s %w", name, ErrNotRegular)
+		err = fmt.Errorf("%s %w", name, errNotRegular)
 	}
 	var data []byte
 	if err == nil {
@@ -316,7 +295,7 @@ func readWhole(marks *os.Root, name string) ([]byte, error) {
 		return nil, fmt.Errorf("read %s: %w", name, err)
 	}
 	if len(data) > MaxFileBytes {
-		return nil, fmt.Errorf("%s %w", name, ErrFileTooLarge)
+		return nil, fmt.Errorf("%s: %w", name, ErrTooLarge)
 	}
 	return data, nil
 }
@@ -327,9 +306,9 @@ type folders struct {
 	notes, yomihon, marks *os.Root
 }
 
-// replace is ReplaceMachineFile inside the marks folder.
-func (d *folders) replace(name machineFileName, data []byte, m *Measurement, start time.Time) error {
-	removeStale(d.marks, start)
+// replace is Replace inside the marks folder.
+func (d *folders) replace(name machineFileName, data []byte, now time.Time) error {
+	removeStale(d.marks, now)
 	// Opened before anything is installed, so that a folder that cannot be synced
 	// refuses the write while the machine file still holds what it held.
 	marks, err := openDirectory(d.marks)
@@ -338,11 +317,9 @@ func (d *folders) replace(name machineFileName, data []byte, m *Measurement, sta
 	}
 	defer marks.close() //nolint:errcheck // closing a directory opened to sync it reports nothing about the write
 	t, err := newTemp(d.marks, data)
-	m.Write = time.Since(start)
 	if err != nil {
 		return err
 	}
-	installed := time.Now()
 	for attempt := 1; ; attempt++ {
 		err = d.marks.Rename(t.temp, name.file)
 		if err == nil || attempt == renameAttempts || !transient(err) {
@@ -357,11 +334,7 @@ func (d *folders) replace(name machineFileName, data []byte, m *Measurement, sta
 	if err = marks.sync(); err != nil {
 		return fmt.Errorf("sync the marks folder: %w", err)
 	}
-	m.Install = time.Since(installed)
-	read := time.Now()
-	err = readBack(d.marks, name, data)
-	m.ReadBack = time.Since(read)
-	return err
+	return readBack(d.marks, name, data)
 }
 
 // machineIDShape is what a machine id is: eight lowercase hexadecimal digits,
@@ -572,37 +545,4 @@ func (d *folders) close() error {
 		}
 	}
 	return err
-}
-
-// ConflictMarkers counts the lines of data that are git's conflict markers: a
-// run of seven or more '<', '>' or '|' alone or followed by a space, or a line
-// of seven or more '=' alone. A line of a machine file is a JSON object, which
-// begins with '{', so no line of marks is one. A trailing carriage return is
-// not part of the line.
-func ConflictMarkers(data []byte) int {
-	count := 0
-	for line := range bytes.SplitSeq(data, []byte("\n")) {
-		if conflictMarker(bytes.TrimSuffix(line, []byte("\r"))) {
-			count++
-		}
-	}
-	return count
-}
-
-func conflictMarker(line []byte) bool {
-	if len(line) < 7 {
-		return false
-	}
-	c := line[0]
-	if c != '<' && c != '>' && c != '|' && c != '=' {
-		return false
-	}
-	run := len(line) - len(bytes.TrimLeft(line, string(c)))
-	if run < 7 {
-		return false
-	}
-	if run == len(line) {
-		return true
-	}
-	return c != '=' && line[run] == ' '
 }

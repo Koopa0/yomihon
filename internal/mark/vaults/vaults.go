@@ -31,7 +31,8 @@ import (
 
 // ErrDamaged means the list exists and cannot be read as a list at all: it is
 // not the file this writes, or it is too long, or it is not a file. Nothing it
-// holds is honoured, and the next change sets it aside rather than deleting it.
+// holds is honoured, and the next change saves it in a file of its own rather
+// than deleting it.
 // An entry that is wrong on its own is not this: it is left out and the rest are
 // read.
 var ErrDamaged = errors.New("the list of vaults cannot be read")
@@ -68,14 +69,14 @@ const (
 	lockFile     = "vaults.lock"
 	instanceFile = "instance.json"
 
+	// damagedCopies is how many lists that could not be used are kept side by
+	// side. The first is never replaced, so what the reader first lost stays;
+	// when all are taken the last one is.
+	damagedCopies = 8
+
 	// maxListBytes bounds what a read takes in. An entry is a path, a name, a
 	// time and two numbers; a file this long holds far more vaults than a
 	// reader has, and a longer one was not written here.
-	// keptAside is how many lists that could not be used are kept side by side.
-	// The first is never replaced, so what the reader first lost stays; when all
-	// are taken the last one is.
-	keptAside = 8
-
 	maxListBytes = 1 << 20
 	maxVaults    = 4096
 	maxPathBytes = 4096

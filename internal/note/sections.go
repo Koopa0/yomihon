@@ -102,7 +102,7 @@ func (h *Handler) marksIn(rel string) map[string]time.Time {
 	for i := range kept {
 		// A question about a passage is not a mark of a section; only the whole
 		// section's is what the margin's button makes and takes away.
-		if kept[i].RelPath == rel && kept[i].Quote == "" {
+		if kept[i].Path == rel && kept[i].Quote == "" {
 			marked[kept[i].Anchor] = kept[i].At
 		}
 	}

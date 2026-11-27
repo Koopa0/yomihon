@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/approval"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -45,7 +46,7 @@ type readingSite struct {
 	source    *vault.Reader
 	// kept holds the reader folder open for the marks; it is let go before the
 	// vault is, and is nil where the process has nowhere to keep marks.
-	kept      *mark.Kept
+	kept      *mark.VaultMarks
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -156,10 +157,10 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	keptPlace := func() (mark.Bookmark, bool) { return mark.Bookmark{}, false }
 	markAddress := ""
 	questionAddress := ""
-	var questions func() ([]mark.Mark, error)
+	var questions func() ([]machinemarks.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
-	var kept *mark.Kept
+	var kept *mark.VaultMarks
 	// The folder was compared with the configuration directory when it was
 	// mounted, and may have been put back, or a link to it changed, since. It
 	// is compared again, and its site is built only when the two are apart: a
@@ -167,7 +168,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	// it or cannot be told apart from it. A folder that could not be compared at
 	// the start reaches here with no configuration directory, which is apart
 	// from every folder.
-	if relation, notApart := configDir.Classify(source.Name()); relation != confdir.Apart {
+	if notApart := configDir.Classify(source.Name()); notApart != nil {
 		return nil, notApart
 	}
 	if !configDir.IsZero() {
@@ -178,10 +179,10 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		if approvalsErr != nil {
 			return nil, fmt.Errorf("name the figure approvals: %w", approvalsErr)
 		}
-		kept = mark.OpenKept(marks, source, log, mark.AllMarks)
+		kept = mark.OpenVaultMarks(marks, source, log)
 		keptPlace = bookmarkFrom(marks, log)
-		markAddress = mark.Paths.Bookmark
-		questionAddress = mark.Paths.Question
+		markAddress = mark.BookmarkPath
+		questionAddress = mark.QuestionPath
 		questions = kept.Questions
 		// Approvals are read, never written, by the reading server: only the
 		// approval command at a terminal writes them. A page and a frame ask

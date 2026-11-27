@@ -19,7 +19,7 @@ import (
 // were sent is not a reason to drop them.
 func TestAMarkIsKeptThoughItsPageLeftWhileItWaitedForTheLock(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
+	r := newRig(t)
 	_, resolved, err := vault.ResolveRoot(r.root)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestAMarkIsKeptThoughItsPageLeftWhileItWaitedForTheLock(t *testing.T) {
 	}
 	ctx, leave := context.WithCancel(t.Context())
 	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/mark",
-		strings.NewReader(`{"kind":"thought","path":"`+mkNote+`","anchor":"section-one","body":"sent as the page was left"}`))
+		strings.NewReader(`{"kind":"thought","path":"`+aNote+`","anchor":"section-one","body":"sent as the page was left"}`))
 	request.Header.Set("Content-Type", "application/json")
 	answered := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
@@ -54,8 +54,8 @@ func TestAMarkIsKeptThoughItsPageLeftWhileItWaitedForTheLock(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Fatal("the change never answered once the lock came free")
 	}
-	mkStatus(t, response, http.StatusCreated)
-	view, err := r.kept.View()
+	wantStatus(t, response, http.StatusCreated)
+	view, err := r.vaultMarks.View()
 	if err != nil {
 		t.Fatal(err)
 	}

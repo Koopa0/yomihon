@@ -9,13 +9,14 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
-// Store keeps the reader's marks for one vault under the configuration
-// directory of the person running it.
+// Store is what the reader keeps for one vault under the configuration
+// directory of the person running it, beside the vault's ledger: the bookmarks
+// and the finished notes, and the earlier files of marks, which it only reads.
 //
 // It holds nothing in memory. The files on disk are the record, so a reader who
 // deletes one has deleted it, rather than arguing with a copy this process is
@@ -29,8 +30,6 @@ type Store struct {
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
 	vaultRoot string
-	// mu serializes writers, whose updates read a file and replace it whole.
-	mu sync.Mutex
 }
 
 // Open names this vault's marks. It reads and creates nothing.
@@ -56,35 +55,30 @@ func (s *Store) Dir() string {
 	return s.dir.Path()
 }
 
-// sameMark reports whether two marks are the same reader's act: one kind in one
-// place with the same words.
-func sameMark(a, b *Mark) bool {
-	return a.Kind == b.Kind && a.RelPath == b.RelPath && a.Anchor == b.Anchor && a.Quote == b.Quote
-}
-
 // exclusive runs change as the only writer of this vault's marks and progress,
 // in this process and in any other on the same directory: a change reads a file
 // and replaces it whole, so one that read before another replaced would write
-// the other's away. The store's methods take no context, so the wait for the
-// lock is bounded by confdir.LockWait alone.
+// the other's away. confdir lets this process's changes through one at a time
+// in the order they asked. The store's methods take no context, so the wait for
+// the lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 
-// loadMarks reads marks.json. When it is not there the marks are those an
-// earlier version kept, converted. stored says whether either file exists.
-func (s *Store) loadMarks() (held []Mark, stored bool, err error) {
+// loadMarks reads marks.json, and the vault it records. When it is not there
+// the marks are those an earlier version kept, converted, which record none.
+// stored says whether either file exists.
+func (s *Store) loadMarks() (held []machinemarks.Mark, recorded string, stored bool, err error) {
 	data, err := confdir.Read(s.dir, marksFile, maxMarksFileBytes)
 	switch {
 	case err == nil:
-		held, err = decodeMarks(data)
-		return held, true, err
+		held, recorded, err = decodeMarks(data)
+		return held, recorded, true, err
 	case errors.Is(err, os.ErrNotExist):
-		return legacyQuestions(s.dir)
+		held, stored, err = legacyQuestions(s.dir)
+		return held, "", stored, err
 	default:
-		return nil, true, fmt.Errorf("%w: %s: %w", ErrUnreadable, marksFile, err)
+		return nil, "", true, fmt.Errorf("%w: %s: %w", ErrUnreadable, marksFile, err)
 	}
 }
 
@@ -124,10 +118,8 @@ func (s *Store) saveProgress(p progress) error {
 
 // newID makes the name of a new mark: 128 random bits, which two marks never
 // share.
-func newID() (string, error) {
+func newID() string {
 	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", fmt.Errorf("name the mark: %w", err)
-	}
-	return hex.EncodeToString(b[:]), nil
+	_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error
+	return hex.EncodeToString(b[:])
 }

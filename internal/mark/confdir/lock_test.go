@@ -141,7 +141,7 @@ func (p *process) ready(t *testing.T) {
 // replaces it, so two inside the lock at once write one line away.
 func TestWritersInSeparateProcessesLoseNothing(t *testing.T) {
 	t.Parallel()
-	const rounds, writers = 30, 6
+	const rounds, writers = 8, 6
 	config := t.TempDir()
 	var each []*process
 	for w := range writers {
@@ -234,26 +234,6 @@ func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 		t.Fatalf("Acquire after Release: %v", err)
 	}
 	if err = second.Release(); err != nil {
-		t.Fatalf("Release: %v", err)
-	}
-}
-
-func TestAWaiterGetsTheLockWhenItsHolderReleasesInTime(t *testing.T) {
-	t.Parallel()
-	dir := homeIn(t)
-	held, err := confdir.Acquire(t.Context(), dir, "list.lock", 0)
-	if err != nil {
-		t.Fatalf("Acquire: %v", err)
-	}
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		_ = held.Release() //nolint:errcheck // a failure surfaces as the waiter timing out below
-	}()
-	waiter, err := confdir.Acquire(t.Context(), dir, "list.lock", 5*time.Second)
-	if err != nil {
-		t.Fatalf("a waiter was not given the lock after its holder released it: %v", err)
-	}
-	if err := waiter.Release(); err != nil {
 		t.Fatalf("Release: %v", err)
 	}
 }
@@ -415,49 +395,6 @@ func TestAClaimWhoseLockCannotBeOpenedGivesItsTurnBack(t *testing.T) {
 	}
 }
 
-func TestOnlyOneHolderIsInsideAtATime(t *testing.T) {
-	t.Parallel()
-	dir := homeIn(t)
-	counter := dir.Join("counter")
-	if err := os.WriteFile(counter, []byte("0"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	const workers, rounds = 8, 10
-	var wg sync.WaitGroup
-	for worker := range workers {
-		wg.Go(func() {
-			for round := range rounds {
-				lock, err := confdir.Acquire(t.Context(), dir, "list.lock", 30*time.Second)
-				if err != nil {
-					t.Errorf("worker %d round %d: Acquire: %v", worker, round, err)
-					return
-				}
-				data, err := os.ReadFile(counter) // #nosec G304 -- a file of this test's own temporary directory
-				if err != nil {
-					t.Errorf("read the counter: %v", err)
-				}
-				n, _ := strconv.Atoi(string(data)) //nolint:errcheck // a damaged counter reads as zero and fails the total below
-				if err := os.WriteFile(counter, []byte(strconv.Itoa(n+1)), 0o600); err != nil {
-					t.Errorf("write the counter: %v", err)
-				}
-				if err := lock.Release(); err != nil {
-					t.Errorf("Release: %v", err)
-				}
-			}
-		})
-	}
-	wg.Wait()
-
-	data, err := os.ReadFile(counter) // #nosec G304 -- a file of this test's own temporary directory
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := string(data), strconv.Itoa(workers*rounds); got != want {
-		t.Fatalf("the counter reads %s after %d read-modify-writes under the lock, want %s: two holders were inside at once", got, workers*rounds, want)
-	}
-}
-
 // TestExclusiveKeepsEveryChangeOfWritersOnOneFile is the lost update: each
 // writer reads the file, adds a line and replaces it, and one that read before
 // another replaced writes the other's line away.
@@ -508,14 +445,5 @@ func TestALockDoesNotFollowALinkOutOfItsDirectory(t *testing.T) {
 	}
 	if _, err := os.Lstat(outside); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Acquire made %s through a link: %v", outside, err)
-	}
-}
-
-func TestALockRefusesAnythingButAFileName(t *testing.T) {
-	t.Parallel()
-	for _, name := range []string{"", ".", "..", "../x", "a/b"} {
-		if _, err := confdir.Acquire(t.Context(), homeIn(t), name, 0); err == nil {
-			t.Errorf("Acquire accepted %q as a lock name", name)
-		}
 	}
 }

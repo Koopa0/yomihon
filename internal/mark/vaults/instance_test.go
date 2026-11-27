@@ -10,9 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
-// runtimeHasModes says whether file modes mean anything on this system.
-func runtimeHasModes() bool { return runtime.GOOS != "windows" }
-
 func TestARunningInstanceIsOneWhoseProcessIsStillThere(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
@@ -71,6 +68,34 @@ func TestRemoveInstanceLeavesAnotherProcessesRecordAlone(t *testing.T) {
 	}
 	if err := s.RemoveInstance(os.Getpid()); err != nil {
 		t.Fatalf("RemoveInstance with no record = %v, want nil", err)
+	}
+}
+
+// A record that cannot be read is not taken for none: removing it says why it
+// could not, rather than leaving it behind as though nothing were there.
+func TestARecordThatCannotBeReadIsNotRemovedAsIfNoneWereThere(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not refuse a file by its permission bits")
+	}
+	s, _ := storeIn(t, t.TempDir(), nil)
+	if err := s.WriteInstance(Instance{PID: os.Getpid(), Port: 8800, Started: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	path := s.InstanceFile()
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Errorf("restore the file's mode: %v", err)
+		}
+	})
+	if _, err := os.ReadFile(path); err == nil { // #nosec G304 -- the test's own temporary directory
+		t.Skip("this user reads a file it may not read (a privileged user), so the fixture shows nothing")
+	}
+	if err := s.RemoveInstance(os.Getpid()); err == nil {
+		t.Fatal("RemoveInstance of a record that cannot be read = nil, want why it could not")
 	}
 }
 

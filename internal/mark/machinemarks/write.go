@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -14,11 +15,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"log/slog"
-
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // lockName is the lock a write of this machine's marks is made under, in the
@@ -29,15 +30,15 @@ const lockName = "machine-file.lock"
 // The bounds a machine file is held to, so that every machine can read what any
 // machine wrote.
 const (
-	// MaxLineBytes is the most one line may hold.
-	MaxLineBytes = 64 << 10
-	// MaxLines is the most lines this machine's file may hold, deleted marks
+	// maxLineBytes is the most one line may hold.
+	maxLineBytes = 64 << 10
+	// maxFileLines is the most lines this machine's file may hold, deleted marks
 	// among them: a deleted mark's line stays, so that a copy of the file from
 	// before the deletion does not bring the mark back.
-	MaxLines = 20000
+	maxFileLines = 20000
 	// MaxLive is the most marks, of every machine, that are not deleted.
 	MaxLive = 5000
-	// maxEditBytes bounds the id of an editing session.
+	// maxEditBytes bounds the id of an edit.
 	maxEditBytes = 64
 )
 
@@ -50,7 +51,7 @@ var (
 	// change was made on a version that is no longer the latest. The error is a
 	// *StaleError and holds what is read now.
 	ErrStale = errors.New("this machine wrote the mark since the page read it")
-	// ErrSuperseded means an earlier send of an editing session arrived after a
+	// ErrSuperseded means an earlier send of an edit arrived after a
 	// later one that is written already. Nothing is written, and the page has
 	// nothing to say: the newer words are in.
 	ErrSuperseded = errors.New("a later send of the same edit is written already")
@@ -83,34 +84,32 @@ func (*StaleError) Error() string { return ErrStale.Error() }
 // Is says a StaleError is ErrStale.
 func (*StaleError) Is(target error) bool { return target == ErrStale }
 
-// Options are what Open takes beyond the places.
-type Options struct {
-	// Legacy gives the marks of the earlier file, which the first write of a
-	// machine with no file of marks takes in. Nil takes in nothing.
-	Legacy func() ([]Mark, error)
-	// Now is the time, for tests. Nil is the clock.
-	Now func() time.Time
-	// LockWait is how long a change waits for the vault's lock, and the ledger
-	// for its own. Zero is confdir.LockWait, which is what every caller but a
-	// test that crowds the lock on purpose uses: such a test asks whether
-	// anything is lost, and not how fast the lock comes free.
-	LockWait time.Duration
-}
+// ErrNotAFolder means the reader folder, or a folder in it on the way to the
+// machine files, is a link or something other than a folder: no write is made
+// through it, wherever a link points. ErrLink is said beside it when the name
+// is a link.
+var (
+	ErrNotAFolder = machinefile.ErrNotAFolder
+	ErrLink       = machinefile.ErrLink
+)
 
 // Marks is this machine's hand on the marks of one vault: every read and every
 // change of them. It is safe for use by several goroutines and by several
 // processes over one vault; a change takes the vault's lock for its whole. A
 // change takes a context, which bounds its waits for the vault's lock and the
-// ledger's as confdir.Acquire says; a change of this process already under way
-// is waited for whatever the context says. A read waits for no change.
+// ledger's as confdir.Acquire says, each for confdir.LockWait at most; a change
+// of this process already under way is waited for whatever the context says. A
+// read waits for no change.
 type Marks struct {
 	folder *machinefile.Folder
 	dir    confdir.Dir
 	ledger *ledger.Ledger
-	opts   Options
-	// lockWait is how long a change waits for the vault's lock.
-	lockWait time.Duration
-	// maxLive and maxLines are MaxLive and MaxLines; a test sets them lower.
+	// legacy gives the marks of the earlier file, which the first write of a
+	// machine with no file of marks takes in. Nil takes in nothing.
+	legacy func() ([]Mark, error)
+	// now is the clock, and maxLive and maxLines are MaxLive and maxFileLines; a
+	// test of this package sets them.
+	now               func() time.Time
 	maxLive, maxLines int
 
 	// mu orders the changes of this process, and holds issued.
@@ -118,56 +117,50 @@ type Marks struct {
 	// issued is the highest rev this process has handed out. No restore of the
 	// ledger takes it back.
 	issued uint64
-	// session is this process's code, made by its first write.
-	session atomic.Pointer[string]
+	// process is this process's code, made by its first write.
+	process atomic.Pointer[string]
 }
 
-// Open is the marks of the vault whose reader folder is folder, kept in dir,
-// the vault's directory under the configuration directory, which is where its
-// ledger is. It reads and writes nothing.
-func Open(folder *machinefile.Folder, dir confdir.Dir, log *slog.Logger, opts Options) *Marks {
-	if folder == nil {
-		panic("machinemarks: Open with no folder")
+// Open is the marks of the vault source reads, kept in dir, the vault's
+// directory under the configuration directory, which is where its ledger is.
+// legacy gives the marks of the earlier file, which the first write of a
+// machine that has no file of marks takes in; nil takes in nothing.
+//
+// It reads and writes nothing in either, and makes no folder: it pins the
+// reader folder, which is refused with ErrNotAFolder when it, or a folder in it
+// on the way to the machine files, is a link or not a folder, and with an
+// error when the vault's folder is no longer where source opened it. Close lets
+// the folder go.
+func Open(source *vault.Reader, dir confdir.Dir, log *slog.Logger, legacy func() ([]Mark, error)) (*Marks, error) {
+	folder, err := machinefile.Open(source)
+	if err != nil {
+		return nil, err
 	}
-	wait := opts.LockWait
-	if wait <= 0 {
-		wait = confdir.LockWait
-	}
-	return &Marks{folder: folder, dir: dir, ledger: ledger.OpenWaiting(dir, log, wait), opts: opts, lockWait: wait, maxLive: MaxLive, maxLines: MaxLines}
+	return &Marks{
+		folder: folder, dir: dir, ledger: ledger.Open(dir, log), legacy: legacy,
+		now: time.Now, maxLive: MaxLive, maxLines: maxFileLines,
+	}, nil
 }
 
-func (m *Marks) now() time.Time {
-	if m.opts.Now != nil {
-		return m.opts.Now()
-	}
-	return time.Now()
-}
+// ReadOnly says the reader folder, or the deepest folder on the way to the
+// machine files that is there, has no write permission for its owner. It asks
+// the mode and writes nothing; a write that a mount or an access list refuses
+// fails when it is made. On Windows nothing is read only.
+func (m *Marks) ReadOnly() (bool, error) { return m.folder.ReadOnly() }
 
-func (m *Marks) currentSession() string {
-	if s := m.session.Load(); s != nil {
+// Close lets the reader folder go. It is called once, after the last use.
+func (m *Marks) Close() error { return m.folder.Close() }
+
+// currentProcess is this process's code, empty before its first write.
+func (m *Marks) currentProcess() string {
+	if s := m.process.Load(); s != nil {
 		return *s
 	}
 	return ""
 }
 
-// Timing is what a change took, for the write log. It holds no path and no
-// words.
-type Timing struct {
-	// LockWait is how long the vault's lock was waited for.
-	LockWait time.Duration
-	// Ledger is the lines recorded, a compaction among them if one ran.
-	Ledger time.Duration
-	// Write, Install and ReadBack are the file's own: see machinefile.
-	Write, Install, ReadBack time.Duration
-	Total                    time.Duration
-	// Bytes is the length of the file written.
-	Bytes int
-}
-
 // Result is what a change did.
 type Result struct {
-	Timing
-
 	// Rev is the line written, and 0 for a change that wrote none.
 	Rev uint64
 	// Seen is what the page has read of the mark once the change is made: what
@@ -180,12 +173,12 @@ type Result struct {
 // proposal is what a change asks to write.
 type proposal struct {
 	mark Mark
-	// base is what the page had read of the mark, and edit its session.
+	// base is what the page had read of the mark, and edit the page's edit.
 	base Seen
 	edit *Edit
 	// restore says to write no line, only what is held.
 	restore bool
-	// fresh is the mark asked for is a new one, or a deleted one made again:
+	// grows is the mark asked for is a new one, or a deleted one made again:
 	// the marks that are not deleted grow by one.
 	grows bool
 	// noWrite says the change finds nothing to write: the answer is base, and
@@ -195,92 +188,39 @@ type proposal struct {
 
 // Put writes mark as the whole new value of the mark of its ID: a new mark, or
 // a change of one the page had read, which base says how far. A change of state
-// is a Put of the same ID with another Kind. edit names the page's editing
-// session, nil when it has none. A mark that exists and the gate withholds is
-// ErrGone, which is what Delete and Choose answer for a mark that is not there;
-// Put of an id that is not there is a new mark, so for it the answer does tell
-// the two apart, and only a caller who already holds the id of a withheld mark
-// can ask. The gate is not optional and a nil one panics.
-func (m *Marks) Put(ctx context.Context, mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
-	needGate(gate)
+// is a Put of the same ID with another Kind. edit names the page's edit, nil
+// when it has none.
+func (m *Marks) Put(ctx context.Context, mark *Mark, base Seen, edit *Edit) (Result, error) {
 	if err := validate(mark, edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(ctx, func(v *view) (*proposal, error) {
-		if withheld(v, mark.ID, gate) {
-			return nil, ErrGone
-		}
 		return &proposal{mark: *mark, base: base, edit: edit, grows: !live(v, mark.ID)}, nil
 	})
 }
 
 // Delete writes the mark as deleted, from the value that counts now. It is
 // ErrGone if there is no such mark or it is deleted already, which is what a
-// page that had not heard of another machine's deletion is told. A mark the
-// gate withholds is ErrGone too.
-func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit, gate Gate) (Result, error) {
-	needGate(gate)
+// page that had not heard of another machine's deletion is told.
+func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit) (Result, error) {
 	if err := validateEdit(edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(ctx, func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
-		if !ok || r.coveredHead(base).Mark.Deleted || withheld(v, id, gate) {
+		if !ok {
 			return nil, ErrGone
 		}
 		// What is deleted is the value the page read, which the base says: a
 		// value another computer wrote that the page never read is not the page's
 		// to delete, and is still a value of the mark after.
 		mark := r.coveredHead(base).Mark
+		if mark.Deleted {
+			return nil, ErrGone
+		}
 		mark.Deleted = true
 		return &proposal{mark: mark, base: base, edit: edit}, nil
 	})
-}
-
-// Pick names one value of a mark: the line of one writer at one rev.
-type Pick struct {
-	Writer string
-	Rev    uint64
-}
-
-// Choose makes the value pick names the mark's value, written whole on top of
-// what the page had read. Only a value the mark's conflict holds now can be
-// chosen; one that was replaced since, or that another page already chose, is
-// ErrStale and nothing is written. A line that appeared after the page read
-// stays beside the chosen one. A mark the gate withholds is ErrGone.
-func (m *Marks) Choose(ctx context.Context, id string, pick Pick, base Seen, gate Gate) (Result, error) {
-	needGate(gate)
-	return m.change(ctx, func(v *view) (*proposal, error) {
-		r, ok := v.byMark[id]
-		if !ok || withheld(v, id, gate) {
-			return nil, ErrGone
-		}
-		for _, l := range r.heads {
-			if l.Writer() == pick.Writer && l.Rev == pick.Rev {
-				if err := validate(&l.Mark, nil); err != nil {
-					return nil, err
-				}
-				return &proposal{mark: l.Mark, base: base}, nil
-			}
-		}
-		return nil, &StaleError{Seen: r.entry(func(*kept) bool { return false }).Seen}
-	})
-}
-
-// needGate refuses a write that names no gate: it would answer for a mark the
-// reader's rules hold back.
-func needGate(gate Gate) {
-	if gate == nil {
-		panic("machinemarks: a write with no gate")
-	}
-}
-
-// withheld says the gate refuses a value of the mark. A write to one is
-// answered as a write to a mark that is not there, so that nothing of it, not
-// that it exists, nor its writers and revs, is told by the answer.
-func withheld(v *view, id string, gate Gate) bool {
-	r, ok := v.byMark[id]
-	return ok && slices.ContainsFunc(r.heads, func(l *kept) bool { return !gate(&l.Mark) })
 }
 
 // Restore writes this machine's file as the ledger and the file together say it
@@ -290,35 +230,6 @@ func (m *Marks) Restore(ctx context.Context) (Result, error) {
 	return m.change(ctx, func(v *view) (*proposal, error) {
 		return &proposal{restore: true}, nil
 	})
-}
-
-// NoticeNewID records that the reader was told this machine took a new id, so
-// that it is said once.
-func (m *Marks) NoticeNewID(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Looked at before the lock is taken, so that a machine with nothing to say
-	// leaves not even a lock file behind; the look is made again under it.
-	if st, err := m.machine(); err != nil || !st.unsaid {
-		return err
-	}
-	return confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
-		st, err := m.machine()
-		if err != nil || !st.unsaid {
-			return err
-		}
-		_, err = m.ledger.Record(ctx, &ledger.Event{Kind: kindSaid, ID: st.id})
-		return err
-	})
-}
-
-// machine is what the ledger says of this machine now.
-func (m *Marks) machine() (machine, error) {
-	events, _, err := m.ledger.Events()
-	if err != nil {
-		return machine{}, err
-	}
-	return stateOf(events), nil
 }
 
 // live says the mark is one that is not deleted.
@@ -336,10 +247,7 @@ func validate(m *Mark, edit *Edit) error {
 	if err := validateEdit(edit); err != nil {
 		return err
 	}
-	if err := m.shape(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidMark, err)
-	}
-	return nil
+	return m.Validate()
 }
 
 func validateEdit(e *Edit) error {
@@ -353,45 +261,38 @@ func validateEdit(e *Edit) error {
 // conversion and a clone's retirement about, lets plan say what to write, and
 // writes it.
 func (m *Marks) change(ctx context.Context, plan func(*view) (*proposal, error)) (Result, error) {
-	return m.run(ctx, false, plan)
+	return m.run(ctx, nil, plan)
 }
 
-// run is change, and says whether the earlier file of marks is to be taken in
-// again whether or not it was, which is what an adoption asks for.
-func (m *Marks) run(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error)) (Result, error) {
+// run is change, with the marks an adoption brings from the vault's earlier
+// path, which are taken in before plan is asked.
+func (m *Marks) run(ctx context.Context, adopted []Mark, plan func(*view) (*proposal, error)) (Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	start := time.Now()
 	var res Result
-	err := confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
-		res.LockWait = time.Since(start)
-		return m.locked(ctx, takeIn, plan, &res)
+	err := confdir.Exclusive(ctx, m.dir, lockName, confdir.LockWait, func() error {
+		return m.locked(ctx, adopted, plan, &res)
 	})
-	res.Total = time.Since(start)
 	if errors.Is(err, ErrNotInVault) {
 		// The change is in the ledger, which is the commit point: the caller is
 		// told what the change is, with the failure, and decides what to say.
 		return res, err
 	}
 	if err != nil {
-		return Result{Timing: res.Timing}, err
+		return Result{}, err
 	}
 	return res, nil
 }
 
 // locked is change inside the lock.
-func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error), res *Result) error {
-	ledgerTime := time.Duration(0)
+func (m *Marks) locked(ctx context.Context, adopted []Mark, plan func(*view) (*proposal, error), res *Result) error {
 	record := func(e *ledger.Event) error {
-		began := time.Now()
 		_, err := m.ledger.Record(ctx, e)
-		ledgerTime += time.Since(began)
 		return err
 	}
-	defer func() { res.Ledger = ledgerTime }()
-	if m.session.Load() == nil {
+	if m.process.Load() == nil {
 		s := randomID()
-		m.session.Store(&s)
+		m.process.Store(&s)
 	}
 	v, err := m.load()
 	if err != nil {
@@ -402,7 +303,7 @@ func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*prop
 		// throw away what it holds: nothing is written until it can be read.
 		return fmt.Errorf("%w: %w", ErrOwnFileUnreadable, v.ownErr)
 	}
-	if v, err = m.settle(v, takeIn, record); err != nil {
+	if v, err = m.settle(v, adopted, record); err != nil {
 		return err
 	}
 	p, err := plan(v)
@@ -421,8 +322,9 @@ func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*prop
 
 // settle brings about what a write needs before the write: an id for this
 // machine, the retirement of an id another machine has a copy of, and the
-// taking in of the earlier file. It answers the view as it is after.
-func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (*view, error) {
+// taking in of the earlier file and of what an adoption brings. It answers the
+// view as it is after.
+func (m *Marks) settle(v *view, adopted []Mark, record func(*ledger.Event) error) (*view, error) {
 	// apply records events and reads again what they changed.
 	apply := func(events ...*ledger.Event) error {
 		for _, e := range events {
@@ -448,53 +350,94 @@ func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (
 			return nil, err
 		}
 	}
-	if m.opts.Legacy != nil && (takeIn || (!v.st.converted && !v.ownFound)) {
-		if err := m.convert(v, takeIn, record); err != nil {
+	if m.legacy != nil && !v.st.converted && !v.ownFound {
+		if err := m.takeInEarlier(v, record); err != nil {
 			return nil, err
 		}
 		if err := apply(); err != nil {
 			return nil, err
 		}
 	}
-	return v, nil
+	if len(adopted) == 0 {
+		return v, nil
+	}
+	if err := m.convert(v, adopted, true, record); err != nil {
+		return nil, err
+	}
+	return v, apply()
 }
 
-// convert takes in the marks of the earlier file, once: as one line of the
-// ledger holding every line, so that a conversion is one commit and one sync
-// however many marks there are. The earlier file is only read.
-//
-// takeIn is a conversion made after the first, which takes in only the marks of
-// the earlier file that no line of any machine and no earlier conversion has: a
-// mark that was taken in and then deleted has its deletion in the vault and is
-// not brought back, and one that was set aside as not fitting a line is not set
-// aside again.
-func (m *Marks) convert(v *view, takeIn bool, record func(*ledger.Event) error) error {
-	legacy, err := m.opts.Legacy()
+// takeInEarlier takes in this vault's earlier file of marks, which a machine's
+// first write does.
+func (m *Marks) takeInEarlier(v *view, record func(*ledger.Event) error) error {
+	legacy, err := m.legacy()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrLegacy, err)
 	}
-	var batch []byte
+	return m.convert(v, legacy, false, record)
+}
+
+// convert takes in marks as one line of the ledger holding every line, so
+// that a conversion is one commit and one sync however many marks there are.
+// The files they come from are only read, and a mark that does not fit a line
+// stays there, is recorded as skipped and keeps no other from going through.
+//
+// The first conversion takes in this vault's earlier file. adopted is one of
+// the marks an adoption brings from the vault's earlier path, which takes in
+// only what no line of any machine has, by id, nor an earlier conversion
+// skipped, and what is not the same act as a mark that is there and not
+// deleted: a mark that was taken in and then deleted has its deletion in the
+// vault and is not brought back, and the reader's own mark in the same place
+// stays theirs. It is refused whole, with ErrLimit, when the marks that are not
+// deleted would pass the limit.
+func (m *Marks) convert(v *view, marks []Mark, adopted bool, record func(*ledger.Event) error) error {
+	type skipped struct {
+		mark Mark
+		why  error
+	}
+	var (
+		batch []byte
+		skips []skipped
+		taken []*Mark
+		grows int
+	)
 	t := m.now().UnixMilli()
-	for i := range legacy {
-		mark := legacy[i]
-		if _, there := v.byMark[mark.ID]; there || (takeIn && v.st.skipped[mark.ID]) {
+	for i := range marks {
+		mark := &marks[i]
+		if v.has(mark.ID) || adopted && v.adoptedAlready(mark, taken) {
 			continue
 		}
-		raw, why := m.legacyLine(v, &mark, t)
+		raw, why := m.legacyLine(v, mark, t)
 		if why != nil {
-			// It stays in the earlier file, which is never changed, and does
-			// not keep every later write from going through.
-			if err := skip(record, v, &mark, why); err != nil {
-				return err
-			}
+			skips = append(skips, skipped{*mark, why})
 			continue
 		}
 		batch = append(append(batch, raw...), '\n')
+		taken = append(taken, mark)
+		if !mark.Deleted {
+			grows++
+		}
 	}
-	if takeIn && len(batch) == 0 {
+	if adopted && grows > 0 && v.live()+grows > m.maxLive {
+		return fmt.Errorf("%w: %d marks are kept and %d would be brought across", ErrLimit, v.live(), grows)
+	}
+	for i := range skips {
+		if err := skip(record, v, &skips[i].mark, skips[i].why); err != nil {
+			return err
+		}
+	}
+	if adopted && len(batch) == 0 {
 		return nil
 	}
-	return record(&ledger.Event{Kind: kindConverted, Writer: v.st.id, Session: m.currentSession(), Content: batch})
+	return record(&ledger.Event{Kind: kindConverted, Machine: v.st.id, Process: m.currentProcess(), Content: batch})
+}
+
+// adoptedAlready says a mark an adoption brings is one the vault has in some
+// form, or that the adoption took already: one skipped before, or the same act
+// as a mark that is there or that is being taken in with it.
+func (v *view) adoptedAlready(mark *Mark, taken []*Mark) bool {
+	return v.st.skipped[mark.ID] || v.holdsSame(mark) ||
+		slices.ContainsFunc(taken, func(other *Mark) bool { return other.ID == mark.ID || SameAct(other, mark) })
 }
 
 // legacyLine is the line a mark of the earlier file becomes, or why it cannot.
@@ -502,12 +445,12 @@ func (m *Marks) legacyLine(v *view, mark *Mark, t int64) ([]byte, error) {
 	if err := validate(mark, nil); err != nil {
 		return nil, err
 	}
-	line := Line{Fmt: Format, M: v.st.id, Rev: m.nextRev(v), T: t, Mark: *mark, S: m.currentSession()}
+	line := markLine{Fmt: lineFormat, M: v.st.id, Rev: m.nextRev(v), T: t, Mark: *mark, S: m.currentProcess()}
 	raw, err := line.encode()
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > MaxLineBytes {
+	if len(raw) > maxLineBytes {
 		return nil, fmt.Errorf("a line of %d bytes", len(raw))
 	}
 	return raw, nil
@@ -516,10 +459,10 @@ func (m *Marks) legacyLine(v *view, mark *Mark, t int64) ([]byte, error) {
 // skip records that a mark of the earlier file was not taken in.
 func skip(record func(*ledger.Event) error, v *view, mark *Mark, why error) error {
 	content := []byte(mark.ID + " " + why.Error())
-	if !isID(mark.ID) {
+	if !ValidID(mark.ID) {
 		content = []byte(strings.Repeat("0", 32) + " " + why.Error())
 	}
-	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Sum: checksum(content), Content: content})
+	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Content: content})
 	if err != nil {
 		return fmt.Errorf("record a mark of the earlier file that was not taken in: %w", err)
 	}
@@ -555,16 +498,16 @@ func randomID() string {
 // commit writes the proposal: the line to the ledger, which is the commit, and
 // then the file to the vault.
 func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, res *Result) error {
-	own := make(map[string][]*kept, len(v.own)+1)
+	own := make(map[string][]*rawLine, len(v.own)+1)
 	maps.Copy(own, v.own)
-	var line *kept
+	var line *rawLine
 	if !p.restore {
 		var err error
 		if line, err = m.prepare(v, p); err != nil {
 			return err
 		}
-		own[p.mark.ID] = append([]*kept{line}, slices.DeleteFunc(slices.Clone(v.own[p.mark.ID]), func(ol *kept) bool {
-			return replaces(&line.Line, &ol.Line)
+		own[p.mark.ID] = append([]*rawLine{line}, slices.DeleteFunc(slices.Clone(v.own[p.mark.ID]), func(ol *rawLine) bool {
+			return replaces(&line.markLine, &ol.markLine)
 		})...)
 		res.Rev = line.Rev
 		// What the page has read, and no more: what the line says it read, and
@@ -583,18 +526,16 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 	if len(data) > machinefile.MaxFileBytes {
 		return fmt.Errorf("%w: this machine's file would be %d bytes", ErrLimit, len(data))
 	}
-	if n := len(lines(data)); n > m.maxLines {
+	if n := len(sealedline.Lines(data)); n > m.maxLines {
 		return fmt.Errorf("%w: this machine's file would hold %d lines", ErrLimit, n)
 	}
 	if p.grows && v.live() >= m.maxLive {
 		return fmt.Errorf("%w: %d marks are kept", ErrLimit, v.live())
 	}
-	if err := m.keep(v, line, setAside(v, p, line), record); err != nil {
+	if err := m.recordFirst(v, line, setAside(v, p, line), record); err != nil {
 		return err
 	}
-	measured, err := m.folder.ReplaceMachineFile(v.st.id, data)
-	res.Write, res.Install, res.ReadBack, res.Bytes = measured.Write, measured.Install, measured.ReadBack, measured.Bytes
-	if err != nil {
+	if err := m.folder.Replace(v.st.id, data); err != nil {
 		if line == nil {
 			return err
 		}
@@ -608,7 +549,7 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 // mark that two computers changed, of which the reader is shown the newest, when
 // a page that read it changes that one. By the rule that a writer's newer line
 // always replaces its older, the older would be in no file and no ledger.
-func setAside(v *view, p *proposal, line *kept) []*kept {
+func setAside(v *view, p *proposal, line *rawLine) []*rawLine {
 	if line == nil {
 		return nil
 	}
@@ -618,9 +559,9 @@ func setAside(v *view, p *proposal, line *kept) []*kept {
 		return nil
 	}
 	built := r.coveredHead(p.base).Mark
-	var out []*kept
+	var out []*rawLine
 	for _, ol := range v.own[id] {
-		if !replaces(&line.Line, &ol.Line) || ol.Mark.Deleted {
+		if !replaces(&line.markLine, &ol.markLine) || ol.Mark.Deleted {
 			continue
 		}
 		if !sameValue(&ol.Mark, &line.Mark) && !sameValue(&ol.Mark, &built) {
@@ -638,15 +579,15 @@ func sameValue(a, b *Mark) bool {
 		a.Before == b.Before && a.After == b.After
 }
 
-// keep records in the ledger what is to be kept before the file is replaced:
-// the file as it is when it is not what this machine last wrote, then the line.
-func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Event) error) error {
+// recordFirst records in the ledger what is to be kept before the file is
+// replaced: the file as it is when it is not what this machine last wrote, then
+// the line.
+func (m *Marks) recordFirst(v *view, line *rawLine, aside []*rawLine, record func(*ledger.Event) error) error {
 	if !v.held() && len(v.ownDisk) > 0 {
 		// What is in the vault is not what this machine last wrote. It is about
 		// to be replaced, so it is kept first, whole.
 		err := record(&ledger.Event{
-			Kind: kindReplaced, ID: v.st.id, Path: machinePath(v.st.id), Sum: checksum(v.ownDisk),
-			Session: m.currentSession(), Content: v.ownDisk,
+			Kind: kindReplaced, ID: v.st.id, Process: m.currentProcess(), Content: v.ownDisk,
 		})
 		if err != nil {
 			return fmt.Errorf("keep the file about to be replaced: %w", err)
@@ -656,13 +597,13 @@ func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Eve
 	// whole before the line that replaces it, which is the commit point: a kill
 	// between the two leaves the value kept twice at worst, never not at all.
 	for _, ol := range aside {
-		err := record(&ledger.Event{Kind: kindSetAside, Writer: ol.Writer(), Session: m.currentSession(), Content: ol.raw})
+		err := record(&ledger.Event{Kind: kindSetAside, Machine: ol.M, Process: m.currentProcess(), Content: ol.raw})
 		if err != nil {
 			return fmt.Errorf("set a value aside: %w", err)
 		}
 	}
 	if line != nil {
-		err := record(&ledger.Event{Kind: ledger.KindMark, Writer: v.st.id, Session: m.currentSession(), Content: line.raw})
+		err := record(&ledger.Event{Kind: ledger.KindMark, Machine: v.st.id, Process: m.currentProcess(), Mark: line.Mark.ID, Content: line.raw})
 		if err != nil {
 			return fmt.Errorf("record the line: %w", err)
 		}
@@ -672,7 +613,7 @@ func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Eve
 
 // prepare checks the proposal against what is held and makes its line, and
 // takes its rev. Nothing is written.
-func (m *Marks) prepare(v *view, p *proposal) (*kept, error) {
+func (m *Marks) prepare(v *view, p *proposal) (*rawLine, error) {
 	id := p.mark.ID
 	r, shown := v.byMark[id]
 	if shown {
@@ -680,7 +621,7 @@ func (m *Marks) prepare(v *view, p *proposal) (*kept, error) {
 			return nil, err
 		}
 	}
-	line := Line{Fmt: Format, M: v.st.id, Rev: m.nextRev(v), T: m.now().UnixMilli(), Mark: p.mark, Edit: p.edit, S: m.currentSession()}
+	line := markLine{Fmt: lineFormat, M: v.st.id, Rev: m.nextRev(v), T: m.now().UnixMilli(), Mark: p.mark, Edit: p.edit, S: m.currentProcess()}
 	self := line.Writer()
 	for w, n := range p.base {
 		// A line says it had read no more of another's than there is, and no
@@ -698,20 +639,20 @@ func (m *Marks) prepare(v *view, p *proposal) (*kept, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidMark, err)
 	}
-	if len(raw) > MaxLineBytes {
+	if len(raw) > maxLineBytes {
 		return nil, fmt.Errorf("%w: a line of %d bytes", ErrLimit, len(raw))
 	}
-	return &kept{Line: line, raw: raw}, nil
+	return &rawLine{markLine: line, raw: raw}, nil
 }
 
 // foldSeen adds to a new line what the lines of this machine that it replaces
 // had read. Those lines are not kept, in the file or in the ledger, so a line
 // of another writer that only they covered would be a value of the mark again
 // when git put an old file back; the new line says it had read them too.
-func foldSeen(line *Line, replaced []*kept) {
+func foldSeen(line *markLine, replaced []*rawLine) {
 	self := line.Writer()
 	for _, ol := range replaced {
-		if !replaces(line, &ol.Line) {
+		if !replaces(line, &ol.markLine) {
 			continue
 		}
 		for w, n := range ol.Seen {
@@ -775,7 +716,7 @@ func staleSeen(v *view, p *proposal) Seen {
 }
 
 // replaces says line o replaces line l of the same mark.
-func replaces(o, l *Line) bool {
+func replaces(o, l *markLine) bool {
 	if o.Writer() == l.Writer() {
 		return o.Rev > l.Rev
 	}
@@ -790,6 +731,3 @@ func entrySeen(v *view, id string) Seen {
 	}
 	return seen
 }
-
-// machinePath is where this machine's file is, as the ledger names it.
-func machinePath(id string) string { return "reader-notes/.yomihon/marks/" + id + ".jsonl" }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // The files an earlier version wrote. They are read when the file that replaces
@@ -36,11 +37,12 @@ const (
 // legacyQuestions reads uncertainty.json as questions. stored says whether the
 // file is there at all. Each entry becomes a question about the whole section
 // its anchor names, with no reason and open, and an id derived from what it
-// says so that converting the same file twice names the same marks.
-func legacyQuestions(dir confdir.Dir) (marks []Mark, stored bool, err error) {
+// says so that converting the same file twice names the same marks. As with
+// marks.json, an entry is held to its shape by the take-in, not here.
+func legacyQuestions(dir confdir.Dir) (marks []machinemarks.Mark, stored bool, err error) {
 	data, err := confdir.Read(dir, legacyQuestionFile, maxLegacyQuestionBytes)
 	if errors.Is(err, os.ErrNotExist) {
-		return []Mark{}, false, nil
+		return []machinemarks.Mark{}, false, nil
 	}
 	if err != nil {
 		return nil, true, fmt.Errorf("%w: %s: %w", ErrUnreadable, legacyQuestionFile, err)
@@ -56,21 +58,23 @@ func legacyQuestions(dir confdir.Dir) (marks []Mark, stored bool, err error) {
 	if entries == nil {
 		return nil, true, fmt.Errorf("%w: %s: expected an array of marks", ErrUnreadable, legacyQuestionFile)
 	}
-	if len(entries) > MaxMarks {
-		return nil, true, fmt.Errorf("%w: %s: more than %d marks", ErrUnreadable, legacyQuestionFile, MaxMarks)
+	if len(entries) > machinemarks.MaxLive {
+		return nil, true, fmt.Errorf("%w: %s: more than %d marks", ErrUnreadable, legacyQuestionFile, machinemarks.MaxLive)
 	}
-	marks = make([]Mark, len(entries))
+	marks = make([]machinemarks.Mark, len(entries))
+	seen := make(map[string]bool, len(entries))
 	for i, entry := range entries {
-		marks[i] = Mark{
-			ID:      legacyID(entry.RelPath, entry.Anchor),
-			Kind:    Question,
-			RelPath: entry.RelPath,
-			Anchor:  entry.Anchor,
-			At:      entry.At,
+		marks[i] = machinemarks.Mark{
+			ID:     legacyID(entry.RelPath, entry.Anchor),
+			Kind:   machinemarks.Question,
+			Path:   entry.RelPath,
+			Anchor: entry.Anchor,
+			At:     entry.At,
 		}
-	}
-	if err = checkMarks(marks); err != nil {
-		return nil, true, fmt.Errorf("%s: %w", legacyQuestionFile, err)
+		if seen[marks[i].ID] {
+			return nil, true, fmt.Errorf("%w: %s: one place marked twice", ErrUnreadable, legacyQuestionFile)
+		}
+		seen[marks[i].ID] = true
 	}
 	return marks, true, nil
 }
@@ -111,7 +115,7 @@ func legacyBookmark(dir confdir.Dir) (held Bookmark, found bool, err error) {
 		return Bookmark{}, false, nil
 	}
 	if err = validateBookmark(NoCourse, doc.Continuation); err != nil {
-		return Bookmark{}, false, fmt.Errorf("%w: %s: %s", ErrUnreadable, legacyBookmarkFile, err.Error())
+		return Bookmark{}, false, fmt.Errorf("%w: %s: %v", ErrUnreadable, legacyBookmarkFile, err) //nolint:errorlint // ErrInvalid stays unwrapped: a damaged file is not a refused request
 	}
 	return *doc.Continuation, true, nil
 }

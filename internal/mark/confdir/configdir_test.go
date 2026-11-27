@@ -130,25 +130,11 @@ func TestPlatformNamesADirectoryThatIsNotThereAndMakesNothing(t *testing.T) {
 // product, and whether the reader's files can be kept is for the write to
 // answer, which it does with the permission error and nothing written.
 func TestPlatformNamesADirectoryThatCannotBeReadAndTheWriteSaysSo(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not refuse a directory by its permission bits")
-	}
 	named := platformNames(t, t.TempDir())
 	if err := os.MkdirAll(named, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(named, 0o000); err != nil { // #nosec G302 -- the test's own temporary directory
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(named, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
-			t.Errorf("restore the directory's mode: %v", err)
-		}
-	})
-	if opened, err := os.Open(named); err == nil { // #nosec G304 -- the test's own temporary directory
-		_ = opened.Close() //nolint:errcheck // only whether it opened matters
-		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
-	}
+	unreadableDir(t, named, 0o000)
 	home := platformHome(t)
 	if got, want := home.Path(), filepath.Join(named, "yomihon"); got != want {
 		t.Errorf("Home(Platform()) is at %s, want %s", got, want)

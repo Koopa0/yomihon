@@ -3,24 +3,20 @@ package machinemarks
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
-	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Format is the one line format this version reads and writes. A line that
+// lineFormat is the one line format this version reads and writes. A line that
 // says a larger one is kept where it is and is not read.
-const Format = 1
+const lineFormat = 1
 
 // The kinds a mark is in. They are one mark in three states: the reader turns a
 // highlight into a thought or a question, and back, and the mark keeps its id.
@@ -65,10 +61,11 @@ type Mark struct {
 	At      time.Time `json:"at"`
 }
 
-// Edit names one editing session of one page, and the send of it that a line
-// holds. A later send of the same session may follow an earlier one that is
-// still on its way, as the last words a page sends as it is left are; this is
-// how the two are told from two sessions writing over each other.
+// Edit names one edit a page makes of a mark, which it may send more than once,
+// and the send of it that a line holds. A later send of the same edit may
+// follow an earlier one that is still on its way, as the last words a page
+// sends as it is left are; this is how the two are told from two edits writing
+// over each other.
 type Edit struct {
 	ID  string `json:"id"`
 	Seq uint64 `json:"seq"`
@@ -80,8 +77,8 @@ type Edit struct {
 // of.
 type Seen map[string]uint64
 
-// Line is one line of a machine file.
-type Line struct {
+// markLine is one line of a machine file.
+type markLine struct {
 	Fmt int `json:"fmt"`
 	// M is the machine that wrote the line, and S the process of that machine.
 	M string `json:"m"`
@@ -95,41 +92,17 @@ type Line struct {
 	Seen Seen   `json:"seen,omitempty"`
 	Edit *Edit  `json:"edit,omitempty"`
 	S    string `json:"s,omitempty"`
-	H    string `json:"h,omitempty"`
 }
 
 // Writer is who wrote a line: its machine and process, "machine/process". Two
 // lines of one writer are in the order of their revs; lines of two writers,
 // even of one machine, are in an order only when the later says it had read the
 // earlier.
-func (l *Line) Writer() string { return l.M + "/" + l.S }
+func (l *markLine) Writer() string { return l.M + "/" + l.S }
 
-// checksumKey opens the last field of every line. JSON writes a quote inside a
-// string as \", so these bytes stand only where a line has its checksum.
-var checksumKey = []byte(`,"h":"`)
-
-// checksumLength is how many hexadecimal digits of the SHA-256 a line keeps.
-const checksumLength = 16
-
-func checksum(b []byte) string {
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])[:checksumLength]
-}
-
-// Encode is l as one line without its newline, its checksum set: the checksum
-// is of the bytes before it, so a line can carry a field this version does not
-// know and still be checked.
-func (l *Line) encode() ([]byte, error) {
-	w := *l
-	w.H = ""
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(&w); err != nil {
-		return nil, err
-	}
-	body := bytes.TrimSuffix(buf.Bytes(), []byte("}\n"))
-	return slices.Concat(body, checksumKey, []byte(checksum(body)), []byte(`"}`)), nil
+// encode is l as one line without its newline, sealed (internal/mark/sealedline).
+func (l *markLine) encode() ([]byte, error) {
+	return sealedline.Seal(l)
 }
 
 // verdict is what reading one line found.
@@ -150,9 +123,9 @@ const (
 )
 
 // decode reads one line, without its newline.
-func decode(raw []byte) (Line, verdict) {
-	if machinefile.ConflictMarkers(raw) > 0 {
-		return Line{}, marker
+func decode(raw []byte) (markLine, verdict) {
+	if conflictMarker(raw) {
+		return markLine{}, marker
 	}
 	// A line of a later format is judged first, since the way a later format is
 	// checked is that format's own: it is kept as it is and not read.
@@ -160,38 +133,34 @@ func decode(raw []byte) (Line, verdict) {
 		Fmt int `json:"fmt"`
 	}
 	if json.Unmarshal(raw, &head) != nil {
-		return Line{}, damaged
+		return markLine{}, damaged
 	}
-	if head.Fmt > Format {
-		return Line{}, newer
+	if head.Fmt > lineFormat {
+		return markLine{}, newer
 	}
-	at := bytes.LastIndex(raw, checksumKey)
-	if at < 0 || !bytes.HasSuffix(raw, []byte(`"}`)) || len(raw) < at+len(checksumKey)+2 {
-		return Line{}, damaged
+	if sealedline.Check(raw) != sealedline.Whole {
+		return markLine{}, damaged
 	}
-	if string(raw[at+len(checksumKey):len(raw)-2]) != checksum(raw[:at]) {
-		return Line{}, damaged
-	}
-	var l Line
-	if json.Unmarshal(raw, &l) != nil || l.Fmt != Format || !l.wellFormed() {
-		return Line{}, damaged
+	var l markLine
+	if json.Unmarshal(raw, &l) != nil || l.Fmt != lineFormat || !l.wellFormed() {
+		return markLine{}, damaged
 	}
 	return l, readable
 }
 
 // wellFormed says a line is one every writer here makes: ids and codes in
-// their shapes, a rev, and a mark of a kind there is.
-func (l *Line) wellFormed() bool {
+// their shapes, a rev, and a mark that holds its shape.
+func (l *markLine) wellFormed() bool {
 	if !isMachine(l.M) || (l.S != "" && !isMachine(l.S)) || l.Rev == 0 {
 		return false
 	}
-	return l.Mark.shape() == nil
+	return l.Mark.Validate() == nil
 }
 
-// The bounds a mark is held to, the same as the file of marks that came before
-// this one holds a mark to: the size of the things themselves, so that a value
-// beyond them was not produced by a reading page. A line of another machine is
-// untrusted, and is held to them too.
+// The bounds a mark is held to: the size of the things themselves, so that a
+// value beyond them was not produced by a reading page. A line of another
+// machine, and a mark of the earlier file, is untrusted, and is held to them
+// too.
 const (
 	maxPathBytes    = 1024
 	maxAnchorBytes  = 256
@@ -201,34 +170,40 @@ const (
 	identityLength  = 2 * sha256.Size
 )
 
-// shape says whether a mark is one every writer here makes, and says what is
-// wrong when it is not.
-func (m *Mark) shape() error {
-	switch {
-	case !isID(m.ID):
-		return errors.New("the id is not 32 lowercase hex digits")
-	case !m.Kind.valid():
-		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
-	case m.At.IsZero():
-		return errors.New("the mark has no time")
-	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
-		return errors.New("a highlight is a passage and has its words")
-	case m.Quote == "" && (m.Before != "" || m.After != ""):
-		return errors.New("words around nothing")
-	case m.Identity != "" && !isHex(m.Identity, identityLength):
-		return errors.New("the identity is not a content identity")
+// Validate says m is a mark the machine files hold, and what is wrong with it
+// when it is not, wrapping ErrInvalidMark. It is the one rule of a mark's
+// shape, which a page's request, a line of any machine and a mark of the
+// earlier file are all held to: a highlight is a passage and carries no words
+// of its own, a thought says something, and every field is in its shape and
+// within its bound. A deleted mark keeps the words it had, and need not have
+// any.
+func (m *Mark) Validate() error {
+	if err := m.shape(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidMark, err)
 	}
-	if err := checkPath(m.Path); err != nil {
-		return err
-	}
-	if err := checkAnchor(m.Anchor); err != nil {
-		return err
-	}
-	return m.checkWords()
+	return nil
 }
 
-// checkWords holds the reader's words to their sizes and to being text.
-func (m *Mark) checkWords() error {
+func (m *Mark) shape() error {
+	switch {
+	case !ValidID(m.ID):
+		return errors.New("the id is not 32 lowercase hex digits")
+	case m.At.IsZero():
+		return errors.New("the mark has no time")
+	case m.Quote == "" && (m.Before != "" || m.After != ""):
+		return errors.New("words around nothing")
+	case m.Identity != "" && !ValidIdentity(m.Identity):
+		return errors.New("the identity is not a content identity")
+	}
+	if err := m.kindHolds(); err != nil {
+		return err
+	}
+	if err := vault.CheckStoredPath(m.Path, maxPathBytes); err != nil {
+		return fmt.Errorf("the note path: %w", err)
+	}
+	if err := CheckAnchor(m.Anchor); err != nil {
+		return err
+	}
 	for _, f := range [...]struct {
 		name  string
 		value string
@@ -249,28 +224,26 @@ func (m *Mark) checkWords() error {
 	return nil
 }
 
-// checkPath says p is a note path a mark may hold: local to the vault, in NFC,
-// and one line of text.
-func checkPath(p string) error {
+// kindHolds says the mark's kind is one there is, and carries what that kind
+// carries.
+func (m *Mark) kindHolds() error {
 	switch {
-	case !utf8.ValidString(p):
-		return errors.New("the note path is not valid UTF-8")
-	case p == "" || len(p) > maxPathBytes:
-		return errors.New("the note path is empty or too long")
-	case !fs.ValidPath(p) || p == ".":
-		return fmt.Errorf("%q is not a local vault-relative path", p)
-	case strings.ContainsFunc(p, origin.EndsALine):
-		return fmt.Errorf("%q carries a control character", p)
-	case p != vault.NormalizeNFC(p):
-		return fmt.Errorf("%q is not written in NFC", p)
+	case !m.Kind.valid():
+		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
+	case m.Kind == Highlight && m.Body != "":
+		return errors.New("a highlight carries no words of its own")
+	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
+		return errors.New("a highlight is a passage and has its words")
+	case m.Kind == Thought && m.Body == "" && !m.Deleted:
+		return errors.New("a thought says something")
 	}
 	return nil
 }
 
-// checkAnchor says a is an anchor a mark may hold: an id a renderer wrote,
-// with no space, control character or character that ends the fragment of an
-// address.
-func checkAnchor(a string) error {
+// CheckAnchor says a is an anchor a mark or a bookmark may hold: empty, for the
+// note as a whole, or an id a renderer wrote, with no space, control character
+// or character that ends the fragment of an address.
+func CheckAnchor(a string) error {
 	switch {
 	case !utf8.ValidString(a):
 		return errors.New("the anchor is not valid UTF-8")
@@ -284,10 +257,38 @@ func checkAnchor(a string) error {
 	return nil
 }
 
+// ValidID says s is a mark's id: 32 lowercase hexadecimal digits.
+func ValidID(s string) bool { return isHex(s, 32) }
+
+// ValidIdentity says s is a content identity as a page stamps it: the SHA-256
+// of a note's bytes in lowercase hexadecimal.
+func ValidIdentity(s string) bool { return isHex(s, identityLength) }
+
+// conflictMarker says a line is one of git's conflict markers: a run of seven
+// or more '<', '>' or '|' alone or followed by a space, or a line of seven or
+// more '=' alone. A line of marks is a JSON object, which begins with '{', so
+// no line of marks is one.
+func conflictMarker(line []byte) bool {
+	if len(line) < 7 {
+		return false
+	}
+	c := line[0]
+	if c != '<' && c != '>' && c != '|' && c != '=' {
+		return false
+	}
+	run := len(line) - len(bytes.TrimLeft(line, string(c)))
+	if run < 7 {
+		return false
+	}
+	if run == len(line) {
+		return true
+	}
+	return c != '=' && line[run] == ' '
+}
+
 func (k Kind) valid() bool { return k == Highlight || k == Thought || k == Question }
 
 func isMachine(s string) bool { return isHex(s, 8) }
-func isID(s string) bool      { return isHex(s, 32) }
 
 func isHex(s string, n int) bool {
 	if len(s) != n {
@@ -299,17 +300,4 @@ func isHex(s string, n int) bool {
 		}
 	}
 	return true
-}
-
-// lines splits data at its newlines, each without its newline and without a
-// carriage return before it, leaving out the empty ones. A carriage return is
-// read past because a checkout on Windows may have put one there.
-func lines(data []byte) [][]byte {
-	var out [][]byte
-	for line := range bytes.SplitSeq(data, []byte("\n")) {
-		if line = bytes.TrimSuffix(line, []byte("\r")); len(line) > 0 {
-			out = append(out, line)
-		}
-	}
-	return out
 }

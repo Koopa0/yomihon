@@ -229,6 +229,59 @@ linters:
               desc: manual wiring in cmd/app — no DI frameworks
             - pkg: go.uber.org/fx
               desc: manual wiring in cmd/app — no DI frameworks
+        # The packages under internal/mark keep the reader's files and their bytes,
+        # below the routes: none of them knows a request or a page, and a rule
+        # about paths belongs in internal/vault.
+        mark-storage:
+          files: ["**/internal/mark/*/**", "!$test"]
+          deny:
+            - pkg: net/http
+              desc: the storage of the marks knows nothing of requests
+            - pkg: github.com/koopa0/yomihon/internal/origin
+              desc: presentation sits above the storage of the marks; a rule about paths belongs in internal/vault
+            - pkg: github.com/koopa0/yomihon/internal/ui
+              desc: presentation sits above the storage of the marks
+        # The marks are mark → machinemarks → {ledger, machinefile} → confdir,
+        # with sealedline the line format both files share. Each lists what it
+        # may import, so that no package reaches past the one below it.
+        mark-writers:
+          list-mode: strict
+          files: ["**/internal/mark/confdir/**", "**/internal/mark/machinefile/**", "!$test"]
+          allow:
+            - $gostd
+            - github.com/koopa0/yomihon/internal/vault
+            - golang.org/x/sys
+        mark-ledger:
+          list-mode: strict
+          files: ["**/internal/mark/ledger/**", "!$test"]
+          allow:
+            - $gostd
+            - github.com/koopa0/yomihon/internal/mark/confdir
+            - github.com/koopa0/yomihon/internal/mark/sealedline
+        mark-sealedline:
+          list-mode: strict
+          files: ["**/internal/mark/sealedline/**", "!$test"]
+          allow:
+            - $gostd
+        mark-machinemarks:
+          list-mode: strict
+          files: ["**/internal/mark/machinemarks/**", "!$test"]
+          allow:
+            - $gostd
+            - github.com/koopa0/yomihon/internal/mark/confdir
+            - github.com/koopa0/yomihon/internal/mark/ledger
+            - github.com/koopa0/yomihon/internal/mark/machinefile
+            - github.com/koopa0/yomihon/internal/mark/sealedline
+            - github.com/koopa0/yomihon/internal/vault
+        # The figure approvals and the list of vaults are files of their own
+        # under the configuration directory, beside the marks and not above them.
+        mark-records:
+          list-mode: strict
+          files: ["**/internal/mark/approval/**", "**/internal/mark/vaults/**", "!$test"]
+          allow:
+            - $gostd
+            - github.com/koopa0/yomihon/internal/mark/confdir
+            - github.com/koopa0/yomihon/internal/vault
 
     forbidigo:
       analyze-types: true

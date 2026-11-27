@@ -16,10 +16,10 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Keep leaves each mark in the vault at root, and its ledger under configDir, as
+// Leave leaves each mark in the vault at root, and its ledger under configDir, as
 // the reading server would: every one is a new mark of this machine. A mark with
 // no id is given one; one with no time is made now.
-func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...machinemarks.Mark) {
+func Leave(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...machinemarks.Mark) {
 	tb.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -34,25 +34,27 @@ func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...mach
 	if err != nil {
 		tb.Fatalf("name the marks: %v", err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	vaultMarks := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
-		if closeErr := kept.Close(); closeErr != nil {
+		if closeErr := vaultMarks.Close(); closeErr != nil {
 			tb.Errorf("close the marks: %v", closeErr)
 		}
 	}()
-	hand, err := kept.Marks()
+	hand, err := vaultMarks.Marks()
 	if err != nil {
 		tb.Fatalf("open the marks: %v", err)
 	}
 	for i := range marks {
 		m := marks[i]
 		if m.ID == "" {
-			m.ID = id()
+			var b [16]byte
+			_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error
+			m.ID = hex.EncodeToString(b[:])
 		}
 		if m.At.IsZero() {
 			m.At = time.Now()
 		}
-		if _, err = hand.Put(tb.Context(), &m, nil, nil, mark.AllMarks); err != nil {
+		if _, err = hand.Put(tb.Context(), &m, nil, nil); err != nil {
 			tb.Fatalf("leave a mark: %v", err)
 		}
 	}
@@ -61,13 +63,4 @@ func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...mach
 // Question is a question of a whole section.
 func Question(path, anchor string, at time.Time) machinemarks.Mark {
 	return machinemarks.Mark{Kind: machinemarks.Question, Path: path, Anchor: anchor, At: at}
-}
-
-// id makes the id of a mark: 32 lowercase hexadecimal digits nobody else has.
-func id() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic("marktest: no randomness: " + err.Error())
-	}
-	return hex.EncodeToString(b[:])
 }

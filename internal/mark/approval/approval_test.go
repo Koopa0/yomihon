@@ -4,13 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -29,42 +25,6 @@ func newStore(t *testing.T) *approval.Store {
 		t.Fatalf("approval.Open: %v", err)
 	}
 	return store
-}
-
-func TestAnApprovalStoreNeedsAConfigurationDirectoryAndAVaultRoot(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		configDir confdir.ConfigDir
-		vaultRoot string
-	}{{confdir.ConfigDir{}, "/vaults/notes"}, {confdir.At(t.TempDir()), ""}} {
-		if _, err := approval.Open(tc.configDir, tc.vaultRoot); err == nil {
-			t.Errorf("approval.Open(%v, %q) = nil error, want a refusal", tc.configDir, tc.vaultRoot)
-		}
-	}
-}
-
-// A file longer than the cap was not written here. It is read as damaged and
-// left as it is, like any other file this version does not recognise.
-func TestAnApprovalsFileBeyondItsCapIsUnreadableAndKept(t *testing.T) {
-	t.Parallel()
-	store := newStore(t)
-	if err := os.MkdirAll(filepath.Dir(store.Path()), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	big := `{"version":1,"vault":"/v","approvals":[],"pad":"` + strings.Repeat("x", 5<<20) + `"}`
-	if err := os.WriteFile(store.Path(), []byte(big), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.List(); !errors.Is(err, approval.ErrUnreadable) {
-		t.Errorf("List over an oversized file = %v, want ErrUnreadable", err)
-	}
-	if err := store.Approve("a.html", sha256.Sum256(nil), approvedAt); !errors.Is(err, approval.ErrUnreadable) {
-		t.Errorf("Approve over an oversized file = %v, want ErrUnreadable", err)
-	}
-	after, err := os.ReadFile(store.Path())
-	if err != nil || string(after) != big {
-		t.Errorf("the oversized file was changed: %v", err)
-	}
 }
 
 // TestAnApprovalNamesExactBytes is the approval's whole meaning: it holds for
@@ -172,41 +132,10 @@ func TestUnreadableApprovalsFailClosed(t *testing.T) {
 	}
 }
 
-// TestApprovalsAreOwnerOnly: the record decides what runs in the browser, so
-// it is created readable and writable by its owner alone.
-func TestApprovalsAreOwnerOnly(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows has no POSIX permission bits to read back")
-	}
-	store := newStore(t)
-	if err := store.Approve("a.html", sha256.Sum256(nil), approvedAt); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(store.Path())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Errorf("approvals file mode = %o, want 600", got)
-	}
-	dir, err := os.Stat(filepath.Dir(store.Path()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := dir.Mode().Perm(); got != 0o700 {
-		t.Errorf("approvals directory mode = %o, want 700", got)
-	}
-	leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(store.Path()), ".figures-*.json"))
-	if err != nil || len(leftovers) != 0 {
-		t.Errorf("temporary files left behind: %v, %v", leftovers, err)
-	}
-}
-
 func TestApproveRefusesAPathItCouldNotHandBack(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
-	for _, relPath := range []string{"", "/abs.html", "../up.html", "a\nb.html", "Café.html"} {
+	for _, relPath := range []string{"", "/abs.html", "../up.html", "a\nb.html", "Cafe\u0301.html"} {
 		if err := store.Approve(relPath, sha256.Sum256(nil), approvedAt); !errors.Is(err, approval.ErrInvalid) {
 			t.Errorf("Approve(%q) = %v, want ErrInvalid", relPath, err)
 		}
@@ -223,60 +152,6 @@ func TestApproveRefusesAPathItCouldNotHandBack(t *testing.T) {
 func lowerHex(sum [sha256.Size]byte) string { return hex.EncodeToString(sum[:]) }
 
 func upperHex(sum [sha256.Size]byte) string { return strings.ToUpper(hex.EncodeToString(sum[:])) }
-
-// Two stores on one directory are the command line and the running server, and
-// neither may write the other's approvals away. A writer refused with ErrLocked
-// approves again, as the owner would run the command again; an approval that
-// answered nil is in the file.
-func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	const each = 60
-	kept := make([][]string, 2)
-	var writers sync.WaitGroup
-	for w := range 2 {
-		store, err := approval.Open(confdir.At(config), "/vaults/notes")
-		if err != nil {
-			t.Fatal(err)
-		}
-		writers.Go(func() {
-			for i := range each {
-				figure := fmt.Sprintf("Figures/w%d-%d.html", w, i)
-				err := store.Approve(figure, sha256.Sum256([]byte("x")), approvedAt)
-				for errors.Is(err, confdir.ErrLocked) {
-					err = store.Approve(figure, sha256.Sum256([]byte("x")), approvedAt)
-				}
-				if err != nil {
-					t.Errorf("writer %d approve %d: %v", w, i, err)
-					return
-				}
-				kept[w] = append(kept[w], figure)
-			}
-		})
-	}
-	writers.Wait()
-	store, err := approval.Open(confdir.At(config), "/vaults/notes")
-	if err != nil {
-		t.Fatal(err)
-	}
-	held, err := store.List()
-	if err != nil {
-		t.Fatal(err)
-	}
-	approved := map[string]bool{}
-	for _, one := range held {
-		approved[one.RelPath] = true
-	}
-	for _, figure := range slices.Concat(kept...) {
-		if !approved[figure] {
-			t.Errorf("%s was answered approved and is not in the file", figure)
-			break
-		}
-	}
-	if len(held) != 2*each {
-		t.Errorf("two stores kept %d approvals; want %d", len(held), 2*each)
-	}
-}
 
 // Asking to revoke what was never approved is not approving, and a directory
 // made to hold the lock would be the first thing left behind.

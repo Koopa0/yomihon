@@ -880,7 +880,7 @@ func open(vaultRoot string) error { _, err := approval.Open(vaultRoot, vaultRoot
 		name: "the list of vaults kept inside a vault's root",
 		src: `package fixture
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func open(vaultRoot string) error { _, err := vaults.Open(vaultRoot, nil); return err }`,
+func open(vaultRoot string) error { _, err := vaults.Open(vaultRoot, nil, nil); return err }`,
 		noCompile: "ConfigDir",
 	},
 	{

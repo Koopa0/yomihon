@@ -46,14 +46,17 @@ func (s *Store) WriteInstance(in Instance) error {
 
 // ReadInstance is what the instance file says. A file that is not there, or
 // that says nothing a process could have written, is ErrNoInstance: the same
-// answer, because the command line does the same in both.
+// answer, because the command line does the same in both. A file that cannot be
+// read is that error and not ErrNoInstance, since nothing is known of it.
 func (s *Store) ReadInstance() (Instance, error) {
 	raw, err := confdir.Read(s.dir, instanceFile, maxInstanceBytes)
-	if errors.Is(err, os.ErrNotExist) {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
 		return Instance{}, ErrNoInstance
-	}
-	if err != nil {
+	case errors.Is(err, confdir.ErrTooLarge), errors.Is(err, confdir.ErrNotRegular):
 		return Instance{}, fmt.Errorf("%w: %w", ErrNoInstance, err)
+	case err != nil:
+		return Instance{}, fmt.Errorf("read the running instance: %w", err)
 	}
 	var in Instance
 	if err := json.Unmarshal(raw, &in); err != nil || in.PID < 1 || in.Port < MinPort || in.Port > maxPort {
@@ -75,7 +78,8 @@ func (s *Store) Running() (Instance, bool) {
 
 // RemoveInstance removes the instance file if it is pid's. A process that ends
 // leaves nothing that says it is running, and one that was replaced by another
-// does not take the other's record with it.
+// does not take the other's record with it. A file that cannot be read is not
+// removed, and the error says why.
 func (s *Store) RemoveInstance(pid int) error {
 	in, err := s.ReadInstance()
 	if err != nil {

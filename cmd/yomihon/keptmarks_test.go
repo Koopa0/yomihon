@@ -30,7 +30,7 @@ func markID(n int) string { return fmt.Sprintf("%032x", n) }
 // keep leaves each mark in the vault. A mark with no id is given one.
 func (k keptMarks) keep(marks ...machinemarks.Mark) {
 	k.t.Helper()
-	marktest.Keep(k.t, k.root, confdir.At(k.config), marks...)
+	marktest.Leave(k.t, k.root, confdir.At(k.config), marks...)
 }
 
 // forget deletes the mark with this id, the way the page's delete does.
@@ -49,7 +49,7 @@ func (k keptMarks) forget(id string) {
 	if err != nil {
 		k.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			k.t.Error(closeErr)
@@ -67,7 +67,7 @@ func (k keptMarks) forget(id string) {
 	if !ok {
 		k.t.Fatalf("no mark %s to forget", id)
 	}
-	if _, err = hand.Delete(k.t.Context(), id, entry.Seen, nil, mark.AllMarks); err != nil {
+	if _, err = hand.Delete(k.t.Context(), id, entry.Seen, nil); err != nil {
 		k.t.Fatalf("forget mark %s: %v", id, err)
 	}
 }
@@ -115,20 +115,30 @@ func nameMarksDir(t *testing.T, configDir, vaultRoot string) string {
 // writeEarlierMarks writes the earlier file of marks (marks.json) of the vault
 // at vaultRoot, by hand: the shape a reader who used the version before the
 // machine files left behind, which the product only reads.
-func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...mark.Mark) {
+func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...machinemarks.Mark) {
 	t.Helper()
 	dir := nameMarksDir(t, configDir, vaultRoot)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if marks == nil {
-		marks = []mark.Mark{}
+	// The earlier file kept a question's words as its reason.
+	type earlier struct {
+		machinemarks.Mark
+
+		Reason string `json:"reason,omitempty"`
+	}
+	held := make([]earlier, len(marks))
+	for i := range marks {
+		held[i] = earlier{Mark: marks[i]}
+		if marks[i].Kind == machinemarks.Question {
+			held[i].Reason, held[i].Body = marks[i].Body, ""
+		}
 	}
 	data, err := json.Marshal(struct {
-		Version int         `json:"version"`
-		Vault   string      `json:"vault"`
-		Marks   []mark.Mark `json:"marks"`
-	}{Version: 1, Vault: vaultRoot, Marks: marks})
+		Version int       `json:"version"`
+		Vault   string    `json:"vault"`
+		Marks   []earlier `json:"marks"`
+	}{Version: 1, Vault: vaultRoot, Marks: held})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +149,7 @@ func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...mark.
 
 // heldQuestions is the questions the reader has open in the vault at root, read
 // the way the marks command reads them.
-func heldQuestions(t *testing.T, root, configDir string) []mark.Mark {
+func heldQuestions(t *testing.T, root, configDir string) []machinemarks.Mark {
 	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -154,7 +164,7 @@ func heldQuestions(t *testing.T, root, configDir string) []mark.Mark {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			t.Error(closeErr)

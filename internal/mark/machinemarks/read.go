@@ -2,10 +2,8 @@ package machinemarks
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strings"
-	"time"
 )
 
 // Gate says whether a mark may be given to whoever asked: the privacy rules the
@@ -38,20 +36,18 @@ func (m *Marks) View() (*View, error) {
 }
 
 // Entries are the marks the gate lets through, deleted ones included, in the
-// order they were made, then by id. gate is asked of every value of a mark; a
-// nil gate is a mistake in the caller and panics, since the answer would be
-// everything the reader wrote.
+// order they were made, then by id. gate is asked of every value of a mark,
+// those set aside among them; a nil gate is a mistake in the caller and panics,
+// since the answer would be everything the reader wrote.
 func (v *View) Entries(gate Gate) []Entry {
 	if gate == nil {
 		panic("machinemarks: Entries with no gate")
 	}
 	var out []Entry
-	for _, r := range v.v.byMark {
-		e := r.entry(func(l *kept) bool { return v.v.st.owns(l.M) })
-		if slices.ContainsFunc(e.Values, func(val Value) bool { return !gate(&val.Mark) }) {
-			continue
+	for id := range v.v.byMark {
+		if e, ok := v.entry(id, gate); ok {
+			out = append(out, e)
 		}
-		out = append(out, *e)
 	}
 	slices.SortFunc(out, func(a, b Entry) int {
 		ma, mb := a.Mark(), b.Mark()
@@ -66,12 +62,19 @@ func (v *View) Entry(id string, gate Gate) (Entry, bool) {
 	if gate == nil {
 		panic("machinemarks: Entry with no gate")
 	}
+	return v.entry(id, gate)
+}
+
+// entry is the mark of id as Entry gives it.
+func (v *View) entry(id string, gate Gate) (Entry, bool) {
 	r, ok := v.v.byMark[id]
 	if !ok {
 		return Entry{}, false
 	}
-	e := r.entry(func(l *kept) bool { return v.v.st.owns(l.M) })
-	if slices.ContainsFunc(e.Values, func(val Value) bool { return !gate(&val.Mark) }) {
+	e := r.entry(func(l *rawLine) bool { return v.v.st.owns(l.M) })
+	e.Aside = v.v.aside[id]
+	refused := func(val Value) bool { return !gate(&val.Mark) }
+	if slices.ContainsFunc(e.Values, refused) || slices.ContainsFunc(e.Aside, refused) {
 		return Entry{}, false
 	}
 	return *e, true
@@ -94,10 +97,6 @@ func (v *View) Damaged() int { return v.v.damaged }
 // DamagedOwn is how many lines of this machine's own file were changed after
 // they were written.
 func (v *View) DamagedOwn() int { return v.v.damagedOwn }
-
-// Markers is how many lines of the files are git's conflict markers, which are
-// read past: the lines between them are read as any are.
-func (v *View) Markers() int { return v.v.markers }
 
 // Newer is how many whole lines are of a format a later version wrote. They are
 // not read, and not lost: a file of this machine's keeps them.
@@ -122,18 +121,10 @@ func (v *View) LegacySkipped() int { return len(v.v.st.skipped) }
 // written, which is said and never read.
 func (v *View) LedgerChanged() int { return v.v.ledgerChanged }
 
-// NewIDUnsaid says this machine took a new id, because another was found
-// writing under its old one, and the reader has not been told. NoticeNewID
-// records that they were.
-func (v *View) NewIDUnsaid() bool { return v.v.st.unsaid }
-
-// OwnBytes is the length of this machine's own file in the vault, 0 where there
-// is none or it could not be read.
-func (v *View) OwnBytes() int { return len(v.v.ownDisk) }
-
-// Live is how many marks of every machine are not deleted, which is what the
-// limit counts.
-func (v *View) Live() int { return v.v.live() }
+// IDRetired says this machine took a new id, because another computer was found
+// writing under its old one: a copy of this one's configuration. It is for the
+// log; the reader is not told.
+func (v *View) IDRetired() bool { return len(v.v.st.retired) > 0 }
 
 // AwaitsTakeIn says the marks of the earlier file have not been taken in yet:
 // this machine has no file of marks and no conversion in its ledger, so its next
@@ -145,30 +136,5 @@ func (v *View) AwaitsTakeIn() bool { return !v.v.st.converted && !v.v.ownFound }
 // holds no mark, and says the earlier file is not taken in, so that what a page
 // lists from the earlier file, which a read never changes, is still shown.
 func LegacyView() *View {
-	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*kept{}, ids: map[string]bool{}}}
-}
-
-// SetAside is the values of this machine's own that a change replaced although
-// they were live and the change was not made on them: the value that two
-// computers each changed and the page was not shown, which the newer line of
-// this machine replaces by the rule that a writer's newer line always replaces
-// its older. They are kept whole in the ledger, in the order they were set
-// aside, so that nothing is lost; the page shows only the newest live value.
-func (m *Marks) SetAside() ([]Value, error) {
-	events, _, err := m.ledger.Events()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
-	}
-	var out []Value
-	for i := range events {
-		if events[i].Kind != kindSetAside {
-			continue
-		}
-		l, verdict := decode(events[i].Content)
-		if verdict != readable {
-			continue
-		}
-		out = append(out, Value{Mark: l.Mark, Writer: l.Writer(), Rev: l.Rev, Time: time.UnixMilli(l.T), Own: true})
-	}
-	return out, nil
+	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*rawLine{}, ids: map[string]bool{}}}
 }

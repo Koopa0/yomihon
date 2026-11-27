@@ -67,7 +67,7 @@ func sectionContract(t *testing.T) *schema.Contract {
 // readerSession is the server a reader has open over the vault and the marks
 // file beside it. A second session over the same two is the reader coming back
 // another day: nothing is carried in memory from the first.
-func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, bookmark func() (mark.Bookmark, bool)) (mux http.Handler, kept *mark.Kept) {
+func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, bookmark func() (mark.Bookmark, bool)) (mux http.Handler, kept *mark.VaultMarks) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
@@ -79,7 +79,7 @@ func readerSession(t *testing.T, root string, contract *schema.Contract, configD
 		Source: source, Contract: contract, Snapshot: store.Current,
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
 		Bookmark:  bookmark, Questions: kept.Questions, Kept: kept,
-		QuestionAddress: mark.Paths.Question, Log: log,
+		QuestionAddress: mark.QuestionPath, Log: log,
 	})
 	routes := http.NewServeMux()
 	handler.Register(routes)

@@ -70,7 +70,7 @@ func (c computer) hand() *machinemarks.Marks {
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	c.t.Cleanup(func() { _ = kept.Close() }) //nolint:errcheck // the test is over
 	hand, err := kept.Marks()
 	if err != nil {
@@ -92,7 +92,7 @@ func (c computer) say(m machinemarks.Mark) machinemarks.Result { //nolint:gocrit
 		base = e.Seen
 	}
 	time.Sleep(3 * time.Millisecond) // a line's time is to the millisecond, and decides which value is shown
-	res, err := hand.Put(c.t.Context(), &m, base, nil, mark.AllMarks)
+	res, err := hand.Put(c.t.Context(), &m, base, nil)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func (c computer) pull(from computer) {
 func (c computer) tryPut(m *machinemarks.Mark) bool {
 	c.t.Helper()
 	time.Sleep(3 * time.Millisecond)
-	_, err := c.hand().Put(c.t.Context(), m, machinemarks.Seen{}, nil, mark.AllMarks)
+	_, err := c.hand().Put(c.t.Context(), m, machinemarks.Seen{}, nil)
 	return err == nil
 }
 
@@ -259,7 +259,7 @@ func exportWithheldMarks(t *testing.T, c computer) {
 		machinemarks.Mark{ID: markID(7), Kind: machinemarks.Thought, Path: "Notes/Titled.md", Body: "SECRET-TITLE", At: exportDay(7)},
 		machinemarks.Mark{ID: markID(8), Kind: machinemarks.Thought, Path: "Notes/Head.md", Anchor: "about-private-secret-plan", Body: "SECRET-HEADING", At: exportDay(8)},
 		// What the page shows of a link to withheld ground is its name.
-		machinemarks.Mark{ID: markID(9), Kind: machinemarks.Highlight, Path: "Notes/Plain.md", Quote: "Private/Secret plan", Body: "SECRET-LINK", At: exportDay(9)},
+		machinemarks.Mark{ID: markID(9), Kind: machinemarks.Thought, Path: "Notes/Plain.md", Quote: "Private/Secret plan", Body: "SECRET-LINK", At: exportDay(9)},
 		machinemarks.Mark{ID: markID(10), Kind: machinemarks.Thought, Path: exSpace, Quote: "plain words", Body: "PUBLIC-TWO", At: exportDay(10)},
 	)
 }
@@ -433,7 +433,7 @@ func deleteOn(t *testing.T, c computer, id string) {
 		t.Fatalf("no mark %s to delete", id)
 	}
 	time.Sleep(3 * time.Millisecond)
-	if _, err = hand.Delete(t.Context(), id, entry.Seen, nil, mark.AllMarks); err != nil {
+	if _, err = hand.Delete(t.Context(), id, entry.Seen, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -597,7 +597,7 @@ func TestExportWithholdsEverySpellingOfWithheldGround(t *testing.T) {
 		}},
 		{"a hand-edited earlier file", func(c computer, spelling string) {
 			writeEarlierMarks(t, c.config, vaultNameOf(t, c.root),
-				mark.Mark{ID: markID(30), Kind: mark.Question, RelPath: spelling, Anchor: "x", Reason: "SECRET-LEGACY", At: exportDay(1)})
+				machinemarks.Mark{ID: markID(30), Kind: machinemarks.Question, Path: spelling, Anchor: "x", Body: "SECRET-LEGACY", At: exportDay(1)})
 		}},
 	}
 	for _, route := range routes {
@@ -717,7 +717,7 @@ func TestExportDoesNotRefuseForANoteItCannotRead(t *testing.T) {
 	c := newComputer(t, leftOpenContract)
 	locked := filepath.Join(c.root, "Inside", "Locked.md")
 	putOpenThoughtFile(t, c.root, "Inside/Locked.md", openThoughtNote("Locked", "reflection", draftFlag, "2026-09-09"))
-	c.say(machinemarks.Mark{ID: markID(1), Kind: machinemarks.Highlight, Path: "Inside/Locked.md", Quote: "LOCKED-QUOTE", Body: "LOCKED-WORDS", At: exportDay(1)})
+	c.say(machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "Inside/Locked.md", Quote: "LOCKED-QUOTE", Body: "LOCKED-WORDS", At: exportDay(1)})
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -739,8 +739,8 @@ func TestExportPrintsTheEarlierFilesMarksBeforeAnyWrite(t *testing.T) {
 	t.Parallel()
 	c := newComputer(t, leftOpenContract)
 	writeEarlierMarks(t, c.config, vaultNameOf(t, c.root),
-		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: exPipeline, Anchor: "other", Reason: "EARLIER-WORDS", At: exportDay(1)},
-		mark.Mark{ID: markID(2), Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", Reason: "EARLIER-SECRET", At: exportDay(2)},
+		machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: exPipeline, Anchor: "other", Body: "EARLIER-WORDS", At: exportDay(1)},
+		machinemarks.Mark{ID: markID(2), Kind: machinemarks.Question, Path: "Private/Secret plan.md", Anchor: "hidden-heading", Body: "EARLIER-SECRET", At: exportDay(2)},
 	)
 	got := c.export()
 	if got.exit != 0 || !strings.Contains(got.stdout, "EARLIER-WORDS") {
@@ -759,7 +759,7 @@ func TestExportDoesNotPrintFromTheEarlierFileAMarkTheVaultWithholds(t *testing.T
 	b.say(machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "Private/Secret plan.md", Body: "SECRET-HELD", At: exportDay(1)})
 	a.pull(b)
 	writeEarlierMarks(t, a.config, vaultNameOf(t, a.root),
-		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: exPipeline, Anchor: "other", Reason: "EARLIER-PUBLIC", At: exportDay(1)},
+		machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: exPipeline, Anchor: "other", Body: "EARLIER-PUBLIC", At: exportDay(1)},
 	)
 	got := a.export()
 	if found := leaks(got, []string{"SECRET-HELD", "EARLIER-PUBLIC", "Private"}); len(found) > 0 {
@@ -770,7 +770,7 @@ func TestExportDoesNotPrintFromTheEarlierFileAMarkTheVaultWithholds(t *testing.T
 	other.say(machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "Private/Secret plan.md", Body: "SECRET-HELD", At: exportDay(1)})
 	open.pull(other)
 	writeEarlierMarks(t, open.config, vaultNameOf(t, open.root),
-		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: exPipeline, Anchor: "other", Reason: "EARLIER-PUBLIC", At: exportDay(1)},
+		machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: exPipeline, Anchor: "other", Body: "EARLIER-PUBLIC", At: exportDay(1)},
 	)
 	if out := open.export().stdout; !strings.Contains(out, "SECRET-HELD") || strings.Contains(out, "EARLIER-PUBLIC") {
 		t.Errorf("with nothing withheld the vault's value is the mark, and the earlier file's is not printed:\n%s", out)

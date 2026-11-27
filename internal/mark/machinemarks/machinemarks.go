@@ -22,8 +22,8 @@
 // read the words does not hide them, and the others are shown beside it.
 // Nothing is decided by a clock: the time on a line only orders what is shown.
 //
-// The rule is one a reader without Yomihon can follow, and testdata holds a
-// program for jq that does.
+// The rule is one a reader without Yomihon can follow: read-marks.jq is a
+// program for jq that does, and the tests hold it to what this package reads.
 //
 // # This machine's own lines
 //
@@ -43,7 +43,7 @@
 // code of the same shape, written on every line it writes. A line under this
 // machine's id whose process this machine never ran was written by another
 // computer that has a copy of this one's configuration. The machine that finds
-// one leaves its id for a new one, and the reader is told once. The lines it
+// one leaves its id for a new one, and says so to the log. The lines it
 // wrote under the old id stay its own and are written into the file of the new
 // id, since the file of the old one is another machine's now; the lines it
 // did not write are never taken for its own. So a file can hold lines whose m
@@ -57,10 +57,11 @@
 // shown, from the ledger; a write refuses, since it would replace what it did
 // not read.
 //
-// Every call that gives a mark out or changes one takes the privacy gate, and a
-// write to a mark the gate withholds is answered as a write to one that is not
-// there. A line is held to the shape the file of marks before this one held a
-// mark to, on the way in and on the way out.
+// Every call that gives a mark out takes a privacy gate, which is asked of
+// every value of the mark, the values set aside among them, and hides the whole
+// mark when it refuses one. A write takes none: only the reader writes marks,
+// and they are the owner of every one. A line is held to the shape the file of
+// marks before this one held a mark to, on the way in and on the way out.
 //
 // The routes of package mark call it: it is what keeps the reader's marks, and
 // nothing else in the process writes them into the vault.

@@ -2,6 +2,7 @@ package machinemarks
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,16 +15,22 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// crowded is how long the tests that crowd the vault's lock on purpose wait for
-// it. Several writers of two processes poll one lock while a slow runner
-// stalls them, and past confdir.LockWait one of them is told the lock is held
-// although nothing is wrong: these tests ask whether anything is lost, not how
-// fast the lock comes free.
-const crowded = time.Minute
+// crowded is put, asked again while another holds the vault's lock: several
+// writers of two processes poll one lock while a slow runner stalls them, and
+// past confdir.LockWait one of them is told the lock is held although nothing
+// is wrong. The tests that crowd the lock ask whether anything is lost, not how
+// fast the lock comes free, and ErrLocked writes nothing.
+func crowded[T any](put func() (T, error)) (T, error) {
+	for {
+		res, err := put()
+		if !errors.Is(err, confdir.ErrLocked) {
+			return res, err
+		}
+	}
+}
 
 // open is every mark, whatever the privacy rules say: what a test wants to see.
 func open(*Mark) bool { return true }
@@ -87,12 +94,13 @@ func (c *clone) restart() {
 		c.t.Fatal(err)
 	}
 	c.t.Cleanup(func() { _ = r.Close() }) //nolint:errcheck // the test is over
-	f, err := machinefile.Open(r)
+	m, err := Open(r, c.dir, slog.New(slog.DiscardHandler), c.legacy)
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	c.t.Cleanup(func() { _ = f.Close() }) //nolint:errcheck // the test is over
-	c.m = Open(f, c.dir, slog.New(slog.DiscardHandler), Options{Now: c.clock.now, Legacy: c.legacy, LockWait: crowded})
+	c.t.Cleanup(func() { _ = m.Close() }) //nolint:errcheck // the test is over
+	m.now = c.clock.now
+	c.m = m
 }
 
 func (c *clone) marksDir() string { return filepath.Join(c.root, "reader-notes", ".yomihon", "marks") }
@@ -125,7 +133,7 @@ func (c *clone) entry(id string) Entry {
 func (c *clone) put(m Mark, base Seen) Result { //nolint:gocritic // hugeParam: a test helper; the call sites read better with a value
 	c.t.Helper()
 	c.clock.tick()
-	res, err := c.m.Put(c.t.Context(), &m, base, nil, open)
+	res, err := c.m.Put(c.t.Context(), &m, base, nil)
 	if err != nil {
 		c.t.Fatalf("%s: Put: %v", c.name, err)
 	}
@@ -146,7 +154,7 @@ func (c *clone) say(n int, words string) Result {
 func (c *clone) delete(n int) Result {
 	c.t.Helper()
 	c.clock.tick()
-	res, err := c.m.Delete(c.t.Context(), mid(n), c.entry(mid(n)).Seen, nil, open)
+	res, err := c.m.Delete(c.t.Context(), mid(n), c.entry(mid(n)).Seen, nil)
 	if err != nil {
 		c.t.Fatalf("%s: Delete: %v", c.name, err)
 	}
@@ -245,15 +253,8 @@ func tree(t *testing.T, dir string) map[string]string {
 // git runs git in dir, with an environment that is the test's own.
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "git", args...) // #nosec G204 -- git, with the test's own arguments
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
-		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out.String())
+	if out, err := gitTry(t, dir, args...); err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 }
 

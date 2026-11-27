@@ -44,7 +44,7 @@ func (h *Handler) markedBody(ctx context.Context, body string, n *snapshot.Readi
 	for i := range live {
 		m := &live[i]
 		drawn := noteOf(m, lang)
-		place := mark.Locate(text, sections, &mark.Mark{Anchor: m.Anchor, Quote: m.Quote, Before: m.Before, After: m.After})
+		place := mark.Locate(text, sections, m)
 		switch {
 		case place.Status == mark.Found:
 			spans = append(spans, drawn.Span(place.Start, place.End))
@@ -60,7 +60,7 @@ func (h *Handler) markedBody(ctx context.Context, body string, n *snapshot.Readi
 			html := h.noteHTML(ctx, drawn, n.RelPath)
 			switch {
 			case html == "":
-			case m.Anchor != "" && (place.SectionKept || place.Status == mark.SectionOnly):
+			case m.Anchor != "" && (place.SectionThere || place.Status == mark.SectionOnly):
 				bySection[m.Anchor] = append(bySection[m.Anchor], html)
 			default:
 				tail.WriteString(html)

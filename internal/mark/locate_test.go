@@ -7,11 +7,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // aSpan is a mark of some words, with a little of what stood on either side.
-func aSpan(quote, before, after string) *mark.Mark {
-	return &mark.Mark{Kind: mark.Highlight, RelPath: "Notes/source.md", Anchor: "first", Quote: quote, Before: before, After: after}
+func aSpan(quote, before, after string) *machinemarks.Mark {
+	return &machinemarks.Mark{Kind: machinemarks.Highlight, Path: "Notes/source.md", Anchor: "first", Quote: quote, Before: before, After: after}
 }
 
 // words is what the placement is on, for a placement that found some.
@@ -26,14 +27,14 @@ func TestAMarkOfASectionStandsWhereItsSectionDoes(t *testing.T) {
 		anchor string
 		want   mark.Placement
 	}{
-		{"a section that is there", "first", mark.Placement{Status: mark.SectionOnly, SectionKept: true}},
-		{"the note as a whole", "", mark.Placement{Status: mark.SectionOnly, SectionKept: true}},
+		{"a section that is there", "first", mark.Placement{Status: mark.SectionOnly, SectionThere: true}},
+		{"the note as a whole", "", mark.Placement{Status: mark.SectionOnly, SectionThere: true}},
 		{"a section that is gone", "removed", mark.Placement{Status: mark.Changed}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			question := &mark.Mark{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: tt.anchor}
+			question := &machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: tt.anchor}
 			got := mark.Locate("some text", []string{"first", "second"}, question)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Locate (-want +got):\n%s", diff)
@@ -46,7 +47,7 @@ func TestAMarkOfWordsIsFoundWhereTheWordsAre(t *testing.T) {
 	t.Parallel()
 	text := "A channel hands a value from one goroutine to another.\n\nA send blocks until a receiver is ready."
 	got := mark.Locate(text, []string{"first"}, aSpan("A send blocks", "", ""))
-	if got.Status != mark.Found || !got.Exact || !got.SectionKept {
+	if got.Status != mark.Found || !got.Exact || !got.SectionThere {
 		t.Fatalf("Locate = %+v, want found, exact, with its section", got)
 	}
 	if want := "A send blocks"; words(text, got) != want {
@@ -59,7 +60,7 @@ func TestAMarkOfWordsIsFoundWhereTheWordsAre(t *testing.T) {
 func TestWhiteSpaceDoesNotHideTheWords(t *testing.T) {
 	t.Parallel()
 	text := "Before   it\nstarts,\n\n  a channel\thands  a value\nover."
-	got := mark.Locate(text, nil, &mark.Mark{Kind: mark.Highlight, RelPath: "a.md", Quote: "a channel hands a value"})
+	got := mark.Locate(text, nil, &machinemarks.Mark{Kind: machinemarks.Highlight, Path: "a.md", Quote: "a channel hands a value"})
 	if got.Status != mark.Found || !got.Exact {
 		t.Fatalf("Locate = %+v", got)
 	}
@@ -71,7 +72,7 @@ func TestWhiteSpaceDoesNotHideTheWords(t *testing.T) {
 func TestWordsInAnyScriptAreFoundAtTheirOwnBytes(t *testing.T) {
 	t.Parallel()
 	text := "通道把一個值從一個協程交給另一個。\n\n傳送會等到有接收者才繼續。"
-	got := mark.Locate(text, nil, &mark.Mark{Kind: mark.Highlight, RelPath: "a.md", Quote: "傳送會等到有接收者"})
+	got := mark.Locate(text, nil, &machinemarks.Mark{Kind: machinemarks.Highlight, Path: "a.md", Quote: "傳送會等到有接收者"})
 	if got.Status != mark.Found || !got.Exact || words(text, got) != "傳送會等到有接收者" {
 		t.Errorf("Locate = %+v, words %q", got, text[got.Start:got.End])
 	}
@@ -131,23 +132,23 @@ func TestAQuoteAtSeveralPlacesNothingTellsApartIsNotPlaced(t *testing.T) {
 		sections      []string
 		want          mark.Placement
 	}{
-		{"no context, as a quote read back from a file has", table, "仍可能", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
-		{"context every place shares", table, "仍可能", " | ", " |", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
-		{"prose, with nothing around the words", prose, "See", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"no context, as a quote read back from a file has", table, "仍可能", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionThere: true}},
+		{"context every place shares", table, "仍可能", " | ", " |", []string{"first"}, mark.Placement{Status: mark.Changed, SectionThere: true}},
+		{"prose, with nothing around the words", prose, "See", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionThere: true}},
 		{"the section is gone as well", table, "仍可能", "", "", nil, mark.Placement{Status: mark.Changed}},
-		{"two places share the most of what stood around the words", labelled, "See", "B:", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
-		{"the words twice in a row, with what stood around them still there", doubled, "blocks", "A send on a channel", "until a receiver is", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"two places share the most of what stood around the words", labelled, "See", "B:", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionThere: true}},
+		{"the words twice in a row, with what stood around them still there", doubled, "blocks", "A send on a channel", "until a receiver is", []string{"first"}, mark.Placement{Status: mark.Changed, SectionThere: true}},
 		{
 			"the last of five, told apart by its row", table, "仍可能", "戊 |", "|", []string{"first"},
-			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 5), End: nth(table, "仍可能", 5) + len("仍可能"), Exact: true, SectionKept: true},
+			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 5), End: nth(table, "仍可能", 5) + len("仍可能"), Exact: true, SectionThere: true},
 		},
 		{
 			"the second of five, told apart by its row", table, "仍可能", "乙 |", "|", []string{"first"},
-			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 2), End: nth(table, "仍可能", 2) + len("仍可能"), Exact: true, SectionKept: true},
+			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 2), End: nth(table, "仍可能", 2) + len("仍可能"), Exact: true, SectionThere: true},
 		},
 		{
 			"one place has the most of what stood around the words, the others are alike", labelled, "See", "A:", "", []string{"first"},
-			mark.Placement{Status: mark.Found, Start: nth(labelled, "See", 1), End: nth(labelled, "See", 1) + len("See"), Exact: true, SectionKept: true},
+			mark.Placement{Status: mark.Found, Start: nth(labelled, "See", 1), End: nth(labelled, "See", 1) + len("See"), Exact: true, SectionThere: true},
 		},
 	}
 	for _, tt := range tests {
@@ -227,7 +228,7 @@ func TestAMarkThatCannotBePlacedIsChanged(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := mark.Locate(tt.text, []string{"first"}, aSpan("blocks", tt.before, tt.after))
-			if got.Status != mark.Changed || !got.SectionKept {
+			if got.Status != mark.Changed || !got.SectionThere {
 				t.Errorf("Locate = %+v, want changed with its section kept", got)
 			}
 		})
@@ -242,7 +243,7 @@ func TestAChangedMarkSaysWhetherItsSectionIsStillThere(t *testing.T) {
 			sections = []string{"first"}
 		}
 		got := mark.Locate("nothing here now", sections, aSpan("blocks", "", ""))
-		if got.Status != mark.Changed || got.SectionKept != kept {
+		if got.Status != mark.Changed || got.SectionThere != kept {
 			t.Errorf("section kept = %v: Locate = %+v", kept, got)
 		}
 	}
@@ -260,7 +261,7 @@ func TestANilMarkIsChanged(t *testing.T) {
 func TestInvalidUTF8InTheTextIsKeptAsItIs(t *testing.T) {
 	t.Parallel()
 	text := "before \xff\xfe the words \xc3 after"
-	got := mark.Locate(text, nil, &mark.Mark{Kind: mark.Highlight, RelPath: "a.md", Quote: "the words"})
+	got := mark.Locate(text, nil, &machinemarks.Mark{Kind: machinemarks.Highlight, Path: "a.md", Quote: "the words"})
 	if got.Status != mark.Found || words(text, got) != "the words" {
 		t.Errorf("Locate = %+v", got)
 	}

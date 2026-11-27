@@ -47,9 +47,9 @@ func runVaults(_ context.Context, args []string, cfg config, stdout, stderr io.W
 	if cfg.configDir.IsZero() {
 		return commandError(stderr, fmt.Errorf("no configuration directory, so no list of vaults is kept: %s", cfg.noConfigDir))
 	}
-	store, err := vaults.Open(cfg.configDir, nil, vaults.Report(func(line string) {
+	store, err := vaults.Open(cfg.configDir, nil, func(line string) {
 		_, _ = fmt.Fprintln(stderr, line) //nolint:errcheck // a line about the list that cannot be written has nowhere else to go
-	}))
+	})
 	if err != nil {
 		return commandError(stderr, fmt.Errorf("open the list of vaults: %w", err))
 	}

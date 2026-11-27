@@ -32,14 +32,17 @@ func writeContext(r *http.Request) context.Context {
 	return context.WithoutCancel(r.Context())
 }
 
-// Paths are where the Handler answers. They are exported because the route and
-// the address a reading page posts to are decided on two sides of a package
+// The paths the Handler answers at. They are exported because the route and the
+// address a reading page posts to are decided on two sides of a package
 // boundary: the command reads them from here and hands them to the page, which
 // renders them rather than spelling its own. An address written twice is one
 // that drifts.
-var Paths = struct{ Bookmark, Question, Mark, Finished string }{
-	Bookmark: "/bookmark", Question: "/questions", Mark: "/mark", Finished: "/finished",
-}
+const (
+	BookmarkPath = "/bookmark"
+	QuestionPath = "/questions"
+	MarkPath     = "/mark"
+	FinishedPath = "/finished"
+)
 
 // retiredBookmarkPath and retiredQuestionPath are where a bookmark and a
 // question were posted before the routes took their present names. A page drawn
@@ -69,36 +72,36 @@ type Places interface {
 }
 
 // Handler serves the routes a mark reaches the process through, and the ones a
-// page reads the kept marks back from.
+// page reads the marks back from.
 //
 // A page cannot write a file, so a mark travels over a route of its own on the
 // same loopback listener, with a body cap. They are not a face an agent has any
 // business calling: these endpoints are the reader's. The routes that write
 // refuse a request another origin made (the command wraps them in
-// http.NewCrossOriginProtection and origin.LoopbackOnly) and a vault whose reader folder cannot be
-// written to.
+// http.NewCrossOriginProtection and origin.LoopbackOnly) and a vault whose
+// reader folder cannot be written to.
 //
 // It keeps a mark only in a note the vault holds now. The path is the one field
 // of a mark that can reach the desk as text, so a path nobody's note carries is
 // refused rather than stored for a later page to print. It reaches the
-// highlights, thoughts and questions only through Kept, which keeps them in the
-// vault's machine files, and the bookmarks and finished notes only through a
-// Store, which keeps them in the configuration directory.
+// highlights, thoughts and questions only through VaultMarks, which keeps them
+// in the vault's machine files, and the bookmarks and finished notes only
+// through a Store, which keeps them in the configuration directory.
 type Handler struct {
-	store  *Store
-	kept   *Kept
-	places Places
-	log    *slog.Logger
+	store      *Store
+	vaultMarks *VaultMarks
+	places     Places
+	log        *slog.Logger
 }
 
-// NewHandler wires the routes around a Store, the Kept marks of the vault and
+// NewHandler wires the routes around a Store, the marks of the vault and
 // the vault whose notes a mark may name.
-func NewHandler(store *Store, kept *Kept, places Places, log *slog.Logger) *Handler {
+func NewHandler(store *Store, vaultMarks *VaultMarks, places Places, log *slog.Logger) *Handler {
 	if store == nil {
 		panic("mark: NewHandler requires a non-nil Store")
 	}
-	if kept == nil {
-		panic("mark: NewHandler requires a non-nil Kept")
+	if vaultMarks == nil {
+		panic("mark: NewHandler requires a non-nil VaultMarks")
 	}
 	if places == nil {
 		panic("mark: NewHandler requires a non-nil Places")
@@ -106,28 +109,28 @@ func NewHandler(store *Store, kept *Kept, places Places, log *slog.Logger) *Hand
 	if log == nil {
 		panic("mark: NewHandler requires a non-nil logger")
 	}
-	return &Handler{store: store, kept: kept, places: places, log: log}
+	return &Handler{store: store, vaultMarks: vaultMarks, places: places, log: log}
 }
 
 // Register mounts the routes, and the retired addresses that lead to them. The
 // serving command supplies the loopback and cross-origin protections.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET "+Paths.Bookmark, h.getBookmark)
-	mux.HandleFunc("POST "+Paths.Bookmark, h.postBookmark)
-	mux.HandleFunc("PUT "+Paths.Bookmark, h.putBookmark)
-	mux.HandleFunc("DELETE "+Paths.Bookmark, h.removeBookmark)
-	mux.HandleFunc("POST "+retiredBookmarkPath, movedTo(Paths.Bookmark))
-	mux.HandleFunc("GET "+Paths.Question, h.getQuestions)
-	mux.HandleFunc("POST "+Paths.Question, h.postQuestion)
-	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(Paths.Question))
-	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(Paths.Question))
-	mux.HandleFunc("POST "+Paths.Mark, h.keepMark)
-	mux.HandleFunc("GET "+Paths.Mark+"/{id}", h.getMark)
-	mux.HandleFunc("PUT "+Paths.Mark+"/{id}", h.putBack)
-	mux.HandleFunc("PATCH "+Paths.Mark+"/{id}", h.reviseMark)
-	mux.HandleFunc("DELETE "+Paths.Mark+"/{id}", h.removeMark)
-	mux.HandleFunc("PUT "+Paths.Finished+"/{path...}", h.finish(true))
-	mux.HandleFunc("DELETE "+Paths.Finished+"/{path...}", h.finish(false))
+	mux.HandleFunc("GET "+BookmarkPath, h.getBookmark)
+	mux.HandleFunc("POST "+BookmarkPath, h.postBookmark)
+	mux.HandleFunc("PUT "+BookmarkPath, h.putBookmark)
+	mux.HandleFunc("DELETE "+BookmarkPath, h.removeBookmark)
+	mux.HandleFunc("POST "+retiredBookmarkPath, movedTo(BookmarkPath))
+	mux.HandleFunc("GET "+QuestionPath, h.getQuestions)
+	mux.HandleFunc("POST "+QuestionPath, h.postQuestion)
+	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(QuestionPath))
+	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(QuestionPath))
+	mux.HandleFunc("POST "+MarkPath, h.addMark)
+	mux.HandleFunc("GET "+MarkPath+"/{id}", h.getMark)
+	mux.HandleFunc("PUT "+MarkPath+"/{id}", h.putBack)
+	mux.HandleFunc("PATCH "+MarkPath+"/{id}", h.reviseMark)
+	mux.HandleFunc("DELETE "+MarkPath+"/{id}", h.removeMark)
+	mux.HandleFunc("PUT "+FinishedPath+"/{path...}", h.finish(true))
+	mux.HandleFunc("DELETE "+FinishedPath+"/{path...}", h.finish(false))
 }
 
 // movedTo answers a retired address with a permanent redirect that keeps the
@@ -162,7 +165,7 @@ func (h *Handler) getBookmark(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.BookmarkRefused.In(origin.Language(r)), http.StatusUnprocessableEntity)
 		return
 	}
-	kept, found, err := h.store.Bookmark(course)
+	b, found, err := h.store.Bookmark(course)
 	if err != nil {
 		h.log.Warn("read the bookmark", "directory", h.store.Dir(), "error", err)
 	}
@@ -176,7 +179,7 @@ func (h *Handler) getBookmark(w http.ResponseWriter, r *http.Request) {
 		Anchor string    `json:"anchor"`
 		Offset int       `json:"offset"`
 		At     time.Time `json:"at"`
-	}{Path: kept.RelPath, Anchor: kept.Anchor, Offset: kept.Offset, At: kept.At}); err != nil {
+	}{Path: b.RelPath, Anchor: b.Anchor, Offset: b.Offset, At: b.At}); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the bookmark", "error", err)
 	}
 }
@@ -198,14 +201,14 @@ func (h *Handler) postBookmark(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.BookmarkRefused.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
-	kept := &Bookmark{
+	b := &Bookmark{
 		RelPath:  r.PostForm.Get("path"),
 		Anchor:   r.PostForm.Get("anchor"),
 		Offset:   offset,
 		Identity: r.PostForm.Get("identity"),
 		At:       stamp(),
 	}
-	if _, _, err = h.keepBookmark(NoCourse, kept, nil); err != nil {
+	if _, _, err = h.setBookmark(NoCourse, b, nil); err != nil {
 		h.refuseBookmark(w, r, err, "keep the bookmark")
 		return
 	}
@@ -232,28 +235,29 @@ func (h *Handler) refuseBookmark(w http.ResponseWriter, r *http.Request, err err
 	http.Error(w, wording.BookmarkNotStored.In(lang), http.StatusInternalServerError)
 }
 
-// keepBookmark stores kept as the bookmark of course and answers the one it
-// replaced, if that is the one expect names, when its shape is one these files hold, its note is one the vault
-// holds and, for a course, the course walks it. The shape is judged first, so a
-// path no note could carry never reaches the vault to be looked up.
+// setBookmark stores b as the bookmark of course and answers the one it
+// replaced, if that is the one expect names, when its shape is one these files
+// hold, its note is one the vault holds and, for a course, the course walks it.
+// The shape is judged first, so a path no note could carry never reaches the
+// vault to be looked up.
 //
 // Only the note is asked after: the empty anchor names it as a whole. An anchor
-// is any id the rendered body carries — a block address or a footnote as readily
-// as a heading — and the vault's answer for an anchor covers headings alone, so
-// asking it about the anchor would refuse a place a reading page honestly
-// stamps. The anchor stays bounded by its shape, and it only ever reaches the
-// desk inside an address.
-func (h *Handler) keepBookmark(course string, kept *Bookmark, expect *Expectation) (Bookmark, bool, error) {
-	if err := validateBookmark(course, kept); err != nil {
+// is any id the rendered body carries — a block address or a footnote as
+// readily as a heading — and the vault's answer for an anchor covers headings
+// alone, so asking it about the anchor would refuse a place a reading page
+// honestly stamps. The anchor stays bounded by its shape, and it only ever
+// reaches the desk inside an address.
+func (h *Handler) setBookmark(course string, b *Bookmark, expect *Expectation) (Bookmark, bool, error) {
+	if err := validateBookmark(course, b); err != nil {
 		return Bookmark{}, false, err
 	}
-	if !h.places.HasPlace(kept.RelPath, "") {
-		return Bookmark{}, false, fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, kept.RelPath)
+	if !h.places.HasPlace(b.RelPath, "") {
+		return Bookmark{}, false, fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, b.RelPath)
 	}
-	if course != NoCourse && !h.walks(course, kept.RelPath) {
-		return Bookmark{}, false, fmt.Errorf("%w: %q does not walk %q", ErrInvalid, course, kept.RelPath)
+	if course != NoCourse && !h.walks(course, b.RelPath) {
+		return Bookmark{}, false, fmt.Errorf("%w: %q does not walk %q", ErrInvalid, course, b.RelPath)
 	}
-	return h.store.MoveBookmark(course, kept, expect)
+	return h.store.MoveBookmark(course, b, expect)
 }
 
 // walks says whether the course walks rel, on its main line or on a side
@@ -293,7 +297,7 @@ func isSectionQuestion(m *machinemarks.Mark) bool {
 // draws them: the note, the anchor and the day.
 func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	view, err := h.kept.View()
+	view, err := h.vaultMarks.View()
 	if err != nil {
 		h.log.Error("read the questions", "directory", h.store.Dir(), "error", err)
 		http.Error(w, wording.QuestionUnavailable.In(origin.Language(r)), http.StatusInternalServerError)
@@ -304,14 +308,14 @@ func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 		Anchor string    `json:"anchor"`
 		Time   time.Time `json:"time"`
 	}
-	pending, err := h.kept.Pending(view)
+	pending, err := h.vaultMarks.Pending(view)
 	if err != nil {
 		h.log.Error("read the questions", "directory", h.store.Dir(), "error", err)
 		http.Error(w, wording.QuestionUnavailable.In(origin.Language(r)), http.StatusInternalServerError)
 		return
 	}
 	entries := []entry{}
-	for _, e := range view.Entries(h.kept.gate) {
+	for _, e := range view.Entries(AllMarks) {
 		if m := e.Mark(); !e.Deleted() && isSectionQuestion(&m) {
 			entries = append(entries, entry{Path: m.Path, Anchor: m.Anchor, Time: m.At})
 		}
@@ -343,14 +347,9 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 	if h.refuseWrite(w, r) {
 		return
 	}
-	id, err := newID()
-	if err != nil {
-		h.refuse(w, r, err, "mark a question")
-		return
-	}
 	candidate := questionOf(r.PostForm.Get("path"), r.PostForm.Get("anchor"))
-	candidate.ID, candidate.At = id, time.Now()
-	marks, err := h.kept.Marks()
+	candidate.ID, candidate.At = newID(), stamp()
+	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "mark a question")
 		return
@@ -359,7 +358,7 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 		return isSectionQuestion(m) && m.Path == candidate.Path && m.Anchor == candidate.Anchor
 	}
 	admit := func(m *machinemarks.Mark) bool { return h.places.HasPlace(m.Path, m.Anchor) }
-	out, err := marks.Toggle(writeContext(r), &candidate, same, admit, h.kept.gate)
+	out, err := marks.Toggle(writeContext(r), &candidate, same, admit)
 	err = h.landed(err, "mark a question")
 	switch {
 	case err == nil:

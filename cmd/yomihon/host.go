@@ -343,7 +343,8 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 // cannot be read; nothing of it is read until its site is built, which compares
 // again and refuses it (composeReadingSite).
 func (h *host) overlaps(entry *vaults.Entry) error {
-	if relation, err := h.configDir.Classify(entry.Path); relation == confdir.Overlaps {
+	err := h.configDir.Classify(entry.Path)
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
 		return err
 	}
 	return nil
@@ -567,7 +568,7 @@ func (h *host) record(root string, start int) (entry vaults.Entry, added bool, e
 	if err != nil {
 		return vaults.Entry{}, false, err
 	}
-	typed, added, err := h.store.Add(resolved, start)
+	typed, added, err := h.store.Add(resolved, start, time.Now())
 	if err != nil {
 		return vaults.Entry{}, false, addError(err)
 	}
@@ -662,7 +663,7 @@ func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Insta
 	if err != nil {
 		return err
 	}
-	entry, added, err := h.store.Add(resolved, running.Port)
+	entry, added, err := h.store.Add(resolved, running.Port, time.Now())
 	if err != nil {
 		return addError(err)
 	}

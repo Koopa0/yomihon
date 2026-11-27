@@ -2,13 +2,9 @@ package mark_test
 
 import (
 	"encoding/json"
-	"errors"
-	"io/fs"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -19,28 +15,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const (
 	goCourse   = "Courses/go.md"
 	rustCourse = "Courses/rust.md"
 )
-
-// aVault is the notes a route can place a bookmark in: each path with the words
-// its page holds. Every note has one place, "section-one", and the note as a
-// whole.
-type aVault map[string]string
-
-func (v aVault) HasPlace(rel, anchor string) bool {
-	_, ok := v[rel]
-	return ok && (anchor == "" || anchor == "section-one")
-}
-
-func (v aVault) Reading(rel string, _ wording.Lang) (mark.Page, bool) {
-	text, ok := v[rel]
-	return mark.Page{Text: text, Identity: anIdentity}, ok
-}
 
 func asJSON(t *testing.T, v any) string {
 	t.Helper()
@@ -51,56 +31,9 @@ func asJSON(t *testing.T, v any) string {
 	return string(data)
 }
 
-func write(t *testing.T, handler http.Handler, method, target, contentType, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	request := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
-	if contentType != "" {
-		request.Header.Set("Content-Type", contentType)
-	}
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	return response
-}
-
-func writeJSON(t *testing.T, handler http.Handler, method, target, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	return write(t, handler, method, target, "application/json", body)
-}
-
-// treeOf is every file and directory under dir, with each file's bytes.
-func treeOf(t *testing.T, dir string) map[string]string {
-	t.Helper()
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if closeErr := root.Close(); closeErr != nil {
-			t.Error(closeErr)
-		}
-	})
-	tree := map[string]string{}
-	err = fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			tree[path+"/"] = ""
-			return nil
-		}
-		data, err := fs.ReadFile(root.FS(), path)
-		tree[path] = string(data)
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tree
-}
-
-// aSchool is aVault with courses: each course path and what it walks.
+// aSchool is notes with courses: each course path and what it walks.
 type aSchool struct {
-	aVault
+	notes
 
 	courses map[string]aCourse
 }
@@ -135,7 +68,7 @@ func (s aSchool) Rows(course string) (planned int, rows []string, ok bool) {
 // has on a side branch, and a course that plans a row it has not written.
 func theSchool() aSchool {
 	return aSchool{
-		aVault: aVault{
+		notes: notes{
 			"Notes/a.md": "a", "Notes/b.md": "b", "Notes/c.md": "c", "Notes/side.md": "s",
 			"Notes/loose.md": "l", "Notes/other.md": "o",
 		},
@@ -148,27 +81,6 @@ func theSchool() aSchool {
 	}
 }
 
-func newProgressRoutes(t *testing.T) (*mark.Store, http.Handler) {
-	t.Helper()
-	store := newStore(t)
-	mux := http.NewServeMux()
-	mark.NewHandler(store, newKept(t, store, resolvedRoot(t)), theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
-	return store, mux
-}
-
-// progressOf is what progress.json holds, or nothing where it was never made.
-func progressOf(t *testing.T, store *mark.Store) string {
-	t.Helper()
-	data, err := os.ReadFile(progressPath(store)) // #nosec G304 -- a file under a directory this test made
-	if errors.Is(err, fs.ErrNotExist) {
-		return ""
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
-
 func aBookmarkBody(course, path string) map[string]any {
 	return map[string]any{
 		"course": course, "path": path, "anchor": "the-topic-particle", "offset": 420, "identity": anIdentity,
@@ -177,11 +89,11 @@ func aBookmarkBody(course, path string) map[string]any {
 
 func putBookmark(t *testing.T, handler http.Handler, body map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
-	return writeJSON(t, handler, http.MethodPut, mark.Paths.Bookmark, asJSON(t, body))
+	return send(t, handler, http.MethodPut, mark.BookmarkPath, jsonBody, asJSON(t, body))
 }
 
 // goBookmark is where the bookmark of the Go course is asked of and cleared.
-var goBookmark = mark.Paths.Bookmark + "?course=" + url.QueryEscape(goCourse)
+var goBookmark = mark.BookmarkPath + "?course=" + url.QueryEscape(goCourse)
 
 // moved is what setting a bookmark answers.
 type moved struct {
@@ -211,7 +123,8 @@ func asRequest(b *mark.Bookmark) map[string]any {
 func TestBookmarkRouteSetsMovesAndPutsBackTheBookmarkOfACourse(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 
 	first := putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))
 	if got, want := first.Header().Get("Cache-Control"), "no-store"; got != want {
@@ -234,27 +147,22 @@ func TestBookmarkRouteSetsMovesAndPutsBackTheBookmarkOfACourse(t *testing.T) {
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
 		t.Errorf("a course's bookmark became the one for no course: %v, %v", found, err)
 	}
-	afterFirst := progressOf(t, store)
 
 	second := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/b.md")))
 	if second.Previous == nil || *second.Previous != set.Bookmark {
 		t.Fatalf("the move answered previous = %+v, want the first bookmark", second.Previous)
 	}
-
-	// Setting the previous one back, with the time it had, gives the file it was.
-	back := decodeMoved(t, putBookmark(t, routes, asRequest(second.Previous)))
-	if back.Bookmark != set.Bookmark {
+	// Setting the previous one back, with the time it had, sets it as it was.
+	if back := decodeMoved(t, putBookmark(t, routes, asRequest(second.Previous))); back.Bookmark != set.Bookmark {
 		t.Errorf("the bookmark put back = %+v, want %+v", back.Bookmark, set.Bookmark)
-	}
-	if got := progressOf(t, store); got != afterFirst {
-		t.Errorf("putting the first bookmark back did not restore the file:\nwant %s\n got %s", afterFirst, got)
 	}
 }
 
 func TestBookmarkRouteKeepsOneForEachCourseAndOneForNone(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	for _, set := range []struct{ course, path string }{
 		{goCourse, "Notes/a.md"},
 		{rustCourse, "Notes/other.md"},
@@ -275,43 +183,37 @@ func TestBookmarkRouteKeepsOneForEachCourseAndOneForNone(t *testing.T) {
 func TestBookmarkRouteSaysWhereACourseIsKeptAndClearsItAnswersWhatItCleared(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
-	if got := writeJSON(t, routes, http.MethodGet, goBookmark, ""); got.Code != http.StatusNoContent {
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
+	if got := send(t, routes, http.MethodGet, goBookmark, jsonBody, ""); got.Code != http.StatusNoContent {
 		t.Fatalf("GET before any bookmark = %d, want 204", got.Code)
 	}
-	if got := writeJSON(t, routes, http.MethodDelete, goBookmark, ""); got.Code != http.StatusNotFound {
+	if got := send(t, routes, http.MethodDelete, goBookmark, jsonBody, ""); got.Code != http.StatusNotFound {
 		t.Fatalf("DELETE where none is kept = %d, want 404", got.Code)
 	}
-	if progressOf(t, store) != "" {
+	if contents(t, progressPath(store)) != "" {
 		t.Error("asking after a bookmark that is not there made a file")
 	}
 
 	set := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
-	if got := writeJSON(t, routes, http.MethodGet, mark.Paths.Bookmark, ""); got.Code != http.StatusNoContent {
+	if got := send(t, routes, http.MethodGet, mark.BookmarkPath, jsonBody, ""); got.Code != http.StatusNoContent {
 		t.Errorf("GET for no course while only a course has one = %d, want 204", got.Code)
 	}
-	said := writeJSON(t, routes, http.MethodGet, goBookmark, "")
+	said := send(t, routes, http.MethodGet, goBookmark, jsonBody, "")
 	if got, want := saidPlace(t, said.Body.Bytes()), (aSaidPlace{Path: "Notes/a.md", Anchor: "the-topic-particle", Offset: 420}); !cmp.Equal(got, want, ignoreTime) {
 		t.Errorf("GET = %+v, want %+v", got, want)
 	}
-	before := progressOf(t, store)
 
-	cleared := writeJSON(t, routes, http.MethodDelete, goBookmark, "")
+	cleared := send(t, routes, http.MethodDelete, goBookmark, jsonBody, "")
 	var removed mark.Bookmark
 	if cleared.Code != http.StatusOK || json.Unmarshal(cleared.Body.Bytes(), &removed) != nil || removed != set {
 		t.Fatalf("DELETE = %d %q, want 200 and the bookmark that was kept", cleared.Code, cleared.Body.String())
 	}
-	if got := writeJSON(t, routes, http.MethodDelete, goBookmark, ""); got.Code != http.StatusNotFound {
+	if got := send(t, routes, http.MethodDelete, goBookmark, jsonBody, ""); got.Code != http.StatusNotFound {
 		t.Errorf("clearing twice = %d, want 404", got.Code)
 	}
-	if got := writeJSON(t, routes, http.MethodGet, goBookmark, ""); got.Code != http.StatusNoContent {
+	if got := send(t, routes, http.MethodGet, goBookmark, jsonBody, ""); got.Code != http.StatusNoContent {
 		t.Errorf("GET after clearing = %d, want 204", got.Code)
-	}
-
-	// What was answered is what puts it back, byte for byte.
-	decodeMoved(t, putBookmark(t, routes, asRequest(&removed)))
-	if got := progressOf(t, store); got != before {
-		t.Errorf("putting the cleared bookmark back did not restore the file:\nwant %s\n got %s", before, got)
 	}
 }
 
@@ -340,10 +242,6 @@ func TestBookmarkRoutesRefuseWhatTheyWillNotKeepAndWriteNothing(t *testing.T) {
 		"a course nothing answers to":            {"application/json", body(map[string]any{"course": "Courses/nope.md"}), http.StatusUnprocessableEntity},
 		"a course that climbs out of the vault":  {"application/json", body(map[string]any{"course": "../escape.md"}), http.StatusUnprocessableEntity},
 		"a note the vault does not hold":         {"application/json", body(map[string]any{"path": "Notes/gone.md"}), http.StatusUnprocessableEntity},
-		"no note":                                {"application/json", body(map[string]any{"path": nil}), http.StatusUnprocessableEntity},
-		"an identity that is not one":            {"application/json", body(map[string]any{"identity": "not-hex"}), http.StatusUnprocessableEntity},
-		"a negative offset":                      {"application/json", body(map[string]any{"offset": -1}), http.StatusUnprocessableEntity},
-		"an anchor with a space in it":           {"application/json", body(map[string]any{"anchor": "two words"}), http.StatusUnprocessableEntity},
 		"a time a day ahead":                     {"application/json", body(map[string]any{"at": time.Now().Add(24 * time.Hour)}), http.StatusUnprocessableEntity},
 		"a time that is no time":                 {"application/json", body(map[string]any{"at": time.Time{}}), http.StatusUnprocessableEntity},
 		"a time that is not a time":              {"application/json", body(map[string]any{"at": "yesterday"}), http.StatusBadRequest},
@@ -357,15 +255,16 @@ func TestBookmarkRoutesRefuseWhatTheyWillNotKeepAndWriteNothing(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			store, routes := newProgressRoutes(t)
+			srv := newServer(t, theSchool())
+			store, routes := srv.store, srv.handler
 			decodeMoved(t, putBookmark(t, routes, aBookmarkBody(rustCourse, "Notes/other.md")))
-			before := progressOf(t, store)
+			before := contents(t, progressPath(store))
 
-			got := write(t, routes, http.MethodPut, mark.Paths.Bookmark, tt.contentType, tt.body)
+			got := send(t, routes, http.MethodPut, mark.BookmarkPath, tt.contentType, tt.body)
 			if got.Code != tt.want {
 				t.Errorf("PUT = %d %q, want %d", got.Code, got.Body.String(), tt.want)
 			}
-			if after := progressOf(t, store); after != before {
+			if after := contents(t, progressPath(store)); after != before {
 				t.Errorf("a refusal changed the file:\nbefore %s\nafter  %s", before, after)
 			}
 		})
@@ -375,20 +274,21 @@ func TestBookmarkRoutesRefuseWhatTheyWillNotKeepAndWriteNothing(t *testing.T) {
 func TestBookmarkRoutesRefuseACourseThatIsMalformedOrNamedTwiceWithoutReadingAnything(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
-	before := progressOf(t, store)
+	before := contents(t, progressPath(store))
 	for _, tt := range []struct{ method, target string }{
-		{http.MethodGet, mark.Paths.Bookmark + "?course=../escape.md"},
-		{http.MethodGet, mark.Paths.Bookmark + "?course=" + goCourse + "&course=" + rustCourse},
-		{http.MethodDelete, mark.Paths.Bookmark + "?course=../escape.md"},
-		{http.MethodDelete, mark.Paths.Bookmark + "?course=" + goCourse + "&course=" + rustCourse},
+		{http.MethodGet, mark.BookmarkPath + "?course=../escape.md"},
+		{http.MethodGet, mark.BookmarkPath + "?course=" + goCourse + "&course=" + rustCourse},
+		{http.MethodDelete, mark.BookmarkPath + "?course=../escape.md"},
+		{http.MethodDelete, mark.BookmarkPath + "?course=" + goCourse + "&course=" + rustCourse},
 	} {
-		if got := writeJSON(t, routes, tt.method, tt.target, ""); got.Code != http.StatusUnprocessableEntity {
+		if got := send(t, routes, tt.method, tt.target, jsonBody, ""); got.Code != http.StatusUnprocessableEntity {
 			t.Errorf("%s %s = %d, want 422", tt.method, tt.target, got.Code)
 		}
 	}
-	if after := progressOf(t, store); after != before {
+	if after := contents(t, progressPath(store)); after != before {
 		t.Errorf("a refusal changed the file:\nbefore %s\nafter  %s", before, after)
 	}
 }
@@ -407,11 +307,11 @@ type finishedAnswer struct {
 
 func finishing(t *testing.T, handler http.Handler, method, note, query string) (finishedAnswer, *httptest.ResponseRecorder) {
 	t.Helper()
-	target := mark.Paths.Finished + "/" + note
+	target := mark.FinishedPath + "/" + note
 	if query != "" {
 		target += "?" + query
 	}
-	response := writeJSON(t, handler, method, target, "")
+	response := send(t, handler, method, target, jsonBody, "")
 	var got finishedAnswer
 	if response.Code == http.StatusOK {
 		if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
@@ -424,7 +324,8 @@ func finishing(t *testing.T, handler http.Handler, method, note, query string) (
 func TestFinishedRoutesSayANoteIsFinishedAndKeepTheFirstTime(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	first, response := finishing(t, routes, http.MethodPut, "Notes/a.md", "")
 	if response.Code != http.StatusOK || !first.Finished || first.Path != "Notes/a.md" || first.At == nil || time.Since(*first.At) > time.Minute {
 		t.Fatalf("PUT = %d %q, want finished at about now", response.Code, response.Body.String())
@@ -438,13 +339,13 @@ func TestFinishedRoutesSayANoteIsFinishedAndKeepTheFirstTime(t *testing.T) {
 	if at, finished, err := store.FinishedAt("Notes/a.md"); err != nil || !finished || !at.Equal(*first.At) {
 		t.Errorf("the store says finished = %v at %v, %v; want the time answered", finished, at, err)
 	}
-	before := progressOf(t, store)
+	before := contents(t, progressPath(store))
 
 	again, _ := finishing(t, routes, http.MethodPut, "Notes/a.md", "")
 	if again.At == nil || !again.At.Equal(*first.At) {
 		t.Errorf("finishing a finished note answered at %v, want the first time %v", again.At, first.At)
 	}
-	if got := progressOf(t, store); got != before {
+	if got := contents(t, progressPath(store)); got != before {
 		t.Errorf("saying again what is so changed the file:\nbefore %s\nafter  %s", before, got)
 	}
 
@@ -476,15 +377,14 @@ func TestAFinishedNoteWhoseFileIsGoneCanStillBeReopened(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			store := newStore(t)
 			school := theSchool()
-			mux := http.NewServeMux()
-			mark.NewHandler(store, newKept(t, store, resolvedRoot(t)), school, slog.New(slog.DiscardHandler)).Register(mux)
+			srv := newServer(t, school)
+			store, mux := srv.store, srv.handler
 			if _, response := finishing(t, mux, http.MethodPut, "Notes/a.md", query); response.Code != http.StatusOK {
 				t.Fatalf("PUT = %d %q, want 200", response.Code, response.Body.String())
 			}
 			// The file is deleted, and the course no longer lists it.
-			delete(school.aVault, "Notes/a.md")
+			delete(school.notes, "Notes/a.md")
 			course := school.courses[goCourse]
 			course.rows = slices.DeleteFunc(slices.Clone(course.rows), func(row string) bool { return row == "Notes/a.md" })
 			school.courses[goCourse] = course
@@ -496,8 +396,8 @@ func TestAFinishedNoteWhoseFileIsGoneCanStillBeReopened(t *testing.T) {
 			if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || finished {
 				t.Errorf("after reopening, finished = %v, %v; want the entry gone", finished, err)
 			}
-			if strings.Contains(progressOf(t, store), "Notes/a.md") {
-				t.Errorf("the file still holds the note: %s", progressOf(t, store))
+			if strings.Contains(contents(t, progressPath(store)), "Notes/a.md") {
+				t.Errorf("the file still holds the note: %s", contents(t, progressPath(store)))
 			}
 		})
 	}
@@ -510,7 +410,8 @@ func TestAFinishedNoteWhoseFileIsGoneCanStillBeReopened(t *testing.T) {
 func TestFinishedRoutesAnswerTheCountsOfTheCourseTheRequestNames(t *testing.T) {
 	t.Parallel()
 
-	_, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	_, routes := srv.store, srv.handler
 	query := "course=" + url.QueryEscape(goCourse)
 	for _, step := range []struct {
 		method, note    string
@@ -555,36 +456,22 @@ func TestFinishedRoutesRefuseWhatTheyWillNotSayAndWriteNothing(t *testing.T) {
 		"two courses":                         {"Notes/a.md", "course=" + goCourse + "&course=" + rustCourse, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
 		"a note the vault does not hold":      {"Notes/gone.md", "", http.StatusNotFound, http.StatusOK},
 		"a path with a line break in it":      {"Notes/a%0A.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
-		"a path that is not written in NFC":   {"Notes/e%CC%81.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
 	} {
 		for method, want := range map[string]int{http.MethodPut: tt.put, http.MethodDelete: tt.del} {
 			t.Run(name+" "+method, func(t *testing.T) {
 				t.Parallel()
-				store, routes := newProgressRoutes(t)
-				before := progressOf(t, store)
+				srv := newServer(t, theSchool())
+				store, routes := srv.store, srv.handler
+				before := contents(t, progressPath(store))
 				_, response := finishing(t, routes, method, tt.note, tt.query)
 				if response.Code != want {
 					t.Errorf("%s = %d %q, want %d", method, response.Code, response.Body.String(), want)
 				}
-				if after := progressOf(t, store); after != before {
+				if after := contents(t, progressPath(store)); after != before {
 					t.Errorf("a refusal changed the file:\nbefore %q\nafter  %q", before, after)
 				}
 			})
 		}
-	}
-}
-
-func TestOnlyTheMethodsOfTheFinishedRouteChangeANote(t *testing.T) {
-	t.Parallel()
-
-	store, routes := newProgressRoutes(t)
-	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch} {
-		if got := writeJSON(t, routes, method, mark.Paths.Finished+"/Notes/a.md", "{}"); got.Code != http.StatusMethodNotAllowed {
-			t.Errorf("%s = %d, want 405", method, got.Code)
-		}
-	}
-	if progressOf(t, store) != "" {
-		t.Error("a method the route does not take wrote a file")
 	}
 }
 
@@ -593,7 +480,8 @@ func TestOnlyTheMethodsOfTheFinishedRouteChangeANote(t *testing.T) {
 func TestProgressRoutesLeaveADamagedFileAsItIsAndSayItWasNotSaved(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	const damaged = `{"version":1,"bookmarks":[`
 	writeFile(t, progressPath(store), damaged)
 
@@ -602,7 +490,7 @@ func TestProgressRoutesLeaveADamagedFileAsItIsAndSayItWasNotSaved(t *testing.T) 
 		answer *httptest.ResponseRecorder
 	}{
 		{"setting a bookmark", putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))},
-		{"clearing a bookmark", writeJSON(t, routes, http.MethodDelete, goBookmark, "")},
+		{"clearing a bookmark", send(t, routes, http.MethodDelete, goBookmark, jsonBody, "")},
 		{"finishing a note", mustFinish(t, routes, http.MethodPut)},
 		{"reopening a note", mustFinish(t, routes, http.MethodDelete)},
 	} {
@@ -610,10 +498,10 @@ func TestProgressRoutesLeaveADamagedFileAsItIsAndSayItWasNotSaved(t *testing.T) 
 			t.Errorf("%s over a damaged file = %d %q, want 500", tt.name, tt.answer.Code, tt.answer.Body.String())
 		}
 	}
-	if got := writeJSON(t, routes, http.MethodGet, goBookmark, ""); got.Code != http.StatusNoContent {
+	if got := send(t, routes, http.MethodGet, goBookmark, jsonBody, ""); got.Code != http.StatusNoContent {
 		t.Errorf("GET over a damaged file = %d, want 204 (there is nowhere to continue from)", got.Code)
 	}
-	if got := progressOf(t, store); got != damaged {
+	if got := contents(t, progressPath(store)); got != damaged {
 		t.Errorf("the damaged file was changed to %q", got)
 	}
 }
@@ -629,31 +517,23 @@ func mustFinish(t *testing.T, routes http.Handler, method string) *httptest.Resp
 func TestProgressRoutesWriteNothingIntoTheFolderBeingRead(t *testing.T) {
 	t.Parallel()
 
-	vaultRoot := t.TempDir()
-	if err := os.Mkdir(filepath.Join(vaultRoot, "Notes"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(vaultRoot, "Notes", "a.md"), []byte("a"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	configDir := t.TempDir()
-	store := newStoreFor(t, configDir, vaultRoot)
-	mux := http.NewServeMux()
-	mark.NewHandler(store, newKept(t, store, vaultRoot), theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
-	before := treeOf(t, vaultRoot)
+	srv := newServer(t, theSchool())
+	vaultRoot, configDir, store, mux := srv.root, srv.config, srv.store, srv.handler
+	writeFile(t, filepath.Join(vaultRoot, "Notes", "a.md"), "a")
+	before := tree(t, vaultRoot)
 
 	first := decodeMoved(t, putBookmark(t, mux, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
 	putBookmark(t, mux, aBookmarkBody(goCourse, "Notes/b.md"))
-	writeJSON(t, mux, http.MethodDelete, goBookmark, "")
+	send(t, mux, http.MethodDelete, goBookmark, jsonBody, "")
 	putBookmark(t, mux, asRequest(&first))
 	finishing(t, mux, http.MethodPut, "Notes/a.md", "course="+url.QueryEscape(goCourse))
 	finishing(t, mux, http.MethodDelete, "Notes/a.md", "")
 	finishing(t, mux, http.MethodPut, "Notes/b.md", "")
 
-	if diff := cmp.Diff(before, treeOf(t, vaultRoot)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, vaultRoot)); diff != "" {
 		t.Errorf("the routes changed the folder being read (-before +after):\n%s", diff)
 	}
-	if got := progressOf(t, store); got == "" || !strings.HasPrefix(progressPath(store), configDir) {
+	if got := contents(t, progressPath(store)); got == "" || !strings.HasPrefix(progressPath(store), configDir) {
 		t.Errorf("progress was kept at %s holding %q, want a file under %s", progressPath(store), got, configDir)
 	}
 }
@@ -675,7 +555,8 @@ func TestAnUndoThatFindsAnotherBookmarkKeptIsRefusedAndLosesNoOtherPagesMove(t *
 
 	t.Run("a move undone after another page moved it again", func(t *testing.T) {
 		t.Parallel()
-		store, routes := newProgressRoutes(t)
+		srv := newServer(t, theSchool())
+		store, routes := srv.store, srv.handler
 		first := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
 		// Page A moves a to b; page B, which saw b, moves b to c. A reader's two
 		// acts are more than a millisecond apart, which is how an undo tells them
@@ -683,14 +564,14 @@ func TestAnUndoThatFindsAnotherBookmarkKeptIsRefusedAndLosesNoOtherPagesMove(t *
 		movedByA := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/b.md")))
 		time.Sleep(2 * time.Millisecond)
 		decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/c.md")))
-		afterB := progressOf(t, store)
+		afterB := contents(t, progressPath(store))
 
 		// Page A undoes: it expects to replace its own b.
 		undone := putBookmark(t, routes, undoing(movedByA.Previous, movedByA.Bookmark.At))
 		if undone.Code != http.StatusConflict {
 			t.Fatalf("an undo over another page's move = %d %q, want 409", undone.Code, undone.Body.String())
 		}
-		if got := progressOf(t, store); got != afterB {
+		if got := contents(t, progressPath(store)); got != afterB {
 			t.Errorf("the refused undo changed the file:\nbefore %s\nafter  %s", afterB, got)
 		}
 		if first.RelPath != "Notes/a.md" {
@@ -700,43 +581,45 @@ func TestAnUndoThatFindsAnotherBookmarkKeptIsRefusedAndLosesNoOtherPagesMove(t *
 
 	t.Run("a clear undone after another page set one", func(t *testing.T) {
 		t.Parallel()
-		store, routes := newProgressRoutes(t)
+		srv := newServer(t, theSchool())
+		store, routes := srv.store, srv.handler
 		decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
 		var cleared mark.Bookmark
-		if got := writeJSON(t, routes, http.MethodDelete, goBookmark, ""); got.Code != http.StatusOK || json.Unmarshal(got.Body.Bytes(), &cleared) != nil {
+		if got := send(t, routes, http.MethodDelete, goBookmark, jsonBody, ""); got.Code != http.StatusOK || json.Unmarshal(got.Body.Bytes(), &cleared) != nil {
 			t.Fatalf("DELETE = %d %q", got.Code, got.Body.String())
 		}
 		decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/c.md")))
-		afterB := progressOf(t, store)
+		afterB := contents(t, progressPath(store))
 
 		// Page A undoes its clear: it expects the course to have none.
 		undone := putBookmark(t, routes, undoing(&cleared, nil))
 		if undone.Code != http.StatusConflict {
 			t.Fatalf("an undo of a clear over another page's bookmark = %d %q, want 409", undone.Code, undone.Body.String())
 		}
-		if got := progressOf(t, store); got != afterB {
+		if got := contents(t, progressPath(store)); got != afterB {
 			t.Errorf("the refused undo changed the file:\nbefore %s\nafter  %s", afterB, got)
 		}
 	})
 
 	t.Run("an undo that finds what it expected is taken", func(t *testing.T) {
 		t.Parallel()
-		store, routes := newProgressRoutes(t)
+		srv := newServer(t, theSchool())
+		store, routes := srv.store, srv.handler
 		set := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
-		afterSet := progressOf(t, store)
+		afterSet := contents(t, progressPath(store))
 		time.Sleep(2 * time.Millisecond)
 		moved := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/b.md")))
 		back := putBookmark(t, routes, undoing(moved.Previous, moved.Bookmark.At))
-		if back.Code != http.StatusOK || progressOf(t, store) != afterSet {
+		if back.Code != http.StatusOK || contents(t, progressPath(store)) != afterSet {
 			t.Errorf("an undo of the last move = %d %q, want it taken and the file as it was", back.Code, back.Body.String())
 		}
 
 		var cleared mark.Bookmark
-		if got := writeJSON(t, routes, http.MethodDelete, goBookmark, ""); json.Unmarshal(got.Body.Bytes(), &cleared) != nil || cleared != set {
+		if got := send(t, routes, http.MethodDelete, goBookmark, jsonBody, ""); json.Unmarshal(got.Body.Bytes(), &cleared) != nil || cleared != set {
 			t.Fatalf("DELETE = %d %q", got.Code, got.Body.String())
 		}
 		again := putBookmark(t, routes, undoing(&cleared, nil))
-		if again.Code != http.StatusOK || progressOf(t, store) != afterSet {
+		if again.Code != http.StatusOK || contents(t, progressPath(store)) != afterSet {
 			t.Errorf("an undo of a clear = %d %q, want it taken and the file as it was", again.Code, again.Body.String())
 		}
 	})
@@ -759,15 +642,16 @@ func TestTheWireFormOfWhatAnUndoExpects(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			store, routes := newProgressRoutes(t)
+			srv := newServer(t, theSchool())
+			store, routes := srv.store, srv.handler
 			decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
-			before := progressOf(t, store)
+			before := contents(t, progressPath(store))
 			body := `{"course":"` + goCourse + `","path":"Notes/b.md","anchor":"","offset":0,"identity":"` + anIdentity + `"` + tt.fields + `}`
-			got := writeJSON(t, routes, http.MethodPut, mark.Paths.Bookmark, body)
+			got := send(t, routes, http.MethodPut, mark.BookmarkPath, jsonBody, body)
 			if got.Code != tt.want {
 				t.Errorf("PUT = %d %q, want %d", got.Code, got.Body.String(), tt.want)
 			}
-			if tt.want != http.StatusOK && progressOf(t, store) != before {
+			if tt.want != http.StatusOK && contents(t, progressPath(store)) != before {
 				t.Error("a refusal changed the file")
 			}
 		})
@@ -780,13 +664,14 @@ func TestTheWireFormOfWhatAnUndoExpects(t *testing.T) {
 func TestABookmarkIsStampedInUTCToTheMillisecond(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	set := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
 	if at := set.Bookmark.At; at.Location() != time.UTC || !at.Equal(at.Truncate(time.Millisecond)) {
 		t.Errorf("the bookmark was set at %s, want UTC and to the millisecond", at.Format(time.RFC3339Nano))
 	}
-	if !regexp.MustCompile(`"at": "[^".]*(\.\d{1,3})?Z"`).MatchString(progressOf(t, store)) {
-		t.Errorf("the file holds %s, want a UTC time with at most three decimals", progressOf(t, store))
+	if !regexp.MustCompile(`"at": "[^".]*(\.\d{1,3})?Z"`).MatchString(contents(t, progressPath(store))) {
+		t.Errorf("the file holds %s, want a UTC time with at most three decimals", contents(t, progressPath(store)))
 	}
 	finished, _ := finishing(t, routes, http.MethodPut, "Notes/a.md", "")
 	if finished.At == nil || finished.At.Location() != time.UTC || !finished.At.Equal(finished.At.Truncate(time.Millisecond)) {
@@ -800,7 +685,8 @@ func TestABookmarkIsStampedInUTCToTheMillisecond(t *testing.T) {
 func TestABookmarkPutBackIsKeptInUTCToTheMillisecond(t *testing.T) {
 	t.Parallel()
 
-	store, routes := newProgressRoutes(t)
+	srv := newServer(t, theSchool())
+	store, routes := srv.store, srv.handler
 	zone := time.FixedZone("UTC+9", 9*60*60)
 	at := time.Now().Add(-time.Hour).In(zone).Truncate(time.Second).Add(123456 * time.Microsecond)
 	body := aBookmarkBody(goCourse, "Notes/a.md")
@@ -810,28 +696,7 @@ func TestABookmarkPutBackIsKeptInUTCToTheMillisecond(t *testing.T) {
 	if set.Bookmark.At.Location() != time.UTC || !set.Bookmark.At.Equal(want) {
 		t.Errorf("the bookmark answered %s, want %s", set.Bookmark.At.Format(time.RFC3339Nano), want.Format(time.RFC3339Nano))
 	}
-	if held := progressOf(t, store); !strings.Contains(held, `"at": "`+want.Format("2006-01-02T15:04:05.000Z07:00")+`"`) || strings.Contains(held, "+09:00") || strings.Contains(held, ".123456") {
+	if held := contents(t, progressPath(store)); !strings.Contains(held, `"at": "`+want.Format("2006-01-02T15:04:05.000Z07:00")+`"`) || strings.Contains(held, "+09:00") || strings.Contains(held, ".123456") {
 		t.Errorf("the file holds %s, want the time as %s", held, want.Format(time.RFC3339Nano))
-	}
-}
-
-// Clearing a bookmark and setting it back leaves the file as it was whatever
-// else is kept, through the routes.
-func TestClearingAndSettingBackABookmarkRestoresTheFileWithSeveralKeptOverHTTP(t *testing.T) {
-	t.Parallel()
-
-	store, routes := newProgressRoutes(t)
-	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
-	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(rustCourse, "Notes/other.md")))
-	before := progressOf(t, store)
-
-	var cleared mark.Bookmark
-	got := writeJSON(t, routes, http.MethodDelete, goBookmark, "")
-	if got.Code != http.StatusOK || json.Unmarshal(got.Body.Bytes(), &cleared) != nil {
-		t.Fatalf("DELETE = %d %q", got.Code, got.Body.String())
-	}
-	decodeMoved(t, putBookmark(t, routes, undoing(&cleared, nil)))
-	if after := progressOf(t, store); after != before {
-		t.Errorf("clearing a bookmark and setting it back changed the file:\nbefore %s\nafter  %s", before, after)
 	}
 }

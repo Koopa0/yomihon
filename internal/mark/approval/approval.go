@@ -15,15 +15,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -82,8 +79,6 @@ type document struct {
 type Store struct {
 	dir       confdir.Dir
 	vaultRoot string
-	// mu serializes writers, which read the file and replace it whole.
-	mu sync.Mutex
 }
 
 // Open names this vault's approvals. It creates nothing: the directory and the
@@ -141,13 +136,13 @@ func (s *Store) List() ([]Approval, error) {
 	if err = decoder.Decode(&doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	if !json.Valid(data) || doc.Version != version || doc.Approvals == nil {
+	if _, err = decoder.Token(); !errors.Is(err, io.EOF) || doc.Version != version || doc.Approvals == nil {
 		return nil, fmt.Errorf("%w: not a version %d approvals file", ErrUnreadable, version)
 	}
 	seen := make(map[string]bool, len(doc.Approvals))
 	for i := range doc.Approvals {
 		if err = validate(&doc.Approvals[i]); err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+			return nil, fmt.Errorf("%w: %v", ErrUnreadable, err) //nolint:errorlint // a damaged file is not a refused approval, so ErrInvalid is not wrapped
 		}
 		if seen[doc.Approvals[i].RelPath] {
 			return nil, fmt.Errorf("%w: %s is approved twice", ErrUnreadable, doc.Approvals[i].RelPath)
@@ -210,11 +205,10 @@ func without(held []Approval, relPath string) []Approval {
 }
 
 // exclusive runs change as the only writer of the approvals, in this process
-// and in any other on the same directory. The store's methods take no context,
-// so the wait for the lock is bounded by confdir.LockWait alone.
+// and in any other on the same directory: the lock lets this process's writers
+// through in the order they asked. The store's methods take no context, so the
+// wait for the lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 
@@ -232,21 +226,13 @@ func (s *Store) write(approvals []Approval) error {
 	return confdir.Replace(s.dir, fileName, data)
 }
 
-// validate holds one approval to the shape this file writes: a vault-relative
-// path in NFC that is one line of text, and a lowercase hex SHA-256.
+// validate holds one approval to the shape this file writes: a path the
+// reader's own files may hold, and a lowercase hex SHA-256.
 func validate(approval *Approval) error {
-	relPath := approval.RelPath
+	if err := vault.CheckStoredPath(approval.RelPath, maxPathBytes); err != nil {
+		return fmt.Errorf("%w: the figure path: %w", ErrInvalid, err)
+	}
 	switch {
-	case !utf8.ValidString(relPath):
-		return fmt.Errorf("%w: the figure path is not valid UTF-8", ErrInvalid)
-	case relPath == "" || len(relPath) > maxPathBytes:
-		return fmt.Errorf("%w: the figure path is empty or too long", ErrInvalid)
-	case !fs.ValidPath(relPath) || relPath == ".":
-		return fmt.Errorf("%w: the figure path is not vault-relative", ErrInvalid)
-	case relPath != vault.NormalizeNFC(relPath):
-		return fmt.Errorf("%w: the figure path is not written in NFC", ErrInvalid)
-	case strings.ContainsFunc(relPath, origin.EndsALine):
-		return fmt.Errorf("%w: the figure path holds a control character", ErrInvalid)
 	case len(approval.SHA256) != digestLength || approval.SHA256 != strings.ToLower(approval.SHA256):
 		return fmt.Errorf("%w: the digest is not 64 lowercase hex digits", ErrInvalid)
 	case approval.At.IsZero():

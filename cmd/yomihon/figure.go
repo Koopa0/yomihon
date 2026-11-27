@@ -129,7 +129,7 @@ func runFigureCommand(ctx context.Context, command string, args []string, stdio 
 	// An approval is a write into the configuration directory, which must not
 	// be inside the folder, nor the folder inside it: it is refused unless the
 	// two are known to be apart.
-	if relation, notApart := configDir.Classify(root); relation != confdir.Apart {
+	if notApart := configDir.Classify(root); notApart != nil {
 		stdio.faultf("%v", notApart)
 		return 2
 	}

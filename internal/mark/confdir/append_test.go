@@ -43,22 +43,8 @@ func TestAppendAddsToTheEndAndMakesTheFileOwnerOnly(t *testing.T) {
 // written: there is no file holding part of what was refused.
 func TestAppendRefusesAFirstWriteWhoseDirectoryCannotBeSynced(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not open a directory by its permission bits")
-	}
 	dir := homeIn(t)
-	if err := os.Chmod(dir.Path(), 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
-			t.Errorf("restore the directory's mode: %v", err)
-		}
-	})
-	if opened, err := os.Open(dir.Path()); err == nil {
-		_ = opened.Close() //nolint:errcheck // only whether it opened matters
-		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
-	}
+	unreadableDir(t, dir.Path(), 0o300)
 
 	if err := confdir.Append(dir, "ledger.jsonl", []byte("line\n")); err == nil {
 		t.Fatal("a first Append into a directory that cannot be synced = nil, want an error")
@@ -74,21 +60,11 @@ func TestAppendRefusesAFirstWriteWhoseDirectoryCannotBeSynced(t *testing.T) {
 // cannot be read does not refuse it.
 func TestAppendToAFileThatIsThereSyncsOnlyTheFile(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not open a directory by its permission bits")
-	}
 	dir := homeIn(t)
 	if err := confdir.Append(dir, "ledger.jsonl", []byte("one\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(dir.Path(), 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
-			t.Errorf("restore the directory's mode: %v", err)
-		}
-	})
+	unreadableDir(t, dir.Path(), 0o300)
 	if err := confdir.Append(dir, "ledger.jsonl", []byte("two\n")); err != nil {
 		t.Fatalf("Append to a file that is there = %v, want nil", err)
 	}
@@ -103,27 +79,35 @@ func TestAppendToAFileThatIsThereSyncsOnlyTheFile(t *testing.T) {
 // syncs the directory too, and a directory that cannot be synced refuses it.
 func TestTheFirstAppendToAFileThereSyncsItsDirectory(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not open a directory by its permission bits")
-	}
 	dir := homeIn(t)
 	if err := os.WriteFile(dir.Join("ledger.jsonl"), []byte("one\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(dir.Path(), 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
-			t.Errorf("restore the directory's mode: %v", err)
-		}
-	})
-	if opened, err := os.Open(dir.Path()); err == nil {
-		_ = opened.Close() //nolint:errcheck // only whether it opened matters
-		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
-	}
+	unreadableDir(t, dir.Path(), 0o300)
 	if err := confdir.Append(dir, "ledger.jsonl", []byte("two\n")); err == nil {
 		t.Fatal("the first Append to a file another made, in a directory that cannot be synced = nil, want an error")
+	}
+}
+
+// A file another process replaced since this one last appended to it is a new
+// file, whose entry in the directory that process may have stopped before it
+// synced: the next append syncs the directory again, and a directory that cannot
+// be synced refuses it.
+func TestAnAppendToAFileAnotherReplacedSyncsItsDirectory(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	if err := confdir.Append(dir, "ledger.jsonl", []byte("one\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir.Join(".ledger-1.jsonl"), []byte("one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(dir.Join(".ledger-1.jsonl"), dir.Join("ledger.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	unreadableDir(t, dir.Path(), 0o300)
+	if err := confdir.Append(dir, "ledger.jsonl", []byte("two\n")); err == nil {
+		t.Fatal("an Append to a file another replaced, in a directory that cannot be synced = nil, want an error")
 	}
 }
 
@@ -148,26 +132,6 @@ func TestAppendRefusesWhatIsNotARegularFile(t *testing.T) {
 	}
 	if _, err := os.Lstat(outside); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Append made %s through a link: %v", outside, err)
-	}
-}
-
-func TestAppendAndRemoveLeftoversRefuseAnythingButAFileName(t *testing.T) {
-	t.Parallel()
-	dir := homeIn(t)
-	for _, name := range []string{"", ".", "..", "../outside.jsonl", "a/b.jsonl", `a\b.jsonl`} {
-		if err := confdir.Append(dir, name, []byte("x\n")); err == nil {
-			t.Errorf("Append(%q) = nil, want a refusal", name)
-		}
-		if err := confdir.RemoveLeftovers(dir, name); err == nil {
-			t.Errorf("RemoveLeftovers(%q) = nil, want a refusal", name)
-		}
-	}
-	var none confdir.Dir
-	if err := confdir.Append(none, "ledger.jsonl", []byte("x\n")); !errors.Is(err, confdir.ErrNotNamed) {
-		t.Errorf("Append to the zero Dir = %v, want ErrNotNamed", err)
-	}
-	if err := confdir.RemoveLeftovers(none, "ledger.jsonl"); !errors.Is(err, confdir.ErrNotNamed) {
-		t.Errorf("RemoveLeftovers in the zero Dir = %v, want ErrNotNamed", err)
 	}
 }
 
@@ -239,23 +203,9 @@ func TestRemoveLeftoversTakesOnlyWhatReplaceLeftForThatName(t *testing.T) {
 // lock that answers success there was never made durable.
 func TestALockMakesItsDirectoryDurably(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not open a directory by its permission bits")
-	}
 	config := t.TempDir()
 	dir := dirFor(t, config, "/vaults/v")
-	if err := os.Chmod(config, 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(config, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
-			t.Errorf("restore the directory's mode: %v", err)
-		}
-	})
-	if opened, err := os.Open(config); err == nil { // #nosec G304 -- the test's own temporary directory
-		_ = opened.Close() //nolint:errcheck // only whether it opened matters
-		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
-	}
+	unreadableDir(t, config, 0o300)
 
 	err := confdir.Exclusive(t.Context(), dir, "marks.lock", 0, func() error {
 		return confdir.Replace(dir, "marks.json", []byte("{}"))

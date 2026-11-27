@@ -124,13 +124,13 @@ func (h *Handler) putBookmark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := stamp()
-	kept := &Bookmark{
+	b := &Bookmark{
 		RelPath: request.Path, Anchor: request.Anchor, Offset: request.Offset,
 		Identity: request.Identity, At: now,
 	}
 	if request.At != nil {
-		kept.At = request.At.UTC().Truncate(time.Millisecond)
-		if kept.At.IsZero() || kept.At.After(now.Add(clockSkew)) {
+		b.At = request.At.UTC().Truncate(time.Millisecond)
+		if b.At.IsZero() || b.At.After(now.Add(clockSkew)) {
 			h.refuseBookmark(w, r, fmt.Errorf("%w: the time is not one a bookmark was kept at", ErrInvalid), "put a bookmark")
 			return
 		}
@@ -139,12 +139,12 @@ func (h *Handler) putBookmark(w http.ResponseWriter, r *http.Request) {
 	if request.Replaces.said {
 		expect = &Expectation{At: request.Replaces.at}
 	}
-	previous, had, err := h.keepBookmark(request.Course, kept, expect)
+	previous, had, err := h.setBookmark(request.Course, b, expect)
 	if err != nil {
 		h.refuseBookmark(w, r, err, "put a bookmark")
 		return
 	}
-	moved := movedBookmark{Bookmark: *kept}
+	moved := movedBookmark{Bookmark: *b}
 	if had {
 		moved.Previous = &previous
 	}
@@ -283,8 +283,11 @@ func (h *Handler) decode(w http.ResponseWriter, r *http.Request, into any, limit
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(into)
 	if err == nil {
-		if _, more := decoder.Token(); !errors.Is(more, io.EOF) {
+		switch _, more := decoder.Token(); {
+		case more == nil:
 			err = errors.New("a second value follows the first")
+		case !errors.Is(more, io.EOF):
+			err = more
 		}
 	}
 	if err != nil {

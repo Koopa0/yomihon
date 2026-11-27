@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-// Outcome is what a Keep or a Toggle found and did.
+// Outcome is what an Add or a Toggle found and did.
 type Outcome struct {
 	Result
 
 	// Mark is the mark as it stands: the one written, the one that was there
 	// already, or the one that was taken away.
 	Mark Mark
-	// Written says a line was written. A Keep that found the mark there already
+	// Written says a line was written. An Add that found the mark there already
 	// writes none.
 	Written bool
 	// Remaining is how many other marks that are not deleted the same place
@@ -24,24 +24,22 @@ type Outcome struct {
 	Remaining int
 }
 
-// Keep writes mark as a new mark, unless a mark that is not deleted is the same
-// as it, as same says, in which case that one is the answer and nothing is
+// Add writes mark as a new mark, unless a mark that is not deleted is the same
+// act as it (SameAct), in which case that one is the answer and nothing is
 // written. The look and the write are one step under the vault's lock, so two
-// Keeps of one highlight at once keep one. A mark the gate withholds is not
-// there to be the same.
+// Adds of one highlight at once keep one.
 //
-// mark's ID has to be one no mark has: a Keep is a new mark and never a change
+// mark's ID has to be one no mark has: an Add is a new mark and never a change
 // of one the reader had read, which has to say what it had read. admit is asked
 // of a mark that is new, under the lock, and says whether the place is one the
 // caller can stand behind.
-func (m *Marks) Keep(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
-	needGate(gate)
+func (m *Marks) Add(ctx context.Context, mark *Mark, admit func(*Mark) bool) (Outcome, error) {
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
 	res, err := m.change(ctx, func(v *view) (*proposal, error) {
-		if there := sameMark(v, same, gate); len(there) > 0 {
+		if there := sameMark(v, func(head *Mark) bool { return SameAct(head, mark) }); len(there) > 0 {
 			out.Mark = there[0].heads[0].Mark
 			return &proposal{noWrite: true, base: entrySeen(v, out.Mark.ID)}, nil
 		}
@@ -80,14 +78,13 @@ func admitted(v *view, mark *Mark, admit func(*Mark) bool) error {
 // is read now. Marks that are the same place and were each made by a machine
 // that had not read the other leave Remaining to take away by asking again.
 // Taking away is always allowed; admit is asked of a mark that is new only.
-func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
-	needGate(gate)
+func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) bool) (Outcome, error) {
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
 	res, err := m.change(ctx, func(v *view) (*proposal, error) {
-		there := sameMark(v, same, gate)
+		there := sameMark(v, same)
 		if len(there) == 0 {
 			if err := admitted(v, mark, admit); err != nil {
 				return nil, err
@@ -108,13 +105,13 @@ func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) 
 	return out, err
 }
 
-// sameMark is the marks that are not deleted, that the gate lets through, and
-// whose value that counts is the same as what same says, the oldest first.
-func sameMark(v *view, same func(*Mark) bool, gate Gate) []resolved {
+// sameMark is the marks that are not deleted and whose value that counts is the
+// same as what same says, the oldest first.
+func sameMark(v *view, same func(*Mark) bool) []resolved {
 	var there []resolved
-	for id, r := range v.byMark {
+	for _, r := range v.byMark {
 		head := &r.heads[0].Mark
-		if head.Deleted || withheld(v, id, gate) || !same(head) {
+		if head.Deleted || !same(head) {
 			continue
 		}
 		there = append(there, r)
@@ -126,13 +123,27 @@ func sameMark(v *view, same func(*Mark) bool, gate Gate) []resolved {
 	return there
 }
 
-// TakeInLegacy takes in the marks of the earlier file that this machine has not
-// taken in, which is what an adoption of another path's marks leaves to do when
-// the vault had already taken in its own. It takes in what no line of any
-// machine names and nothing that was taken in before, and writes this machine's
-// file as the ledger and the file say it is.
-func (m *Marks) TakeInLegacy(ctx context.Context) (Result, error) {
-	return m.run(ctx, true, func(*view) (*proposal, error) {
+// TakeIn takes in the marks an adoption brings from the vault's earlier path,
+// those of them convert says, and writes this machine's file as the ledger and
+// the file say it is. A machine that has not taken in this vault's own earlier
+// file takes that in first, as any first write does.
+func (m *Marks) TakeIn(ctx context.Context, adopted []Mark) (Result, error) {
+	return m.run(ctx, adopted, func(*view) (*proposal, error) {
 		return &proposal{restore: true}, nil
 	})
+}
+
+// SameAct says a, a mark that is there, is the same act of the reader's as b:
+// one kind in one place, which for a passage is the words and the words around
+// them, with the same words of the reader's own, and not a question that was
+// resolved, which asking again opens anew. The same words in another place are
+// another mark, and so are words that differ: nothing the reader wrote is
+// answered with an earlier mark that says something else. A thought is never
+// the same act as another: it says something, and two say two things.
+func SameAct(a, b *Mark) bool {
+	if a.Kind == Thought || a.Kind != b.Kind || a.Path != b.Path || a.Anchor != b.Anchor ||
+		a.Quote != b.Quote || a.Body != b.Body || !a.Resolved.IsZero() {
+		return false
+	}
+	return a.Quote == "" || (a.Before == b.Before && a.After == b.After)
 }

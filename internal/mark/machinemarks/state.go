@@ -16,8 +16,6 @@ const (
 	// kindRetire says the machine id ID is no longer this machine's: another
 	// machine was found writing under it. Its processes stay this machine's.
 	kindRetire = "retire"
-	// kindSaid says the reader was told that the machine took a new id.
-	kindSaid = "said"
 	// kindConverted holds the lines the marks of the earlier file were
 	// converted to, whole, as one commit: a conversion is one line of the
 	// ledger however many marks it has, one sync and not one for each.
@@ -45,10 +43,8 @@ type machine struct {
 	id string
 	// retired are ids this machine had and left.
 	retired []string
-	// sessions are the processes this machine was, by the id they wrote under.
-	sessions map[string]map[string]bool
-	// unsaid is a new id the reader has not been told of.
-	unsaid bool
+	// processes are the processes this machine was, by the id they wrote under.
+	processes map[string]map[string]bool
 	// converted says the earlier file's marks were taken in.
 	converted bool
 	// skipped are the ids of the marks of the earlier file that were not taken
@@ -60,15 +56,15 @@ type machine struct {
 
 // stateOf reads what the ledger's lines say of this machine.
 func stateOf(events []ledger.Event) machine {
-	st := machine{sessions: map[string]map[string]bool{}, skipped: map[string]bool{}, next: 1}
-	note := func(id, session string) {
-		if id == "" || session == "" {
+	st := machine{processes: map[string]map[string]bool{}, skipped: map[string]bool{}, next: 1}
+	note := func(id, process string) {
+		if id == "" || process == "" {
 			return
 		}
-		if st.sessions[id] == nil {
-			st.sessions[id] = map[string]bool{}
+		if st.processes[id] == nil {
+			st.processes[id] = map[string]bool{}
 		}
-		st.sessions[id][session] = true
+		st.processes[id][process] = true
 	}
 	for i := range events {
 		e := &events[i]
@@ -80,20 +76,17 @@ func stateOf(events []ledger.Event) machine {
 			if !slices.Contains(st.retired, e.ID) {
 				st.retired = append(st.retired, e.ID)
 			}
-			st.unsaid = true
-		case kindSaid:
-			st.unsaid = false
 		case kindSkipped:
 			if id, _, found := strings.Cut(string(e.Content), " "); found {
 				st.skipped[id] = true
 			}
 		case kindConverted:
 			st.converted = true
-			note(e.Writer, e.Session)
+			note(e.Machine, e.Process)
 		case ledger.KindMark:
-			note(e.Writer, e.Session)
-		case ledger.KindSession:
-			note(e.ID, e.Session)
+			note(e.Machine, e.Process)
+		case ledger.KindProcess:
+			note(e.ID, e.Process)
 		}
 	}
 	return st

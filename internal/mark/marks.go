@@ -48,9 +48,9 @@ type NoteDrawer interface {
 	Note(ctx context.Context, m *machinemarks.Mark, placement string, lang wording.Lang) string
 }
 
-// keepRequest is what a page sends to leave a mark. The id, the time and the
+// addRequest is what a page sends to leave a mark. The id, the time and the
 // identity are not in it: the server makes them.
-type keepRequest struct {
+type addRequest struct {
 	// ID is an id the page made for this mark, 32 lowercase hex digits, and is
 	// optional. A page that sends one can send the same request again when an
 	// answer never reached it: the mark with that id is the answer, and nothing
@@ -96,22 +96,22 @@ type conflictBody struct {
 // not offer and a request that was made by hand is told: 422, in the words every
 // refused mark is told, and why in the log, not in the answer.
 func (h *Handler) refuseWrite(w http.ResponseWriter, r *http.Request) bool {
-	why := h.kept.Writable()
+	why := h.vaultMarks.Writable()
 	if why == WritableOK {
 		return false
 	}
-	h.log.Warn("a mark was refused: the reader folder cannot be written to", "why", why, "directory", h.store.Dir())
+	h.log.Warn("a mark was refused: the reader folder cannot be written to", "why", why)
 	http.Error(w, wording.MarkNotKept.In(origin.Language(r)), http.StatusUnprocessableEntity)
 	return true
 }
 
-// keepMark keeps a mark of any kind, at a place in a note this vault holds and on
+// addMark keeps a mark of any kind, at a place in a note this vault holds and on
 // words the note has. A highlight or a question already kept in that place is the
 // answer, and is not kept twice; a thought is always new.
-func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) addMark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	lang := origin.Language(r)
-	var request keepRequest
+	var request addRequest
 	if !h.decode(w, r, &request, maxMarkBytes) {
 		return
 	}
@@ -128,23 +128,23 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
-	if request.ID != "" && h.answerKept(w, r, id) {
+	if request.ID != "" && h.answerExisting(w, r, id) {
 		return
 	}
 	candidate := machinemarks.Mark{
 		ID: id, Kind: request.Kind, Path: request.Path, Anchor: request.Anchor,
 		Quote: request.Quote, Before: request.Before, After: request.After,
-		Identity: page.Identity, Body: request.Body, At: time.Now(),
+		Identity: page.Identity, Body: request.Body, At: stamp(),
 	}
-	if err = askedForWhatKindHolds(&candidate); err != nil {
+	if err = candidate.Validate(); err != nil {
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
-	stored, res, status, err := h.keepCandidate(writeContext(r), &candidate, &page)
+	stored, res, status, err := h.add(writeContext(r), &candidate, &page)
 	if err = h.landed(err, "keep a mark"); err != nil {
 		// A send of the same id that was still on its way when this one came
 		// has written the mark: that mark is the answer.
-		if request.ID != "" && errors.Is(err, machinemarks.ErrNoBase) && h.answerKept(w, r, id) {
+		if request.ID != "" && errors.Is(err, machinemarks.ErrNoBase) && h.answerExisting(w, r, id) {
 			return
 		}
 		h.refuse(w, r, err, "keep a mark")
@@ -153,10 +153,10 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 	h.send(w, r, status, &stored, res.Seen, lang)
 }
 
-// keepCandidate writes the mark, or finds the one already kept in its place, and
+// add writes the mark, or finds the one already kept in its place, and
 // says which status the answer carries.
-func (h *Handler) keepCandidate(ctx context.Context, candidate *machinemarks.Mark, page *Page) (stored machinemarks.Mark, res machinemarks.Result, status int, err error) {
-	marks, err := h.kept.Marks()
+func (h *Handler) add(ctx context.Context, candidate *machinemarks.Mark, page *Page) (stored machinemarks.Mark, res machinemarks.Result, status int, err error) {
+	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		return stored, res, 0, err
 	}
@@ -164,11 +164,10 @@ func (h *Handler) keepCandidate(ctx context.Context, candidate *machinemarks.Mar
 	status = http.StatusCreated
 	if candidate.Kind == machinemarks.Thought {
 		stored = *candidate
-		res, err = h.keepThought(ctx, marks, &stored, admit)
+		res, err = h.addThought(ctx, marks, &stored, admit)
 		return stored, res, status, err
 	}
-	same := func(other *machinemarks.Mark) bool { return sameAct(other, candidate) }
-	out, err := marks.Keep(ctx, candidate, same, admit, h.kept.gate)
+	out, err := marks.Add(ctx, candidate, admit)
 	if err == nil && !out.Written {
 		status = http.StatusOK
 	}
@@ -179,23 +178,23 @@ func (h *Handler) keepCandidate(ctx context.Context, candidate *machinemarks.Mar
 // and a new one when the page made none.
 func markID(sent string) (string, error) {
 	if sent == "" {
-		return newID()
+		return newID(), nil
 	}
-	if !isID(sent) {
+	if !machinemarks.ValidID(sent) {
 		return "", fmt.Errorf("%w: the id is not 32 lowercase hex digits", machinemarks.ErrInvalidMark)
 	}
 	return sent, nil
 }
 
-// answerKept answers a request to keep a mark with an id the page made, when a
-// mark of that id is kept already: the same send again, which keeps nothing
-// twice. It reports whether it answered.
-func (h *Handler) answerKept(w http.ResponseWriter, r *http.Request, id string) bool {
-	view, err := h.kept.View()
+// answerExisting answers a request to keep a mark with an id the page made,
+// when a mark of that id is kept already: the same send again, which keeps
+// nothing twice. It reports whether it answered.
+func (h *Handler) answerExisting(w http.ResponseWriter, r *http.Request, id string) bool {
+	view, err := h.vaultMarks.View()
 	if err != nil {
 		return false
 	}
-	entry, ok := view.Entry(id, h.kept.gate)
+	entry, ok := view.Entry(id, AllMarks)
 	if !ok {
 		return false
 	}
@@ -204,41 +203,14 @@ func (h *Handler) answerKept(w http.ResponseWriter, r *http.Request, id string) 
 	return true
 }
 
-// keepThought writes a thought. A thought is always new, with an id nobody has,
+// addThought writes a thought. A thought is always new, with an id nobody has,
 // so nothing a lock would protect is read first: the place is judged before it
 // is written.
-func (h *Handler) keepThought(ctx context.Context, marks *machinemarks.Marks, thought *machinemarks.Mark, admit func(*machinemarks.Mark) bool) (machinemarks.Result, error) {
+func (h *Handler) addThought(ctx context.Context, marks *machinemarks.Marks, thought *machinemarks.Mark, admit func(*machinemarks.Mark) bool) (machinemarks.Result, error) {
 	if !admit(thought) {
 		return machinemarks.Result{}, fmt.Errorf("%w: the place is not one this vault renders", machinemarks.ErrInvalidMark)
 	}
-	return marks.Put(ctx, thought, nil, nil, h.kept.gate)
-}
-
-// askedForWhatKindHolds refuses what a kind does not carry: a highlight is a
-// passage and says nothing of its own, and a thought says something.
-func askedForWhatKindHolds(m *machinemarks.Mark) error {
-	switch {
-	case m.Kind == machinemarks.Highlight && (m.Quote == "" || m.Body != ""):
-		return fmt.Errorf("%w: a highlight is a passage and carries no words of its own", machinemarks.ErrInvalidMark)
-	case m.Kind == machinemarks.Thought && m.Body == "":
-		return fmt.Errorf("%w: a thought says something", machinemarks.ErrInvalidMark)
-	}
-	return nil
-}
-
-// sameAct reports whether a mark that is there already is the same act of the
-// reader's as b: one kind in one place, which for a passage is the words and the
-// words around them, with the same reason of their own for a question, and not one that was resolved, which asking again
-// opens anew. Words that differ are a new mark: nothing the reader wrote is
-// answered with an earlier mark that says something else.
-func sameAct(a, b *machinemarks.Mark) bool {
-	if a.Kind != b.Kind || a.Path != b.Path || a.Anchor != b.Anchor || a.Quote != b.Quote ||
-		a.Body != b.Body || !a.Resolved.IsZero() {
-		return false
-	}
-	// The same words in another place are another mark: the words around them are
-	// what tell the places apart.
-	return a.Quote == "" || (a.Before == b.Before && a.After == b.After)
+	return marks.Put(ctx, thought, nil, nil)
 }
 
 // standsIn reports whether m can be kept in the note page is: the anchor is a
@@ -250,8 +222,7 @@ func (h *Handler) standsIn(m *machinemarks.Mark, page *Page) bool {
 	if !h.places.HasPlace(m.Path, m.Anchor) {
 		return false
 	}
-	old := fromMachine(m)
-	found := Locate(page.Text, []string{m.Anchor}, &old)
+	found := Locate(page.Text, []string{m.Anchor}, m)
 	if m.Quote == "" {
 		return found.Status == SectionOnly
 	}
@@ -259,32 +230,32 @@ func (h *Handler) standsIn(m *machinemarks.Mark, page *Page) bool {
 }
 
 // readable finds the mark a request names, and answers for one that is not
-// there. A request that is to change it is write. A mark the gate withholds is answered exactly as one that is not there.
+// there. A request that is to change it is write.
 func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (machinemarks.Entry, bool) {
 	id := r.PathValue("id")
-	if !isID(id) {
+	if !machinemarks.ValidID(id) {
 		h.absent(w, r)
 		return machinemarks.Entry{}, false
 	}
-	view, err := h.kept.View()
+	view, err := h.vaultMarks.View()
 	if err != nil {
 		h.refuse(w, r, fmt.Errorf("%w: %w", ErrUnreadable, err), "read a mark")
 		return machinemarks.Entry{}, false
 	}
-	if write && h.kept.Holds(view, id) {
+	if write && h.vaultMarks.Holds(view, id) {
 		// A change addressed to a mark that only the earlier file has takes the
 		// earlier marks in first, as the first write of any kind does, and is
 		// then made on what was taken in.
-		if err = h.kept.TakeIn(writeContext(r)); err != nil {
+		if err = h.vaultMarks.TakeIn(writeContext(r), nil); err != nil {
 			h.refuse(w, r, err, "take in the earlier marks")
 			return machinemarks.Entry{}, false
 		}
-		if view, err = h.kept.View(); err != nil {
+		if view, err = h.vaultMarks.View(); err != nil {
 			h.refuse(w, r, fmt.Errorf("%w: %w", ErrUnreadable, err), "read a mark")
 			return machinemarks.Entry{}, false
 		}
 	}
-	entry, ok := view.Entry(id, h.kept.gate)
+	entry, ok := view.Entry(id, AllMarks)
 	if !ok {
 		h.absent(w, r)
 		return machinemarks.Entry{}, false
@@ -293,10 +264,10 @@ func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (
 }
 
 // getMark answers a mark as it is read now: the value that counts, which is the
-// newest live one where computers changed it differently (the others stay in the
-// files and are not told here), and what a page that shows it has read, which a change
-// is sent on top of. A deleted mark is answered too, with deleted set, so that
-// what was deleted can be put back.
+// newest live one where computers changed it differently (the others stay in
+// the files and are not told here), and what a page that shows it has read,
+// which a change is sent on top of. A deleted mark is answered too, with
+// deleted set, so that what was deleted can be put back.
 func (h *Handler) getMark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	entry, ok := h.readable(w, r, false)
@@ -316,7 +287,7 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	lang := origin.Language(r)
 	var request reviseRequest
-	if !isID(r.PathValue("id")) {
+	if !machinemarks.ValidID(r.PathValue("id")) {
 		h.absent(w, r)
 		return
 	}
@@ -343,17 +314,17 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	was := page.Mark
-	next, err := revised(&was, &request, time.Now())
+	next, err := revised(&was, &request, stamp())
 	if err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
 	}
-	marks, err := h.kept.Marks()
+	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
 	}
-	res, err := marks.Put(writeContext(r), &next, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &next, *request.Seen, request.Edit)
 	if err = h.landed(err, "change a mark"); err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
@@ -373,12 +344,7 @@ func revised(was *machinemarks.Mark, r *reviseRequest, now time.Time) (machinema
 		return machinemarks.Mark{}, fmt.Errorf("%w: nothing to change", machinemarks.ErrInvalidMark)
 	}
 	if r.Kind != nil {
-		switch *r.Kind {
-		case machinemarks.Highlight, machinemarks.Thought, machinemarks.Question:
-			m.Kind = *r.Kind
-		default:
-			return machinemarks.Mark{}, fmt.Errorf("%w: %q is not a state a mark is in", machinemarks.ErrInvalidMark, string(*r.Kind))
-		}
+		m.Kind = *r.Kind
 	}
 	if r.Resolved != nil && m.Kind != machinemarks.Question {
 		return machinemarks.Mark{}, fmt.Errorf("%w: only a question is resolved", machinemarks.ErrInvalidMark)
@@ -394,7 +360,7 @@ func revised(was *machinemarks.Mark, r *reviseRequest, now time.Time) (machinema
 			m.Resolved = now
 		}
 	}
-	if err := askedForWhatKindHolds(&m); err != nil {
+	if err := m.Validate(); err != nil {
 		return machinemarks.Mark{}, err
 	}
 	return m, nil
@@ -405,7 +371,7 @@ func revised(was *machinemarks.Mark, r *reviseRequest, now time.Time) (machinema
 func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	lang := origin.Language(r)
-	if !isID(r.PathValue("id")) {
+	if !machinemarks.ValidID(r.PathValue("id")) {
 		h.absent(w, r)
 		return
 	}
@@ -424,12 +390,12 @@ func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	marks, err := h.kept.Marks()
+	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "delete a mark")
 		return
 	}
-	res, err := marks.Delete(writeContext(r), entry.Mark().ID, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Delete(writeContext(r), entry.Mark().ID, *request.Seen, request.Edit)
 	if err = h.landed(err, "delete a mark"); err != nil {
 		h.refuse(w, r, err, "delete a mark")
 		return
@@ -445,7 +411,7 @@ func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	lang := origin.Language(r)
-	if !isID(r.PathValue("id")) {
+	if !machinemarks.ValidID(r.PathValue("id")) {
 		h.absent(w, r)
 		return
 	}
@@ -473,13 +439,13 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 		h.send(w, r, http.StatusOK, &shown, entry.Seen, lang)
 		return
 	}
-	marks, err := h.kept.Marks()
+	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "put a mark back")
 		return
 	}
 	current.Deleted = false
-	res, err := marks.Put(writeContext(r), &current, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &current, *request.Seen, request.Edit)
 	if err = h.landed(err, "put a mark back"); err != nil {
 		h.refuse(w, r, err, "put a mark back")
 		return
@@ -494,7 +460,7 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 // which would keep a thought twice. Any other error is returned as it is.
 func (h *Handler) landed(err error, doing string) error {
 	if errors.Is(err, machinemarks.ErrNotInVault) {
-		h.log.Warn("a mark is kept in the local backup and not yet in the vault", "doing", doing, "error", err)
+		h.log.Warn("a mark is kept in the ledger and not yet in the vault", "doing", doing, "error", err)
 		return nil
 	}
 	return err
@@ -518,21 +484,28 @@ func pageValue(entry machinemarks.Entry, seen machinemarks.Seen) machinemarks.Va
 // was just written. fallback is what is answered when the mark cannot be read
 // back.
 func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fallback *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
-	if view, err := h.kept.View(); err == nil {
-		if entry, ok := view.Entry(fallback.ID, h.kept.gate); ok {
-			shown := entry.Mark()
-			// What the page has read is what it is shown: the value that counts is
-			// covered, so that the next change is built on it, and no value that is
-			// not shown is.
-			if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
-				seen = maps.Clone(seen)
-				seen[top.Writer] = top.Rev
-			}
-			h.send(w, r, status, &shown, seen, lang)
-			return
-		}
+	view, err := h.vaultMarks.View()
+	if err != nil {
+		h.send(w, r, status, fallback, seen, lang)
+		return
 	}
-	h.send(w, r, status, fallback, seen, lang)
+	entry, ok := view.Entry(fallback.ID, AllMarks)
+	if !ok {
+		h.send(w, r, status, fallback, seen, lang)
+		return
+	}
+	// What the page has read is what it is shown: the value that counts is
+	// covered, so that the next change is built on it, and no value that is not
+	// shown is.
+	if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
+		seen = maps.Clone(seen)
+		if seen == nil {
+			seen = machinemarks.Seen{}
+		}
+		seen[top.Writer] = top.Rev
+	}
+	shown := entry.Mark()
+	h.send(w, r, status, &shown, seen, lang)
 }
 
 // statusOf is the one place a refusal of the marks becomes a status and, for a
@@ -614,8 +587,7 @@ func (h *Handler) placement(m *machinemarks.Mark, lang wording.Lang) string {
 	if h.places.HasPlace(m.Path, m.Anchor) {
 		sections = []string{m.Anchor}
 	}
-	old := fromMachine(m)
-	switch Locate(page.Text, sections, &old).Status {
+	switch Locate(page.Text, sections, m).Status {
 	case Found:
 		return placedFound
 	case SectionOnly:

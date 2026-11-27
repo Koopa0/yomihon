@@ -9,11 +9,11 @@ import (
 	"time"
 )
 
-// FuzzDecode reads any bytes as a line. It never panics, and a line it reads is
-// one it would read the same with carriage returns around it, one whose every
-// strict prefix is not read, and one a changed byte makes unread.
+// FuzzDecode reads any bytes as a line. It never panics, and a line it reads
+// holds the shapes every writer makes. That a strict prefix or a changed byte
+// is not read is sealedline's to hold.
 func FuzzDecode(f *testing.F) {
-	good, err := (&Line{Fmt: Format, M: "1f3a9c07", Rev: 3, T: 5, S: "7a1f03d2", Mark: thought(1, "words \"quoted\" and 字"), Seen: Seen{"c2e4b815/5d01aa3e": 9}, Edit: &Edit{ID: "e", Seq: 2}}).encode()
+	good, err := (&markLine{Fmt: lineFormat, M: "1f3a9c07", Rev: 3, T: 5, S: "7a1f03d2", Mark: thought(1, "words \"quoted\" and 字"), Seen: Seen{"c2e4b815/5d01aa3e": 9}, Edit: &Edit{ID: "e", Seq: 2}}).encode()
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -25,47 +25,18 @@ func FuzzDecode(f *testing.F) {
 		if v != readable {
 			return
 		}
-		if l.Fmt != Format || !isMachine(l.M) || !isID(l.Mark.ID) || l.Rev == 0 {
+		if l.Fmt != lineFormat || !isMachine(l.M) || !ValidID(l.Mark.ID) || l.Rev == 0 {
 			t.Fatalf("a line read has %+v", l)
-		}
-		for cut := range raw {
-			if _, pv := decode(raw[:cut]); pv == readable {
-				t.Fatalf("the first %d of %d bytes of a line read as a line", cut, len(raw))
-			}
-		}
-		for i := range raw {
-			changed := bytes.Clone(raw)
-			changed[i] ^= 1
-			if got, cv := decode(changed); cv == readable && got.Rev == l.Rev && got.Mark == l.Mark && i < bytes.LastIndex(raw, checksumKey) {
-				t.Fatalf("a changed byte %d reads as the same line", i)
-			}
-		}
-	})
-}
-
-// FuzzLines reads any bytes as a file: it never panics, and a file's lines read
-// the same with carriage returns as without.
-func FuzzLines(f *testing.F) {
-	f.Add([]byte("a\nb\r\n\n\r\nc"))
-	f.Add([]byte(""))
-	f.Fuzz(func(t *testing.T, data []byte) {
-		plain := lines(bytes.ReplaceAll(data, []byte("\r"), nil))
-		crlf := lines(bytes.ReplaceAll(bytes.ReplaceAll(data, []byte("\r"), nil), []byte("\n"), []byte("\r\n")))
-		if !slices.EqualFunc(plain, crlf, bytes.Equal) {
-			t.Fatalf("the lines of %q read differently with carriage returns", data)
-		}
-		for _, raw := range lines(data) {
-			decode(raw)
 		}
 	})
 }
 
 // linesFrom makes lines of three machines and two processes from bytes, six
 // bytes for each.
-func linesFrom(data []byte) []*kept {
+func linesFrom(data []byte) []*rawLine {
 	machines := []string{"11111111", "22222222", "33333333"}
 	processes := []string{"", "aaaaaaaa"}
-	var out []*kept
+	var out []*rawLine
 	// Two different lines of one writer, one rev and one mark are what only a
 	// hand makes, and which of them is read is the order the lines come in: the
 	// one case in which the order matters. The lines made here have one each.
@@ -75,8 +46,8 @@ func linesFrom(data []byte) []*kept {
 	}
 	made := map[key]bool{}
 	for ; len(data) >= 6; data = data[6:] {
-		l := Line{
-			Fmt: Format, M: machines[int(data[0])%3], S: processes[int(data[0]>>2)%2],
+		l := markLine{
+			Fmt: lineFormat, M: machines[int(data[0])%3], S: processes[int(data[0]>>2)%2],
 			Rev: uint64(data[1]%8) + 1, T: int64(data[2] % 5),
 			Mark: thought(int(data[3]%3)+1, fmt.Sprintf("v%d", data[3])),
 		}
@@ -97,13 +68,13 @@ func linesFrom(data []byte) []*kept {
 		if err != nil {
 			panic(err)
 		}
-		out = append(out, &kept{Line: l, raw: raw})
+		out = append(out, &rawLine{markLine: l, raw: raw})
 	}
 	return out
 }
 
 // shown is what a resolution says, in a form two resolutions are compared by.
-func shown(ls []*kept) string {
+func shown(ls []*rawLine) string {
 	var parts []string
 	for id, r := range merge(ls) {
 		var heads []string
@@ -145,7 +116,7 @@ func FuzzMerge(f *testing.F) {
 					t.Fatalf("mark %s shows a line of %s that its writer's newer line replaced", id, h.Writer())
 				}
 			}
-			anyAlive := slices.ContainsFunc(r.heads, func(h *kept) bool { return !h.Mark.Deleted })
+			anyAlive := slices.ContainsFunc(r.heads, func(h *rawLine) bool { return !h.Mark.Deleted })
 			if anyAlive && r.heads[0].Mark.Deleted {
 				t.Fatalf("mark %s shows a deletion with a live value beside it", id)
 			}
@@ -153,7 +124,7 @@ func FuzzMerge(f *testing.F) {
 				replaced := false
 				for _, a := range r.heads {
 					for _, b := range r.heads {
-						replaced = replaced || (a != b && replaces(&a.Line, &b.Line))
+						replaced = replaced || (a != b && replaces(&a.markLine, &b.markLine))
 					}
 				}
 				// Lines that say they read each other are all kept, and are the
@@ -164,12 +135,12 @@ func FuzzMerge(f *testing.F) {
 			}
 			// A line that has read every writer, and is of a new writer with a
 			// higher rev, is the one value.
-			top := &kept{Fmt: Format, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
+			top := &rawLine{Fmt: lineFormat, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
 			for w, n := range r.newest {
 				top.Seen[w] = n.Rev
 			}
 			top.Mark.Deleted = false
-			var group []*kept
+			var group []*rawLine
 			for _, l := range ls {
 				if l.Mark.ID == id {
 					group = append(group, l)
@@ -184,14 +155,14 @@ func FuzzMerge(f *testing.F) {
 
 // everyoneIsReplaced says every writer's newest line of mark id is replaced by
 // another's: the case in which no line is left, and every line stands.
-func everyoneIsReplaced(ls []*kept, id string) bool {
-	var group []*kept
+func everyoneIsReplaced(ls []*rawLine, id string) bool {
+	var group []*rawLine
 	for _, l := range ls {
 		if l.Mark.ID == id {
 			group = append(group, l)
 		}
 	}
-	newest := map[string]*kept{}
+	newest := map[string]*rawLine{}
 	for _, l := range group {
 		if old := newest[l.Writer()]; old == nil || l.Rev > old.Rev {
 			newest[l.Writer()] = l

@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/note"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -420,23 +420,22 @@ func (r *openRequest) adoptEarlier(ctx context.Context, source *vault.Reader, sn
 	// Adopting writes this folder's marks, into a configuration directory that
 	// must not be inside the folder, nor the folder inside it: it is refused
 	// unless the two are known to be apart.
-	if relation, notApart := r.configDir.Classify(r.root); relation != confdir.Apart {
+	if notApart := r.configDir.Classify(r.root); notApart != nil {
 		return false, fmt.Errorf("%w; nothing was adopted", notApart)
 	}
 	store, err := mark.Open(r.configDir, vaultRoot)
 	if err != nil {
 		return false, errOpenAdoptFailed
 	}
-	err = store.Adopt(r.adopt, func(rel string) bool {
+	marks, err := store.Adopt(r.adopt, func(rel string) bool {
 		_, held := snap.Note(rel)
 		return held && allowed(rel)
 	})
 	if err == nil {
-		// What was adopted is in the earlier file of marks; the vault's own files
-		// are where the marks are read from, so they are taken in now, where the
-		// reader asked for the adoption, and not by whatever writes next.
-		reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
-		takeErr := reader.TakeIn(ctx)
+		// The marks belong in the vault's own files, where they are read from, so
+		// they are taken in now, where the reader asked for the adoption.
+		reader := mark.OpenVaultMarks(store, source, slog.New(slog.DiscardHandler))
+		takeErr := reader.TakeIn(ctx, marks)
 		err = errors.Join(takeErr, reader.Close())
 	}
 	switch {
@@ -460,7 +459,7 @@ func (r *openRequest) adoptEarlier(ctx context.Context, source *vault.Reader, sn
 // marks reads the reader's marked locations for this vault, never writing a
 // file: the vault's machine files are read, and nothing is made or taken in.
 // stored tells no marks from marks that were all taken away.
-func (r *openRequest) marks(source *vault.Reader, vaultRoot string) (kept []mark.Mark, stored bool, err error) {
+func (r *openRequest) marks(source *vault.Reader, vaultRoot string) (kept []machinemarks.Mark, stored bool, err error) {
 	if r.configDir.IsZero() {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return nil, false, fmt.Errorf(`no configuration directory, so the marks for this folder cannot be found: %s; nothing was listed`, reason)
@@ -469,7 +468,7 @@ func (r *openRequest) marks(source *vault.Reader, vaultRoot string) (kept []mark
 	if err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
-	reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
+	reader := mark.OpenVaultMarks(store, source, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := reader.Close(); closeErr != nil && err == nil {
 			kept, stored, err = nil, false, errOpenMarksUnreadable
@@ -494,7 +493,7 @@ type openEntry struct {
 // is allowed. That gate runs before the item is resolved any further: a
 // location's anchor is its heading's words made into an id, so resolving one
 // in withheld ground and then hiding the heading would still have said it.
-func openEntries(snap *snapshot.Generation, gate *egress.Gate, kept []mark.Mark, allowed func(string) bool) []openEntry {
+func openEntries(snap *snapshot.Generation, gate *egress.Gate, kept []machinemarks.Mark, allowed func(string) bool) []openEntry {
 	var entries []openEntry
 	for _, item := range snap.MarkItems(note.MarkedQuestions(kept)) {
 		if !allowed(item.Path()) {
@@ -672,6 +671,6 @@ func escapeTerminal(text string) string {
 }
 
 func actsOnTerminal(r rune) bool {
-	return origin.EndsALine(r) || r == 0x200e || r == 0x200f || r == 0x061c ||
+	return vault.EndsALine(r) || r == 0x200e || r == 0x200f || r == 0x061c ||
 		(r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069)
 }

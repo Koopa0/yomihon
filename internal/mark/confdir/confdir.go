@@ -47,8 +47,11 @@ var ErrNotNamed = errors.New("the vault's files need a configuration directory a
 var ErrTooLarge = errors.New("the file is longer than its limit")
 
 // ErrNotRegular means the name is something other than a file: a named pipe, a
-// device, a directory. Opening one could wait for ever for a writer that never
-// comes, so it is refused before it is opened, and read as damaged.
+// device, a directory. Opening a named pipe could wait for ever for a writer
+// that never comes, so a name that a look finds is not a regular file is
+// refused without being opened, and read as damaged. One put in place of the
+// file between the look and the open is opened: only a program of the reader's
+// own can do that, and nothing yomihon reads carries a named pipe there.
 var ErrNotRegular = errors.New("the name is not a regular file")
 
 // nameLength is how much of the vault digest names the directory. Half of the
@@ -117,8 +120,8 @@ func VaultID(vaultRoot string) string {
 // which would put the reader's files beside whatever folder the process
 // happened to start in and look like it had worked.
 func VaultDir(configDir ConfigDir, vaultRoot string) (Dir, error) {
-	if configDir.IsZero() || vaultRoot == "" {
-		return Dir{}, fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir.dir, vaultRoot)
+	if vaultRoot == "" {
+		return Dir{}, fmt.Errorf("%w: configuration directory %q, no vault root", ErrNotNamed, configDir.dir)
 	}
 	home, err := Home(configDir)
 	if err != nil {
@@ -128,8 +131,9 @@ func VaultDir(configDir ConfigDir, vaultRoot string) (Dir, error) {
 }
 
 // Read returns the file called name in dir, refusing one longer than limit
-// bytes with ErrTooLarge. A file that is not there answers an error that
-// satisfies errors.Is(err, os.ErrNotExist).
+// bytes with ErrTooLarge and a name that is not a regular file with
+// ErrNotRegular. A link to a regular file is read where it leads. A file that
+// is not there answers an error that satisfies errors.Is(err, os.ErrNotExist).
 func Read(dir Dir, name string, limit int64) ([]byte, error) {
 	if err := dir.named(); err != nil {
 		return nil, err
@@ -317,9 +321,11 @@ func RemoveLeftovers(dir Dir, name string) error {
 // directory that holds it, and the directory above each one this call made.
 // The directory is synced on that first append and not only when the file is
 // made, since the call that made it may have failed after it did, or been
-// another process's that stopped. An error means data may be there in part or
-// whole and may not be on stable storage. A name that is something other
-// than a regular file, a link among them, is refused before it is opened.
+// another process's that stopped. A file another process has replaced since is
+// a file this process has not appended to. An error means data may be there in
+// part or whole and may not be on stable storage. A name that a look finds is
+// something other than a regular file, a link among them, is refused without
+// being opened.
 //
 // Everything is owner-only, as Replace makes it.
 func Append(dir Dir, name string, data []byte) error {
@@ -346,8 +352,7 @@ func Append(dir Dir, name string, data []byte) error {
 	// Opened before anything is written, so that a directory that cannot be
 	// synced refuses the first data while there is no file to hold part of it.
 	var directories []directory
-	first := !appended.has(path)
-	if missing || first || len(made) > 0 {
+	if missing || !appended.synced(path, info) || len(made) > 0 {
 		if directories, err = openDirectories(dir.path, made); err != nil {
 			return fmt.Errorf("open the directory of %s to sync it: %w", name, err)
 		}
@@ -357,31 +362,39 @@ func Append(dir Dir, name string, data []byte) error {
 		err = errors.Join(err, d.close())
 	}
 	if err == nil {
-		appended.add(path)
+		// A file this cannot look at again is synced again next time.
+		if after, lookErr := os.Lstat(path); lookErr == nil {
+			appended.add(path, after)
+		}
 	}
 	return err
 }
 
 // appended is the files this process has appended to with their directory
-// synced: after that, an append syncs only the file.
-var appended = pathSet{held: map[string]bool{}}
+// synced: after that, an append to the same file syncs only the file.
+var appended = syncedFiles{held: map[string]fs.FileInfo{}}
 
-// pathSet is a set of paths that goroutines share.
-type pathSet struct {
+// syncedFiles is the files, by path, whose directory this process synced, as
+// they were then. Goroutines share it.
+type syncedFiles struct {
 	mu   sync.Mutex
-	held map[string]bool
+	held map[string]fs.FileInfo
 }
 
-func (s *pathSet) has(path string) bool {
+// synced says the file at path, which a look found as info, is the very file
+// whose directory this process synced: another file renamed over it since is
+// not.
+func (s *syncedFiles) synced(path string, info fs.FileInfo) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.held[path]
+	held, ok := s.held[path]
+	return ok && info != nil && os.SameFile(held, info)
 }
 
-func (s *pathSet) add(path string) {
+func (s *syncedFiles) add(path string, info fs.FileInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.held[path] = true
+	s.held[path] = info
 }
 
 // appendTo writes data to the end of the file at path, syncs it, and syncs
@@ -485,11 +498,11 @@ func Remove(dir Dir, name string) error {
 	return nil
 }
 
-// SetAside renames the file called from in dir to the name to, replacing one
+// Rename renames the file called from in dir to the name to, replacing one
 // that is already there. It is how a file that cannot be read as what it should
 // be is kept for the reader to open, without ever being read in whole or
-// deleted. A file that is not there is already set aside.
-func SetAside(dir Dir, from, to string) error {
+// deleted. A file that is not there is already renamed.
+func Rename(dir Dir, from, to string) error {
 	if err := dir.named(); err != nil {
 		return err
 	}
@@ -505,20 +518,16 @@ func SetAside(dir Dir, from, to string) error {
 	return nil
 }
 
-// Stat is how long the file called name in dir is, in bytes, and when it last
-// changed, without reading it. It is what a poller asks first, so a file that has not
-// changed costs one system call and not a parse. A file that is not there
-// answers an error that satisfies errors.Is(err, os.ErrNotExist).
-func Stat(dir Dir, name string) (int64, time.Time, error) {
+// Stat is the file called name in dir as the system describes it, without
+// reading it: what a poller asks first, so a file that has not changed costs
+// one system call and not a parse. A file that is not there answers an error
+// that satisfies errors.Is(err, os.ErrNotExist).
+func Stat(dir Dir, name string) (fs.FileInfo, error) {
 	if err := dir.named(); err != nil {
-		return 0, time.Time{}, err
+		return nil, err
 	}
 	if err := checkName(name); err != nil {
-		return 0, time.Time{}, err
+		return nil, err
 	}
-	info, err := os.Stat(dir.Join(name))
-	if err != nil {
-		return 0, time.Time{}, err
-	}
-	return info.Size(), info.ModTime(), nil
+	return os.Stat(dir.Join(name))
 }

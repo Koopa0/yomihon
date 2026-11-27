@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // NoCourse is the course of a bookmark set while reading outside any course.
@@ -80,13 +82,13 @@ func validateBookmark(course string, b *Bookmark) error {
 	if err := validatePath(b.RelPath); err != nil {
 		return err
 	}
-	if err := ValidateAnchor(b.Anchor); err != nil {
-		return err
+	if err := machinemarks.CheckAnchor(b.Anchor); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	switch {
 	case b.Offset < 0 || b.Offset > maxOffset:
 		return fmt.Errorf("%w: the offset is outside one document", ErrInvalid)
-	case !isContentIdentity(b.Identity):
+	case !machinemarks.ValidIdentity(b.Identity):
 		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
 	}
 	return nil
@@ -144,8 +146,9 @@ func (s *Store) MoveBookmark(course string, b *Bookmark, expect *Expectation) (p
 		if checkErr != nil {
 			return checkErr
 		}
-		kept, at := bookmarkIn(held.bookmarks, course)
-		previous, had = kept, at >= 0
+		var at int
+		previous, at = bookmarkIn(held.bookmarks, course)
+		had = at >= 0
 		switch {
 		case had:
 			held.bookmarks[at].Bookmark = *b
@@ -164,12 +167,12 @@ func (s *Store) MoveBookmark(course string, b *Bookmark, expect *Expectation) (p
 
 // bookmarkIn is the bookmark held for course and where it is, at -1 where there
 // is none.
-func bookmarkIn(held []courseBookmark, course string) (kept Bookmark, at int) {
-	at = slices.IndexFunc(held, func(b courseBookmark) bool { return b.Course == course })
+func bookmarkIn(held []courseBookmark, course string) (b Bookmark, at int) {
+	at = slices.IndexFunc(held, func(c courseBookmark) bool { return c.Course == course })
 	if at >= 0 {
-		kept = held[at].Bookmark
+		b = held[at].Bookmark
 	}
-	return kept, at
+	return b, at
 }
 
 // check is nil where the bookmark held for course is the one e expects, and
@@ -178,8 +181,8 @@ func (e *Expectation) check(held []courseBookmark, course string) error {
 	if e == nil {
 		return nil
 	}
-	kept, at := bookmarkIn(held, course)
-	if e.At == nil && at < 0 || e.At != nil && at >= 0 && kept.At.Equal(*e.At) {
+	b, at := bookmarkIn(held, course)
+	if (e.At == nil && at < 0) || (e.At != nil && at >= 0 && b.At.Equal(*e.At)) {
 		return nil
 	}
 	return fmt.Errorf("%w: the bookmark kept is not the one expected", ErrChanged)

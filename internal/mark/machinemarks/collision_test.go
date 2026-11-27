@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 )
 
-// copyTree copies the configuration directory of one clone to another, which is
+// copyConfig copies the configuration directory of one clone to another, which is
 // what moving a home directory to a new computer does.
 func copyConfig(t *testing.T, from, to *clone) {
 	t.Helper()
@@ -33,7 +33,7 @@ func copyConfig(t *testing.T, from, to *clone) {
 // The configuration directory of one machine is copied to another, so two
 // computers write under one machine id. Each notices, by a line under its id
 // that none of its processes wrote, and the one that finds it leaves the id:
-// nothing is lost, and it is told once.
+// nothing is lost, and the view says it took a new one.
 func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	t.Parallel()
 	a, b := newClone(t, "A"), newClone(t, "B")
@@ -54,8 +54,8 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(b.marksDir(), idA+".jsonl"), readFile(t, filepath.Join(a.marksDir(), idA+".jsonl")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := b.view(); got.NewIDUnsaid() {
-		t.Fatal("B was told of a new id before it wrote")
+	if b.view().IDRetired() {
+		t.Fatal("B left its id before it wrote")
 	}
 	// A reading alone does not retire anything; the write does.
 	b.say(4, "B writes after the pull")
@@ -67,20 +67,8 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 			t.Errorf("B reads mark %d as %q, want %q", n, got, want)
 		}
 	}
-	if !b.view().NewIDUnsaid() {
-		t.Fatal("the new id was not there to be said")
-	}
-	if err := b.m.NoticeNewID(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	b.restart()
-	if b.view().NewIDUnsaid() {
-		t.Fatal("the new id is still unsaid after it was said, in another process")
-	}
-	// Said once: another write does not say it again.
-	b.say(5, "and once more")
-	if b.view().NewIDUnsaid() {
-		t.Fatal("a later write said the new id again")
+	if !b.view().IDRetired() {
+		t.Fatal("the view does not say B left its id")
 	}
 	// A's own file is not rewritten by B: it is the old id's, which is A's now.
 	if got := string(readFile(t, filepath.Join(b.marksDir(), idA+".jsonl"))); got != string(readFile(t, filepath.Join(a.marksDir(), idA+".jsonl"))) {
@@ -88,11 +76,14 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	}
 }
 
-// A machine that leaves an id keeps the lines it wrote under it as its own, so
-// they are not found to be another machine's when it writes again.
-func TestALeftIdKeepsItsOwnLines(t *testing.T) {
-	t.Parallel()
-	a, b := newClone(t, "A"), newClone(t, "B")
+// collided is B, one of two machines A and B of one copied configuration
+// directory that have each written under the id they share, and that id: A's
+// file of it is now in B's working tree, as git puts it there, and B has not
+// written since.
+func collided(t *testing.T) (b *clone, idA string) {
+	t.Helper()
+	a := newClone(t, "A")
+	b = newClone(t, "B")
 	a.say(1, "before the copy")
 	copyConfig(t, a, b)
 	b.restart()
@@ -100,10 +91,18 @@ func TestALeftIdKeepsItsOwnLines(t *testing.T) {
 	pull(a, b)
 	a.restart()
 	a.say(3, "A under the shared id")
-	idA := a.id()
+	idA = a.id()
 	if err := os.WriteFile(filepath.Join(b.marksDir(), idA+".jsonl"), readFile(t, filepath.Join(a.marksDir(), idA+".jsonl")), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	return b, idA
+}
+
+// A machine that leaves an id keeps the lines it wrote under it as its own, so
+// they are not found to be another machine's when it writes again.
+func TestALeftIdKeepsItsOwnLines(t *testing.T) {
+	t.Parallel()
+	b, _ := collided(t)
 	b.say(4, "B leaves")
 	left := b.id()
 	for range 3 {
@@ -169,22 +168,10 @@ func TestACopyThatHasNotDivergedIsOneMachine(t *testing.T) {
 // and Restore brings them back.
 func TestTheLinesOfALeftIdAreKeptInTheFileOfTheNewId(t *testing.T) {
 	t.Parallel()
-	a, b := newClone(t, "A"), newClone(t, "B")
-	a.say(1, "before the copy")
-	copyConfig(t, a, b)
-	b.restart()
-	b.say(2, "B under the shared id")
-	pull(a, b)
-	a.restart()
-	a.say(3, "A under the shared id")
-	idA := a.id()
-	// The file of the shared id is A's in B's working tree now.
-	if err := os.WriteFile(filepath.Join(b.marksDir(), idA+".jsonl"), readFile(t, filepath.Join(a.marksDir(), idA+".jsonl")), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	b, idA := collided(t)
 	// A line under the shared id with no process in it, which no process of B
 	// wrote: it is not B's, whatever the id says.
-	foreign, err := (&Line{Fmt: Format, M: idA, Rev: 900, T: 1, Mark: thought(9, "no process wrote this under B's old id")}).encode()
+	foreign, err := (&markLine{Fmt: lineFormat, M: idA, Rev: 900, T: 1, Mark: thought(9, "no process wrote this under B's old id")}).encode()
 	if err != nil {
 		t.Fatal(err)
 	}

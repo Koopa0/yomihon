@@ -66,7 +66,7 @@ func TestEveryNoteOffersItsPathAndLines(t *testing.T) {
 		Source: reader, Snapshot: store.Current,
 		Authority:       func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) },
 		Bookmark:        noMark,
-		QuestionAddress: mark.Paths.Question,
+		QuestionAddress: mark.QuestionPath,
 		Log:             log,
 	})
 	routes := http.NewServeMux()

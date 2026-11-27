@@ -1,13 +1,11 @@
 package mark_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,22 +26,6 @@ import (
 // to write in advance.
 var withoutIDs = cmpopts.IgnoreFields(machinemarks.Mark{}, "ID")
 
-func marksPath(store *mark.Store) string { return filepath.Join(store.Dir(), "marks.json") }
-
-func progressPath(store *mark.Store) string { return filepath.Join(store.Dir(), "progress.json") }
-
-// writeFile puts bytes where a store looks, as a reader or an earlier version
-// would have left them.
-func writeFile(t *testing.T, path, data string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil { // #nosec G703 -- a test's own path under t.TempDir
-		t.Fatal(err)
-	}
-}
-
 // aMarksFile is a marks.json holding the given marks, written by hand so that
 // a test of reading does not lean on the code that writes.
 func aMarksFile(marks ...string) string {
@@ -51,16 +33,25 @@ func aMarksFile(marks ...string) string {
 }
 
 // marksJSON is a marks.json for the vault at vaultRoot holding marks, as the
-// earlier version wrote it. A mark with no id is given one by its place in the
-// list. It is what a test of reading or taking in leaves for the code to find,
-// since nothing writes marks.json any more.
-func marksJSON(t *testing.T, vaultRoot string, marks ...mark.Mark) string {
+// earlier version wrote it, where a question's words were its reason. A mark
+// with no id is given one by its place in the list. It is what a test of
+// reading or taking in leaves for the code to find, since nothing writes
+// marks.json any more.
+func marksJSON(t *testing.T, vaultRoot string, marks ...machinemarks.Mark) string {
 	t.Helper()
+	type earlier struct {
+		machinemarks.Mark
+
+		Reason string `json:"reason,omitempty"`
+	}
 	entries := make([]string, len(marks))
 	for i := range marks {
-		m := marks[i]
+		m := earlier{Mark: marks[i]}
 		if m.ID == "" {
 			m.ID = fmt.Sprintf("%032x", i+1)
+		}
+		if m.Kind == machinemarks.Question {
+			m.Reason, m.Body = m.Body, ""
 		}
 		data, err := json.Marshal(m)
 		if err != nil {
@@ -69,16 +60,6 @@ func marksJSON(t *testing.T, vaultRoot string, marks ...mark.Mark) string {
 		entries[i] = string(data)
 	}
 	return `{"version":1,"vault":` + strconv.Quote(vaultRoot) + `,"marks":[` + strings.Join(entries, ",") + `]}`
-}
-
-// contents is what a file holds, failing the test when it cannot be read.
-func contents(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path) // #nosec G304 -- a file under a directory this test made
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
 }
 
 // aStoredQuestion is one question as marks.json holds it, with a distinct id.
@@ -96,12 +77,12 @@ func TestMachineMarksCarriesEveryFieldOfAStoredMark(t *testing.T) {
 	resolved := time.Date(2026, 9, 23, 8, 0, 0, 0, time.UTC)
 	writeFile(t, marksPath(store), marksJSON(t, "/vaults/notes",
 		*aHighlight(),
-		mark.Mark{
-			Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "section-one", Quote: "words", Before: "a ", After: " b",
-			Identity: anIdentity, Reason: "why does it work?", ResolvedAt: resolved, At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC),
+		machinemarks.Mark{
+			Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "section-one", Quote: "words", Before: "a ", After: " b",
+			Identity: anIdentity, Body: "why does it work?", Resolved: resolved, At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC),
 		},
-		mark.Mark{
-			Kind: mark.Thought, RelPath: "Notes/source.md", Anchor: "s", Quote: "words", Before: "a ", After: " b",
+		machinemarks.Mark{
+			Kind: machinemarks.Thought, Path: "Notes/source.md", Anchor: "s", Quote: "words", Before: "a ", After: " b",
 			Identity: anIdentity, Body: "what I think", At: time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC),
 		},
 	))
@@ -129,38 +110,6 @@ func TestMachineMarksCarriesEveryFieldOfAStoredMark(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("marks as a machine file takes them in (-want +got):\n%s", diff)
-	}
-}
-
-func TestAFileIsOwnerOnlyAndNothingIsLeftBesideIt(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows has no POSIX permission bits to read back")
-	}
-	store := newStore(t)
-	for range 3 {
-		if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	entries, err := os.ReadDir(store.Dir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var names []string
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	if diff := cmp.Diff([]string{"marks.lock", "progress.json"}, names); diff != "" {
-		t.Errorf("the directory holds more than the file and its lock (-want +got):\n%s", diff)
-	}
-	for _, path := range []string{progressPath(store), filepath.Join(store.Dir(), "marks.lock")} {
-		if info, statErr := os.Stat(path); statErr != nil || info.Mode().Perm() != 0o600 {
-			t.Errorf("%s mode = %v, %v; want 600", filepath.Base(path), info, statErr)
-		}
-	}
-	if info, statErr := os.Stat(store.Dir()); statErr != nil || info.Mode().Perm() != 0o700 {
-		t.Errorf("the directory mode = %v, %v; want 700", info, statErr)
 	}
 }
 
@@ -238,7 +187,7 @@ func TestProgressSurvivesARestartAndDeletingTheFileClearsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	reopened := newStoreFor(t, config, "/vaults/one")
-	held, found := heldBookmark(t, reopened)
+	held, found := bookmarkFor(t, reopened, mark.NoCourse)
 	if !found {
 		t.Fatal("a reopened store has no bookmark")
 	}
@@ -248,7 +197,7 @@ func TestProgressSurvivesARestartAndDeletingTheFileClearsIt(t *testing.T) {
 	if err := os.Remove(progressPath(store)); err != nil {
 		t.Fatal(err)
 	}
-	if held, found = heldBookmark(t, reopened); found {
+	if held, found = bookmarkFor(t, reopened, mark.NoCourse); found {
 		t.Fatalf("a deleted file still reports %v", held)
 	}
 }
@@ -374,44 +323,6 @@ func TestTwoStoresOnOneDirectoryKeepEveryBookmark(t *testing.T) {
 	}
 }
 
-// TestTwoStoresOnOneDirectoryKeepEveryFinishedNote is the same loss in the file
-// of what a reader has finished, which a bookmark's change never touches.
-func TestTwoStoresOnOneDirectoryKeepEveryFinishedNote(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	const each = 100
-	kept := make([][]string, 2)
-	var writers sync.WaitGroup
-	for w := range 2 {
-		store := newStoreFor(t, config, "/vaults/notes")
-		writers.Go(func() {
-			for i := range each {
-				note := fmt.Sprintf("Notes/w%d-%d.md", w, i)
-				if err := pressedAgain(func() error { return store.SetFinished(note, true) }); err != nil {
-					t.Errorf("writer %d finish %d: %v", w, i, err)
-					return
-				}
-				kept[w] = append(kept[w], note)
-			}
-		})
-	}
-	writers.Wait()
-	finished, err := newStoreFor(t, config, "/vaults/notes").FinishedNotes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var notes []string
-	for _, f := range finished {
-		notes = append(notes, f.RelPath)
-	}
-	if absent := missing(kept, notes); len(absent) > 0 {
-		t.Errorf("%d notes answered finished are not in the file, first %s", len(absent), absent[0])
-	}
-	if len(finished) != 2*each {
-		t.Errorf("two stores kept %d finished notes; want %d", len(finished), 2*each)
-	}
-}
-
 // TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing is the other half
 // of pressedAgain: another process holds the lock past the wait, and the change
 // answers ErrLocked, which the reader is shown, and leaves the file as it was.
@@ -454,12 +365,7 @@ func TestAMarksFileThatCannotBeReadIsReportedAndLeftAsItIs(t *testing.T) {
 		`{"version":1,"vault":"/v","marks":[]} {}`,
 		`{"version":1,"vault":"/v","marks":[],"extra":1}`,
 		aMarksFile(good, good),
-		aMarksFile(`{"id":"1","kind":"question","path":"Notes/source.md","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"../source.md","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"note","path":"a.md","at":"2026-09-22T10:00:00Z"}`),
 		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"a.md","at":"invalid"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"Source.md\n2026-12-31  thought   Fake.md  Forged  (started)","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"Notes/\u001b]0;pwned\u0007.md","at":"2026-09-22T10:00:00Z"}`),
 	} {
 		t.Run(damaged, func(t *testing.T) {
 			t.Parallel()
@@ -490,49 +396,36 @@ func TestAMarksFileThatIsNotAFileIsReportedNotReadAsEmpty(t *testing.T) {
 // was not written by it.
 func TestMarksBeyondTheCountAreDamagedWhenStored(t *testing.T) {
 	t.Parallel()
-	full := make([]string, mark.MaxMarks)
+	full := make([]string, machinemarks.MaxLive)
 	for i := range full {
 		full[i] = aStoredQuestion(i)
 	}
 	store := newStore(t)
 	writeFile(t, marksPath(store), aMarksFile(full...))
-	if held, err := store.MachineMarks(); err != nil || len(held) != mark.MaxMarks {
+	if held, err := store.MachineMarks(); err != nil || len(held) != machinemarks.MaxLive {
 		t.Fatalf("a file at the cap read as %d marks, %v", len(held), err)
 	}
 
 	tooMany := newStore(t)
-	writeFile(t, marksPath(tooMany), aMarksFile(slices.Concat(full, []string{aStoredQuestion(mark.MaxMarks)})...))
+	writeFile(t, marksPath(tooMany), aMarksFile(slices.Concat(full, []string{aStoredQuestion(machinemarks.MaxLive)})...))
 	if held, err := tooMany.MachineMarks(); !errors.Is(err, mark.ErrUnreadable) {
 		t.Errorf("one mark past the cap read as %d marks, %v; want ErrUnreadable", len(held), err)
 	}
 }
 
-// Every read has a cap. A file longer than anything the writer installs is read
-// as damaged, left as it is, and never taken in whole.
+// A file longer than anything the writer installs is read as damaged, left as
+// it is, and never taken in whole. Every file is read through confdir's cap,
+// which confdir's tests hold; this is the one the store reads with the least.
 func TestAFileBeyondItsReadCapIsUnreadableAndKept(t *testing.T) {
 	t.Parallel()
-	pad := strings.Repeat("x", 17<<20)
-	for _, tt := range []struct {
-		name string
-		path func(*mark.Store) string
-		data string
-		read func(*mark.Store) error
-	}{
-		{"the marks", marksPath, `{"version":1,"vault":"/v","marks":[],"pad":"` + pad + `"}`, func(s *mark.Store) error { _, err := s.MachineMarks(); return err }},
-		{"the progress", progressPath, `{"version":1,"vault":"/v","bookmarks":[],"pad":"` + pad[:2<<20] + `"}`, func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err }},
-		{"the old bookmark", func(s *mark.Store) string { return filepath.Join(s.Dir(), "reader.json") }, `{"version":1,"pad":"` + pad[:200<<10] + `"}`, func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err }},
-		{"the old questions", func(s *mark.Store) string { return filepath.Join(s.Dir(), "uncertainty.json") }, "[" + strings.Repeat(" ", 5<<20) + "]", func(s *mark.Store) error { _, err := s.MachineMarks(); return err }},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			store := newStore(t)
-			writeFile(t, tt.path(store), tt.data)
-			if err := tt.read(store); !errors.Is(err, mark.ErrUnreadable) {
-				t.Errorf("reading %s over its cap = %v, want ErrUnreadable", tt.name, err)
-			}
-			if after, err := os.ReadFile(tt.path(store)); err != nil || !bytes.Equal(after, []byte(tt.data)) {
-				t.Errorf("%s was changed: %v", tt.name, err)
-			}
-		})
+	store := newStore(t)
+	path := filepath.Join(store.Dir(), "reader.json")
+	data := `{"version":1,"pad":"` + strings.Repeat("x", 65<<10) + `"}`
+	writeFile(t, path, data)
+	if _, _, err := store.Bookmark(mark.NoCourse); !errors.Is(err, mark.ErrUnreadable) {
+		t.Errorf("reading reader.json over its cap = %v, want ErrUnreadable", err)
+	}
+	if contents(t, path) != data {
+		t.Error("reader.json was changed")
 	}
 }

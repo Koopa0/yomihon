@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -52,7 +53,7 @@ import (
 type Sources struct {
 	// Questions reads the reader's question marks. Nil means this process has
 	// no mark storage; a read error remains visible on the desk.
-	Questions func() ([]mark.Mark, error)
+	Questions func() ([]machinemarks.Mark, error)
 	Source    *vault.Reader
 	// Contract supplies the field vocabulary a thought stub is written from;
 	// the note type it is for comes from the snapshot's roles.
@@ -76,7 +77,7 @@ type Sources struct {
 	QuestionAddress string
 	// Kept is where the reader's highlights, thoughts and questions are kept, in
 	// the vault. Nil means this process has nowhere to keep any.
-	Kept *mark.Kept
+	Kept *mark.VaultMarks
 	// FigureApproved reports whether the owner approved a figure's exact
 	// bytes to run their inline scripts. Nil means this process keeps no
 	// approvals, and every figure is served without script.
@@ -482,7 +483,7 @@ func (h *Handler) reading(
 	markable := idPrefix == "" && h.sources.Kept != nil
 	markRoutes := ""
 	if markable && questionAddress != "" {
-		markRoutes = mark.Paths.Mark
+		markRoutes = mark.MarkPath
 	}
 	if idPrefix == "" {
 		result.HTML, sectionNotes = h.markedBody(r.Context(), result.HTML, n, outlineIDs(&result), lang)

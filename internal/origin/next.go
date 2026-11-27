@@ -3,7 +3,8 @@ package origin
 import (
 	"path"
 	"strings"
-	"unicode"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // LocalNext validates the address a form asks to be sent back to after the
@@ -33,7 +34,7 @@ func LocalNext(next string) string {
 	// Invalid UTF-8 decodes to the replacement character, which is in none of
 	// these sets and needs no case of its own. No address a page's own form
 	// carries contains any of these, so the fallback refuses no honest request.
-	if strings.ContainsFunc(next, EndsALine) {
+	if strings.ContainsFunc(next, vault.EndsALine) {
 		return "/"
 	}
 	if next == "" || next[0] != '/' {
@@ -44,15 +45,6 @@ func LocalNext(next string) string {
 		return "/"
 	}
 	return cleaned
-}
-
-// EndsALine reports whether r can end a line or a control sequence: a C0 or C1
-// control, DELETE, or one of the two Unicode separators that end a line without
-// being a newline. It is the one definition of that set; LocalNext refuses an
-// address that holds such a rune, and the mark route refuses a note path that
-// does.
-func EndsALine(r rune) bool {
-	return unicode.IsControl(r) || r == 0x2028 || r == 0x2029
 }
 
 // cleanLikeRedirect cleans an absolute path the way http.Redirect does before
