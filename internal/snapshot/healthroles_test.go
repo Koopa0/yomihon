@@ -1,15 +1,11 @@
 package snapshot
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 func TestHealthExcludesEveryDeclaredNavigationEntryFromIslands(t *testing.T) {
@@ -69,27 +65,13 @@ func TestHealthEntryExemptionUsesTheContractAndKeepsCitationFaults(t *testing.T)
 			if mapType == "" {
 				mapType = "moc"
 			}
-			_ = testContract(t, root)
-			file := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-			data, err := os.ReadFile(file) // #nosec G304 -- file is the contract written under this test's TempDir
-			if err != nil {
-				t.Fatal(err)
-			}
-			text := string(data)
-			if strings.Count(text, defaultRoles) != 1 || strings.Count(text, lessonRole) != 1 {
-				t.Fatal("role fixture declarations are not unique")
-			}
-			text = strings.Replace(text, defaultRoles, tt.roles, 1)
-			if tt.lessonRole != "" {
-				text = strings.Replace(text, lessonRole, tt.lessonRole, 1)
-			}
-			if writeErr := os.WriteFile(file, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- file is the contract written under this test's TempDir
-				t.Fatal(writeErr)
-			}
-			contract, err := schema.Load(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			contract := writeContract(t, root, func(text string) string {
+				text = replacing(t, defaultRoles, tt.roles)(text)
+				if tt.lessonRole != "" {
+					text = replacing(t, lessonRole, tt.lessonRole)(text)
+				}
+				return text
+			})
 			for _, note := range []struct{ path, typ, slug, body string }{
 				{path: "Maps/Path.md", typ: "study-path", body: "- [[Listed]]\n"},
 				{path: "Maps/Map.md", typ: mapType, body: "- [[Listed]]\n- [[Missing]]\n"},

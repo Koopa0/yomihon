@@ -23,7 +23,7 @@ func TestCapturedSnapshotPathSuffix(t *testing.T) {
 	} {
 		writeNote(t, root, rel, body)
 	}
-	store, _ := newTestStore(t, root, testContractWithRules(t, root, `planned_gap_marks = ["Gaps"]`))
+	store, _ := newTestStore(t, root, writeContract(t, root, replacing(t, "[rules]\n", "[rules]\nplanned_gap_marks = [\"Gaps\"]\n")))
 	g := store.Current()
 	t.Log("invoked: actual suffix resolution contract")
 	if diff := cmp.Diff([]nav.NoteRef{{Name: "Citer", RelPath: "Concepts/Citer.md"}}, g.CitedBy("Concepts/Atlas/Page.md")); diff != "" {

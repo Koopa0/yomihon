@@ -1,13 +1,7 @@
 package snapshot
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // TestExcludedDirectoryIsUnseenLikeAHiddenOne holds a directory the contract
@@ -23,37 +17,10 @@ func TestExcludedDirectoryIsUnseenLikeAHiddenOne(t *testing.T) {
 	writeNote(t, root, "Concepts/lab/there.png", "not really a picture\n")
 	writeNote(t, root, "Concepts/lab/Beta.md", "---\ntype: concept\n---\nbody\n")
 
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read contract fixture: %v", err)
-	}
-	const needle = "[folders]\n"
-	text := strings.Replace(string(data), needle, needle+"ignored = [\"Concepts/lab\"]\n", 1)
-	if text == string(data) {
-		t.Fatal("the contract fixture does not contain the folders needle")
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
-		t.Fatalf("mkdir contract fixture: %v", err)
-	}
-	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- the root is this test's own temporary directory
-		t.Fatalf("write contract fixture: %v", err)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("schema.Load: %v", err)
-	}
-
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	contract := writeContract(t, root, replacing(t, "[folders]\n", "[folders]\nignored = [\"Concepts/lab\"]\n"))
+	reader := openReader(t, root)
 	reader.SetBoundary(contract.ScanBoundary())
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatalf("snapshot.New: %v", err)
-	}
+	store := buildStore(t, reader, discardLogger(), contract)
 	view := store.Current()
 
 	for _, path := range []string{"Concepts/lab/there.png", "Concepts/lab/Beta.md", "Concepts/lab"} {

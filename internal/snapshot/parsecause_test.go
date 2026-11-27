@@ -28,7 +28,7 @@ func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writePanicVault(t, root)
-			store := newStore(panicSource(t, root), discardLogger(), nil, schema.Governance{})
+			store := newStore(openReader(t, root), discardLogger(), nil, schema.Ungoverned())
 			breakStage(store, stage)
 			if err := store.buildFirst(t.Context(), nil); err != nil {
 				t.Fatal(err)
@@ -40,7 +40,7 @@ func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writePanicVault(t, root)
-		store := newStore(panicSource(t, root), discardLogger(), nil, schema.Governance{})
+		store := newStore(openReader(t, root), discardLogger(), nil, schema.Ungoverned())
 		genuine := store.parsers.note
 		store.parsers.note = func(rel string, data []byte) *vault.Note {
 			if strings.Contains(string(data), poisonMark) {
@@ -57,10 +57,7 @@ func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writePanicVault(t, root)
-		store, err := New(t.Context(), parseCauseReadFailure{panicSource(t, root)}, discardLogger(), nil, schema.Governance{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		store := buildStore(t, parseCauseReadFailure{openReader(t, root)}, discardLogger(), nil)
 		assertParseCause(t, store.Current().Freshness().Blocked, false, "panic while parsing this note: a read error")
 	})
 }
@@ -94,10 +91,7 @@ func TestRetainedReadingNamesTheFailedParseAttempt(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writePanicVault(t, root)
-	store, err := New(t.Context(), panicSource(t, root), discardLogger(), nil, schema.Governance{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := buildStore(t, openReader(t, root), discardLogger(), nil)
 	whole := store.Current()
 	breakStage(store, 0)
 	writeNote(t, root, panicPoisoned, "---\n---\npoisoned newly saved content\n")

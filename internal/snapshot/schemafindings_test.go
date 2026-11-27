@@ -1,8 +1,6 @@
 package snapshot
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -167,36 +165,9 @@ func TestAReadingTakesItsDomainFromItsFolder(t *testing.T) {
 	}
 }
 
+// domainRootContract writes the contract fixture into root with its domain
+// roots declared as roots, a TOML array.
 func domainRootContract(t *testing.T, root, roots string) *schema.Contract {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read contract fixture: %v", err)
-	}
-	const declaration = `domain_from = ["Concepts"]`
-	if strings.Count(string(data), declaration) != 1 {
-		t.Fatal("fixture must have exactly one domain-root declaration")
-	}
-	data = []byte(strings.Replace(string(data), declaration, "domain_from = "+roots, 1))
-	tree, openErr := os.OpenRoot(root)
-	if openErr != nil {
-		t.Fatalf("open fixture root: %v", openErr)
-	}
-	t.Cleanup(func() {
-		if closeErr := tree.Close(); closeErr != nil {
-			t.Errorf("close fixture root: %v", closeErr)
-		}
-	})
-	contractPath := filepath.FromSlash(schema.ContractRelPath)
-	if mkdirErr := tree.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		t.Fatalf("mkdir contract: %v", mkdirErr)
-	}
-	if writeErr := tree.WriteFile(contractPath, data, 0o600); writeErr != nil {
-		t.Fatalf("write contract: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("load contract: %v", err)
-	}
-	return contract
+	return writeContract(t, root, replacing(t, `domain_from = ["Concepts"]`, "domain_from = "+roots))
 }

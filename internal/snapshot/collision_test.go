@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -33,53 +31,12 @@ const (
 // the files have to be named for the person watching the terminal.
 const refusedScanMessage = "vault scan unavailable; retaining previous snapshot"
 
-// loggedLine is what the loop said in one call: its message, and each of its
-// attributes as the text a person reading the log would see.
-type loggedLine struct {
-	message string
-	attrs   map[string]string
-}
-
-// recordingHandler keeps every line it is handed, so a test reads what the loop
-// said rather than what a formatter made of it.
-type recordingHandler struct {
-	mu    *sync.Mutex
-	lines *[]loggedLine
-}
-
-func newRecordingLogger() (log *slog.Logger, logged func() []loggedLine) {
-	handler := recordingHandler{mu: &sync.Mutex{}, lines: new([]loggedLine)}
-	return slog.New(handler), func() []loggedLine {
-		handler.mu.Lock()
-		defer handler.mu.Unlock()
-		return slices.Clone(*handler.lines)
-	}
-}
-
-func (recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
-
-//nolint:gocritic // hugeParam: slog.Handler fixes this signature
-func (h recordingHandler) Handle(_ context.Context, record slog.Record) error {
-	line := loggedLine{message: record.Message, attrs: make(map[string]string)}
-	record.Attrs(func(attr slog.Attr) bool {
-		line.attrs[attr.Key] = attr.Value.String()
-		return true
-	})
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	*h.lines = append(*h.lines, line)
-	return nil
-}
-
-func (h recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-func (h recordingHandler) WithGroup(string) slog.Handler      { return h }
-
 // refusedScanErrors are the error values of every refused-scan line so far.
 func refusedScanErrors(lines []loggedLine) []string {
 	var out []string
 	for i := range lines {
-		if lines[i].message == refusedScanMessage {
-			out = append(out, lines[i].attrs["error"])
+		if lines[i].Message == refusedScanMessage {
+			out = append(out, lines[i].Attrs["error"])
 		}
 	}
 	return out
@@ -93,17 +50,8 @@ func collisionFolder(t *testing.T) (store *Store, root string, logged func() []l
 	writeNote(t, root, "Notes/Existing.md", "---\ntype: concept\n---\nexisting\n")
 	writeNote(t, root, collidingComposed, collidingBody)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
 	log, logged := newRecordingLogger()
-	store, err = New(t.Context(), reader, log, contract, contract.Governance())
-	if err != nil {
-		t.Fatalf("snapshot.New: %v", err)
-	}
-	return store, root, logged
+	return buildStore(t, openReader(t, root), log, contract), root, logged
 }
 
 // addTheTwin writes the second spelling beside the first, and skips the test
@@ -221,14 +169,9 @@ func TestStartingOnACollidingPairNamesBothFiles(t *testing.T) {
 	root := t.TempDir()
 	writeNote(t, root, collidingComposed, collidingBody)
 	addTheTwin(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
 	contract := testContract(t, root)
 
-	_, err = New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	_, err := New(t.Context(), openReader(t, root), discardLogger(), contract, contract.Governance())
 	if !errors.Is(err, vault.ErrCanonicalCollision) {
 		t.Fatalf("New on a colliding pair = %v, want ErrCanonicalCollision", err)
 	}
@@ -264,17 +207,8 @@ func refusableFolder(t *testing.T) (store *Store, source *refusingSource) {
 	root := t.TempDir()
 	writeNote(t, root, "Notes/Existing.md", "---\ntype: concept\n---\nexisting\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source = &refusingSource{Source: reader}
-	store, err = New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatalf("snapshot.New: %v", err)
-	}
-	return store, source
+	source = &refusingSource{Source: openReader(t, root)}
+	return buildStore(t, source, discardLogger(), contract), source
 }
 
 // refusedForTheCollision is the refusal the reader gives for the pair, wrapped

@@ -63,11 +63,7 @@ func newRepresentativeFixture(tb testing.TB, notes int) *representativeFixture {
 	writeNote(tb, root, "Writing/paths/Benchmark Path.md", representativeFrontmatter("study-path")+"---\n\n## Course {sequence=primary}\n\n- [[Note-00000]]\n- [[Note-00001]]\n")
 	writeNote(tb, root, "Maps/topics/Benchmark Topic.md", representativeFrontmatter("topic-map")+"---\n\n## Topic\n\n- [[Note-00000]]\n- [[Note-00001]]\n")
 	contract := testContract(tb, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tb.Cleanup(func() { closeReader(tb, reader) })
+	reader := openReader(tb, root)
 	scan, err := reader.ScanComplete(tb.Context())
 	if err != nil {
 		tb.Fatal(err)
@@ -98,11 +94,7 @@ func representativeFrontmatter(kind string) string {
 
 func (f *representativeFixture) store(tb testing.TB) *Store {
 	tb.Helper()
-	store, err := New(tb.Context(), f.reader, discardLogger(), f.contract, f.contract.Governance())
-	if err != nil {
-		tb.Fatal(err)
-	}
-	return store
+	return buildStore(tb, f.reader, discardLogger(), f.contract)
 }
 
 // measuredEdit is the measured note with a suffix whose size alternates, so
@@ -119,7 +111,6 @@ func (f *representativeFixture) measuredEdit(longer bool) string {
 func (f *representativeFixture) check(tb testing.TB, gen *Generation) {
 	tb.Helper()
 	if got := gen.NoteCount(); got != f.notes {
-	b.Helper()
 		tb.Fatalf("NoteCount() = %d, want %d", got, f.notes)
 	}
 	if got := snapshotSearch(tb, gen.Search(), "sourcebody00000"); len(got) != 1 || got[0].RelPath != measurementNote {
@@ -128,9 +119,9 @@ func (f *representativeFixture) check(tb testing.TB, gen *Generation) {
 }
 
 func (f *representativeFixture) report(b *testing.B) {
+	b.Helper()
 	b.ReportMetric(float64(f.notes), "notes")
 	b.ReportMetric(float64(f.files), "files")
-	b.Helper()
 	b.ReportMetric(float64(f.sourceBytes), "source-B")
 	b.ReportMetric(float64(2*f.notes), "links")
 }
@@ -148,12 +139,12 @@ func benchInitial(b *testing.B, f *representativeFixture) *Generation {
 }
 
 func benchRebuild(b *testing.B, f *representativeFixture) *Generation {
+	b.Helper()
 	store := f.store(b)
 	longer := false
 	for b.Loop() {
 		b.StopTimer()
 		writeNote(b, f.root, measurementNote, f.measuredEdit(longer))
-	b.Helper()
 		longer = !longer
 		b.StartTimer()
 		store.rescan(b.Context())
@@ -162,9 +153,9 @@ func benchRebuild(b *testing.B, f *representativeFixture) *Generation {
 }
 
 func benchIdle(b *testing.B, f *representativeFixture) *Generation {
+	b.Helper()
 	store := f.store(b)
 	for b.Loop() {
-	b.Helper()
 		store.rescan(b.Context())
 	}
 	return store.Current()
@@ -173,6 +164,7 @@ func benchIdle(b *testing.B, f *representativeFixture) *Generation {
 // benchOverlap times a rebuild and reports the heap with the old generation
 // alone, with it beside its replacement, and once it is released.
 func benchOverlap(b *testing.B, f *representativeFixture) *Generation {
+	b.Helper()
 	store := f.store(b)
 	var one, two, released float64
 	longer := false
@@ -191,7 +183,6 @@ func benchOverlap(b *testing.B, f *representativeFixture) *Generation {
 	b.ReportMetric(released/n, "released-heap-B")
 	b.ReportMetric((two-released)/n, "reclaimed-B")
 	return store.Current()
-	b.Helper()
 }
 
 // overlapSample holds the old generation in its own frame and returns only
@@ -200,6 +191,7 @@ func benchOverlap(b *testing.B, f *representativeFixture) *Generation {
 //
 //go:noinline
 func overlapSample(b *testing.B, f *representativeFixture, store *Store, longer bool) (one, two uint64) {
+	b.Helper()
 	old := store.Current()
 	one = heapAfterGC(old)
 	writeNote(b, f.root, measurementNote, f.measuredEdit(longer))
@@ -211,7 +203,6 @@ func overlapSample(b *testing.B, f *representativeFixture, store *Store, longer 
 
 // heapAfterGC is the live heap after a collection, with held still reachable.
 func heapAfterGC(held *Generation) uint64 {
-	b.Helper()
 	runtime.GC()
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
@@ -220,6 +211,7 @@ func heapAfterGC(held *Generation) uint64 {
 }
 
 func benchVisible(b *testing.B, f *representativeFixture) *Generation {
+	b.Helper()
 	var last *Generation
 	longer := false
 	for b.Loop() {
@@ -227,7 +219,6 @@ func benchVisible(b *testing.B, f *representativeFixture) *Generation {
 		last = visibleSample(b, f, longer)
 		longer = !longer
 		b.StartTimer()
-	b.Helper()
 	}
 	return last
 }
@@ -236,6 +227,7 @@ func benchVisible(b *testing.B, f *representativeFixture) *Generation {
 // it, through a running reconciliation loop on a fresh Store. The edit lands
 // at a random point in the scan interval.
 func visibleSample(b *testing.B, f *representativeFixture, longer bool) *Generation {
+	b.Helper()
 	store := f.store(b)
 	ctx, cancel := context.WithTimeout(b.Context(), visibleTimeout)
 	done := make(chan struct{})

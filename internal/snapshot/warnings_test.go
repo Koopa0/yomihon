@@ -28,11 +28,7 @@ func TestSnapshotWarningsUnchanged(t *testing.T) {
 	writeNote(t, root, "huge.md", huge)
 	writeNote(t, root, "citing.md", "See [[huge]].\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	reader := openReader(t, root)
 	source := &recordingSource{Source: reader, reads: map[string]int{}, fail: map[string]int{}}
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
@@ -160,11 +156,7 @@ type warningFixture struct {
 func newWarningFixture(t *testing.T, root string, configure func(*warningSource)) *warningFixture {
 	t.Helper()
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	reader := openReader(t, root)
 	source := &warningSource{reader: reader, refuse: map[string]error{}, reads: map[string]int{}}
 	if configure != nil {
 		configure(source)

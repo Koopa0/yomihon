@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 var representativeBench = flag.Bool("snapshot-bench", false, "include representative snapshot lifecycle benchmarks")
@@ -20,11 +18,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		writeNote(b, root, rel, content)
 	}
 	contract := testContract(b, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Cleanup(func() { closeReader(b, reader) })
+	reader := openReader(b, root)
 	store := newStore(reader, discardLogger(), contract, contract.Governance())
 	b.ReportAllocs()
 	for b.Loop() {

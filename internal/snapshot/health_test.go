@@ -256,7 +256,7 @@ func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
 	root := t.TempDir()
 	writeNote(t, root, "Maps/ledger.md", "# Ledger\n\n## Gaps\n- Ghost\n")
 	writeNote(t, root, "Concepts/citer.md", "# Citer\n\nSee [[Ghost]] and [[Nowhere]].\n")
-	contract := testContractWithRules(t, root, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
+	contract := writeContract(t, root, replacing(t, "[rules]\n", "[rules]\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []\n"))
 	store, _ := newTestStore(t, root, contract)
 	h := store.Current().health
 

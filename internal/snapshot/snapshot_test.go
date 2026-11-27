@@ -54,98 +54,6 @@ func draftSearch(idx *lexical.Index) (lexical.Answer, error) {
 	return idx.Search(lexical.Parse("draft:true"), -1)
 }
 
-func testContract(tb testing.TB, root string) *schema.Contract {
-	tb.Helper()
-	return testContractWithRules(tb, root, "")
-}
-
-// testContractWithRules is testContract with extra [rules] lines appended
-// after the provenance rule, so a test can declare planned marks without
-// rewriting the fixture.
-func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	text := string(data)
-	if extraRules != "" {
-		const needle = `concept_requires_provenance = ["based_on", "source_locator"]`
-		next := strings.Replace(text, needle, needle+"\n"+extraRules, 1)
-		if next == text {
-			tb.Fatal("the contract fixture does not contain the rules needle")
-		}
-		text = next
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
-}
-
-// testContractDeclaringPrivacy writes the shared contract fixture with an
-// egress declaration appended, because the fixture itself declares none and a
-// policy that was never claimed cannot go stale. The section is added before
-// the contract is read, so the digest the policy pins is the one on disk. Each
-// of dirs is one folder the declaration withholds.
-func testContractDeclaringPrivacy(tb testing.TB, root string, dirs ...string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	quoted := make([]string, len(dirs))
-	for i, dir := range dirs {
-		quoted[i] = strconv.Quote(dir)
-	}
-	data = append(data, []byte("\n[privacy]\nnever_egress_dirs = ["+strings.Join(quoted, ", ")+"]\n")...)
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, data, 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
-}
-
-func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
-	tb.Helper()
-	reader, err := vault.Open(root)
-	if err != nil {
-		tb.Fatalf("vault.Open: %v", err)
-	}
-	tb.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			tb.Errorf("Reader.Close: %v", closeErr)
-		}
-	})
-	store, err := New(tb.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		tb.Fatalf("snapshot.New: %v", err)
-	}
-	return store, reader
-}
-
-func closeReader(tb testing.TB, reader *vault.Reader) {
-	tb.Helper()
-	if err := reader.Close(); err != nil {
-		tb.Errorf("Reader.Close: %v", err)
-	}
-}
-
 func writeNote(tb testing.TB, root, rel, content string) {
 	tb.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))
@@ -157,6 +65,188 @@ func writeNote(tb testing.TB, root, rel, content string) {
 	}
 }
 
+// writeContract writes the shared contract fixture into root, passed through
+// edit when edit is not nil, and loads it.
+func writeContract(tb testing.TB, root string, edit func(string) string) *schema.Contract {
+	tb.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		tb.Fatalf("read contract fixture: %v", err)
+	}
+	text := string(data)
+	if edit != nil {
+		text = edit(text)
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
+		tb.Fatalf("mkdir contract fixture: %v", err)
+	}
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
+		tb.Fatalf("write contract fixture: %v", err)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		tb.Fatalf("schema.Load: %v", err)
+	}
+	return contract
+}
+
+// testContract writes the shared contract fixture into root unedited.
+func testContract(tb testing.TB, root string) *schema.Contract {
+	tb.Helper()
+	return writeContract(tb, root, nil)
+}
+
+// replacing is a contract edit that swaps the fixture's one occurrence of old
+// for with, and fails the test when the fixture does not hold old exactly once.
+func replacing(tb testing.TB, old, with string) func(string) string {
+	tb.Helper()
+	return func(text string) string {
+		tb.Helper()
+		if n := strings.Count(text, old); n != 1 {
+			tb.Fatalf("the contract fixture holds %q %d times, want once", old, n)
+		}
+		return strings.Replace(text, old, with, 1)
+	}
+}
+
+// testContractDeclaringPrivacy writes the shared contract fixture with an
+// egress declaration withholding dirs, because the fixture itself declares
+// none and a policy that was never claimed cannot go stale.
+func testContractDeclaringPrivacy(tb testing.TB, root string, dirs ...string) *schema.Contract {
+	tb.Helper()
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = strconv.Quote(dir)
+	}
+	return writeContract(tb, root, func(text string) string {
+		return text + "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
+	})
+}
+
+// openReader opens root for one test and closes it when the test ends.
+func openReader(tb testing.TB, root string) *vault.Reader {
+	tb.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		tb.Fatalf("vault.Open: %v", err)
+	}
+	tb.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			tb.Errorf("Reader.Close: %v", err)
+		}
+	})
+	return reader
+}
+
+// buildStore builds the first generation of source's folder under contract.
+func buildStore(tb testing.TB, source Source, log *slog.Logger, contract *schema.Contract) *Store {
+	tb.Helper()
+	store, err := New(tb.Context(), source, log, contract, contract.Governance())
+	if err != nil {
+		tb.Fatalf("New: %v", err)
+	}
+	return store
+}
+
+// newTestStore is a store over root, and the reader it reads through.
+func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
+	tb.Helper()
+	reader := openReader(tb, root)
+	return buildStore(tb, reader, discardLogger(), contract), reader
+}
+
+// recordingSource counts the scans and reads a store asks of the folder, and
+// fails a path's next fail[path] reads.
+type recordingSource struct {
+	Source
+
+	scans int
+	reads map[string]int
+	fail  map[string]int
+}
+
+func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
+	s.scans++
+	return s.Source.ScanAvailable(ctx)
+}
+
+func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
+	path := entry.Path()
+	s.reads[path]++
+	if s.fail[path] > 0 {
+		s.fail[path]--
+		return nil, errors.New("injected read failure")
+	}
+	return s.Source.ReadFile(ctx, entry)
+}
+
+// newRecordingSource opens root through a recordingSource.
+func newRecordingSource(tb testing.TB, root string) *recordingSource {
+	tb.Helper()
+	return &recordingSource{Source: openReader(tb, root), reads: make(map[string]int), fail: make(map[string]int)}
+}
+
+// newRecordingStore is a store over root whose reads a test can count and fail.
+func newRecordingStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *recordingSource) {
+	tb.Helper()
+	source := newRecordingSource(tb, root)
+	return buildStore(tb, source, discardLogger(), contract), source
+}
+
+// loggedLine is one record a store logged: its level, message, and each
+// attribute as the text a person reading the log would see.
+type loggedLine struct {
+	Level   slog.Level
+	Message string
+	Attrs   map[string]string
+}
+
+// recordingHandler keeps every record it is handed, so a test reads what the
+// store said rather than what a formatter made of it.
+type recordingHandler struct {
+	mu    *sync.Mutex
+	lines *[]loggedLine
+}
+
+func newRecordingLogger() (log *slog.Logger, logged func() []loggedLine) {
+	handler := recordingHandler{mu: &sync.Mutex{}, lines: new([]loggedLine)}
+	return slog.New(handler), func() []loggedLine {
+		handler.mu.Lock()
+		defer handler.mu.Unlock()
+		return slices.Clone(*handler.lines)
+	}
+}
+
+func (recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+//nolint:gocritic // hugeParam: slog.Handler fixes this signature
+func (h recordingHandler) Handle(_ context.Context, record slog.Record) error {
+	line := loggedLine{Level: record.Level, Message: record.Message, Attrs: make(map[string]string)}
+	record.Attrs(func(attr slog.Attr) bool {
+		line.Attrs[attr.Key] = attr.Value.String()
+		return true
+	})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	*h.lines = append(*h.lines, line)
+	return nil
+}
+
+func (h recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h recordingHandler) WithGroup(string) slog.Handler      { return h }
+
+// linesWith are the logged lines carrying message.
+func linesWith(lines []loggedLine, message string) []loggedLine {
+	var out []loggedLine
+	for _, line := range lines {
+		if line.Message == message {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 // TestAccessorsHandTheCallerItsOwnCopy holds the accessors that copy what a
 // generation holds: one reader's writes must not reach the next reader's page.
 func TestAccessorsHandTheCallerItsOwnCopy(t *testing.T) {
@@ -166,17 +256,9 @@ func TestAccessorsHandTheCallerItsOwnCopy(t *testing.T) {
 	writeNote(t, root, faulty, "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\n---\n\nbody\n")
 	writeNote(t, root, unread, "---\ntype: concept\n---\nbody\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{Source: reader, reads: make(map[string]int), fail: map[string]int{unread: 1}}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	gen := store.Current()
+	source := newRecordingSource(t, root)
+	source.fail[unread] = 1
+	gen := buildStore(t, source, discardLogger(), contract).Current()
 
 	blocked := gen.Freshness().Blocked
 	if len(blocked) != 1 {
@@ -234,29 +316,6 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	}
 }
 
-type recordingSource struct {
-	Source
-
-	scans int
-	reads map[string]int
-	fail  map[string]int
-}
-
-func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
-	s.scans++
-	return s.Source.ScanAvailable(ctx)
-}
-
-func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
-	path := entry.Path()
-	s.reads[path]++
-	if s.fail[path] > 0 {
-		s.fail[path]--
-		return nil, errors.New("injected read failure")
-	}
-	return s.Source.ReadFile(ctx, entry)
-}
-
 func TestNewScansOnceAndReadsOnlyGenerationInputs(t *testing.T) {
 	t.Parallel()
 
@@ -278,20 +337,7 @@ patterns:
 	writeNote(t, root, "Diagrams/example.png", "not really an image")
 	writeNote(t, root, "Notes/todo.txt", "a small text file\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 
 	if source.scans != 1 {
 		t.Errorf("initial scans = %d, want 1", source.scans)
@@ -342,20 +388,9 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 	const path = "Concepts/Alpha.md"
 	writeNote(t, root, path, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{path: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[path] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 	if _, ok := store.Current().Note(path); ok {
 		t.Fatal("initial generation retained a note whose read failed")
 	}
@@ -381,20 +416,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
 	writeNote(t, root, relPath, "---\ntype: concept\n---\nold body\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), nil, schema.Ungoverned())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, nil)
 	// The loop's clock is pinned so the test can stand at the next tick: after
 	// a failed rebuild the next expensive attempt waits one scan interval, and
 	// real time does not pass between two direct rescan calls.
@@ -796,18 +818,9 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			t.Errorf("Reader.Close: %v", closeErr)
-		}
-	})
 	store, err := New(
 		t.Context(),
-		reader,
+		openReader(t, root),
 		discardLogger(),
 		nil,
 		schema.Unreadable(errors.New("toml: line 42: expected a key separator")),
@@ -883,15 +896,7 @@ func TestBuildGenerationIndexesNotesOnly(t *testing.T) {
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"><text>findable body</text></svg>`)
 
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 
 	got := make([]string, 0, 1)
 	for _, result := range snapshotSearch(t, store.Current().Search(), "findable body") {
@@ -915,20 +920,6 @@ func searchPaths(t *testing.T, store *Store, query string) []string {
 	return out
 }
 
-func storeWithNotes(t *testing.T, root string, contract *schema.Contract) *Store {
-	t.Helper()
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return store
-}
-
 func writeNeedlePair(t *testing.T, root string) {
 	t.Helper()
 	writeNote(t, root, "System/early.md", "---\ntype: system\n---\nneedle in a template\n")
@@ -944,7 +935,7 @@ func TestSearchRanksAKnowledgeLayerNoteAboveASystemFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNeedlePair(t, root)
-	store := storeWithNotes(t, root, testContract(t, root))
+	store, _ := newTestStore(t, root, testContract(t, root))
 
 	got := searchPaths(t, store, "needle")
 	want := []string{"Writing/late.md", "AAA.md", "System/early.md"}
@@ -960,42 +951,17 @@ func TestSearchKeepsReadingOrderWhenNoKnowledgeLayerIsDeclared(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNeedlePair(t, root)
-	contract := testContractWithoutKnowledgeDirs(t, root)
+	contract := writeContract(t, root, replacing(t, `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = []`))
 	if contract.KnowledgeScope().Available() {
 		t.Fatal("the undeclared fixture still claims a knowledge layer")
 	}
-	store := storeWithNotes(t, root, contract)
+	store, _ := newTestStore(t, root, contract)
 
 	got := searchPaths(t, store, "needle")
 	want := []string{"AAA.md", "System/early.md", "Writing/late.md"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
 	}
-}
-
-func testContractWithoutKnowledgeDirs(tb testing.TB, root string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	const needle = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), needle, `checked = []`, 1)
-	if text == string(data) {
-		tb.Fatal("the contract fixture does not contain the checked needle")
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
 }
 
 // TestBuildGenerationStillResolvesWikilinksToFiles guards the hole the widening most
@@ -1007,15 +973,7 @@ func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	writeNote(t, root, "Concepts/Note.md", "---\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 
 	note, ok := store.Current().Note("Concepts/Note.md")
 	if !ok {
@@ -1047,21 +1005,10 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "notes.txt", "plain text\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
 	// A read that never succeeds, on a file that is not a note.
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{"notes.txt": 1 << 30},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail["notes.txt"] = 1 << 30
+	store := buildStore(t, source, discardLogger(), contract)
 	if store.retry {
 		t.Fatal("an unreadable ordinary file held the generation back; every later change would stop being published")
 	}
@@ -1093,20 +1040,7 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "Concepts/Base.md", "---\ntype: concept\n---\nbase\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	complete := store.Current()
 	base := time.Now()
 	clock := base
@@ -1178,20 +1112,7 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	frozen := store.Current()
 	base := time.Now()
 	clock := base
@@ -1252,20 +1173,7 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha as first read\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	whole := store.Current()
 	wholeAt := whole.Freshness().BuiltAt
 	base := time.Now()
@@ -1367,20 +1275,7 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	)
 	writeNote(t, root, carried, "---\ntype: concept\n---\nthe words read before the file shut\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	whole := store.Current()
 	base := time.Now()
 	clock := base
@@ -1453,20 +1348,7 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	whole := store.Current()
 	base := time.Now()
 	clock := base
@@ -1504,20 +1386,9 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{blocked: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[blocked] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 
 	fresh := store.Current().Freshness()
 	if fresh.Complete {
@@ -1591,20 +1462,9 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{blocked: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[blocked] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 
 	// The generation a request would be holding: published for availability at
 	// startup without the note it could not read.
@@ -1721,20 +1581,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	const failing = "Concepts/Alpha.md"
 	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	// The clock never advances, so the backoff delay never expires.
 	clock := time.Now()
 	store.now = func() time.Time { return clock }
@@ -1767,15 +1614,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
 	writeNote(t, root, "System/slots/L01.yaml", oversize)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
@@ -1799,15 +1638,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
@@ -1837,20 +1668,7 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	}
 	writeNote(t, root, "huge.md", huge)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	if store.retry {
 		t.Fatal("an over-cap note held the generation back; one oversized file would wedge the folder")
 	}
@@ -1908,15 +1726,7 @@ func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
 	writeNote(t, root, "huge.md", huge)
 	writeNote(t, root, "small.md", "---\ntype: concept\n---\nunder the bound\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 	got := store.Current().Skipped()
 	if len(got) != 1 {
 		t.Fatalf("Skipped() = %#v, want the over-bound note alone", got)
@@ -1946,15 +1756,7 @@ func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
 	}
 	writeNote(t, root, "huge.md", huge)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 	gen := store.Current()
 	if _, ok := gen.Note("huge.md"); ok {
 		t.Fatal("the over-cap note was retained; this would not lock skipUnread")
@@ -2093,26 +1895,10 @@ func TestIsDirectoryTellsAFolderFromAFileAndFromNothing(t *testing.T) {
 
 func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	root := t.TempDir()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	declared := strings.Replace(string(data), "[types.thought]\nrole = \"thought\"\n", "[types.thought]\n", 1)
-	declared = strings.Replace(declared, "[types.writing]\n", "[types.writing]\nrole = \"thought\"\n", 1)
-	if strings.Count(declared, `role = "thought"`) != 1 || !strings.Contains(declared, "[types.writing]\nrole = \"thought\"\n") {
-		t.Fatal("the contract fixture's thought role did not move to writing")
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(contractPath, []byte(declared), 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
-		t.Fatal(err)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	contract := writeContract(t, root, func(text string) string {
+		text = replacing(t, "[types.thought]\nrole = \"thought\"\n", "[types.thought]\n")(text)
+		return replacing(t, "[types.writing]\n", "[types.writing]\nrole = \"thought\"\n")(text)
+	})
 	store, _ := newTestStore(t, root, contract)
 	if got := store.Current().NavigationRoles().AnswerType(); got != "writing" {
 		t.Fatalf("answer role at start = %q, want %q", got, "writing")
@@ -2120,9 +1906,7 @@ func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	// The declaration is withdrawn on disk and the vault changes, so the next
 	// scan rebuilds. Like the course and map roles, the role holds until the
 	// next start.
-	if err = os.WriteFile(contractPath, data, 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
-		t.Fatal(err)
-	}
+	testContract(t, root)
 	writeNote(t, root, "Later.md", "# Later\n\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("Later.md"); !ok {

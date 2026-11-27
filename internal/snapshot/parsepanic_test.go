@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"bytes"
 	"log/slog"
 	"strings"
 	"testing"
@@ -14,25 +13,22 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// logged returns the records written to buf at one level, a line each: the text
-// handler writes one record to a line and quotes a value that holds a newline.
-func logged(buf *bytes.Buffer, level string) []string {
-	var lines []string
-	for line := range strings.Lines(buf.String()) {
-		if strings.Contains(line, "level="+level+" ") {
-			lines = append(lines, line)
+// atLevel are the logged lines at level.
+func atLevel(lines []loggedLine, level slog.Level) []loggedLine {
+	var out []loggedLine
+	for _, line := range lines {
+		if line.Level == level {
+			out = append(out, line)
 		}
 	}
-	return lines
+	return out
 }
 
 // assertsReportedInFull holds one ERROR record to what a reader needs from it.
-func assertsReportedInFull(t *testing.T, record string) {
+func assertsReportedInFull(t *testing.T, line loggedLine) {
 	t.Helper()
-	for _, want := range []string{"path=" + panicPoisoned, `panic="` + panicValue + `"`, "stack="} {
-		if !strings.Contains(record, want) {
-			t.Errorf("ERROR record lacks %s: %s", want, record)
-		}
+	if line.Attrs["path"] != panicPoisoned || line.Attrs["panic"] != panicValue || line.Attrs["stack"] == "" {
+		t.Errorf("ERROR record = %+v, want the path %q, the panic %q and a stack", line, panicPoisoned, panicValue)
 	}
 }
 
@@ -111,18 +107,6 @@ func mustNotPanic(tb testing.TB, step string, run func()) {
 	run()
 }
 
-// panicSource opens root as a recordingSource so a test can read how many times
-// each file was read, and closes the capability when the test ends.
-func panicSource(tb testing.TB, root string) *recordingSource {
-	tb.Helper()
-	reader, err := vault.Open(root)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tb.Cleanup(func() { closeReader(tb, reader) })
-	return &recordingSource{Source: reader, reads: make(map[string]int), fail: make(map[string]int)}
-}
-
 const (
 	panicPoisoned = "Concepts/Poison.md"
 	panicValue    = "injected parser panic"
@@ -192,8 +176,8 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 					contract = testContract(t, root)
 					governance = contract.Governance()
 				}
-				var logs bytes.Buffer
-				store := newStore(panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, governance)
+				log, logged := newRecordingLogger()
+				store := newStore(openReader(t, root), log, contract, governance)
 				breakStage(store, stage)
 				mustNotPanic(t, "startup scan", func() {
 					if err := store.buildFirst(t.Context(), nil); err != nil {
@@ -229,7 +213,7 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 					t.Errorf("Blocked reason = %q, want the panic value %q in it", fresh.Blocked[0].Reason, panicValue)
 				}
 
-				errs := logged(&logs, "ERROR")
+				errs := atLevel(logged(), slog.LevelError)
 				if len(errs) != 1 {
 					t.Fatalf("logged %d ERROR records, want exactly 1", len(errs))
 				}
@@ -254,10 +238,7 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			root := t.TempDir()
 			writePanicVault(t, root)
 			contract := testContract(t, root)
-			store, err := New(t.Context(), panicSource(t, root), discardLogger(), contract, contract.Governance())
-			if err != nil {
-				t.Fatal(err)
-			}
+			store := buildStore(t, openReader(t, root), discardLogger(), contract)
 			whole := store.Current()
 			if !whole.Freshness().Complete {
 				t.Fatal("the first generation, built with the real parsers, is not whole; the rebuild below proves nothing")
@@ -335,11 +316,8 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 	root := t.TempDir()
 	writePanicVault(t, root)
 	contract := testContract(t, root)
-	var logs bytes.Buffer
-	store, err := New(t.Context(), panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	log, logged := newRecordingLogger()
+	store := buildStore(t, openReader(t, root), log, contract)
 	base := time.Now()
 	clock := base
 	store.now = func() time.Time { return clock }
@@ -350,12 +328,12 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 		mustNotPanic(t, "rebuild", func() { store.rescan(t.Context()) })
 	}
 	counts := func() (errs, warns int) {
-		for _, line := range logged(&logs, "WARN") {
-			if strings.Contains(line, "still panics") {
+		for _, line := range atLevel(logged(), slog.LevelWarn) {
+			if strings.Contains(line.Message, "still panics") {
 				warns++
 			}
 		}
-		return len(logged(&logs, "ERROR")), warns
+		return len(atLevel(logged(), slog.LevelError)), warns
 	}
 
 	restore := breakStage(store, 1)
