@@ -98,6 +98,7 @@ export function initMarks() {
   const bases = new Map(); // id -> what the page has read of it
   const spans = new Map(); // id -> where its words are, which does not change
   const queues = new Map(); // id -> the request in flight, so changes go one at a time
+  const newest = new Map(); // edit id -> the newest send number made of that edit
 
   const piecesOf = (id) => [...prose.querySelectorAll(`mark[data-mark="${CSS.escape(id)}"]`)];
   const noteOf = (id) => document.getElementById(`mn-${id}`);
@@ -125,9 +126,9 @@ export function initMarks() {
     return { status: response.status, json };
   }
 
-  async function ensure(id) {
+  async function ensure(id, { keepalive = false } = {}) {
     if (known.has(id)) return known.get(id);
-    const answer = await send('GET', `${endpoint}/${id}`);
+    const answer = await send('GET', `${endpoint}/${id}`, null, { keepalive });
     if (answer.status !== 200) return null;
     remember(answer.json);
     return answer.json;
@@ -147,18 +148,25 @@ export function initMarks() {
   // the newer is what is shown.
   function change(method, id, patch, options = {}) {
     const { rebase = true, keepalive = false, immediate = false } = options;
+    // The newest send of each editing session: an older one that is told it is
+    // stale was held up, and what it carried is in the newer.
+    if (patch.edit) newest.set(patch.edit.id, Math.max(newest.get(patch.edit.id) ?? 0, patch.edit.seq));
+    const older = () => patch.edit && patch.edit.seq < newest.get(patch.edit.id);
     const run = async () => {
-      let base = bases.get(id) ?? (await ensure(id))?.seen;
+      let base = bases.get(id) ?? (await ensure(id, { keepalive }))?.seen;
       if (!base) return { ok: false, gone: true };
       for (let attempt = 0; attempt < 2; attempt++) {
         const answer = await send(method, `${endpoint}/${id}`, { seen: base, ...patch }, { keepalive });
         if (answer.status === 200) {
           draw(answer.json);
+          // A mark taken away from inside its own field is not written in again.
+          if (method === 'DELETE' && field?.id === id && !field.closing) closeNow(field);
           return { ok: true, mark: answer.json };
         }
         if (answer.status === 409) {
           const reason = answer.json?.reason;
           if (reason === 'stale' && !rebase) return { ok: false, stale: true };
+          if (reason === 'stale' && older()) return { ok: true, silent: true };
           if (reason === 'stale' && attempt === 0) {
             base = answer.json.seen;
             continue;
@@ -167,7 +175,7 @@ export function initMarks() {
           if (reason === 'gone') {
             known.delete(id);
             bases.delete(id);
-            const now = await send('GET', `${endpoint}/${id}`);
+            const now = await send('GET', `${endpoint}/${id}`, null, { keepalive });
             if (now.status === 200) draw(now.json);
             return { ok: false, gone: true };
           }
@@ -598,6 +606,7 @@ export function initMarks() {
       // time it is tried, so that a try whose answer was lost is not a second.
       draftId: id ? null : newId(),
       creating: null,
+      making: null,
       createdEntry: null,
       before: mark ? { kind: mark.kind, body: mark.body } : null,
       sent: mark?.body ?? '',
@@ -684,6 +693,10 @@ export function initMarks() {
   }
 
   async function flush(session, { final = false, keepalive = false, leaving = false, restored = false } = {}) {
+    // A page that is being left does not wait for a thought that is being made:
+    // the words go in a send of their own, of the same id, which the server
+    // answers with the thought when the first is written already.
+    if (leaving && session.creating) return keepWhileLeaving(session);
     // A thought that is being made is waited for, so that what comes after it is
     // a change of that thought and not the making of a second.
     while (session.creating) await session.creating;
@@ -703,6 +716,7 @@ export function initMarks() {
     const survive = keepalive && size <= TOO_LONG;
     let result;
     if (want.create !== undefined) {
+      session.making = want.create;
       session.creating = keepSectionThought(session, want.create, { keepalive: survive }).finally(() => {
         session.creating = null;
       });
@@ -729,11 +743,24 @@ export function initMarks() {
     return result;
   }
 
+  async function keepWhileLeaving(session) {
+    const body = session.parts.text.value;
+    if (body.trim() === '' || body === session.making) return { ok: true };
+    if (new Blob([body]).size > TOO_LONG) return { ok: false, status: 413 };
+    try {
+      const request = { id: session.draftId, kind: 'thought', path, anchor: session.anchor, body };
+      const answer = await send('POST', endpoint, request, { keepalive: true });
+      return answer.status === 200 || answer.status === 201 ? { ok: true } : { ok: false, status: answer.status };
+    } catch {
+      return { ok: false, status: 0 };
+    }
+  }
+
   // bringBack answers a mark that was deleted elsewhere while the reader was
   // writing in it. What was written is the newest thing said of the mark, so the
   // mark is brought back and the words are put on it; they are never dropped.
   async function bringBack(session, options) {
-    const result = await change('PUT', session.id, {}, { rebase: false });
+    const result = await change('PUT', session.id, {}, { rebase: false, keepalive: options.keepalive, immediate: options.leaving });
     if (!result.ok) {
       session.failed = true;
       showFieldFailure(session, result, new Blob([session.parts.text.value]).size);

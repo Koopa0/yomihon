@@ -33,6 +33,10 @@ const SITES = [
   'a-leaving-write-is-sent-at-once',
   'an-undo-does-not-rebase',
   'one-field-is-open-at-a-time',
+  'a-mark-deleted-here-is-not-brought-back',
+  'an-older-send-never-wins',
+  'a-leaving-send-does-not-wait-for-a-creation',
+  'a-leaving-send-keeps-its-whole-road',
   'a-cancelled-section-thought-comes-back',
   'a-name-keeps-the-words-as-they-are',
   'a-too-long-write-says-so',
@@ -81,6 +85,16 @@ const MODES = {
   'leaving-write-not-keepalive': script('const answer = await send(method, `\x24{endpoint}/\x24{id}`, { seen: base, ...patch }, { keepalive });', 'const answer = await send(method, `\x24{endpoint}/\x24{id}`, { seen: base, ...patch }, {});', 'a-leaving-write-is-sent-at-once'),
   // Taking a step back writes over what another tab has since changed.
   'undo-rebases': script("if (reason === 'stale' && !rebase) return { ok: false, stale: true };", '', 'an-undo-does-not-rebase'),
+  // A mark taken back from inside its own field leaves the field open.
+  'deleted-here-leaves-the-field': script("if (method === 'DELETE' && field?.id === id && !field.closing) closeNow(field);", '', 'a-mark-deleted-here-is-not-brought-back'),
+  // An earlier send that is told it is stale is sent again over the newer.
+  'older-send-is-sent-again': script("if (reason === 'stale' && older()) return { ok: true, silent: true };", '', 'an-older-send-never-wins'),
+  // A page that is left waits for the thought that is being made.
+  'leaving-waits-for-creation': script('if (leaving && session.creating) return keepWhileLeaving(session);', '', 'a-leaving-send-does-not-wait-for-a-creation'),
+  // The look at a mark found deleted does not survive the page.
+  'leaving-look-not-keepalive': script("const now = await send('GET', `\x24{endpoint}/\x24{id}`, null, { keepalive });", "const now = await send('GET', `\x24{endpoint}/\x24{id}`);", 'a-leaving-send-keeps-its-whole-road'),
+  // The bringing back of a mark does not survive the page.
+  'leaving-bring-back-not-keepalive': script("{ rebase: false, keepalive: options.keepalive, immediate: options.leaving }", '{ rebase: false }', 'a-leaving-send-keeps-its-whole-road'),
   // Two presses before the first field is open make two fields.
   'two-fields-open': script('    if (claimed) return;\n', '', 'one-field-is-open-at-a-time'),
   // A section's thought that was thrown away cannot be got back.
@@ -565,6 +579,160 @@ await probe.run(async ({ open }) => {
     await long.page.locator('.y-mfield textarea').fill('');
     await long.page.keyboard.press('Escape');
     await long.close();
+  }
+
+  // Taking back the making of a mark from inside its own field deletes it, and
+  // the field with it: what is written afterwards is not a reason to bring it back.
+  if (runs('a-mark-deleted-here-is-not-brought-back')) {
+    const mine = await open();
+    await watch(mine.page);
+    const IOTA = 'Iota passage ends it';
+    await choose(mine.page, IOTA);
+    await mine.page.keyboard.press('h');
+    await field(mine.page).waitFor({ timeout: 3000 }).catch(() => {});
+    const id = await mine.page.evaluate(() => document.querySelector('.y-mfield')?.dataset.mfield ?? '');
+    if (!id) broken('the field of the new highlight has no id');
+    await mine.page.keyboard.press('Tab');
+    await mine.page.keyboard.press('Meta+z');
+    await mine.page.waitForTimeout(600);
+    const stays = await mine.page.locator('.y-mfield').count();
+    if (stays !== 0) fire('a-mark-deleted-here-is-not-brought-back', 'the mark was taken back from inside its own field and the field is still open, to be written in and to bring the mark back');
+    await mine.page.waitForTimeout(600);
+    const now = await (await mine.context.request.get(`${BASE}/mark/${id}`)).json();
+    if (!now.deleted) fire('a-mark-deleted-here-is-not-brought-back', 'the mark that was taken back is not deleted');
+    console.log('marks-make: a mark taken back from inside its own field closes the field and stays deleted');
+    await mine.close();
+  }
+
+  // The tab is hidden and not left: a later send goes at once, another tab writes,
+  // and the earlier send that was held up arrives last. It is never written over
+  // them.
+  if (runs('an-older-send-never-wins')) {
+    const race = await open();
+    await race.page.addInitScript(() => {
+      window.__sends = [];
+      const original = window.fetch;
+      window.fetch = (url, init) => {
+        window.__sends.push({ method: init?.method ?? 'GET', url: String(url), keepalive: Boolean(init?.keepalive) });
+        return original.call(window, url, init);
+      };
+    });
+    await reload(race.page);
+    const PI = 'Pi passage stands under a heading';
+    await choose(race.page, PI);
+    await race.page.keyboard.press('h');
+    await field(race.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await race.page.keyboard.type('one');
+    await race.page.waitForTimeout(900);
+    const id = await race.page.evaluate(() => document.querySelector('.y-mfield')?.dataset.mfield ?? '');
+    let release = () => {};
+    const held = new Promise((resolve) => { release = resolve; });
+    const arrived = [];
+    await race.page.route('**/mark/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      arrived.push(route.request().postDataJSON().body);
+      if (arrived.length === 1) await held;
+      return route.fallback();
+    });
+    await race.page.keyboard.type(' two');
+    for (let waited = 0; arrived.length < 1 && waited < 3000; waited += 50) await race.page.waitForTimeout(50);
+    await race.page.keyboard.type(' three');
+    await race.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    for (let waited = 0; arrived.length < 2 && waited < 3000; waited += 50) await race.page.waitForTimeout(50);
+    await race.page.waitForTimeout(400);
+    const seen = (await (await race.context.request.get(`${BASE}/mark/${id}`)).json()).seen;
+    const other = await race.context.request.patch(`${BASE}/mark/${id}`, { data: { seen, body: 'from the other tab' } });
+    if (other.status() !== 200) broken(`the other tab's write answered ${other.status()}, want 200`);
+    release();
+    await race.page.waitForTimeout(1500);
+    const body = (await (await race.context.request.get(`${BASE}/mark/${id}`)).json()).body;
+    if (body !== 'from the other tab') fire('an-older-send-never-wins', `the mark says ${JSON.stringify(body)} after the held-up earlier send arrived last, want the other tab's words: the earlier send was told it was stale and sent again over what is newer`);
+    console.log('marks-make: an earlier send that arrives after a later one and another tab\'s write is not written');
+    await race.page.unroute('**/mark/*');
+    await race.close();
+  }
+
+  // The page is left while a section's thought is still being made: the words
+  // typed after the first send go out too, at once, and do not wait for it.
+  if (runs('a-leaving-send-does-not-wait-for-a-creation')) {
+    const making = await open();
+    await making.page.addInitScript(() => {
+      window.__sends = [];
+      const original = window.fetch;
+      window.fetch = (url, init) => {
+        window.__sends.push({ method: init?.method ?? 'GET', url: String(url), keepalive: Boolean(init?.keepalive) });
+        return original.call(window, url, init);
+      };
+    });
+    await reload(making.page);
+    let release = () => {};
+    const held = new Promise((resolve) => { release = resolve; });
+    const posts = [];
+    await making.page.route('**/mark', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      posts.push(route.request().postDataJSON());
+      if (posts.length === 1) await held;
+      return route.fallback();
+    });
+    await making.page.locator('[data-section-thought]').nth(1).evaluate((button) => button.click());
+    await field(making.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await making.page.keyboard.type('first');
+    for (let waited = 0; posts.length < 1 && waited < 3000; waited += 50) await making.page.waitForTimeout(50);
+    await making.page.keyboard.type(' and the rest');
+    await making.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await making.page.waitForTimeout(700);
+    const last = posts[posts.length - 1];
+    if (posts.length < 2 || last.body !== 'first and the rest') fire('a-leaving-send-does-not-wait-for-a-creation', `with the first send still on its way, the page left sent ${JSON.stringify(posts.map((p) => p.body))}, want the last words, "first and the rest", sent at once`);
+    else {
+      if (last.id !== posts[0].id) fire('a-leaving-send-does-not-wait-for-a-creation', 'the words sent as the page was left are of another thought than the first send');
+      const sends = await making.page.evaluate(() => window.__sends.filter((s) => s.method === 'POST'));
+      if (!sends[sends.length - 1].keepalive) fire('a-leaving-send-does-not-wait-for-a-creation', 'the words sent as the page was left do not survive it: no keepalive');
+      const kept = await (await making.context.request.get(`${BASE}/mark/${last.id}`)).json();
+      if (kept.body !== 'first and the rest') fire('a-leaving-send-does-not-wait-for-a-creation', `the thought holds ${JSON.stringify(kept.body)} while the first send is held up, want the last words`);
+    }
+    release();
+    console.log('marks-make: words typed while a section thought is being made go out at once as the page is left');
+    await making.page.waitForTimeout(500);
+    await making.page.unroute('**/mark');
+    await making.close();
+  }
+
+  // As the page is left a mark is found deleted elsewhere, and every request on
+  // the way back, the look, the bringing back and the words, is one that survives
+  // the page.
+  if (runs('a-leaving-send-keeps-its-whole-road')) {
+    const road = await open();
+    await road.page.addInitScript(() => {
+      window.__sends = [];
+      const original = window.fetch;
+      window.fetch = (url, init) => {
+        window.__sends.push({ method: init?.method ?? 'GET', url: String(url), keepalive: Boolean(init?.keepalive) });
+        return original.call(window, url, init);
+      };
+    });
+    await reload(road.page);
+    const XI = 'Xi passage is a short one';
+    await choose(road.page, XI);
+    await road.page.keyboard.press('h');
+    await field(road.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await road.page.keyboard.type('kept on the road');
+    await road.page.waitForTimeout(900);
+    const id = await road.page.evaluate(() => document.querySelector('.y-mfield')?.dataset.mfield ?? '');
+    const seen = (await (await road.context.request.get(`${BASE}/mark/${id}`)).json()).seen;
+    const gone = await road.context.request.delete(`${BASE}/mark/${id}`, { data: { seen } });
+    if (gone.status() !== 200) broken(`the other tab's delete answered ${gone.status()}, want 200`);
+    await road.page.keyboard.type(' and left');
+    const from = await road.page.evaluate(() => window.__sends.length);
+    await road.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await road.page.waitForTimeout(1500);
+    const after = await road.page.evaluate((from) => window.__sends.slice(from), from);
+    const loose = after.filter((s) => !s.keepalive);
+    if (after.length < 3) broken(`only ${after.length} requests were made on the way back: ${JSON.stringify(after)}`);
+    if (loose.length > 0) fire('a-leaving-send-keeps-its-whole-road', `the page left made requests that do not survive it: ${JSON.stringify(loose)}`);
+    const now = await (await road.context.request.get(`${BASE}/mark/${id}`)).json();
+    if (now.deleted || now.body !== 'kept on the road and left') fire('a-leaving-send-keeps-its-whole-road', `the mark holds ${JSON.stringify({ deleted: now.deleted, body: now.body })}, want it back with "kept on the road and left"`);
+    console.log('marks-make: a mark found deleted as the page is left is brought back by requests that survive it');
+    await road.close();
   }
 
   // A write that is refused is said where the reader is writing, announced, in
