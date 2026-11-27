@@ -20,7 +20,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/egress"
-	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
@@ -92,7 +91,6 @@ func TestLeftOpenWritesTheGoldenList(t *testing.T) {
 	}{
 		{format: "json", golden: "list.jsonl"},
 		{format: "human", golden: "list.txt"},
-		{format: "md", golden: "list.txt"},
 	} {
 		t.Run(tt.format, func(t *testing.T) {
 			t.Parallel()
@@ -390,7 +388,7 @@ func TestLeftOpenChecksAuthorityAgainAfterAssembly(t *testing.T) {
 	root, configDir := leftOpenPrivateVault(t)
 	narrowed := strings.Replace(leftOpenContract, `never_egress_dirs = ["Private"]`, `never_egress_dirs = ["Private", "Inside"]`, 1)
 	var stdout, stderr bytes.Buffer
-	request := openRequest{root: root, configDir: confdir.At(configDir), format: judge.FormatJSON, afterAssemble: func() {
+	request := openRequest{root: root, configDir: confdir.At(configDir), format: formatJSON, afterAssemble: func() {
 		putOpenThoughtFile(t, root, schema.ContractRelPath, narrowed)
 	}}
 	exit := request.run(t.Context(), &stdout, &stderr)
@@ -500,7 +498,7 @@ func TestLeftOpenRefusesAFolderInsideOrAboveAVault(t *testing.T) {
 		}},
 	}
 	for _, shape := range shapes {
-		for _, format := range []judge.Format{judge.FormatJSON, judge.FormatHuman} {
+		for _, format := range []outputFormat{formatJSON, formatHuman} {
 			t.Run(fmt.Sprintf("%s/%v", shape.name, format), func(t *testing.T) {
 				t.Parallel()
 				root := shape.build(t)
@@ -557,7 +555,7 @@ func lockDir(t *testing.T, dir string) {
 // list. The refusal has to come from what the walk the list is read from entered.
 func TestLeftOpenRefusesAVaultMovedInAfterTheFirstLook(t *testing.T) {
 	t.Parallel()
-	for _, format := range []judge.Format{judge.FormatJSON, judge.FormatHuman} {
+	for _, format := range []outputFormat{formatJSON, formatHuman} {
 		t.Run(format.String(), func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
@@ -587,7 +585,7 @@ func TestLeftOpenCancelledIsNotAPrivacyRefusal(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	var stdout, stderr bytes.Buffer
-	exit := (&openRequest{root: root, configDir: confdir.At(t.TempDir()), format: judge.FormatJSON}).run(ctx, &stdout, &stderr)
+	exit := (&openRequest{root: root, configDir: confdir.At(t.TempDir()), format: formatJSON}).run(ctx, &stdout, &stderr)
 	if exit != 2 || stdout.Len() != 0 {
 		t.Errorf("exit %d, stdout %q, want a refusal and nothing listed", exit, stdout.String())
 	}
@@ -606,7 +604,7 @@ func TestLeftOpenRefusesWhenARulesFileAppearsAfterAssembly(t *testing.T) {
 	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("A private thought", "thought", draftFlag, "2026-09-01"))
 	leftOpenMarks(t, root, configDir, machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
 	var stdout, stderr bytes.Buffer
-	request := openRequest{root: root, configDir: confdir.At(configDir), format: judge.FormatJSON, afterAssemble: func() {
+	request := openRequest{root: root, configDir: confdir.At(configDir), format: formatJSON, afterAssemble: func() {
 		putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	}}
 	exit := request.run(t.Context(), &stdout, &stderr)
@@ -990,7 +988,7 @@ func FuzzParseOpenArgs(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if request.format != judge.FormatJSON && request.format != judge.FormatHuman {
+		if request.format != formatJSON && request.format != formatHuman {
 			t.Errorf("parseOpenArgs(%q) accepted format %v, which this command does not write", args, request.format)
 		}
 		if request.root == "" {

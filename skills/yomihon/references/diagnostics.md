@@ -261,7 +261,7 @@ gates: it exits 0 whatever it finds, and 2 only if it could not run. A map
 filed outside that layer does not count towards it.
 [`maps.md`](maps.md) owns what the three mount states mean and how to move one.
 
-`yomihon exists [--root <vault>] [--format json|human|md] <name>` exits 0 when a
+`yomihon exists [--root <vault>] [--format json|human] <name>` exits 0 when a
 note for the name exists and 1 when none does, so a write-if-absent can gate on the exit code — but on **0 against 1**,
 not on zero against everything else. `exists` refuses like the other two, and a
 refusal exits **2**:

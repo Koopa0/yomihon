@@ -342,6 +342,9 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 				if bytes.Contains(out, []byte(prefix)) {
 					t.Errorf("RunCheck(%d) named a withheld note:\n%s", format, out)
 				}
+				if format == FormatMarkdown {
+					continue
+				}
 				out, _, err = coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
 				if err != nil {
 					t.Fatalf("RunCoverage(%d) error = %v", format, err)

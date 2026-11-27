@@ -647,7 +647,7 @@ func TestMarksWithoutExportPrintsNoWords(t *testing.T) {
 	if out := c.export().stdout; !strings.Contains(out, "OTHER-SIDE-WORDS") {
 		t.Fatalf("the test does not reach the case: the export lacks the other side's words:\n%s", out)
 	}
-	for _, args := range [][]string{nil, {"--format", "json"}, {"--format", "human"}, {"--format", "md"}} {
+	for _, args := range [][]string{nil, {"--format", "json"}, {"--format", "human"}} {
 		got := leftOpen(t, c.root, c.config, args...)
 		if got.exit != 0 {
 			t.Fatalf("marks %v: exit %d, stderr %q", args, got.exit, got.stderr)

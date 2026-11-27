@@ -45,7 +45,6 @@ func TestRunCoverageGolden(t *testing.T) {
 	}{
 		{name: "json", format: FormatJSON, golden: "testdata/golden/coverage.golden"},
 		{name: "human", format: FormatHuman, golden: "testdata/golden/coverage-human.golden"},
-		{name: "md falls back to human", format: FormatMarkdown, golden: "testdata/golden/coverage-human.golden"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -315,6 +314,9 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 		}
 		if !bytes.Contains(checkOutput, []byte("Concepts/Public.md")) {
 			t.Errorf("RunCheck(%d) dropped public output with private output:\n%s", format, checkOutput)
+		}
+		if format == FormatMarkdown {
+			continue
 		}
 
 		coverageOutput, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
@@ -665,60 +667,6 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 			t.Errorf("exit = %d, want 0", exit)
 		}
 	})
-}
-
-// TestResolveFormat asserts an explicit flag wins and, without one, a terminal
-// gets the human view and a pipe the machine view.
-func TestResolveFormat(t *testing.T) {
-	t.Parallel()
-	json, human := FormatJSON, FormatHuman
-	tests := []struct {
-		name     string
-		explicit *Format
-		isTTY    bool
-		want     Format
-	}{
-		{name: "explicit json over a terminal", explicit: &json, isTTY: true, want: FormatJSON},
-		{name: "explicit human over a pipe", explicit: &human, isTTY: false, want: FormatHuman},
-		{name: "default terminal is human", explicit: nil, isTTY: true, want: FormatHuman},
-		{name: "default pipe is json", explicit: nil, isTTY: false, want: FormatJSON},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := ResolveFormat(tt.explicit, tt.isTTY); got != tt.want {
-				t.Errorf("ResolveFormat(%v, %t) = %d, want %d", tt.explicit, tt.isTTY, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestFormatNamesTheSpellingThatAsksForIt walks the format constants back
-// through ParseFormat, so the word a message prints is the word a reader can
-// type after --format. A spelling that drifts from the parser would leave a
-// message telling the reader to ask for something the flag refuses.
-func TestFormatNamesTheSpellingThatAsksForIt(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		format Format
-		want   string
-	}{
-		{FormatJSON, "json"},
-		{FormatHuman, "human"},
-		{FormatMarkdown, "md"},
-	} {
-		t.Run(tt.want, func(t *testing.T) {
-			t.Parallel()
-			got := tt.format.String()
-			if got != tt.want {
-				t.Errorf("Format.String() = %q, want %q", got, tt.want)
-			}
-			parsed, ok := ParseFormat(got)
-			if !ok || parsed != tt.format {
-				t.Errorf("ParseFormat(%q) = %d, %t; want %d, true", got, parsed, ok, tt.format)
-			}
-		})
-	}
 }
 
 // TestRunOnEmptyVault asserts the three commands run cleanly over a directory

@@ -150,7 +150,7 @@ type openRequest struct {
 	// adopt is the path this folder had before it moved, when the marks kept for
 	// that path are to be brought across before the list is made.
 	adopt  string
-	format judge.Format
+	format outputFormat
 	// export says the reader asked for their own words: the marks with what they
 	// wrote, as Markdown. It is the one way this command prints them.
 	export bool
@@ -198,17 +198,15 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 	case parsed.export && parsed.format != nil:
 		return openRequest{}, errors.New("--export writes Markdown and does not accept --format")
 	}
+	if err := refuseMarkdown(openCommand, parsed.format); err != nil {
+		return openRequest{}, err
+	}
 	if parsed.root == "" {
 		if parsed.root, err = os.Getwd(); err != nil {
 			return openRequest{}, fmt.Errorf("resolve working directory: %w", err)
 		}
 	}
-	format := judge.ResolveFormat(parsed.format, stdoutIsTerminal)
-	if format == judge.FormatMarkdown {
-		// As coverage and exists do, md falls back to the human view: a list
-		// has no report body of its own.
-		format = judge.FormatHuman
-	}
+	format := resolveFormat(parsed.format, stdoutIsTerminal)
 	return openRequest{root: parsed.root, adopt: parsed.adopt, format: format, export: parsed.export}, nil
 }
 
@@ -286,7 +284,7 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted
 	if err != nil {
 		return egress.Payload{}, false, "", err
 	}
-	if gate.WithoutRules() && r.format != judge.FormatJSON {
+	if gate.WithoutRules() && r.format != formatJSON {
 		data = append([]byte(egress.NoRulesFile+"\n"), data...)
 	}
 	// The list was assembled under the rules file read at the start. If it
@@ -570,9 +568,9 @@ func openLocationEntry(snap *snapshot.Generation, gate *egress.Gate, kept *snaps
 	return entry, true
 }
 
-func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
+func encodeOpen(entries []openEntry, format outputFormat) ([]byte, error) {
 	switch format {
-	case judge.FormatJSON:
+	case formatJSON:
 		var buf bytes.Buffer
 		enc := json.NewEncoder(&buf)
 		enc.SetEscapeHTML(false)
@@ -588,7 +586,7 @@ func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
 			}
 		}
 		return buf.Bytes(), nil
-	case judge.FormatHuman, judge.FormatMarkdown:
+	case formatHuman:
 		var b strings.Builder
 		for _, entry := range entries {
 			if entry.location != nil {
@@ -599,7 +597,7 @@ func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
 		}
 		return []byte(b.String()), nil
 	default:
-		panic("main: unknown Format: " + format.String())
+		panic(fmt.Sprintf("main: unknown outputFormat: %d", int(format)))
 	}
 }
 

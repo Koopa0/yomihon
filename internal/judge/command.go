@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/egress"
@@ -21,7 +21,7 @@ import (
 // pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
 // error, which a runner reports as a non-nil error.
 
-// Format is the output format of a subcommand.
+// Format is the shape a command's answer is printed in.
 type Format int
 
 const (
@@ -30,54 +30,10 @@ const (
 	FormatJSON Format = iota
 	// FormatHuman is the terminal format for a person.
 	FormatHuman
-	// FormatMarkdown is a fileable markdown report body. It is a check-only
-	// format; coverage and exists fall back to the human view.
+	// FormatMarkdown is check's report as a markdown body. Coverage and exists
+	// have no such view and refuse it.
 	FormatMarkdown
 )
-
-// String names a format with the spelling ParseFormat accepts, so a message
-// and the flag a reader would type are the same word. A value outside the three
-// constants has no spelling and panics rather than inventing one.
-func (f Format) String() string {
-	switch f {
-	case FormatJSON:
-		return "json"
-	case FormatHuman:
-		return "human"
-	case FormatMarkdown:
-		return "md"
-	default:
-		panic("judge: unknown Format: " + strconv.Itoa(int(f)))
-	}
-}
-
-// ParseFormat maps a --format value to a Format, reporting false for a value
-// that is none of json, human, or md.
-func ParseFormat(s string) (Format, bool) {
-	switch s {
-	case "json":
-		return FormatJSON, true
-	case "human":
-		return FormatHuman, true
-	case "md":
-		return FormatMarkdown, true
-	default:
-		return 0, false
-	}
-}
-
-// ResolveFormat picks the output format: an explicit flag wins; otherwise the
-// machine format for a pipe and the human format for a terminal, so an agent
-// reading a pipe gets JSON and a person at a terminal gets the readable view.
-func ResolveFormat(explicit *Format, isTTY bool) Format {
-	if explicit != nil {
-		return *explicit
-	}
-	if isTTY {
-		return FormatHuman
-	}
-	return FormatJSON
-}
 
 // CheckOptions is the parsed check command. Paths only filter the output; the
 // graph is always built from the whole root. All restores findings that touch
@@ -177,7 +133,7 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 			stdout = append([]byte(noRulesChecks+"\n\n"), stdout...)
 		}
 	default:
-		panic("judge: unknown Format: " + o.Format.String())
+		panic(fmt.Sprintf("judge: unknown Format: %d", o.Format))
 	}
 	exit := 0
 	if gated(findings, o.Deny) {
@@ -212,6 +168,9 @@ func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, 
 }
 
 func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	if o.Format == FormatMarkdown {
+		return preparedCommand{}, errors.New("coverage has no markdown view; use json or human")
+	}
 	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
@@ -233,7 +192,6 @@ func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks act
 		}
 		stdout = out
 	} else {
-		// md is a check-only format; coverage falls back to the human view.
 		stdout = []byte(renderCoverage(&cov))
 	}
 	return preparedCommand{stdout: stdout, action: a}, nil
@@ -267,6 +225,9 @@ func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, erro
 }
 
 func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	if o.Format == FormatMarkdown {
+		return preparedCommand{}, errors.New("exists has no markdown view; use json or human")
+	}
 	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
@@ -292,7 +253,6 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 		}
 		stdout = out
 	} else {
-		// md is a check-only format; exists falls back to the human view.
 		stdout = []byte(renderExists(report))
 	}
 	exit := 1

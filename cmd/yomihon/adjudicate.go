@@ -32,7 +32,7 @@ type commandArgs struct {
 	root string
 	// serve refuses repeated roots; the adjudicating commands keep the last.
 	rootCount int
-	format    *judge.Format
+	format    *outputFormat
 	all       bool
 	deny      []string
 	baseline  string
@@ -67,7 +67,7 @@ func runCommand(
 			return commandError(stderr, fmt.Errorf("resolve working directory: %w", err))
 		}
 	}
-	format := judge.ResolveFormat(parsed.format, stdoutIsTerminal)
+	format := engineFormat(resolveFormat(parsed.format, stdoutIsTerminal))
 
 	var payload egress.Payload
 	var exit int
@@ -113,6 +113,9 @@ func validateCommandArgs(command string, args *commandArgs) error {
 	case "check":
 		return scopeIsNotTheVaultItself(args.positionals)
 	case "coverage":
+		if err := refuseMarkdown(command, args.format); err != nil {
+			return err
+		}
 		if args.all {
 			return errors.New("coverage does not accept --all")
 		}
@@ -127,6 +130,9 @@ func validateCommandArgs(command string, args *commandArgs) error {
 		}
 		return nil
 	case "exists":
+		if err := refuseMarkdown(command, args.format); err != nil {
+			return err
+		}
 		if args.all {
 			return errors.New("exists does not accept --all")
 		}
@@ -245,13 +251,27 @@ func (args *commandArgs) setFlag(name, value string) error {
 	case "--deny":
 		args.deny = append(args.deny, value)
 	case "--format":
-		format, ok := judge.ParseFormat(value)
+		format, ok := parseFormat(value)
 		if !ok {
 			return fmt.Errorf("invalid --format %q; use json, human, or md", value)
 		}
 		args.format = &format
 	}
 	return nil
+}
+
+// engineFormat is the judge's name for the shape a command was asked for.
+func engineFormat(f outputFormat) judge.Format {
+	switch f {
+	case formatJSON:
+		return judge.FormatJSON
+	case formatHuman:
+		return judge.FormatHuman
+	case formatMarkdown:
+		return judge.FormatMarkdown
+	default:
+		panic(fmt.Sprintf("main: unknown outputFormat: %d", int(f)))
+	}
 }
 
 // contractGuidance is the paragraph a person needs after a refusal a program
