@@ -811,8 +811,8 @@ never_egress_dirs = ["Private", "Straße"]
 // name, so a membership that turned on the spelling would govern a note or
 // leave it ungoverned by coincidence.
 //
-// Composition stays a separate dimension: the loader composes every declared
-// folder and the scan reports composed paths, so the fold is over case alone.
+// Composition is read as every scope reads it: the declared folder and the path
+// are both composed before the fold, which is over case.
 func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	t.Parallel()
 
@@ -844,10 +844,8 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 		// Deeper segments are not consulted.
 		{path: "Other/Writing/L05.md", want: false},
 		{path: "だ体/note.md", want: true},
-		// The decomposed spelling of the same name stays a different string:
-		// the fold is over case, and composition is the scan's business, which
-		// reports one composed spelling for every path it observed.
-		{path: "た\u3099体/note.md", want: false},
+		// The decomposed spelling of the same name is the same folder.
+		{path: "た\u3099体/note.md", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {

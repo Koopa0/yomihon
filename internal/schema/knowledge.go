@@ -3,6 +3,8 @@ package schema
 import (
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // KnowledgeScope is the set of top-level directories a vault calls its
@@ -21,13 +23,13 @@ func (s KnowledgeScope) Available() bool {
 
 // Includes reports whether a vault-relative path is inside the knowledge layer,
 // and true for everything when no scope was declared: an undeclared set
-// excludes nothing. Only the first path segment is consulted, folded the way
-// every other vault directory scope folds one.
+// excludes nothing. Only the first path segment is consulted, composed and
+// folded the way every other vault directory scope reads one.
 func (s KnowledgeScope) Includes(relPath string) bool {
 	if !s.Available() {
 		return true
 	}
-	top, _, _ := strings.Cut(relPath, "/")
+	top, _, _ := strings.Cut(vault.NormalizeNFC(relPath), "/")
 	return slices.ContainsFunc(s.dirs, func(dir string) bool { return SameDirName(top, dir) })
 }
 

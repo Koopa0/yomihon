@@ -125,7 +125,7 @@ func (p PrivacyPolicy) WithheldDirs() []string {
 // Case folds because a case-insensitive filesystem opens the same file under
 // any case spelling; strings.EqualFold folds per rune, so ß matches ẞ but never
 // "ss". Composition is not folded here: the loader composes every directory a
-// contract declares, and the scan reports composed paths.
+// contract declares, and each scope composes the path it is asked about.
 func SameDirName(a, b string) bool {
 	return strings.EqualFold(a, b)
 }

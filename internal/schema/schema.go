@@ -825,12 +825,12 @@ func validDomainRoot(value string) bool {
 
 // DomainFolder returns the first directory after a matching declared root.
 // Roots must be validated vault-relative directory paths with no overlap under
-// [SameDirName], as a loaded contract's are. relPath is a canonical
-// vault-relative file path, compared one whole component at a time the way
-// every other directory scope compares one. A file directly under a root, or
-// outside every root, has no domain folder.
+// [SameDirName], as a loaded contract's are. relPath is a vault-relative file
+// path, composed and compared one whole component at a time the way every
+// other directory scope reads one, and the folder comes back composed. A file
+// directly under a root, or outside every root, has no domain folder.
 func DomainFolder(roots []string, relPath string) (string, bool) {
-	parts := strings.Split(relPath, "/")
+	parts := strings.Split(vault.NormalizeNFC(relPath), "/")
 	for _, root := range roots {
 		dirs := strings.Split(root, "/")
 		if len(parts) >= len(dirs)+2 && sameDirs(parts[:len(dirs)], dirs) {
