@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -298,36 +299,36 @@ func killAfter(t *testing.T, c *childtest.Child, begins int, until func() bool, 
 	return answered
 }
 
-// A writer killed at any moment of a write loses nothing it answered for. It is
-// killed again and again, some of the time between the line it records and the
-// file it installs: what the vault holds is then the file before, whole, the
-// view reads the line from the ledger and counts it missing, and the next write
-// by another process puts it back. The kills go on until one has landed in that
-// window, at least twelve, up to three hundred.
+// A writer killed at any moment of a write loses nothing it answered for, and
+// leaves nothing damaged: whatever the moment, the next process reads every mark
+// at least as new as the writer said it was, and its own write leaves the file
+// whole. Where a kill lands is chance, and the test does not need one to land in
+// a window of its choosing: the window between the line recorded and the file
+// installed is reached on purpose by
+// TestAChangeRecordedAndNotInstalledIsReadAndPutBack.
 func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	for i := range killMarks { // the file the child rewrites is made long, once
 		a.put(killMark(i), nil)
 	}
-	const minKills, maxKills = 12, 300
-	inWindow, kills := 0, 0
+	const kills = 12
+	inWindow := 0
 	highest := map[string]int{} // the highest token a mark was answered for
-	for kills < maxKills && (kills < minKills || inWindow == 0) {
-		kills++
+	for kill := 1; kill <= kills; kill++ {
 		// Every other kill waits for the ledger to grow, which is the child's
 		// line being recorded, so that it lands after it whatever the machine's
 		// speed; the rest are left to chance.
 		wait := time.Duration(rand.IntN(60000)) * time.Microsecond // #nosec G404 -- the moment of a kill, not a secret
 		var grown func() bool
-		if kills%2 == 0 {
+		if kill%2 == 0 {
 			size := int64(len(a.ledgerBytes()))
 			grown = func() bool { return int64(len(a.ledgerBytes())) > size }
 			wait = time.Duration(rand.IntN(3000)) * time.Microsecond // #nosec G404 -- the moment of a kill, not a secret
 		}
 		// Each child begins at a token of its own, above every earlier one, and
 		// a multiple of the number of marks so that token i is of mark i mod it.
-		c := startChild(t, "kill", a.root, a.conf, strconv.Itoa(kills*killMarks*1000))
+		c := startChild(t, "kill", a.root, a.conf, strconv.Itoa(kill*killMarks*1000))
 		answered := killAfter(t, c, 1+rand.IntN(3), grown, wait) // #nosec G404 -- the moment of a kill, not a secret
 		for _, i := range answered {
 			highest[mid(100+i%killMarks)] = max(highest[mid(100+i%killMarks)], i)
@@ -335,7 +336,7 @@ func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 		a.restart()
 		v := a.view()
 		if v.DamagedOwn() != 0 || v.LedgerChanged() != 0 {
-			t.Fatalf("after kill %d: %d own lines damaged, %d ledger lines changed", kills, v.DamagedOwn(), v.LedgerChanged())
+			t.Fatalf("after kill %d: %d own lines damaged, %d ledger lines changed", kill, v.DamagedOwn(), v.LedgerChanged())
 		}
 		if v.Missing() > 0 {
 			inWindow++
@@ -343,49 +344,40 @@ func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 		for id, want := range highest {
 			e, ok := v.Entry(id, open)
 			if !ok {
-				t.Fatalf("after kill %d: mark %s that was answered for is not read", kills, id)
+				t.Fatalf("after kill %d: mark %s that was answered for is not read", kill, id)
 			}
 			got, err := strconv.Atoi(e.Mark().Body[:9])
 			if err != nil || got < want {
-				t.Fatalf("after kill %d: mark %s reads token %d, below %d it was answered for", kills, id, got, want)
+				t.Fatalf("after kill %d: mark %s reads token %d, below %d it was answered for", kill, id, got, want)
 			}
 		}
 		// Another process writes: what was recorded and not installed is put
 		// back, and the file is whole.
-		a.say(5000+kills, "after the kill")
+		a.say(5000+kill, "after the kill")
 		after := a.view()
 		if after.Missing() != 0 || after.DamagedOwn() != 0 {
-			t.Fatalf("after kill %d and a write: %d missing, %d damaged", kills, after.Missing(), after.DamagedOwn())
+			t.Fatalf("after kill %d and a write: %d missing, %d damaged", kill, after.Missing(), after.DamagedOwn())
 		}
 		if got, want := len(sealedline.Lines(readFile(t, filepath.Join(a.marksDir(), a.id()+".jsonl")))), len(after.Entries(open)); got != want {
-			t.Fatalf("after kill %d and a write the file holds %d lines for %d marks", kills, got, want)
+			t.Fatalf("after kill %d and a write the file holds %d lines for %d marks", kill, got, want)
 		}
-	}
-	if inWindow == 0 {
-		t.Fatalf("none of %d kills landed between a line recorded in the ledger and the file installed", kills)
 	}
 	t.Logf("%d kills: %d landed between the line recorded and the file installed (counted missing, put back by the next write)", kills, inWindow)
 }
 
 // A writer killed during the first writes of a vault, while it makes its id,
 // the folders and the first file, leaves a vault the next process writes to, and
-// the id it made is the id that goes on.
+// the id it made is the id that goes on. As above, where each kill lands is
+// chance; the first write's own window, after the id is recorded and before the
+// folders are made, is reached on purpose by
+// TestAChangeRecordedAndNotInstalledIsReadAndPutBack.
 func TestAWriterKilledDuringItsFirstWritesLeavesAVaultThatWrites(t *testing.T) {
 	t.Parallel()
-	// Kills go on until one has landed after the id was made and before the
-	// file was: the first write's own window.
-	const minKills, maxKills = 25, 150
-	caught, kills := 0, 0
-	for kills < maxKills && (kills < minKills || caught == 0) {
-		kill := kills
-		kills++
+	const kills = 25
+	for kill := range kills {
 		a := newClone(t, "A")
 		c := startChild(t, "kill", a.root, a.conf, strconv.Itoa(kill*killMarks*1000))
 		answered := killAfter(t, c, 1, nil, time.Duration(rand.IntN(12000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
-		_, noFile := os.Stat(a.marksDir())
-		if noFile != nil && strings.Contains(string(a.ledgerBytes()), `"kind":"header"`) {
-			caught++
-		}
 		a.restart()
 		before := a.view().MachineID()
 		a.say(1, "after the kill")
@@ -404,8 +396,70 @@ func TestAWriterKilledDuringItsFirstWritesLeavesAVaultThatWrites(t *testing.T) {
 			t.Fatalf("kill %d: the ledger holds %d headers", kill, n)
 		}
 	}
-	if caught == 0 {
-		t.Fatalf("none of %d kills landed after the id was made and before the folders were", kills)
+}
+
+// A change whose line is in the ledger and whose file is not in the vault, as a
+// writer killed between the two leaves it, is committed: the next process reads
+// the mark from the ledger and counts it missing, and its own write puts the
+// file back whole. The folder the file goes in is made read only at that
+// moment, which is the window a kill only lands in by chance: on a later write,
+// and on the first, after the machine's id is recorded and before any folder is
+// made.
+func TestAChangeRecordedAndNotInstalledIsReadAndPutBack(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("a folder's mode does not stop the owner on this system")
 	}
-	t.Logf("%d of %d kills landed after the id was made and before the folders were", caught, kills)
+	for _, tt := range []struct {
+		name string
+		// folder is the folder made read only, after what is written first.
+		folder func(a *clone) string
+	}{
+		{"a later write", func(a *clone) string { a.say(1, "the words before"); return a.marksDir() }},
+		{"the first write", func(a *clone) string { return a.root }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			a := newClone(t, "A")
+			folder := tt.folder(a)
+			if err := os.Chmod(folder, 0o500); err != nil { // #nosec G302 -- a test makes its own folder read only
+				t.Fatal(err)
+			}
+			restored := false
+			restore := func() {
+				if !restored {
+					restored = true
+					if err := os.Chmod(folder, 0o700); err != nil { // #nosec G302 -- the test's own folder, given back its mode
+						t.Fatal(err)
+					}
+				}
+			}
+			t.Cleanup(restore)
+			var base Seen
+			if e, ok := a.view().Entry(mid(1), open); ok {
+				base = e.Seen
+			}
+			m := thought(1, "recorded and not installed")
+			if _, err := a.m.Put(t.Context(), &m, base, nil); !errors.Is(err, ErrNotInVault) {
+				t.Fatalf("Put while the folder refuses the file = %v, want ErrNotInVault", err)
+			}
+			id := a.view().MachineID()
+			restore()
+			a.restart()
+			if v := a.view(); v.Missing() == 0 || a.words(1) != "recorded and not installed" {
+				t.Fatalf("the next process reads %q with %d missing; want the change, read from the ledger and counted missing", a.words(1), v.Missing())
+			}
+			a.say(2, "the next write")
+			v := a.view()
+			if v.Missing() != 0 || v.DamagedOwn() != 0 || v.MachineID() != id {
+				t.Fatalf("after the next write: %d missing, %d damaged, id %q (was %q)", v.Missing(), v.DamagedOwn(), v.MachineID(), id)
+			}
+			if file := string(readFile(t, filepath.Join(a.marksDir(), id+".jsonl"))); !strings.Contains(file, "recorded and not installed") {
+				t.Fatal("the next write did not put the change in the file")
+			}
+			if n := strings.Count(string(a.ledgerBytes()), `"kind":"header"`); n != 1 {
+				t.Fatalf("the ledger holds %d headers", n)
+			}
+		})
+	}
 }
