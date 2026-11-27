@@ -184,10 +184,9 @@ func TestRowsTheGrammarMustNotCollect(t *testing.T) {
 	}
 }
 
-// TestAnUnclosedCommentHidesTheRestOfTheCourse holds the study-path pair that
-// used to disagree with the page: a closed %% parked two rows, and the same
-// text without the closer hid them on the page while the shelf still counted
-// them. Both documents list only the two rows written before the mark.
+// TestAnUnclosedCommentHidesTheRestOfTheCourse holds the course to the page:
+// a closed %% parks the rows inside it, and one with no closer hides the rest
+// of the note, so both documents list only the two rows written before it.
 func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
 	t.Parallel()
 
@@ -633,10 +632,10 @@ func TestAQuotedMarkerIsNotAWrittenOne(t *testing.T) {
 	}
 }
 
-// TestAQuotedMarkerOnAHeadingIsAReference holds the same rule at the place it
-// was measured broken: a heading or container row quoting the syntax it
-// explains. The quotation neither declares a role nor draws a report — and a
-// real marker on the same line still does both.
+// TestAQuotedMarkerOnAHeadingIsAReference holds the same rule on a heading or
+// container row quoting the syntax it explains. The quotation neither declares
+// a role nor draws a report — and a real marker on the same line still does
+// both.
 func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Parallel()
 
@@ -706,8 +705,8 @@ func TestNoneSuppressesTheMissingRoleBeneathIt(t *testing.T) {
 	}
 }
 
-// TestNoneDoesNotReportALessonRowShape holds the escape hatch at the row that
-// used to ignore it. Role is settled after the row is read, so a trailing
+// TestNoneDoesNotReportALessonRowShape holds the escape hatch at the row.
+// Role is settled after the row is read, so a trailing
 // wikilink or a second target still looks like a lesson-row fault while the
 // walk is in progress. Once the settled branch is out of the course — declared
 // none, or undeclared under one — those reports have no honest rewrite. A
@@ -1140,11 +1139,9 @@ func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
 }
 
 // A marker written below a row's own line declares nothing — a declaration is
-// read on the row's line — and is reported so it does not fail quietly. That
-// held for a plain continuation paragraph and not for one written as a
-// blockquote, which is how an Obsidian callout is written: the scope a row
-// collects skipped any block that holds no source lines of its own, so a
-// declaration inside one was read by nothing and reported by nothing.
+// read on the row's line — and is reported so it does not fail quietly,
+// whether the continuation is a plain paragraph or a blockquote, which is how
+// an Obsidian callout is written and holds no source lines of its own.
 func TestAMarkerBelowARowIsReportedWhereverItIsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -1205,14 +1202,9 @@ func TestAListInsideAContinuationIsStillAnotherRowsWords(t *testing.T) {
 }
 
 // A continuation written as a blockquote reads as the plain one written the
-// same way. That is the whole of what reading past a line-less block bought:
-// every answer it changed moved the quoted shape onto the answer the plain
-// shape has always given, so the two are pinned against each other rather than
-// against a recorded snapshot of either.
-//
-// Pinned this way because the risk is one-sided: a later hand narrowing the
-// scope for one consumer would leave the plain form alone and quietly take the
-// quoted form back to where it was.
+// same way. The two are held against each other rather than against a
+// recording of either, because a narrower scope for one consumer would leave
+// the plain form alone and quietly change only the quoted one.
 func TestAQuotedContinuationReadsAsThePlainOneDoes(t *testing.T) {
 	t.Parallel()
 
