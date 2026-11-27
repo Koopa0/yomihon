@@ -44,13 +44,11 @@ const maxRetryDelay = time.Minute
 // longer answers every note written since with a 404 in a folder otherwise fine.
 const degradeAfter = 3
 
-// reconcileEvery is the number of scan ticks between unconditional rebuilds,
-// counted from a wall-clock hour so the period cannot shrink if scanInterval
-// moves. The fast path compares only file identity and metadata, so an in-place
-// edit that preserves inode, mode, size and mtime is invisible to it and can
-// stay stale for about an hour; a quiescent folder pays one full re-read per
-// period.
-const reconcileEvery = int(time.Hour / scanInterval)
+// reconcilePeriod is the wall-clock time between unconditional rebuilds. The
+// fast path compares only file identity and metadata, so an in-place edit that
+// preserves inode, mode, size and mtime is invisible to it and can stay stale
+// for about an hour; a quiescent folder pays one full re-read per period.
+const reconcilePeriod = time.Hour
 
 // Source is the rooted read capability required to construct a generation. It is
 // defined by its only consumer so a test can count scans and reads.
@@ -821,11 +819,11 @@ func (s *Store) rescan(ctx context.Context) {
 	// find unchanged below.
 	s.setCollision(nil)
 	// The metadata comparison cannot see an in-place edit that preserves inode,
-	// mode, size and mtime, so once a wall-clock reconcileEvery period has
+	// mode, size and mtime, so once a reconcilePeriod has
 	// elapsed the next tick rebuilds without the short-circuit. It never fires
 	// while rebuilds are failing: the backoff owns the cadence there, and every
 	// retry is already a full re-read.
-	reconcile := !s.retry && s.now().Sub(s.lastRebuild) >= time.Duration(reconcileEvery)*scanInterval
+	reconcile := !s.retry && s.now().Sub(s.lastRebuild) >= reconcilePeriod
 	if !s.retry && !reconcile && s.prev.SameFiles(scan) {
 		return
 	}

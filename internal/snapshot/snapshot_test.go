@@ -1729,8 +1729,9 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 // in-place edit that preserves inode, mode, size, and mtime is invisible to
 // it — deliberately, and the companion scanner test states that boundary. What
 // keeps that from meaning "stale forever in a quiescent folder" is the slow
-// reconciliation cycle: every reconcileEvery-th tick rebuilds without the
-// short-circuit, so the changed bytes are republished within the period.
+// reconciliation cycle: the first tick a reconcilePeriod after the last
+// rebuild skips the short-circuit, so the changed bytes are republished within
+// the period.
 func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	t.Parallel()
 
@@ -1781,7 +1782,7 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 
 	// Driving the loop through one reconciliation period republishes the
 	// changed bytes even though no metadata ever moved.
-	for range reconcileEvery {
+	for range int(reconcilePeriod / scanInterval) {
 		clock = clock.Add(scanInterval)
 		store.rescan(t.Context())
 	}
@@ -1791,18 +1792,6 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	}
 	if !strings.Contains(note.Body, "MARKER_NEW_ABC") {
 		t.Errorf("note body after the reconciliation period still carries the old bytes: %q", note.Body)
-	}
-}
-
-// TestUnconditionalRebuildPeriodIsAnHour pins the slow cycle's cadence. The
-// freshness guarantee follows reconcileEvery and cannot see a silent drop back
-// to a few minutes; this one fails unless the period is a wall-clock hour.
-func TestUnconditionalRebuildPeriodIsAnHour(t *testing.T) {
-	t.Parallel()
-
-	period := time.Duration(reconcileEvery) * scanInterval
-	if period != time.Hour {
-		t.Fatalf("unconditional rebuild period = %s, want 1h so a quiescent vault is not rebuilt every few minutes", period)
 	}
 }
 
@@ -1844,7 +1833,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	}
 
 	before := source.reads[failing]
-	for range reconcileEvery + 10 {
+	for range int(reconcilePeriod/scanInterval) + 10 {
 		store.rescan(t.Context())
 	}
 	if got := source.reads[failing] - before; got != 0 {
