@@ -50,10 +50,8 @@ type VaultMarks struct {
 	// said is what the log last said of each topic of the state of the files, so
 	// that a state that stays is said once and not at every page.
 	said map[string]string
-	// mendedAt is when the last mend began, by now, the clock, which a test of
-	// this package sets.
+	// mendedAt is when the last mend began.
 	mendedAt time.Time
-	now      func() time.Time
 }
 
 // OpenVaultMarks names the marks of the vault source holds. It reads and writes
@@ -63,7 +61,7 @@ func OpenVaultMarks(store *Store, source *vault.Reader, log *slog.Logger) *Vault
 	if store == nil || source == nil || log == nil {
 		panic("mark: OpenVaultMarks requires a Store, a vault and a logger")
 	}
-	return &VaultMarks{store: store, source: source, log: log, now: time.Now}
+	return &VaultMarks{store: store, source: source, log: log}
 }
 
 // Marks is this machine's hand on the marks. It is an error when the reader
@@ -230,7 +228,7 @@ const mendEvery = 5 * time.Second
 // so: the reader is not told of it here.
 func (vm *VaultMarks) Mend() {
 	vm.mu.Lock()
-	now := vm.now()
+	now := time.Now()
 	if !vm.mendedAt.IsZero() && now.Sub(vm.mendedAt) < mendEvery {
 		vm.mu.Unlock()
 		return

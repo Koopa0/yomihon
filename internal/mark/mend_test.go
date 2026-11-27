@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -122,24 +123,24 @@ func TestMendLeavesAFolderItCannotWriteToAsItFound(t *testing.T) {
 // for as long as it stays so, and changes nothing.
 func TestMendSaysAFileAnotherProgramChangedToTheLogOnce(t *testing.T) {
 	t.Parallel()
-	root, kept, logged := aMendedVault(t)
-	foreign := filepath.Join(root, "reader-notes", ".yomihon", "marks", "deadbeef.jsonl")
-	if err := os.WriteFile(foreign, []byte("{\"this\":\"is not a line\"}\nnot json at all\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	before := tree(t, root)
-	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
-	kept.SetClock(func() time.Time { return at })
-	for range 3 {
-		kept.Mend()
-		at = at.Add(time.Minute)
-	}
-	if diff := cmp.Diff(before, tree(t, root)); diff != "" {
-		t.Errorf("a mend over a file it cannot use changed the vault (-before +after):\n%s", diff)
-	}
-	if n := strings.Count(logged.String(), "level=WARN"); n != 1 {
-		t.Errorf("the log says %q, want the state said once, not %d times", logged.String(), n)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		root, kept, logged := aMendedVault(t)
+		foreign := filepath.Join(root, "reader-notes", ".yomihon", "marks", "deadbeef.jsonl")
+		if err := os.WriteFile(foreign, []byte("{\"this\":\"is not a line\"}\nnot json at all\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		before := tree(t, root)
+		for range 3 {
+			kept.Mend()
+			time.Sleep(time.Minute)
+		}
+		if diff := cmp.Diff(before, tree(t, root)); diff != "" {
+			t.Errorf("a mend over a file it cannot use changed the vault (-before +after):\n%s", diff)
+		}
+		if n := strings.Count(logged.String(), "level=WARN"); n != 1 {
+			t.Errorf("the log says %q, want the state said once, not %d times", logged.String(), n)
+		}
+	})
 }
 
 // A page is drawn many times a minute and a mend reads every machine file, so a
@@ -147,25 +148,24 @@ func TestMendSaysAFileAnotherProgramChangedToTheLogOnce(t *testing.T) {
 // mends are put back by the first page after that.
 func TestMendReadsAtMostOnceInAFewSeconds(t *testing.T) {
 	t.Parallel()
-	root, kept, _ := aMendedVault(t)
-	file := machineFileOf(t, root)
-	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
-	kept.SetClock(func() time.Time { return at })
-
-	kept.Mend() // a first mend, which finds nothing missing
-	if err := os.Remove(file); err != nil {
-		t.Fatal(err)
-	}
-	at = at.Add(time.Second)
-	kept.Mend()
-	if _, err := os.Stat(file); err == nil {
-		t.Fatal("a second mend a second after the first read the files again")
-	}
-	at = at.Add(10 * time.Second)
-	kept.Mend()
-	if _, err := os.Stat(file); err != nil {
-		t.Errorf("a mend ten seconds on did not put the file back: %v", err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		root, kept, _ := aMendedVault(t)
+		file := machineFileOf(t, root)
+		kept.Mend() // a first mend, which finds nothing missing
+		if err := os.Remove(file); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Second)
+		kept.Mend()
+		if _, err := os.Stat(file); err == nil {
+			t.Fatal("a second mend a second after the first read the files again")
+		}
+		time.Sleep(10 * time.Second)
+		kept.Mend()
+		if _, err := os.Stat(file); err != nil {
+			t.Errorf("a mend ten seconds on did not put the file back: %v", err)
+		}
+	})
 }
 
 // The warning that marks are missing and cannot be put back is said once for as
@@ -175,22 +175,22 @@ func TestMendSaysThatItCannotPutBackOnce(t *testing.T) {
 		t.Skip("a folder's mode does not stop the owner on this system")
 	}
 	t.Parallel()
-	root, kept, logged := aMendedVault(t)
-	if err := os.Remove(machineFileOf(t, root)); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(filepath.Join(root, "reader-notes", ".yomihon", "marks"), 0o500); err != nil { // #nosec G302 -- a test makes its own folder read only
-		t.Fatal(err)
-	}
-	// #nosec G302 -- a test restores its own temporary folder so that it can be removed
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "reader-notes", ".yomihon", "marks"), 0o700) }) //nolint:errcheck // so the folder can be removed
-	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
-	kept.SetClock(func() time.Time { return at })
-	for range 3 {
-		kept.Mend()
-		at = at.Add(time.Minute)
-	}
-	if n := strings.Count(logged.String(), "level=WARN"); n != 1 {
-		t.Errorf("the log says %q, want it said once, not %d times", logged.String(), n)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		root, kept, logged := aMendedVault(t)
+		if err := os.Remove(machineFileOf(t, root)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(filepath.Join(root, "reader-notes", ".yomihon", "marks"), 0o500); err != nil { // #nosec G302 -- a test makes its own folder read only
+			t.Fatal(err)
+		}
+		// #nosec G302 -- a test restores its own temporary folder so that it can be removed
+		t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "reader-notes", ".yomihon", "marks"), 0o700) }) //nolint:errcheck // so the folder can be removed
+		for range 3 {
+			kept.Mend()
+			time.Sleep(time.Minute)
+		}
+		if n := strings.Count(logged.String(), "level=WARN"); n != 1 {
+			t.Errorf("the log says %q, want it said once, not %d times", logged.String(), n)
+		}
+	})
 }
