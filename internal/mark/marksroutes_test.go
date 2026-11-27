@@ -109,7 +109,7 @@ func (r *rig) do(method, target, body string, lang ...string) *httptest.Response
 // press sends the form the question button of section-one posts.
 func (r *rig) press() *httptest.ResponseRecorder {
 	r.t.Helper()
-	return send(r.t, r.mux, http.MethodPost, mark.Paths.Question, formBody, "path="+aNote+"&anchor=section-one")
+	return send(r.t, r.mux, http.MethodPost, mark.QuestionPath, formBody, "path="+aNote+"&anchor=section-one")
 }
 
 // writeEarlier leaves marks.json as the earlier version kept it.

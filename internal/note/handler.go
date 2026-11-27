@@ -483,7 +483,7 @@ func (h *Handler) reading(
 	markable := idPrefix == "" && h.sources.Kept != nil
 	markRoutes := ""
 	if markable && questionAddress != "" {
-		markRoutes = mark.Paths.Mark
+		markRoutes = mark.MarkPath
 	}
 	if idPrefix == "" {
 		result.HTML, sectionNotes = h.markedBody(r.Context(), result.HTML, n, outlineIDs(&result), lang)

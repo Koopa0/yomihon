@@ -61,7 +61,7 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 				Snapshot: func() *snapshot.Generation { return current },
 
 				Bookmark: noMark, Questions: kept.Questions, Kept: kept,
-				QuestionAddress: mark.Paths.Question, Log: log,
+				QuestionAddress: mark.QuestionPath, Log: log,
 			})
 			mux := http.NewServeMux()
 			handler.Register(mux)
@@ -216,7 +216,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				},
 
 				Bookmark: noMark, Questions: kept.Questions, Kept: kept,
-				QuestionAddress: mark.Paths.Question, Log: log,
+				QuestionAddress: mark.QuestionPath, Log: log,
 			})
 			marktest.Leave(t, root, confdir.At(configDir), marktest.Question("Source.md", "chapter", time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)))
 			initial := http.NewServeMux()
@@ -300,7 +300,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		Snapshot: func() *snapshot.Generation { return current },
 
 		Bookmark: noMark, Questions: kept.Questions, Kept: kept,
-		QuestionAddress: mark.Paths.Question, Log: log,
+		QuestionAddress: mark.QuestionPath, Log: log,
 	})
 	// Marks made at one moment are listed by id, so the ids rise in the order
 	// the fixture names them.

@@ -127,8 +127,8 @@ func everyReadingRoute() []string {
 		"/search?q=channel",
 		"/search?q=draft%3Atrue",
 		"/search/results?q=channel",
-		mark.Paths.Bookmark,
-		mark.Paths.Question,
+		mark.BookmarkPath,
+		mark.QuestionPath,
 		address("/notes/", exLesson),
 		address("/notes/", exDraft),
 		address("/notes/", exThought),
@@ -209,9 +209,9 @@ func TestNoRouteWritesIntoTheVaultOutsideTheMarksFolder(t *testing.T) {
 		target string
 		form   url.Values
 	}{
-		{mark.Paths.Bookmark, url.Values{"path": {exLesson}, "offset": {"0"}, "identity": {identity}}},
-		{mark.Paths.Question, url.Values{"path": {exLesson}, "anchor": {""}}},
-		{mark.Paths.Question, url.Values{"path": {exDraft}, "anchor": {""}}},
+		{mark.BookmarkPath, url.Values{"path": {exLesson}, "offset": {"0"}, "identity": {identity}}},
+		{mark.QuestionPath, url.Values{"path": {exLesson}, "anchor": {""}}},
+		{mark.QuestionPath, url.Values{"path": {exDraft}, "anchor": {""}}},
 		{"/preferences", url.Values{"theme": {"dark"}}},
 	} {
 		if code, _ := serve(http.MethodPost, write.target, formType, write.form.Encode()); code >= http.StatusBadRequest && code != http.StatusSeeOther {

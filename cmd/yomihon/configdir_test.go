@@ -48,7 +48,7 @@ func TestAConfigurationDirectoryThatIsNotAbsoluteKeepsNothingInTheFolderBeingRea
 		t.Fatalf("newReadingSite: %v", err)
 	}
 	form := url.Values{"path": {"Concepts/alpha.md"}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
-	req := siteRequest(t, http.MethodPost, mark.Paths.Bookmark, strings.NewReader(form.Encode()))
+	req := siteRequest(t, http.MethodPost, mark.BookmarkPath, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recorder := httptest.NewRecorder()
 	site.ServeHTTP(recorder, req)

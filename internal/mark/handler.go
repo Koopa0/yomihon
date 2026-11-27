@@ -32,14 +32,17 @@ func writeContext(r *http.Request) context.Context {
 	return context.WithoutCancel(r.Context())
 }
 
-// Paths are where the Handler answers. They are exported because the route and
-// the address a reading page posts to are decided on two sides of a package
+// The paths the Handler answers at. They are exported because the route and the
+// address a reading page posts to are decided on two sides of a package
 // boundary: the command reads them from here and hands them to the page, which
 // renders them rather than spelling its own. An address written twice is one
 // that drifts.
-var Paths = struct{ Bookmark, Question, Mark, Finished string }{
-	Bookmark: "/bookmark", Question: "/questions", Mark: "/mark", Finished: "/finished",
-}
+const (
+	BookmarkPath = "/bookmark"
+	QuestionPath = "/questions"
+	MarkPath     = "/mark"
+	FinishedPath = "/finished"
+)
 
 // retiredBookmarkPath and retiredQuestionPath are where a bookmark and a
 // question were posted before the routes took their present names. A page drawn
@@ -112,22 +115,22 @@ func NewHandler(store *Store, vaultMarks *VaultMarks, places Places, log *slog.L
 // Register mounts the routes, and the retired addresses that lead to them. The
 // serving command supplies the loopback and cross-origin protections.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET "+Paths.Bookmark, h.getBookmark)
-	mux.HandleFunc("POST "+Paths.Bookmark, h.postBookmark)
-	mux.HandleFunc("PUT "+Paths.Bookmark, h.putBookmark)
-	mux.HandleFunc("DELETE "+Paths.Bookmark, h.removeBookmark)
-	mux.HandleFunc("POST "+retiredBookmarkPath, movedTo(Paths.Bookmark))
-	mux.HandleFunc("GET "+Paths.Question, h.getQuestions)
-	mux.HandleFunc("POST "+Paths.Question, h.postQuestion)
-	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(Paths.Question))
-	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(Paths.Question))
-	mux.HandleFunc("POST "+Paths.Mark, h.addMark)
-	mux.HandleFunc("GET "+Paths.Mark+"/{id}", h.getMark)
-	mux.HandleFunc("PUT "+Paths.Mark+"/{id}", h.putBack)
-	mux.HandleFunc("PATCH "+Paths.Mark+"/{id}", h.reviseMark)
-	mux.HandleFunc("DELETE "+Paths.Mark+"/{id}", h.removeMark)
-	mux.HandleFunc("PUT "+Paths.Finished+"/{path...}", h.finish(true))
-	mux.HandleFunc("DELETE "+Paths.Finished+"/{path...}", h.finish(false))
+	mux.HandleFunc("GET "+BookmarkPath, h.getBookmark)
+	mux.HandleFunc("POST "+BookmarkPath, h.postBookmark)
+	mux.HandleFunc("PUT "+BookmarkPath, h.putBookmark)
+	mux.HandleFunc("DELETE "+BookmarkPath, h.removeBookmark)
+	mux.HandleFunc("POST "+retiredBookmarkPath, movedTo(BookmarkPath))
+	mux.HandleFunc("GET "+QuestionPath, h.getQuestions)
+	mux.HandleFunc("POST "+QuestionPath, h.postQuestion)
+	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(QuestionPath))
+	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(QuestionPath))
+	mux.HandleFunc("POST "+MarkPath, h.addMark)
+	mux.HandleFunc("GET "+MarkPath+"/{id}", h.getMark)
+	mux.HandleFunc("PUT "+MarkPath+"/{id}", h.putBack)
+	mux.HandleFunc("PATCH "+MarkPath+"/{id}", h.reviseMark)
+	mux.HandleFunc("DELETE "+MarkPath+"/{id}", h.removeMark)
+	mux.HandleFunc("PUT "+FinishedPath+"/{path...}", h.finish(true))
+	mux.HandleFunc("DELETE "+FinishedPath+"/{path...}", h.finish(false))
 }
 
 // movedTo answers a retired address with a permanent redirect that keeps the

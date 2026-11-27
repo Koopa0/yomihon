@@ -278,7 +278,7 @@ func openMarkRow(kept *snapshot.MarkedQuestion, places *placeResolver, lang word
 	if !removable {
 		return row
 	}
-	row.Removal = &pages.QuestionRemoval{Endpoint: mark.Paths.Question, Path: kept.RelPath, Anchor: kept.Anchor,
+	row.Removal = &pages.QuestionRemoval{Endpoint: mark.QuestionPath, Path: kept.RelPath, Anchor: kept.Anchor,
 		Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
 		Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 	}

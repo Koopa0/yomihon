@@ -181,8 +181,8 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		}
 		kept = mark.OpenVaultMarks(marks, source, log)
 		keptPlace = bookmarkFrom(marks, log)
-		markAddress = mark.Paths.Bookmark
-		questionAddress = mark.Paths.Question
+		markAddress = mark.BookmarkPath
+		questionAddress = mark.QuestionPath
 		questions = kept.Questions
 		// Approvals are read, never written, by the reading server: only the
 		// approval command at a terminal writes them. A page and a frame ask

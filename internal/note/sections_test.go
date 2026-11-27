@@ -79,7 +79,7 @@ func readerSession(t *testing.T, root string, contract *schema.Contract, configD
 		Source: source, Contract: contract, Snapshot: store.Current,
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
 		Bookmark:  bookmark, Questions: kept.Questions, Kept: kept,
-		QuestionAddress: mark.Paths.Question, Log: log,
+		QuestionAddress: mark.QuestionPath, Log: log,
 	})
 	routes := http.NewServeMux()
 	handler.Register(routes)

@@ -35,7 +35,7 @@ func TestTheRouteKeepsWhatAReadingPageSends(t *testing.T) {
 		"identity": {anIdentity},
 	})
 	if response.Code != http.StatusNoContent {
-		t.Errorf("POST %s = %d, want %d", mark.Paths.Bookmark, response.Code, http.StatusNoContent)
+		t.Errorf("POST %s = %d, want %d", mark.BookmarkPath, response.Code, http.StatusNoContent)
 	}
 	got, ok := bookmarkFor(t, file, mark.NoCourse)
 	if !ok {
@@ -70,7 +70,7 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 			file, handler := srv.store, srv.handler
 			response := postPlace(t, handler, tt.form)
 			if response.Code != tt.want {
-				t.Errorf("POST %s (%s) = %d, want %d", mark.Paths.Bookmark, tt.name, response.Code, tt.want)
+				t.Errorf("POST %s (%s) = %d, want %d", mark.BookmarkPath, tt.name, response.Code, tt.want)
 			}
 			if _, ok := bookmarkFor(t, file, mark.NoCourse); ok {
 				t.Error("a refused submission kept a place anyway")
@@ -126,7 +126,7 @@ func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 			}
 			response := postPlace(t, handler, form)
 			if response.Code != tt.want {
-				t.Errorf("POST %s with a %d-byte body = %d, want %d", mark.Paths.Bookmark, size, response.Code, tt.want)
+				t.Errorf("POST %s with a %d-byte body = %d, want %d", mark.BookmarkPath, size, response.Code, tt.want)
 			}
 			_, kept := bookmarkFor(t, file, mark.NoCourse)
 			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
@@ -174,29 +174,29 @@ func TestTheRouteSaysWhereThePlaceIsKept(t *testing.T) {
 	srv := newServer(t, nil)
 	_, handler := srv.store, srv.handler
 	if posted := postPlace(t, handler, aPost("Notes/alpha.md", "first-heading")); posted.Code != http.StatusNoContent {
-		t.Fatalf("POST %s = %d %q, want %d", mark.Paths.Bookmark, posted.Code, posted.Body.String(), http.StatusNoContent)
+		t.Fatalf("POST %s = %d %q, want %d", mark.BookmarkPath, posted.Code, posted.Body.String(), http.StatusNoContent)
 	}
-	response := send(t, handler, http.MethodGet, mark.Paths.Bookmark, "", "")
+	response := send(t, handler, http.MethodGet, mark.BookmarkPath, "", "")
 	if response.Code != http.StatusOK {
-		t.Fatalf("GET %s = %d, want %d", mark.Paths.Bookmark, response.Code, http.StatusOK)
+		t.Fatalf("GET %s = %d, want %d", mark.BookmarkPath, response.Code, http.StatusOK)
 	}
 	if got, want := response.Header().Get("Cache-Control"), "no-store"; got != want {
-		t.Errorf("GET %s Cache-Control = %q, want %q", mark.Paths.Bookmark, got, want)
+		t.Errorf("GET %s Cache-Control = %q, want %q", mark.BookmarkPath, got, want)
 	}
 	if got, want := response.Header().Get("Content-Type"), "application/json; charset=utf-8"; got != want {
-		t.Errorf("GET %s Content-Type = %q, want %q", mark.Paths.Bookmark, got, want)
+		t.Errorf("GET %s Content-Type = %q, want %q", mark.BookmarkPath, got, want)
 	}
 	if diff := cmp.Diff(aSaidPlace{Path: "Notes/alpha.md", Anchor: "first-heading", Offset: 1}, saidPlace(t, response.Body.Bytes()), ignoreTime); diff != "" {
-		t.Errorf("GET %s body (-want +got):\n%s", mark.Paths.Bookmark, diff)
+		t.Errorf("GET %s body (-want +got):\n%s", mark.BookmarkPath, diff)
 	}
 
 	// Keeping another place replaces the first, and the answer follows.
 	if posted := postPlace(t, handler, aPost("Notes/beta.md", "")); posted.Code != http.StatusNoContent {
-		t.Fatalf("POST %s = %d %q, want %d", mark.Paths.Bookmark, posted.Code, posted.Body.String(), http.StatusNoContent)
+		t.Fatalf("POST %s = %d %q, want %d", mark.BookmarkPath, posted.Code, posted.Body.String(), http.StatusNoContent)
 	}
-	again := send(t, handler, http.MethodGet, mark.Paths.Bookmark, "", "")
+	again := send(t, handler, http.MethodGet, mark.BookmarkPath, "", "")
 	if diff := cmp.Diff(aSaidPlace{Path: "Notes/beta.md", Offset: 1}, saidPlace(t, again.Body.Bytes()), ignoreTime); diff != "" {
-		t.Errorf("GET %s after keeping another place (-want +got):\n%s", mark.Paths.Bookmark, diff)
+		t.Errorf("GET %s after keeping another place (-want +got):\n%s", mark.BookmarkPath, diff)
 	}
 }
 
@@ -228,15 +228,15 @@ func TestTheRouteSaysNothingWhereNoPlaceIsKept(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			response := send(t, handler, http.MethodGet, mark.Paths.Bookmark, "", "")
+			response := send(t, handler, http.MethodGet, mark.BookmarkPath, "", "")
 			if response.Code != http.StatusNoContent {
-				t.Errorf("GET %s (%s) = %d, want %d", mark.Paths.Bookmark, tt.name, response.Code, http.StatusNoContent)
+				t.Errorf("GET %s (%s) = %d, want %d", mark.BookmarkPath, tt.name, response.Code, http.StatusNoContent)
 			}
 			if got, want := response.Header().Get("Cache-Control"), "no-store"; got != want {
-				t.Errorf("GET %s (%s) Cache-Control = %q, want %q", mark.Paths.Bookmark, tt.name, got, want)
+				t.Errorf("GET %s (%s) Cache-Control = %q, want %q", mark.BookmarkPath, tt.name, got, want)
 			}
 			if body := response.Body.String(); body != "" {
-				t.Errorf("GET %s (%s) sent %q, want an empty body", mark.Paths.Bookmark, tt.name, body)
+				t.Errorf("GET %s (%s) sent %q, want an empty body", mark.BookmarkPath, tt.name, body)
 			}
 			if after, found, err := file.Bookmark(mark.NoCourse); found || (tt.body == nil) != (err == nil) {
 				t.Errorf("reading the place (%s) left %v, %v", tt.name, found, after)
@@ -254,7 +254,7 @@ func TestTheRouteSaysNothingWhereNoPlaceIsKept(t *testing.T) {
 // does.
 func postPlace(t *testing.T, handler http.Handler, form url.Values) *httptest.ResponseRecorder {
 	t.Helper()
-	return send(t, handler, http.MethodPost, mark.Paths.Bookmark, formBody, form.Encode())
+	return send(t, handler, http.MethodPost, mark.BookmarkPath, formBody, form.Encode())
 }
 
 // aPost is what a reading page sends for a place, with the fields this file's
@@ -299,7 +299,7 @@ func TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds(t *testing.T) {
 			posted := postPlace(t, handler, aPost(tt.path, ""))
 			status, body := posted.Code, posted.Body.String()
 			if status != tt.want {
-				t.Errorf("POST %s over %q = %d %q, want %d", mark.Paths.Bookmark, tt.path, status, body, tt.want)
+				t.Errorf("POST %s over %q = %d %q, want %d", mark.BookmarkPath, tt.path, status, body, tt.want)
 			}
 			got, kept := bookmarkFor(t, file, mark.NoCourse)
 			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
@@ -335,7 +335,7 @@ func TestTheRouteAsksTheVaultAboutTheNoteAndNotTheAnchor(t *testing.T) {
 	status, body := posted.Code, posted.Body.String()
 	if status != http.StatusNoContent {
 		t.Fatalf("POST %s over a real note under an id that is no heading = %d %q, want %d",
-			mark.Paths.Bookmark, status, body, http.StatusNoContent)
+			mark.BookmarkPath, status, body, http.StatusNoContent)
 	}
 	if got, ok := bookmarkFor(t, file, mark.NoCourse); !ok || got.Anchor != "fn-3" {
 		t.Errorf("the route kept %+v, %t, want the place under fn-3", got, ok)
@@ -373,15 +373,15 @@ type listedQuestion struct {
 // fields a page knows.
 func listedQuestions(t *testing.T, handler http.Handler) []listedQuestion {
 	t.Helper()
-	response := send(t, handler, http.MethodGet, mark.Paths.Question, formBody, "", "en")
+	response := send(t, handler, http.MethodGet, mark.QuestionPath, formBody, "", "en")
 	if response.Code != http.StatusOK {
-		t.Fatalf("GET %s = %d %s, want 200", mark.Paths.Question, response.Code, response.Body.String())
+		t.Fatalf("GET %s = %d %s, want 200", mark.QuestionPath, response.Code, response.Body.String())
 	}
 	var held []listedQuestion
 	decoder := json.NewDecoder(response.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&held); err != nil {
-		t.Fatalf("GET %s answered %q, which is not a list of questions: %v", mark.Paths.Question, response.Body.String(), err)
+		t.Fatalf("GET %s answered %q, which is not a list of questions: %v", mark.QuestionPath, response.Body.String(), err)
 	}
 	return held
 }
@@ -411,7 +411,7 @@ func anchorsOf(held []listedQuestion) []string {
 func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, nil)
-	empty := send(t, srv.handler, http.MethodGet, mark.Paths.Question, formBody, "", "en")
+	empty := send(t, srv.handler, http.MethodGet, mark.QuestionPath, formBody, "", "en")
 	var none []listedQuestion
 	if empty.Code != http.StatusOK || json.Unmarshal(empty.Body.Bytes(), &none) != nil || none == nil || len(none) != 0 {
 		t.Fatalf("empty GET = %d %s, want an empty list and not null", empty.Code, empty.Body.String())
@@ -421,12 +421,12 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 		"time": {"2000-01-01T00:00:00Z"},
 	}
 	before := time.Now().Truncate(time.Millisecond)
-	added := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, form.Encode(), "en")
+	added := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, form.Encode(), "en")
 	after := time.Now()
 	if !marked(t, added) {
 		t.Fatalf("add = %d %s", added.Code, added.Body.String())
 	}
-	listed := send(t, srv.handler, http.MethodGet, mark.Paths.Question, formBody, "", "en")
+	listed := send(t, srv.handler, http.MethodGet, mark.QuestionPath, formBody, "", "en")
 	held := listedQuestions(t, srv.handler)
 	if len(held) != 1 {
 		t.Fatalf("GET marks = %v, want the one", held)
@@ -446,7 +446,7 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 			t.Error(err)
 		}
 	}
-	removed := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, form.Encode(), "en")
+	removed := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, form.Encode(), "en")
 	if marked(t, removed) {
 		t.Fatalf("remove = %d %s", removed.Code, removed.Body.String())
 	}
@@ -479,7 +479,7 @@ func TestQuestionRouteListsOnlyQuestionsOfWholeSections(t *testing.T) {
 	}) {
 		t.Fatalf("GET = %+v, want the one question of a whole section, made at %s", held, at)
 	}
-	if got := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/source.md&anchor=whole", "en"); marked(t, got) {
+	if got := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/source.md&anchor=whole", "en"); marked(t, got) {
 		t.Fatalf("pressing the control of the kept section = %d %s, want it taken away", got.Code, got.Body.String())
 	}
 	if held = listedQuestions(t, srv.handler); len(held) != 0 {
@@ -506,10 +506,10 @@ func TestQuestionRouteListsTheEarlierFilesQuestionsUntilTheFirstWriteTakesThemIn
 	}
 	// Taking away a question the vault does not hold yet takes the earlier
 	// marks in first, then removes it.
-	if got := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/source.md&anchor=one", "en"); marked(t, got) {
+	if got := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/source.md&anchor=one", "en"); marked(t, got) {
 		t.Fatalf("taking away a question of the earlier file = %d %s", got.Code, got.Body.String())
 	}
-	if got := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/source.md&anchor=three", "en"); !marked(t, got) {
+	if got := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/source.md&anchor=three", "en"); !marked(t, got) {
 		t.Fatalf("marking a new question = %d %s", got.Code, got.Body.String())
 	}
 	if got := anchorsOf(listedQuestions(t, srv.handler)); !slices.Equal(got, []string{"two", "three"}) {
@@ -535,7 +535,7 @@ func TestQuestionRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, nil)
-			response := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, tt.body, "en")
+			response := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, tt.body, "en")
 			if response.Code != tt.want {
 				t.Fatalf("POST = %d %s; want %d", response.Code, response.Body.String(), tt.want)
 			}
@@ -570,7 +570,7 @@ func TestQuestionRoutePreservesCorruptFileAndReportsFailureInBothLanguages(t *te
 			const damaged = `[{"path":"private/secret.md"`
 			writeFile(t, marksPath(srv.store), damaged)
 			for _, method := range []string{http.MethodGet, http.MethodPost} {
-				response := send(t, srv.handler, method, mark.Paths.Question, formBody, "path=source.md&anchor=one", string(lang))
+				response := send(t, srv.handler, method, mark.QuestionPath, formBody, "path=source.md&anchor=one", string(lang))
 				if response.Code != http.StatusInternalServerError || strings.TrimSpace(response.Body.String()) != wording.QuestionUnavailable.In(lang) {
 					t.Errorf("%s damaged file = %d %q; want localized 500", method, response.Code, response.Body.String())
 				}
@@ -599,7 +599,7 @@ func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 		{"path=Notes/real.md&anchor=missing", http.StatusUnprocessableEntity},
 		{"path=Visit+example.com+for+free+prizes.md&anchor=one", http.StatusUnprocessableEntity},
 	} {
-		if response := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, tt.body, "en"); response.Code != tt.want {
+		if response := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, tt.body, "en"); response.Code != tt.want {
 			t.Errorf("POST %q = %d, want %d", tt.body, response.Code, tt.want)
 		}
 	}
@@ -609,7 +609,7 @@ func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 	}
 	// A place that has since disappeared can still be cleared.
 	delete(places, [2]string{"Notes/real.md", "one"})
-	if response := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/real.md&anchor=one", "en"); marked(t, response) {
+	if response := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/real.md&anchor=one", "en"); marked(t, response) {
 		t.Fatalf("clearing a vanished place = %d %s", response.Code, response.Body.String())
 	}
 	if held, err = srv.vaultMarks.Questions(); err != nil || len(held) != 1 || held[0].Anchor != "" {
@@ -643,7 +643,7 @@ func TestQuestionRouteRefusesToWriteWhereTheReaderFolderCannotBeUsed(t *testing.
 			srv := newServer(t, nil)
 			folder := filepath.Join(srv.root, "reader-notes")
 			target := spoil(t, folder)
-			response := send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/source.md&anchor=one", "en")
+			response := send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/source.md&anchor=one", "en")
 			if response.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("POST over %s = %d %q, want 422", name, response.Code, response.Body.String())
 			}
@@ -658,7 +658,7 @@ func TestQuestionRouteRefusesToWriteWhereTheReaderFolderCannotBeUsed(t *testing.
 			if err := os.Remove(folder); err != nil {
 				t.Fatal(err)
 			}
-			if response = send(t, srv.handler, http.MethodPost, mark.Paths.Question, formBody, "path=Notes/source.md&anchor=one", "en"); !marked(t, response) {
+			if response = send(t, srv.handler, http.MethodPost, mark.QuestionPath, formBody, "path=Notes/source.md&anchor=one", "en"); !marked(t, response) {
 				t.Fatalf("POST after the folder was mended = %d %q, want it kept", response.Code, response.Body.String())
 			}
 		})

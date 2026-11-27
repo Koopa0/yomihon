@@ -89,11 +89,11 @@ func aBookmarkBody(course, path string) map[string]any {
 
 func putBookmark(t *testing.T, handler http.Handler, body map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
-	return send(t, handler, http.MethodPut, mark.Paths.Bookmark, jsonBody, asJSON(t, body))
+	return send(t, handler, http.MethodPut, mark.BookmarkPath, jsonBody, asJSON(t, body))
 }
 
 // goBookmark is where the bookmark of the Go course is asked of and cleared.
-var goBookmark = mark.Paths.Bookmark + "?course=" + url.QueryEscape(goCourse)
+var goBookmark = mark.BookmarkPath + "?course=" + url.QueryEscape(goCourse)
 
 // moved is what setting a bookmark answers.
 type moved struct {
@@ -196,7 +196,7 @@ func TestBookmarkRouteSaysWhereACourseIsKeptAndClearsItAnswersWhatItCleared(t *t
 	}
 
 	set := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
-	if got := send(t, routes, http.MethodGet, mark.Paths.Bookmark, jsonBody, ""); got.Code != http.StatusNoContent {
+	if got := send(t, routes, http.MethodGet, mark.BookmarkPath, jsonBody, ""); got.Code != http.StatusNoContent {
 		t.Errorf("GET for no course while only a course has one = %d, want 204", got.Code)
 	}
 	said := send(t, routes, http.MethodGet, goBookmark, jsonBody, "")
@@ -260,7 +260,7 @@ func TestBookmarkRoutesRefuseWhatTheyWillNotKeepAndWriteNothing(t *testing.T) {
 			decodeMoved(t, putBookmark(t, routes, aBookmarkBody(rustCourse, "Notes/other.md")))
 			before := contents(t, progressPath(store))
 
-			got := send(t, routes, http.MethodPut, mark.Paths.Bookmark, tt.contentType, tt.body)
+			got := send(t, routes, http.MethodPut, mark.BookmarkPath, tt.contentType, tt.body)
 			if got.Code != tt.want {
 				t.Errorf("PUT = %d %q, want %d", got.Code, got.Body.String(), tt.want)
 			}
@@ -279,10 +279,10 @@ func TestBookmarkRoutesRefuseACourseThatIsMalformedOrNamedTwiceWithoutReadingAny
 	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
 	before := contents(t, progressPath(store))
 	for _, tt := range []struct{ method, target string }{
-		{http.MethodGet, mark.Paths.Bookmark + "?course=../escape.md"},
-		{http.MethodGet, mark.Paths.Bookmark + "?course=" + goCourse + "&course=" + rustCourse},
-		{http.MethodDelete, mark.Paths.Bookmark + "?course=../escape.md"},
-		{http.MethodDelete, mark.Paths.Bookmark + "?course=" + goCourse + "&course=" + rustCourse},
+		{http.MethodGet, mark.BookmarkPath + "?course=../escape.md"},
+		{http.MethodGet, mark.BookmarkPath + "?course=" + goCourse + "&course=" + rustCourse},
+		{http.MethodDelete, mark.BookmarkPath + "?course=../escape.md"},
+		{http.MethodDelete, mark.BookmarkPath + "?course=" + goCourse + "&course=" + rustCourse},
 	} {
 		if got := send(t, routes, tt.method, tt.target, jsonBody, ""); got.Code != http.StatusUnprocessableEntity {
 			t.Errorf("%s %s = %d, want 422", tt.method, tt.target, got.Code)
@@ -307,7 +307,7 @@ type finishedAnswer struct {
 
 func finishing(t *testing.T, handler http.Handler, method, note, query string) (finishedAnswer, *httptest.ResponseRecorder) {
 	t.Helper()
-	target := mark.Paths.Finished + "/" + note
+	target := mark.FinishedPath + "/" + note
 	if query != "" {
 		target += "?" + query
 	}
@@ -647,7 +647,7 @@ func TestTheWireFormOfWhatAnUndoExpects(t *testing.T) {
 			decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
 			before := contents(t, progressPath(store))
 			body := `{"course":"` + goCourse + `","path":"Notes/b.md","anchor":"","offset":0,"identity":"` + anIdentity + `"` + tt.fields + `}`
-			got := send(t, routes, http.MethodPut, mark.Paths.Bookmark, jsonBody, body)
+			got := send(t, routes, http.MethodPut, mark.BookmarkPath, jsonBody, body)
 			if got.Code != tt.want {
 				t.Errorf("PUT = %d %q, want %d", got.Code, got.Body.String(), tt.want)
 			}
