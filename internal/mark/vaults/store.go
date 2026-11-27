@@ -111,7 +111,7 @@ func (s *Store) Hold(port int) {
 func (s *Store) InstanceFile() string { return s.dir.Join(instanceFile) }
 
 // List is every vault, the one read most recently first. A list that cannot be
-// read answers ErrDamaged and no vaults; the next change sets it aside. An
+// read answers ErrDamaged and no vaults; the next change saves it as damaged. An
 // entry that cannot be used is left out of the answer, and said once for each
 // state of the file.
 func (s *Store) List() ([]Entry, error) {
@@ -364,7 +364,7 @@ func (s *Store) statList() (stamp, error) {
 }
 
 // read is the list as it is on disk. The raw bytes come back with the list
-// whenever there are any, and with ErrDamaged, so a change can set them aside;
+// whenever there are any, and with ErrDamaged, so a change can save them;
 // skipped names the entries that were left out. A list that is not there is an
 // empty one.
 func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
@@ -392,7 +392,7 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // update is every change to the list: under the lock, from the list as it is
 // now, so that a vault another process added a moment ago is in it. change
 // answers the list to write and whether it differs; a list that cannot be read
-// is set aside first and the change is made to an empty one, which keeps what
+// is saved as damaged first and the change is made to an empty one, which keeps what
 // the reader had in a file they can open and never deletes it. The store's
 // methods take no context, so the wait for the lock is bounded by s.wait alone.
 func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {
@@ -424,7 +424,7 @@ func (s *Store) updateHeld(change func(list []Entry) ([]Entry, bool, error)) err
 	// The list is about to be replaced, so what it was is kept first: a list that
 	// could not be read, or one with entries that could not be used.
 	if damaged || len(skipped) > 0 {
-		if err := s.keepAside(raw, damaged, skipped); err != nil {
+		if err := s.saveDamaged(raw, damaged, skipped); err != nil {
 			return err
 		}
 	}
@@ -439,13 +439,13 @@ func (s *Store) updateHeld(change func(list []Entry) ([]Entry, bool, error)) err
 	return nil
 }
 
-// keepAside keeps the list as it is before it is replaced, for the reader to
+// saveDamaged keeps the list as it is before it is replaced, for the reader to
 // open: the bytes it had, or, when it was never read (raw is nil), the file
 // itself, renamed. It says what was wrong and where the list is kept.
-func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
-	name, err := s.freeAsideName()
+func (s *Store) saveDamaged(raw []byte, damaged bool, skipped []string) error {
+	name, err := s.freeDamagedName()
 	if err != nil {
-		return fmt.Errorf("set the list of vaults aside: %w", err)
+		return fmt.Errorf("save the damaged list of vaults: %w", err)
 	}
 	if raw == nil {
 		err = confdir.Rename(s.dir, listFile, name)
@@ -453,7 +453,7 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 		err = confdir.Replace(s.dir, name, raw)
 	}
 	if err != nil {
-		return fmt.Errorf("set the list of vaults aside: %w", err)
+		return fmt.Errorf("save the damaged list of vaults: %w", err)
 	}
 	if s.say != nil {
 		where := s.dir.Join(name)
@@ -466,15 +466,15 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 	return nil
 }
 
-// freeAsideName is the first name for a set-aside list that is not taken. The
+// freeDamagedName is the first name for a damaged list that is not taken. The
 // first name is never given again, so an earlier list is not written over; when
 // every name is taken, the last is.
-func (s *Store) freeAsideName() (string, error) {
-	name := asideFile(keptAside)
-	for n := 1; n <= keptAside; n++ {
-		_, err := confdir.Stat(s.dir, asideFile(n))
+func (s *Store) freeDamagedName() (string, error) {
+	name := damagedName(damagedCopies)
+	for n := 1; n <= damagedCopies; n++ {
+		_, err := confdir.Stat(s.dir, damagedName(n))
 		if errors.Is(err, os.ErrNotExist) {
-			return asideFile(n), nil
+			return damagedName(n), nil
 		}
 		if err != nil {
 			return "", err
@@ -483,8 +483,8 @@ func (s *Store) freeAsideName() (string, error) {
 	return name, nil
 }
 
-// asideFile is the nth name a set-aside list is kept under.
-func asideFile(n int) string {
+// damagedName is the nth name a damaged list is kept under.
+func damagedName(n int) string {
 	if n <= 1 {
 		return damagedFile
 	}

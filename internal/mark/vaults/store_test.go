@@ -418,7 +418,7 @@ func TestAVaultAddedAgainIsNoLongerRememberedAsRemoved(t *testing.T) {
 	}
 }
 
-func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
+func TestADamagedListIsSavedNotDeletedAndReadAsEmpty(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
@@ -431,7 +431,7 @@ func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
 		t.Fatalf("List of a damaged file = %v, %v; want no vaults and ErrDamaged", list, err)
 	}
 	if _, err := os.Stat(home.Join(damagedFile)); err == nil {
-		t.Fatal("reading a damaged list set it aside; only a change may")
+		t.Fatal("reading a damaged list saved it; only a change may")
 	}
 
 	e := mustAdd(t, s, folder(t, "a"))
@@ -508,7 +508,7 @@ func TestChangedLooksAtTheFileWithoutReadingIt(t *testing.T) {
 		t.Fatalf("Changed after another process wrote it = %v, %v; want true and no error for what is inside", changed, err)
 	}
 	if _, err := os.Stat(filepath.Join(config, "yomihon", damagedFile)); err == nil {
-		t.Fatal("Changed set the list aside, so it parsed it")
+		t.Fatal("Changed saved the list as damaged, so it parsed it")
 	}
 	if _, err := s.List(); !errors.Is(err, ErrDamaged) {
 		t.Fatalf("List = %v, want ErrDamaged", err)
@@ -664,7 +664,7 @@ func TestTheListWritesNothingOutsideItsOwnDirectoryUnderTheConfigurationDirector
 	if err := s.RemoveInstance(os.Getpid()); err != nil {
 		t.Fatal(err)
 	}
-	// A list that cannot be read is set aside, which is a write of its own.
+	// A list that cannot be read is saved as damaged, which is a write of its own.
 	if err := os.WriteFile(filepath.Join(config, "yomihon", listFile), []byte("damaged"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -822,9 +822,9 @@ func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsLeftOut(t *t
 	}
 }
 
-// A list longer than any list is, is set aside like every other damaged list,
+// A list longer than any list is, is saved like every other damaged list,
 // and the next change starts a fresh one.
-func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
+func TestAnOversizedListIsSavedNotLeftToBlockEveryChange(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	s := writeList(t, configDir, strings.Repeat("x", maxListBytes+1))
@@ -833,7 +833,7 @@ func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
 		t.Fatalf("Add on top of an oversized list = %+v, %v, %v; want it taken in", entry, added, err)
 	}
 	if _, err = os.Stat(s.dir.Join(damagedFile)); err != nil {
-		t.Errorf("the oversized list was not set aside: %v", err)
+		t.Errorf("the oversized list was not saved as damaged: %v", err)
 	}
 	if list, listErr := s.List(); listErr != nil || len(list) != 1 {
 		t.Errorf("after the change the list holds %+v, %v; want the one vault", list, listErr)
@@ -915,24 +915,24 @@ func TestAnEntryOfTheWrongShapeIsLeftOutAndAFileThatIsNotAListIsStillDamaged(t *
 // What a list was is not written over by the next list that cannot be used: the
 // first stays, each later one has a name of its own, and past the last name only
 // the last is replaced.
-func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
+func TestASecondDamagedListDoesNotReplaceTheFirst(t *testing.T) {
 	t.Parallel()
 	var said []string
 	s := writeListReporting(t, t.TempDir(), &said, "first, not a list")
 	mustAdd(t, s, folder(t, "a"))
-	for i := range keptAside + 2 {
+	for i := range damagedCopies + 2 {
 		if err := os.WriteFile(s.dir.Join(listFile), []byte("not a list, number "+strconv.Itoa(i)), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 			t.Fatal(err)
 		}
 		mustAdd(t, s, folder(t, "b"+strconv.Itoa(i)))
 	}
-	if got := readFile(t, s.dir.Join(asideFile(1))); string(got) != "first, not a list" {
-		t.Errorf("the first list set aside was replaced: %q", got)
+	if got := readFile(t, s.dir.Join(damagedName(1))); string(got) != "first, not a list" {
+		t.Errorf("the first damaged list saved was replaced: %q", got)
 	}
-	if got := readFile(t, s.dir.Join(asideFile(2))); string(got) != "not a list, number 0" {
+	if got := readFile(t, s.dir.Join(damagedName(2))); string(got) != "not a list, number 0" {
 		t.Errorf("the second was not kept under a name of its own: %q", got)
 	}
-	if got := readFile(t, s.dir.Join(asideFile(keptAside))); string(got) != "not a list, number "+strconv.Itoa(keptAside+1) {
+	if got := readFile(t, s.dir.Join(damagedName(damagedCopies))); string(got) != "not a list, number "+strconv.Itoa(damagedCopies+1) {
 		t.Errorf("once every name is taken the last is replaced, and it holds %q", got)
 	}
 	entries, err := os.ReadDir(s.dir.Path())
@@ -945,17 +945,17 @@ func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
 			count++
 		}
 	}
-	if count != keptAside {
-		t.Errorf("%d lists are kept, want %d and no more", count, keptAside)
+	if count != damagedCopies {
+		t.Errorf("%d lists are kept, want %d and no more", count, damagedCopies)
 	}
-	if want := keptAside + 3; len(said) != want { // the list it began with, and each round's
-		t.Errorf("said %d lines for %d lists set aside: %q", len(said), want, said)
+	if want := damagedCopies + 3; len(said) != want { // the list it began with, and each round's
+		t.Errorf("said %d lines for %d damaged lists saved: %q", len(said), want, said)
 	}
 }
 
-// A change that changes nothing writes nothing, and so sets nothing aside: one
+// A change that changes nothing writes nothing, and so saves nothing as damaged: one
 // copy of the list for every page load would fill the directory.
-func TestAChangeThatChangesNothingSetsNothingAside(t *testing.T) {
+func TestAChangeThatChangesNothingSavesNothingAsDamaged(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]func(t *testing.T) (string, Entry){
 		"a list with an entry that cannot be used": func(t *testing.T) (string, Entry) {
