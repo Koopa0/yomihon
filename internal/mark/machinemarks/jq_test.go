@@ -285,4 +285,3 @@ func TestRandomVaultsReadTheSameWithoutYomihon(t *testing.T) {
 		}
 	}
 }
-
