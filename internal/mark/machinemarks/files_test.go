@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // otherFile is the name of a machine file of a machine that is not this one's.
@@ -224,7 +225,7 @@ func TestALineIsKeptByteForByte(t *testing.T) {
 	if bytes.Contains(readFile(t, own), []byte("\r")) {
 		t.Fatal("the rewritten file still has carriage returns")
 	}
-	if !bytes.Contains(readFile(t, own), lines(data)[0]) {
+	if !bytes.Contains(readFile(t, own), sealedline.Lines(data)[0]) {
 		t.Fatal("a line was not kept byte for byte")
 	}
 }

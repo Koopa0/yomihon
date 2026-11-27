@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
@@ -23,10 +24,10 @@ func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
 	}
 	id := a.id()
 	file := readFile(t, filepath.Join(a.marksDir(), id+".jsonl"))
-	if got := len(lines(file)); got != 1 {
+	if got := len(sealedline.Lines(file)); got != 1 {
 		t.Fatalf("the machine file holds %d lines, want 1", got)
 	}
-	l, v := decode(lines(file)[0])
+	l, v := decode(sealedline.Lines(file)[0])
 	if v != readable || l.M != id || l.Mark.Body != "why does vacuum wait?" || l.S == "" {
 		t.Fatalf("the line reads as %+v (%d)", l, v)
 	}
@@ -331,8 +332,8 @@ func TestWhatGitTookAwayIsStillReadAndComesBack(t *testing.T) {
 	if _, err := a.m.Restore(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if a.view().Missing() != 0 || len(lines(readFile(t, file))) != 2 {
-		t.Fatalf("after Restore: %d missing, %d lines in the file", a.view().Missing(), len(lines(readFile(t, file))))
+	if a.view().Missing() != 0 || len(sealedline.Lines(readFile(t, file))) != 2 {
+		t.Fatalf("after Restore: %d missing, %d lines in the file", a.view().Missing(), len(sealedline.Lines(readFile(t, file))))
 	}
 	// A second Restore has nothing to do and writes nothing.
 	before = tree(t, a.root)
@@ -347,7 +348,7 @@ func TestWhatGitTookAwayIsStillReadAndComesBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.say(1, "edited after the reset")
-	if got := len(lines(readFile(t, file))); got != 2 {
+	if got := len(sealedline.Lines(readFile(t, file))); got != 2 {
 		t.Fatalf("a change after the reset left %d lines in the file, want both marks", got)
 	}
 }
@@ -615,7 +616,7 @@ func TestTheCounterHasFloorsForWhatWasLost(t *testing.T) {
 		a.say(2, "two")
 		loseTheLedgerLines(a, notAMarkLine)
 		var top int
-		for _, l := range lines(a.ledgerBytes()) {
+		for _, l := range sealedline.Lines(a.ledgerBytes()) {
 			var e struct {
 				Seq int `json:"seq"`
 			}

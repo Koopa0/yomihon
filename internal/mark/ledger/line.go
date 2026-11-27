@@ -2,27 +2,17 @@ package ledger
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
-	"slices"
 	"strconv"
 	"time"
 	"unicode/utf8"
+
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
-// checksumKey opens the last field of every line. JSON writes a quote inside a
-// string as \", so these bytes stand only where a line has its checksum.
-var checksumKey = []byte(`,"h":"`)
-
-// checksumLength is how many hexadecimal digits of the SHA-256 a line keeps:
-// enough that a changed line is not taken for a whole one by chance, and short
-// enough to read.
-const checksumLength = 16
-
 // wire is a line as it is written. The field names are the format, and every
-// line has them in this order, the checksum last.
+// line has them in this order, sealed by its checksum (internal/mark/sealedline).
 type wire struct {
 	Seq     uint64 `json:"seq"`
 	T       int64  `json:"t"`
@@ -34,13 +24,6 @@ type wire struct {
 	Session string `json:"s,omitempty"`
 	Bytes   string `json:"bytes,omitempty"`
 	B64     string `json:"b64,omitempty"`
-	H       string `json:"h,omitempty"`
-}
-
-// checksum is the first checksumLength digits of the SHA-256 of b.
-func checksum(b []byte) string {
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])[:checksumLength]
 }
 
 // encode is e as one line, without the newline that ends it. Content goes in as
@@ -56,12 +39,11 @@ func encode(e *Event) []byte {
 	} else {
 		w.B64 = base64.StdEncoding.EncodeToString(e.Content)
 	}
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	_ = encoder.Encode(w) //nolint:errcheck,errchkjson // a struct of strings and integers always encodes
-	body := bytes.TrimSuffix(buf.Bytes(), []byte("}\n"))
-	return slices.Concat(body, checksumKey, []byte(checksum(body)), []byte(`"}`))
+	line, err := sealedline.Seal(w)
+	if err != nil {
+		panic("ledger: a line of strings and integers did not encode: " + err.Error())
+	}
+	return line
 }
 
 // verdict is what reading one line found.
@@ -81,11 +63,10 @@ const (
 // does and whose checksum does not fit what stands before it, or that does not
 // say what a line says, was changed after it was written.
 func decode(raw []byte) (Event, verdict) {
-	at := bytes.LastIndex(raw, checksumKey)
-	if at < 0 || !bytes.HasSuffix(raw, []byte(`"}`)) || len(raw) < at+len(checksumKey)+2 {
+	switch sealedline.Check(raw) {
+	case sealedline.Cut:
 		return Event{}, cut
-	}
-	if string(raw[at+len(checksumKey):len(raw)-2]) != checksum(raw[:at]) {
+	case sealedline.Changed:
 		return Event{}, changed
 	}
 	var w wire
@@ -159,18 +140,4 @@ func markOf(content []byte) string {
 		return ""
 	}
 	return line.Mark.ID
-}
-
-// lines splits data at its newlines, each without its newline and without a
-// carriage return before it, leaving out the empty ones. The last is the part
-// after the last newline, which is a line cut short or a whole one that lost
-// only its newline.
-func lines(data []byte) [][]byte {
-	var out [][]byte
-	for line := range bytes.SplitSeq(data, []byte("\n")) {
-		if line = bytes.TrimSuffix(line, []byte("\r")); len(line) > 0 {
-			out = append(out, line)
-		}
-	}
-	return out
 }

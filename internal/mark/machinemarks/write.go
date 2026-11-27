@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // lockName is the lock a write of this machine's marks is made under, in the
@@ -519,7 +520,7 @@ func skip(record func(*ledger.Event) error, v *view, mark *Mark, why error) erro
 	if !isID(mark.ID) {
 		content = []byte(strings.Repeat("0", 32) + " " + why.Error())
 	}
-	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Sum: checksum(content), Content: content})
+	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Content: content})
 	if err != nil {
 		return fmt.Errorf("record a mark of the earlier file that was not taken in: %w", err)
 	}
@@ -583,7 +584,7 @@ func (m *Marks) commit(v *view, p *proposal, record func(*ledger.Event) error, r
 	if len(data) > machinefile.MaxFileBytes {
 		return fmt.Errorf("%w: this machine's file would be %d bytes", ErrLimit, len(data))
 	}
-	if n := len(lines(data)); n > m.maxLines {
+	if n := len(sealedline.Lines(data)); n > m.maxLines {
 		return fmt.Errorf("%w: this machine's file would hold %d lines", ErrLimit, n)
 	}
 	if p.grows && v.live() >= m.maxLive {
@@ -645,8 +646,7 @@ func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Eve
 		// What is in the vault is not what this machine last wrote. It is about
 		// to be replaced, so it is kept first, whole.
 		err := record(&ledger.Event{
-			Kind: kindReplaced, ID: v.st.id, Path: machinePath(v.st.id), Sum: checksum(v.ownDisk),
-			Session: m.currentSession(), Content: v.ownDisk,
+			Kind: kindReplaced, ID: v.st.id, Session: m.currentSession(), Content: v.ownDisk,
 		})
 		if err != nil {
 			return fmt.Errorf("keep the file about to be replaced: %w", err)
@@ -790,6 +790,3 @@ func entrySeen(v *view, id string) Seen {
 	}
 	return seen
 }
-
-// machinePath is where this machine's file is, as the ledger names it.
-func machinePath(id string) string { return "reader-notes/.yomihon/marks/" + id + ".jsonl" }

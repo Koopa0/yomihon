@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // A year of use, simulated, to measure what the ledger grows to: a few hundred
@@ -89,8 +91,8 @@ func TestGrowthOverAYearOfUse(t *testing.T) {
 	start = time.Now()
 	_ = v.Entries(open)
 	t.Logf("Entries over %d marks: %v", len(v.Entries(open)), time.Since(start))
-	t.Logf("marks: %d read, %d lines in the file, file %d bytes", len(v.Entries(open)), len(lines(readFile(t, file()))), info.Size())
-	t.Logf("ledger: %d bytes, %d lines, %d whole copies of the file kept", len(ledger), len(lines(ledger)), bytes.Count(ledger, []byte(`"kind":"marks-replaced"`)))
+	t.Logf("marks: %d read, %d lines in the file, file %d bytes", len(v.Entries(open)), len(sealedline.Lines(readFile(t, file()))), info.Size())
+	t.Logf("ledger: %d bytes, %d lines, %d whole copies of the file kept", len(ledger), len(sealedline.Lines(ledger)), bytes.Count(ledger, []byte(`"kind":"marks-replaced"`)))
 	t.Logf("writes: %d, mean %v, slowest %v", writes, total/time.Duration(writes), slowest)
 	if v.Missing() != 0 || v.DamagedOwn() != 0 {
 		t.Fatalf("%d missing, %d damaged after the year", v.Missing(), v.DamagedOwn())

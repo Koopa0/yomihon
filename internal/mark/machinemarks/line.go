@@ -3,15 +3,14 @@ package machinemarks
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -92,7 +91,6 @@ type Line struct {
 	Seen Seen   `json:"seen,omitempty"`
 	Edit *Edit  `json:"edit,omitempty"`
 	S    string `json:"s,omitempty"`
-	H    string `json:"h,omitempty"`
 }
 
 // Writer is who wrote a line: its machine and process, "machine/process". Two
@@ -101,32 +99,9 @@ type Line struct {
 // earlier.
 func (l *Line) Writer() string { return l.M + "/" + l.S }
 
-// checksumKey opens the last field of every line. JSON writes a quote inside a
-// string as \", so these bytes stand only where a line has its checksum.
-var checksumKey = []byte(`,"h":"`)
-
-// checksumLength is how many hexadecimal digits of the SHA-256 a line keeps.
-const checksumLength = 16
-
-func checksum(b []byte) string {
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])[:checksumLength]
-}
-
-// Encode is l as one line without its newline, its checksum set: the checksum
-// is of the bytes before it, so a line can carry a field this version does not
-// know and still be checked.
+// encode is l as one line without its newline, sealed (internal/mark/sealedline).
 func (l *Line) encode() ([]byte, error) {
-	w := *l
-	w.H = ""
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(&w); err != nil {
-		return nil, err
-	}
-	body := bytes.TrimSuffix(buf.Bytes(), []byte("}\n"))
-	return slices.Concat(body, checksumKey, []byte(checksum(body)), []byte(`"}`)), nil
+	return sealedline.Seal(l)
 }
 
 // verdict is what reading one line found.
@@ -162,11 +137,7 @@ func decode(raw []byte) (Line, verdict) {
 	if head.Fmt > Format {
 		return Line{}, newer
 	}
-	at := bytes.LastIndex(raw, checksumKey)
-	if at < 0 || !bytes.HasSuffix(raw, []byte(`"}`)) || len(raw) < at+len(checksumKey)+2 {
-		return Line{}, damaged
-	}
-	if string(raw[at+len(checksumKey):len(raw)-2]) != checksum(raw[:at]) {
+	if sealedline.Check(raw) != sealedline.Whole {
 		return Line{}, damaged
 	}
 	var l Line
@@ -300,17 +271,4 @@ func isHex(s string, n int) bool {
 		}
 	}
 	return true
-}
-
-// lines splits data at its newlines, each without its newline and without a
-// carriage return before it, leaving out the empty ones. A carriage return is
-// read past because a checkout on Windows may have put one there.
-func lines(data []byte) [][]byte {
-	var out [][]byte
-	for line := range bytes.SplitSeq(data, []byte("\n")) {
-		if line = bytes.TrimSuffix(line, []byte("\r")); len(line) > 0 {
-			out = append(out, line)
-		}
-	}
-	return out
 }

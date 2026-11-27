@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // jqOf is what the program in read-marks.jq reads of the machine files in dir: one
@@ -49,7 +51,7 @@ func jqOf(t *testing.T, dir string) map[string]jqEntry {
 		t.Fatalf("jq: %v\n%s", err, stderr.String())
 	}
 	got := map[string]jqEntry{}
-	for _, line := range lines(out.Bytes()) {
+	for _, line := range sealedline.Lines(out.Bytes()) {
 		var e jqEntry
 		if err = json.Unmarshal(line, &e); err != nil {
 			t.Fatalf("jq said %q: %v", line, err)
@@ -154,7 +156,7 @@ func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	// a file git merged from two ends of a branch holds.
 	a.say(6, "m6 old")
 	own := filepath.Join(a.marksDir(), a.id()+".jsonl")
-	oldLines := lines(readFile(t, own))
+	oldLines := sealedline.Lines(readFile(t, own))
 	oldLine6 := oldLines[len(oldLines)-1]
 	a.say(6, "m6 new")
 
@@ -166,7 +168,7 @@ func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	// Markers, a line that is not JSON and one of a later format, in a file.
 	extra := filepath.Join(d.marksDir(), a.id()+".jsonl")
 	data := readFile(t, extra)
-	first := lines(data)[0]
+	first := sealedline.Lines(data)[0]
 	junk := slices.Concat([]byte("<<<<<<< HEAD\n"), data, []byte("=======\nthis is not json\n"), first, []byte("\n"), oldLine6, []byte("\n"),
 		[]byte(`{"fmt":2,"m":"`+a.id()+`","rev":1,"mark":{"id":"`+mid(77)+`"}}`+"\n"), []byte(">>>>>>> agent\n"))
 	if err := os.WriteFile(extra, junk, 0o600); err != nil {
@@ -306,7 +308,7 @@ func TestTheShownCommandReadsTheMarks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the shown command failed: %v", err)
 	}
-	if n := len(lines(out)); n != 2 || !bytes.Contains(out, []byte("first words")) || !bytes.Contains(out, []byte("second words")) {
+	if n := len(sealedline.Lines(out)); n != 2 || !bytes.Contains(out, []byte("first words")) || !bytes.Contains(out, []byte("second words")) {
 		t.Fatalf("the shown command printed %d marks: %s", n, out)
 	}
 }

@@ -51,6 +51,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // The files of a vault's ledger, beside its other files under the
@@ -330,7 +331,7 @@ func (l *Ledger) Carry(ctx context.Context, from confdir.Dir) (bool, error) {
 		if len(st.events) > 0 || len(st.changed) > 0 {
 			return nil
 		}
-		if asideErr := l.setAside(lines(aside)); asideErr != nil {
+		if asideErr := l.setAside(sealedline.Lines(aside)); asideErr != nil {
 			return asideErr
 		}
 		if replaceErr := confdir.Replace(l.dir, fileName, theirs); replaceErr != nil {
@@ -446,7 +447,7 @@ func (l *Ledger) readAside(st *state, asideFile look) error {
 	// one a crash cut short as it appended: either way the line it copies is in
 	// the ledger still, and counted there, and the next setAside ends it on a
 	// line of its own before it adds anything.
-	for _, raw := range lines(ended(aside)) {
+	for _, raw := range sealedline.Lines(ended(aside)) {
 		if !inLedger[string(raw)] {
 			st.aside++
 		}
@@ -510,7 +511,7 @@ func (l *Ledger) forget() {
 
 // parse fills st from the bytes of the ledger.
 func (st *state) parse(data []byte) {
-	for _, raw := range lines(data) {
+	for _, raw := range sealedline.Lines(data) {
 		e, v := decode(raw)
 		switch v {
 		case whole:
@@ -682,7 +683,7 @@ func (l *Ledger) setAside(changed [][]byte) error {
 		return fmt.Errorf("read what the ledger set aside: %w", err)
 	}
 	there := map[string]bool{}
-	for _, raw := range lines(held) {
+	for _, raw := range sealedline.Lines(held) {
 		there[string(raw)] = true
 	}
 	var out bytes.Buffer

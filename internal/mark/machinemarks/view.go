@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // ErrOwnFileUnreadable means this machine's own file is there and cannot be
@@ -138,7 +139,7 @@ func (m *Marks) scan(v *view, f *machinefile.File) []*kept {
 		v.ownDisk, v.ownFound = f.Data, true
 	}
 	var out []*kept
-	for _, raw := range lines(f.Data) {
+	for _, raw := range sealedline.Lines(f.Data) {
 		l, verdict := decode(raw)
 		switch verdict {
 		case marker:
@@ -227,7 +228,7 @@ func ledgerLines(events []ledger.Event, st *machine) []*kept {
 	}
 	for i := range events {
 		if events[i].Kind == kindConverted {
-			for _, raw := range lines(events[i].Content) {
+			for _, raw := range sealedline.Lines(events[i].Content) {
 				add(raw)
 			}
 		}

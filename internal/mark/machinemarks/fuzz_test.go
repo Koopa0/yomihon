@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// FuzzDecode reads any bytes as a line. It never panics, and a line it reads is
-// one it would read the same with carriage returns around it, one whose every
-// strict prefix is not read, and one a changed byte makes unread.
+// FuzzDecode reads any bytes as a line. It never panics, and a line it reads
+// holds the shapes every writer makes. That a strict prefix or a changed byte
+// is not read is sealedline's to hold.
 func FuzzDecode(f *testing.F) {
 	good, err := (&Line{Fmt: Format, M: "1f3a9c07", Rev: 3, T: 5, S: "7a1f03d2", Mark: thought(1, "words \"quoted\" and 字"), Seen: Seen{"c2e4b815/5d01aa3e": 9}, Edit: &Edit{ID: "e", Seq: 2}}).encode()
 	if err != nil {
@@ -27,35 +27,6 @@ func FuzzDecode(f *testing.F) {
 		}
 		if l.Fmt != Format || !isMachine(l.M) || !isID(l.Mark.ID) || l.Rev == 0 {
 			t.Fatalf("a line read has %+v", l)
-		}
-		for cut := range raw {
-			if _, pv := decode(raw[:cut]); pv == readable {
-				t.Fatalf("the first %d of %d bytes of a line read as a line", cut, len(raw))
-			}
-		}
-		for i := range raw {
-			changed := bytes.Clone(raw)
-			changed[i] ^= 1
-			if got, cv := decode(changed); cv == readable && got.Rev == l.Rev && got.Mark == l.Mark && i < bytes.LastIndex(raw, checksumKey) {
-				t.Fatalf("a changed byte %d reads as the same line", i)
-			}
-		}
-	})
-}
-
-// FuzzLines reads any bytes as a file: it never panics, and a file's lines read
-// the same with carriage returns as without.
-func FuzzLines(f *testing.F) {
-	f.Add([]byte("a\nb\r\n\n\r\nc"))
-	f.Add([]byte(""))
-	f.Fuzz(func(t *testing.T, data []byte) {
-		plain := lines(bytes.ReplaceAll(data, []byte("\r"), nil))
-		crlf := lines(bytes.ReplaceAll(bytes.ReplaceAll(data, []byte("\r"), nil), []byte("\n"), []byte("\r\n")))
-		if !slices.EqualFunc(plain, crlf, bytes.Equal) {
-			t.Fatalf("the lines of %q read differently with carriage returns", data)
-		}
-		for _, raw := range lines(data) {
-			decode(raw)
 		}
 	})
 }

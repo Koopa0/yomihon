@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 func legacyOf(marks ...Mark) func() ([]Mark, error) {
@@ -33,7 +35,7 @@ func TestTheEarlierMarksAreTakenInOnce(t *testing.T) {
 		t.Fatalf("after the first write %d marks are read, want the 3 converted and 1 new", got)
 	}
 	file := filepath.Join(a.marksDir(), a.id()+".jsonl")
-	if got := len(lines(readFile(t, file))); got != 4 {
+	if got := len(sealedline.Lines(readFile(t, file))); got != 4 {
 		t.Fatalf("the file holds %d lines, want 4", got)
 	}
 	if n := strings.Count(string(a.ledgerBytes()), `"kind":"converted"`); n != 1 {

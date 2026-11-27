@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -243,7 +244,7 @@ func TestTwoProcessesWriteAtOnceAndLoseNothing(t *testing.T) {
 	if got := len(v.Entries(open)); got != 1+2*togetherMarks {
 		t.Fatalf("%d marks, want %d", got, 1+2*togetherMarks)
 	}
-	if n := len(lines(readFile(t, filepath.Join(a.marksDir(), a.id()+".jsonl")))); n != 1+2*togetherMarks {
+	if n := len(sealedline.Lines(readFile(t, filepath.Join(a.marksDir(), a.id()+".jsonl")))); n != 1+2*togetherMarks {
 		t.Fatalf("the file holds %d lines, want %d: one a mark", n, 1+2*togetherMarks)
 	}
 }
@@ -400,7 +401,7 @@ func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 		if after.Missing() != 0 || after.DamagedOwn() != 0 {
 			t.Fatalf("after kill %d and a write: %d missing, %d damaged", kills, after.Missing(), after.DamagedOwn())
 		}
-		if got, want := len(lines(readFile(t, filepath.Join(a.marksDir(), a.id()+".jsonl")))), len(after.Entries(open)); got != want {
+		if got, want := len(sealedline.Lines(readFile(t, filepath.Join(a.marksDir(), a.id()+".jsonl")))), len(after.Entries(open)); got != want {
 			t.Fatalf("after kill %d and a write the file holds %d lines for %d marks", kills, got, want)
 		}
 	}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
 // logbook is a log a test reads back.
@@ -307,7 +308,7 @@ func TestAChangedLineIsCountedNeverReadAndSetAside(t *testing.T) {
 	data := fileOf(t, dir, fileName)
 	changedData := bytes.Replace(data, []byte("more of them"), []byte("MORE of them"), 1)
 	writeFile(t, dir, fileName, changedData)
-	changedLine := lines(changedData)[1]
+	changedLine := sealedline.Lines(changedData)[1]
 
 	got, changed := events(t, l)
 	if changed != 1 || len(got) != 2 || got[0].mark != "m1" || got[1].mark != "m3" {
@@ -344,7 +345,7 @@ func TestAChangedLineIsCountedNeverReadAndSetAside(t *testing.T) {
 		t.Parallel()
 		sub := vaultDir(t)
 		body := []byte(`{"seq":18446744073709551615,"t":0,"kind":"x"`)
-		top := slices.Concat(body, checksumKey, []byte("0000000000000000"), []byte(`"}`))
+		top := slices.Concat(body, []byte(`,"h":"0000000000000000"}`))
 		writeFile(t, sub, fileName, append(top, '\n'))
 		reader, _ := open(t, sub)
 		seq := record(t, reader, &Event{Kind: "header", ID: "1f3a9c07"})
@@ -422,8 +423,16 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 	record(t, l, markEvent("aaaaaaaa", "s3", "m2", "a3"))
 	// A line of a later version: a field this one does not know, under a
 	// checksum that fits.
-	body := []byte(`{"seq":12,"t":1795164060000,"kind":"future","id":"x","later":{"n":1}`)
-	future := append(append(append(slices.Clone(body), checksumKey...), checksum(body)...), '"', '}')
+	future, err := sealedline.Seal(struct {
+		Seq   uint64         `json:"seq"`
+		T     int64          `json:"t"`
+		Kind  string         `json:"kind"`
+		ID    string         `json:"id"`
+		Later map[string]int `json:"later"`
+	}{12, 1795164060000, "future", "x", map[string]int{"n": 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	appendRaw(t, dir, append(slices.Clone(future), '\n'))
 	before, changed := events(t, l)
 	if changed != 0 || len(before) != 12 {
@@ -821,7 +830,7 @@ func TestALineSetAsideHalfWayIsCountedOnce(t *testing.T) {
 	if _, changed := events(t, l); changed != 1 {
 		t.Fatalf("a ledger with one changed line reads %d changed, want 1", changed)
 	}
-	line := lines(changedLedger)[0]
+	line := sealedline.Lines(changedLedger)[0]
 	writeFile(t, dir, damagedName, line[:len(line)/2])
 	for read := range 2 {
 		if _, changed := events(t, l); changed != 1 {
