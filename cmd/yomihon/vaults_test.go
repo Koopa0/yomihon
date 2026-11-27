@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
@@ -41,7 +42,7 @@ func TestVaultsListsEachVaultsNamePathAndAddress(t *testing.T) {
 	configDir := t.TempDir()
 	store := listOf(t, configDir)
 	notes := folderNamed(t, t.TempDir(), "notes")
-	first, _, err := store.Add(notes, someFreePort(t))
+	first, _, err := store.Add(notes, someFreePort(t), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestVaultsSpellsAPathUnderHomeAsTildeForAPersonAndInFullForAnAgent(t *testi
 	t.Setenv("USERPROFILE", home)
 	configDir := t.TempDir()
 	notes := folderNamed(t, home, "notes")
-	if _, _, err := listOf(t, configDir).Add(notes, someFreePort(t)); err != nil {
+	if _, _, err := listOf(t, configDir).Add(notes, someFreePort(t), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	spelled := filepath.Join("~", "notes")
@@ -121,7 +122,7 @@ func TestVaultsRemoveTakesOneOutByNameOrByPathAndKeepsItsMarks(t *testing.T) {
 	a, b, c := folderNamed(t, parent, "alpha"), folderNamed(t, parent, "beta"), folderNamed(t, parent, "gamma")
 	var added []vaults.Entry
 	for _, root := range []string{a, b, c} {
-		entry, _, err := store.Add(root, start)
+		entry, _, err := store.Add(root, start, time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +171,7 @@ func TestVaultsRemoveRefusesWhatItCannotChooseBetween(t *testing.T) {
 	one := folderNamed(t, t.TempDir(), "notes")
 	two := folderNamed(t, t.TempDir(), "notes")
 	for _, root := range []string{one, two} {
-		if _, _, err := store.Add(root, start); err != nil {
+		if _, _, err := store.Add(root, start, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -304,7 +305,7 @@ func TestVaultsListsTheRestAndSaysWhichEntryItLeftOut(t *testing.T) {
 	configDir := t.TempDir()
 	store := listOf(t, configDir)
 	notes := folderNamed(t, t.TempDir(), "notes")
-	entry, _, err := store.Add(notes, someFreePort(t))
+	entry, _, err := store.Add(notes, someFreePort(t), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

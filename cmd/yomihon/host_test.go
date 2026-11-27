@@ -172,7 +172,7 @@ func newVaultFolder(t *testing.T) string {
 // process changes it.
 func listOf(t *testing.T, configDir string) *vaults.Store {
 	t.Helper()
-	store, err := vaults.Open(confdir.At(configDir), func(port int) bool { return portFree(t.Context(), port) })
+	store, err := vaults.Open(confdir.At(configDir), func(port int) bool { return portFree(t.Context(), port) }, nil)
 	if err != nil {
 		t.Fatalf("open the list: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestTheRunningYomihonServesEveryListedVaultOnItsOwnPort(t *testing.T) {
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
 	for _, root := range []string{b, c} {
-		if _, _, err := pre.Add(root, start); err != nil {
+		if _, _, err := pre.Add(root, start, time.Now()); err != nil {
 			t.Fatalf("Add: %v", err)
 		}
 	}
@@ -363,7 +363,7 @@ func TestAVaultTheCommandLineAddsIsServedWithinAPoll(t *testing.T) {
 	r.address(t)
 
 	added := newVaultFolder(t)
-	entry, isNew, err := listOf(t, configDir).Add(added, 1024)
+	entry, isNew, err := listOf(t, configDir).Add(added, 1024, time.Now())
 	if err != nil || !isNew {
 		t.Fatalf("Add = %+v, %v, %v", entry, isNew, err)
 	}
@@ -381,7 +381,7 @@ func TestARemovedVaultIsServedUntilExitAndKeepsItsPortWhenAddedAgain(t *testing.
 	r := startRunning(t, configDir, first, start)
 	r.address(t)
 	cli := listOf(t, configDir)
-	entry, _, err := cli.Add(second, start)
+	entry, _, err := cli.Add(second, start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestARemovedVaultIsServedUntilExitAndKeepsItsPortWhenAddedAgain(t *testing.
 
 	// Added again, it is the same vault on the same port, and the list is made
 	// to say so rather than the vault being served twice.
-	again, _, err := cli.Add(second, start)
+	again, _, err := cli.Add(second, start, time.Now())
 	if err != nil || again.ID != entry.ID {
 		t.Fatalf("Add again = %+v, %v", again, err)
 	}
@@ -444,7 +444,7 @@ func TestANewVaultTakesTheStartingPortWhenNoVaultIsOnItAndNoVaultIsMoved(t *test
 	configDir := t.TempDir()
 	old, current := newVaultFolder(t), newVaultFolder(t)
 	was := someFreePort(t)
-	pre, _, err := listOf(t, configDir).Add(old, was)
+	pre, _, err := listOf(t, configDir).Add(old, was, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +466,7 @@ func TestTheStartingPortSendsABrowserToAVaultListedOnAnotherPort(t *testing.T) {
 	configDir := t.TempDir()
 	folder := newVaultFolder(t)
 	was := someFreePort(t)
-	pre, _, err := listOf(t, configDir).Add(folder, was)
+	pre, _, err := listOf(t, configDir).Add(folder, was, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -564,7 +564,7 @@ func TestAHandOffThatFailsKeepsAFolderTheListAlreadyHad(t *testing.T) {
 	holder(t, squatted)
 	store := listOf(t, configDir)
 	folder := newVaultFolder(t)
-	if _, _, err := store.Add(folder, someFreePort(t)); err != nil {
+	if _, _, err := store.Add(folder, someFreePort(t), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: squatted, Started: time.Now().UTC()}); err != nil {
@@ -674,7 +674,7 @@ func TestAVaultWhoseFolderIsGoneAnswersThatItCannotBeRead(t *testing.T) {
 	configDir := t.TempDir()
 	gone := newVaultFolder(t)
 	start := someFreePort(t)
-	entry, _, err := listOf(t, configDir).Add(gone, start)
+	entry, _, err := listOf(t, configDir).Add(gone, start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,7 +702,7 @@ func TestAVaultWhoseFolderIsPutBackIsReadAgainWithoutRestarting(t *testing.T) {
 	configDir := t.TempDir()
 	gone := newVaultFolder(t)
 	start := someFreePort(t)
-	entry, _, err := listOf(t, configDir).Add(gone, start)
+	entry, _, err := listOf(t, configDir).Add(gone, start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -752,7 +752,7 @@ func TestAFolderTypedThroughALinkIsTheSameVaultAsTheFolder(t *testing.T) {
 	if list[0].Path != resolved || list[0].ID != confdir.VaultID(resolved) {
 		t.Errorf("the vault is %q (%s), want the resolved folder %q (%s)", list[0].Path, list[0].ID, resolved, confdir.VaultID(resolved))
 	}
-	again, added, err := listOf(t, configDir).Add(target, 1024)
+	again, added, err := listOf(t, configDir).Add(target, 1024, time.Now())
 	if err != nil || added || again.ID != list[0].ID {
 		t.Errorf("the folder typed by its own path = %+v, new %v, %v; want the same vault", again, added, err)
 	}
@@ -766,7 +766,7 @@ func TestAnUnreadVaultIsReadWhenNavigatedToAndNotForASubresource(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	start := someFreePort(t)
-	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start+5)
+	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start+5, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -828,7 +828,7 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 	start := someFreePort(t)
 	folder := newVaultFolder(t)
 	pre := listOf(t, configDir)
-	entry, _, err := pre.Add(folder, start+5)
+	entry, _, err := pre.Add(folder, start+5, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -904,7 +904,7 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	configDir := t.TempDir()
 	start := someFreePort(t)
 	folder := newVaultFolder(t)
-	entry, _, err := listOf(t, configDir).Add(folder, start+5)
+	entry, _, err := listOf(t, configDir).Add(folder, start+5, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -962,7 +962,7 @@ func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	start := someFreePort(t)
-	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start)
+	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1054,13 +1054,13 @@ func TestEveryVaultListenerIsLoopbackOnly(t *testing.T) {
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
 	for range 2 {
-		if _, _, err := pre.Add(newVaultFolder(t), start); err != nil {
+		if _, _, err := pre.Add(newVaultFolder(t), start, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
-	added, _, err := pre.Add(newVaultFolder(t), start)
+	added, _, err := pre.Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1090,7 +1090,7 @@ func TestNoVaultsStateIsEverSetAsACookie(t *testing.T) {
 	configDir := t.TempDir()
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
-	if _, _, err := pre.Add(newVaultFolder(t), start); err != nil {
+	if _, _, err := pre.Add(newVaultFolder(t), start, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	r := startRunning(t, configDir, newVaultFolder(t), start)
@@ -1158,7 +1158,7 @@ func TestAWriteFromOneVaultsPageToAnotherVaultsPortIsRefused(t *testing.T) {
 	configDir := t.TempDir()
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
-	if _, _, err := pre.Add(newVaultFolder(t), start); err != nil {
+	if _, _, err := pre.Add(newVaultFolder(t), start, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	r := startRunning(t, configDir, newVaultFolder(t), start)
@@ -1216,10 +1216,10 @@ func TestAVaultWhosePortSomethingElseTookStaysOnItAndTheOthersAreServed(t *testi
 	configDir := t.TempDir()
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
-	if _, _, err := pre.Add(newVaultFolder(t), start); err != nil {
+	if _, _, err := pre.Add(newVaultFolder(t), start, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	squatted, _, err := pre.Add(newVaultFolder(t), start)
+	squatted, _, err := pre.Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1248,11 +1248,11 @@ func TestOneEntryThatCannotBeUsedLeavesTheOtherVaultsOnTheirPortsAndIsSaid(t *te
 	configDir := t.TempDir()
 	start := someFreePort(t)
 	pre := listOf(t, configDir)
-	first, _, err := pre.Add(newVaultFolder(t), start)
+	first, _, err := pre.Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, _, err := pre.Add(newVaultFolder(t), start)
+	second, _, err := pre.Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1313,7 +1313,7 @@ func TestTheTypedVaultsPortBeingHeldIsRefusedWithWhatToDo(t *testing.T) {
 	configDir := t.TempDir()
 	folder := newVaultFolder(t)
 	taken := someFreePort(t)
-	if _, _, err := listOf(t, configDir).Add(folder, taken); err != nil {
+	if _, _, err := listOf(t, configDir).Add(folder, taken, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	var lc net.ListenConfig
@@ -1344,7 +1344,7 @@ func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	start := someFreePort(t)
-	before, _, err := listOf(t, configDir).Add(newVaultFolder(t), start)
+	before, _, err := listOf(t, configDir).Add(newVaultFolder(t), start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1352,7 +1352,7 @@ func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
 	// the list looked and found it free, which a list told every port is free
 	// shows.
 	holder(t, start+1)
-	store, err := vaults.Open(confdir.At(configDir), func(int) bool { return true })
+	store, err := vaults.Open(confdir.At(configDir), func(int) bool { return true }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,8 +24,6 @@ type Store struct {
 	configDir confdir.ConfigDir
 	dir       confdir.Dir
 	free      func(port int) bool
-	now       func() time.Time
-	wait      time.Duration
 
 	// own is the ports this process holds itself. They are free for the vault
 	// this process is about to give one to, which a probe of them cannot say,
@@ -63,37 +61,25 @@ type touch struct {
 
 // Open is the Store of the reader's directory under configDir. free says
 // whether a port can be bound right now; it is how a new vault is kept off a
-// port something else holds, and nil says every port is free. Nothing is read or
-// written until the Store is used.
-func Open(configDir confdir.ConfigDir, free func(port int) bool, options ...Option) (*Store, error) {
+// port something else holds, and nil says every port is free. say is sent each
+// line the Store has to say about a list it could not use whole: which entries
+// were left out and why, and where a list it replaced is kept; the Store prints
+// nothing itself, and nil says nothing. Nothing is read or written until the
+// Store is used.
+func Open(configDir confdir.ConfigDir, free func(port int) bool, say func(line string)) (*Store, error) {
 	dir, err := confdir.Home(configDir)
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{
+	return &Store{
 		configDir: configDir,
 		dir:       dir,
 		free:      free,
-		now:       time.Now,
-		wait:      confdir.LockWait,
+		say:       say,
 		touched:   map[string]touch{},
 		removed:   map[string]Entry{},
 		own:       map[int]bool{},
-	}
-	for _, option := range options {
-		option(s)
-	}
-	return s, nil
-}
-
-// Option is a way a Store is set up beyond where it is kept.
-type Option func(*Store)
-
-// Report sends each line the Store has to say about a list it could not use
-// whole to say: which entries were left out and why, and where a list it
-// replaced is kept. The Store prints nothing itself.
-func Report(say func(line string)) Option {
-	return func(s *Store) { s.say = say }
+	}, nil
 }
 
 // Hold says that this process has bound port, so that a new vault can be given
@@ -138,13 +124,13 @@ func (s *Store) Changed() (bool, error) {
 	return !s.stamp.equal(now), nil
 }
 
-// Add puts the folder root in the list if it is not there, and answers its
-// entry and whether it was new. A new vault is given the first port from start
+// Add puts the folder root in the list if it is not there, read at at, and
+// answers its entry and whether it was new. A new vault is given the first port from start
 // up that no other vault holds and that free allows, and the port is written
 // down: it is the vault's from then on, and no later start moves it. A vault
 // already listed keeps its port. Adding is the command line's: it is given a
 // path because the reader typed one.
-func (s *Store) Add(root string, start int) (entry Entry, added bool, err error) {
+func (s *Store) Add(root string, start int, at time.Time) (entry Entry, added bool, err error) {
 	if start < MinPort || start > maxPort {
 		return Entry{}, false, ErrStartPort
 	}
@@ -163,7 +149,6 @@ func (s *Store) Add(root string, start int) (entry Entry, added bool, err error)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	at := s.now()
 	err = s.update(func(list []Entry) ([]Entry, bool, error) {
 		if i := indexOf(list, id); i >= 0 {
 			// Typed again: the reader is about to read it, which is a read.
@@ -394,9 +379,10 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // answers the list to write and whether it differs; a list that cannot be read
 // is saved as damaged first and the change is made to an empty one, which keeps what
 // the reader had in a file they can open and never deletes it. The store's
-// methods take no context, so the wait for the lock is bounded by s.wait alone.
+// methods take no context, so the wait for the lock is bounded by
+// confdir.LockWait alone.
 func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {
-	return confdir.Exclusive(context.Background(), s.dir, lockFile, s.wait, func() error { return s.updateHeld(change) })
+	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, func() error { return s.updateHeld(change) })
 }
 
 // updateHeld is update with the lock already taken.

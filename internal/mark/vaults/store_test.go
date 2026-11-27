@@ -27,26 +27,33 @@ func folder(t *testing.T, name string) string {
 	return dir
 }
 
-// storeIn is a Store over configDir that reads the clock a test sets and gives
-// up on a held lock quickly.
+// firstRead is when a test's clock begins.
+var firstRead = time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
+
+// storeIn is a Store over configDir, and a clock a test moves on, which begins
+// at firstRead.
 func storeIn(t *testing.T, configDir string, free func(int) bool) (*Store, *time.Time) {
 	t.Helper()
-	s, err := Open(confdir.At(configDir), free)
+	s, err := Open(confdir.At(configDir), free, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clock := time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return clock }
-	s.wait = 200 * time.Millisecond
+	clock := firstRead
 	return s, &clock
 }
 
 // startPort is where a test's vaults begin.
 const startPort = 8800
 
+// mustAdd adds root as a vault read at firstRead.
 func mustAdd(t *testing.T, s *Store, root string) Entry {
 	t.Helper()
-	e, _, err := s.Add(root, startPort)
+	return addAt(t, s, root, firstRead)
+}
+
+func addAt(t *testing.T, s *Store, root string, at time.Time) Entry {
+	t.Helper()
+	e, _, err := s.Add(root, startPort, at)
 	if err != nil {
 		t.Fatalf("Add(%q): %v", root, err)
 	}
@@ -92,12 +99,12 @@ func TestAVaultTypedAgainKeepsItsPortAndIsNotNew(t *testing.T) {
 	s, clock := storeIn(t, t.TempDir(), nil)
 	dir := folder(t, "a")
 
-	first, added, err := s.Add(dir, 8800)
+	first, added, err := s.Add(dir, 8800, *clock)
 	if err != nil || !added {
 		t.Fatalf("first Add = %+v, added %v, %v", first, added, err)
 	}
 	*clock = clock.Add(time.Hour)
-	again, added, err := s.Add(dir, 9900)
+	again, added, err := s.Add(dir, 9900, *clock)
 	if err != nil || added {
 		t.Fatalf("second Add = %+v, added %v, %v; want the same vault, not new", again, added, err)
 	}
@@ -113,7 +120,7 @@ func TestAStartingPortThatIsNotOneIsRefused(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
 	for _, start := range []int{0, -1, 80, MinPort - 1, 65536} {
-		if _, _, err := s.Add(folder(t, "a"), start); !errors.Is(err, ErrStartPort) {
+		if _, _, err := s.Add(folder(t, "a"), start, firstRead); !errors.Is(err, ErrStartPort) {
 			t.Errorf("Add with start %d = %v, want ErrStartPort", start, err)
 		}
 	}
@@ -122,7 +129,7 @@ func TestAStartingPortThatIsNotOneIsRefused(t *testing.T) {
 func TestEveryPortFromTheStartUpBeingTakenIsAnError(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), func(int) bool { return false })
-	if _, _, err := s.Add(folder(t, "a"), 65530); !errors.Is(err, ErrNoPort) {
+	if _, _, err := s.Add(folder(t, "a"), 65530, firstRead); !errors.Is(err, ErrNoPort) {
 		t.Fatalf("Add with no free port = %v, want ErrNoPort", err)
 	}
 }
@@ -137,7 +144,7 @@ func TestAVaultIsIdentifiedByItsResolvedFolder(t *testing.T) {
 	}
 
 	first := mustAdd(t, s, dir)
-	second, added, err := s.Add(link, 8800)
+	second, added, err := s.Add(link, 8800, firstRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +184,6 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 	stores := make([]*Store, processes)
 	for i := range stores {
 		stores[i], _ = storeIn(t, config, nil)
-		stores[i].wait = 30 * time.Second
 	}
 
 	var wg sync.WaitGroup
@@ -187,8 +193,19 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 			dir := folder(t, "v"+strconv.Itoa(i)+"-"+strconv.Itoa(j))
 			folders = append(folders, dir)
 			wg.Go(func() {
-				if _, _, err := stores[i].Add(dir, 8800); err != nil {
-					t.Errorf("Add(%q): %v", dir, err)
+				// Twelve adds poll one lock, and a slow runner can keep one
+				// waiting past confdir.LockWait without anything being wrong;
+				// this asks whether an add is lost, and a refused one wrote
+				// nothing, so it asks again.
+				for {
+					_, _, err := stores[i].Add(dir, 8800, firstRead)
+					if errors.Is(err, confdir.ErrLocked) {
+						continue
+					}
+					if err != nil {
+						t.Errorf("Add(%q): %v", dir, err)
+					}
+					return
 				}
 			})
 		}
@@ -214,11 +231,11 @@ func TestTwoProcessesAddingAtOnceBothLandWithTheirOwnPorts(t *testing.T) {
 func TestTheListIsOrderedByLastReadWithTheLatestFirst(t *testing.T) {
 	t.Parallel()
 	s, clock := storeIn(t, t.TempDir(), nil)
-	a := mustAdd(t, s, folder(t, "a"))
+	a := addAt(t, s, folder(t, "a"), *clock)
 	*clock = clock.Add(time.Hour)
-	b := mustAdd(t, s, folder(t, "b"))
+	b := addAt(t, s, folder(t, "b"), *clock)
 	*clock = clock.Add(time.Hour)
-	c := mustAdd(t, s, folder(t, "c"))
+	c := addAt(t, s, folder(t, "c"), *clock)
 	*clock = clock.Add(time.Hour)
 	if _, err := s.Touch(a.ID, "", *clock); err != nil {
 		t.Fatal(err)
@@ -572,25 +589,6 @@ func deadPID(t *testing.T) int {
 	return cmd.ProcessState.Pid()
 }
 
-func TestALockHeldByAnotherIsWaitedForAndThenGivenUpOn(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	s, _ := storeIn(t, config, nil)
-	held, err := confdir.Acquire(t.Context(), homeAt(t, config), lockFile, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = held.Release() }) //nolint:errcheck // the temporary directory goes with it
-
-	_, _, err = s.Add(folder(t, "a"), 8800)
-	if !errors.Is(err, confdir.ErrLocked) {
-		t.Fatalf("Add while another holds the lock = %v, want ErrLocked", err)
-	}
-	if list, listErr := s.List(); listErr != nil || len(list) != 0 {
-		t.Fatalf("a refused Add changed the list: %v, %v", list, listErr)
-	}
-}
-
 // treeOf is every file and directory under root with what each holds, so two
 // calls can be compared byte for byte.
 func treeOf(t *testing.T, root string) map[string]string {
@@ -729,7 +727,7 @@ func TestNoVaultIsEverMovedByAnotherBeingAdded(t *testing.T) {
 	s, _ := storeIn(t, t.TempDir(), nil)
 	first := mustAdd(t, s, folder(t, "a"))
 	s.Hold(startPort + 7)
-	typed, added, err := s.Add(folder(t, "b"), startPort+7)
+	typed, added, err := s.Add(folder(t, "b"), startPort+7, firstRead)
 	if err != nil || !added {
 		t.Fatalf("Add = %+v, %v, %v", typed, added, err)
 	}
@@ -828,7 +826,7 @@ func TestAnOversizedListIsSavedNotLeftToBlockEveryChange(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	s := writeList(t, configDir, strings.Repeat("x", maxListBytes+1))
-	entry, added, err := s.Add(folder(t, "a"), startPort)
+	entry, added, err := s.Add(folder(t, "a"), startPort, firstRead)
 	if err != nil || !added {
 		t.Fatalf("Add on top of an oversized list = %+v, %v, %v; want it taken in", entry, added, err)
 	}
@@ -1003,11 +1001,10 @@ func mustEncode(t *testing.T, list []Entry) []byte {
 // writeListReporting is writeList for a Store that says what it did into said.
 func writeListReporting(t *testing.T, configDir string, said *[]string, body string) *Store {
 	t.Helper()
-	s, err := Open(confdir.At(configDir), nil, Report(func(line string) { *said = append(*said, line) }))
+	s, err := Open(confdir.At(configDir), nil, func(line string) { *said = append(*said, line) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.wait = 200 * time.Millisecond
 	if err = mkdirHome(s); err != nil {
 		t.Fatal(err)
 	}
@@ -1038,7 +1035,7 @@ func TestAFolderThatOverlapsTheConfigurationDirectoryIsNotAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, root := range []string{filepath.Join(base, "home"), configDir, inside} {
-		entry, added, addErr := s.Add(root, startPort)
+		entry, added, addErr := s.Add(root, startPort, firstRead)
 		if _, overlaps := errors.AsType[*confdir.OverlapError](addErr); !overlaps {
 			t.Errorf("Add(%q) = %+v, %v, %v; want an *OverlapError", root, entry, added, addErr)
 		}

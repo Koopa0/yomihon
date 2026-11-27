@@ -234,7 +234,7 @@ func TestAListedVaultThatOverlapsTheConfigurationDirectoryIsNotServedAndStaysLis
 	// Listed the way a yomihon before this refusal listed it: by a list that
 	// does not know this configuration directory, copied over this one's.
 	elsewhere := t.TempDir()
-	old, _, err := listOf(t, elsewhere).Add(inside, start)
+	old, _, err := listOf(t, elsewhere).Add(inside, start, time.Now())
 	if err != nil {
 		t.Fatalf("list %s elsewhere: %v", inside, err)
 	}
@@ -332,7 +332,7 @@ func TestAListedFolderThatComesBackInsideTheConfigurationDirectoryIsNotRead(t *t
 	writeRecoverySiteFixture(t, inside)
 	start := someFreePort(t)
 	elsewhere := t.TempDir()
-	entry, _, err := listOf(t, elsewhere).Add(inside, start)
+	entry, _, err := listOf(t, elsewhere).Add(inside, start, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

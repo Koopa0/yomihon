@@ -315,7 +315,7 @@ func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config,
 		return host.serveOne(ctx, stop, cfg, out)
 	}
 	store, err := vaults.Open(cfg.configDir, func(port int) bool { return portFree(ctx, port) },
-		vaults.Report(func(line string) { log.Warn(line) }))
+		func(line string) { log.Warn(line) })
 	if err != nil {
 		log.Warn("could not open the list of vaults; reading this folder alone", "error", err)
 		return host.serveOne(ctx, stop, cfg, out)

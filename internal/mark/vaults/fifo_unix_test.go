@@ -38,7 +38,7 @@ func TestAListThatIsANamedPipeIsNotOpenedAndIsSavedAsDamaged(t *testing.T) {
 
 	added := make(chan error, 1)
 	go func() {
-		_, _, err := s.Add(folder(t, "a"), startPort)
+		_, _, err := s.Add(folder(t, "a"), startPort, firstRead)
 		added <- err
 	}()
 	select {

@@ -568,7 +568,7 @@ func (h *host) record(root string, start int) (entry vaults.Entry, added bool, e
 	if err != nil {
 		return vaults.Entry{}, false, err
 	}
-	typed, added, err := h.store.Add(resolved, start)
+	typed, added, err := h.store.Add(resolved, start, time.Now())
 	if err != nil {
 		return vaults.Entry{}, false, addError(err)
 	}
@@ -663,7 +663,7 @@ func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Insta
 	if err != nil {
 		return err
 	}
-	entry, added, err := h.store.Add(resolved, running.Port)
+	entry, added, err := h.store.Add(resolved, running.Port, time.Now())
 	if err != nil {
 		return addError(err)
 	}
