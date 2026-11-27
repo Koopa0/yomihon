@@ -128,10 +128,11 @@ func markerValue(marker string) (Role, bool) {
 	}
 }
 
-// markerSpans locates every "{sequence...}" on a line. The key ends at "=",
-// "}" or space, so a word that only begins like it, such as a Mermaid
-// "{sequenceDiagram}", is the author's text. An opener with no closing brace is
-// text too, so it ends the scan.
+// markerSpans locates every "{sequence...}" on a line. A letter or digit
+// straight after the key makes it a longer word, such as a Mermaid
+// "{sequenceDiagram}", which is the author's text; any other character is a
+// marker, so a mistyped one like "{sequence:primary}" is still reported. An
+// opener with no closing brace is text too, so it ends the scan.
 func markerSpans(line string) []lineSpan {
 	var spans []lineSpan
 	for off := 0; ; {
@@ -141,7 +142,7 @@ func markerSpans(line string) []lineSpan {
 		}
 		start := off + rel
 		after := start + len(markerOpen)
-		if next, _ := utf8.DecodeRuneInString(line[after:]); next != '=' && next != '}' && !unicode.IsSpace(next) {
+		if next, _ := utf8.DecodeRuneInString(line[after:]); unicode.IsLetter(next) || unicode.IsDigit(next) {
 			off = after
 			continue
 		}

@@ -505,6 +505,12 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			wantLine: 1,
 		},
 		{
+			name:     "a marker whose key is followed by punctuation",
+			body:     "## Part {sequence:primary}\n\n- [[A]]\n",
+			wantRule: RuleRoleInvalid,
+			wantLine: 1,
+		},
+		{
 			name:     "a marker in a paragraph",
 			body:     "## Part {sequence=primary}\n\n這一段 {sequence=local} 沒有宣告任何東西。\n\n- [[A]]\n",
 			wantRule: RuleRoleMisplaced,
