@@ -129,23 +129,18 @@ func mountEdges(notes []note, idx *graph.Index, scope schema.KnowledgeScope, aut
 			continue
 		}
 		fromIndex := roles.IsMapType(n.noteType)
-		for _, target := range coverageTargets(n) {
-			for _, path := range resolveTargets(idx, target) {
-				referenced[path] = true
-				if fromIndex {
-					mapped[path] = true
-				}
+		for _, path := range Reaches(idx, coverageTargets(n)) {
+			referenced[path] = true
+			if fromIndex {
+				mapped[path] = true
 			}
 		}
 	}
 	return mapped, referenced
 }
 
-// coverageTargets is every name a note's edges reach: its body wikilink targets
-// and its provenance references (based_on, related). The values are resolved
-// through resolveTargets, so an ambiguous name contributes an edge to every
-// candidate and an ambiguously-referenced concept is never miscounted as an
-// orphan.
+// coverageTargets is every name a note's edges cite: its body wikilink targets
+// and its provenance references (based_on, related).
 func coverageTargets(n *note) []string {
 	out := make([]string, 0, len(n.wikilinks)+len(n.basedOn)+len(n.related))
 	for _, w := range n.wikilinks {
@@ -156,25 +151,31 @@ func coverageTargets(n *note) []string {
 	return out
 }
 
-// resolveTargets resolves one body-link or provenance value to the note
-// paths it reaches: a unique resolution yields one path, an ambiguous one every
-// candidate, and an unresolved one or a value that strips to nothing none.
-func resolveTargets(idx *graph.Index, value string) []string {
-	target, ok := referenceTarget(value)
-	if !ok {
-		return nil
+// Reaches resolves the names one note's edges cite — body link targets, or
+// frontmatter references written bare or as [[links]] — to the notes they
+// reach. A unique name reaches its note, a name several files share reaches
+// every one of them, so a concept cited by an ambiguous name is never counted
+// an orphan, and an unresolved name reaches nothing. Coverage counts a concept
+// as mounted when a note of an index type reaches it.
+func Reaches(idx *graph.Index, names []string) []string {
+	var out []string
+	for _, name := range names {
+		target, ok := referenceTarget(name)
+		if !ok {
+			continue
+		}
+		res := idx.Resolve(target)
+		switch res.Kind {
+		case graph.KindUnique:
+			out = append(out, res.RelPath)
+		case graph.KindAmbiguous:
+			out = append(out, res.Candidates...)
+		case graph.KindUnresolved:
+		default:
+			panic("judge: unknown graph.Kind: " + res.Kind.String())
+		}
 	}
-	res := idx.Resolve(target)
-	switch res.Kind {
-	case graph.KindUnique:
-		return []string{res.RelPath}
-	case graph.KindAmbiguous:
-		return res.Candidates
-	case graph.KindUnresolved:
-		return nil
-	default:
-		panic("judge: unknown graph.Kind: " + res.Kind.String())
-	}
+	return out
 }
 
 // renderCoverage renders the coverage report for a terminal reader.

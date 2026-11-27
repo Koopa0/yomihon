@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -44,15 +43,28 @@ func healthOf(notes []*vault.Note, resources []string) Health {
 	links := linksOf(notes)
 	readings := readingsOf(notes)
 	back := newBacklinks(notes, links, idx, titlesIn(readings))
-	return newHealth(notes, links, idx, judge.NewPlanned(noteBodies(notes), nil), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
+	return newHealth(notes, citationsOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
 }
 
-// linksOf is what each note cites, by path, read through the same extractor a
-// build reads a note's body with when it reads the note.
+// citationsOf is what each note cites, by path, read through the same
+// extractor a build reads a note's body with when it reads the note.
+func citationsOf(notes []*vault.Note) map[string][]judge.Citation {
+	cited := make(map[string][]judge.Citation, len(notes))
+	for _, n := range notes {
+		cited[n.RelPath] = judge.Citations(n.Body, nil)
+	}
+	return cited
+}
+
+// linksOf is the names each note cites, by path.
 func linksOf(notes []*vault.Note) map[string][]string {
 	links := make(map[string][]string, len(notes))
-	for _, n := range notes {
-		links[n.RelPath] = egress.Targets(judge.LinkTargets(n.Body))
+	for path, cited := range citationsOf(notes) {
+		targets := make([]string, len(cited))
+		for i, c := range cited {
+			targets[i] = c.Target
+		}
+		links[path] = targets
 	}
 	return links
 }
@@ -71,27 +83,32 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 		parse("Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
 		parse("Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
 		parse("Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
-		// Two notes declaring one title: naming either of them would be the
-		// guess the resolver refuses to make, so this citation stays unwritten
-		// rather than being pointed at one of them.
+		// Two notes declaring one title: the citation names a title, and both
+		// notes it could mean are listed.
 		parse("A/twin.md", "# Shared Title\n\none\n"),
 		parse("B/twin.md", "# Shared Title\n\ntwo\n"),
 		parse("Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
+		// A link under a gap heading is owed, as the check reads it.
+		parse("Concepts/owes by heading.md", "# Owes By Heading\n\n## 缺口\n\nsee [[Owed Under A Heading]]\n"),
 	}
 	h := healthOf(notes, nil)
 
-	wantTitleOnly := []HealthTitleLink{{
-		From:   nav.NoteRef{Name: "Cites Title", RelPath: "Concepts/cites title.md"},
-		Target: "A Written Note",
-		Note:   nav.NoteRef{Name: "written", RelPath: "Concepts/written.md"},
-	}}
+	shared := nav.NoteRef{Name: "Cites Shared", RelPath: "Concepts/cites shared.md"}
+	wantTitleOnly := []HealthTitleLink{
+		{From: shared, Target: "Shared Title", Note: nav.NoteRef{Name: "twin", RelPath: "A/twin.md"}},
+		{From: shared, Target: "Shared Title", Note: nav.NoteRef{Name: "twin", RelPath: "B/twin.md"}},
+		{
+			From:   nav.NoteRef{Name: "Cites Title", RelPath: "Concepts/cites title.md"},
+			Target: "A Written Note",
+			Note:   nav.NoteRef{Name: "written", RelPath: "Concepts/written.md"},
+		},
+	}
 	if diff := cmp.Diff(wantTitleOnly, h.TitleOnly); diff != "" {
 		t.Errorf("TitleOnly mismatch (-want +got):\n%s", diff)
 	}
 
 	wantUnwritten := []HealthLink{
 		{From: nav.NoteRef{Name: "Cites Nothing", RelPath: "Concepts/cites nothing.md"}, Target: "no such name"},
-		{From: nav.NoteRef{Name: "Cites Shared", RelPath: "Concepts/cites shared.md"}, Target: "Shared Title"},
 	}
 	if diff := cmp.Diff(wantUnwritten, h.Unwritten); diff != "" {
 		t.Errorf("Unwritten mismatch (-want +got):\n%s", diff)

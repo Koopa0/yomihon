@@ -79,12 +79,67 @@ func (p Planned) Has(target string) bool {
 	return p.names[graph.NormalizeKey(target)]
 }
 
+// Citation is one wikilink a note's body writes, as the link rules read it.
+type Citation struct {
+	// Target is the name the link resolves by.
+	Target string
+	// Owed says the link sits in a section a gap heading opens, which tracks it
+	// as owed rather than broken.
+	Owed bool
+}
+
+// Citations returns the wikilinks body cites, in document order, with each one
+// read against the gap headings the contract declares. A nil contract reads
+// against the default marks. It leaves out what LinkTargets leaves out.
+func Citations(body string, contract *schema.Contract) []Citation {
+	links := extractWikilinksWith(body, 1, plannedMarksFrom(contract).heading)
+	cited := make([]Citation, len(links))
+	for i, link := range links {
+		cited[i] = Citation{Target: link.target, Owed: link.underGapHeading}
+	}
+	return cited
+}
+
+// LinkStanding is how the link rules read one wikilink.
+type LinkStanding int
+
+const (
+	// LinkResolves is a link a file answers to. A name several files share is
+	// here too: the name-collision rule reports it.
+	LinkResolves LinkStanding = iota
+	// LinkTitleOnly is a link to a name that is a note's title and is no
+	// filename or alias, so it resolves to nothing (link.title_not_alias).
+	LinkTitleOnly
+	// LinkOwed is a link to nothing that is tracked as owed: it sits under a
+	// gap heading or names a planned concept (link.broken at info).
+	LinkOwed
+	// LinkUnwritten is a link to nothing that nothing tracks (link.broken at
+	// warn).
+	LinkUnwritten
+)
+
+// Standing reads one citation the way the link rules do, so the check and the
+// health page give one verdict on it. titled says whether the target is some
+// note's title.
+func Standing(c Citation, idx *graph.Index, planned Planned, titled bool) LinkStanding {
+	switch {
+	case idx.Names(c.Target):
+		return LinkResolves
+	case titled:
+		return LinkTitleOnly
+	case c.Owed || planned.Has(c.Target):
+		return LinkOwed
+	default:
+		return LinkUnwritten
+	}
+}
+
 // LinkTargets returns the wikilinks body cites, in document order, each with
 // the bytes it occupies, leaving out the ones a reader never wrote: a link
 // inside a code fence or span is quoted syntax, one inside an Obsidian comment
 // is content the author took back, and a bare anchor names no note. It is
-// exported so the reading face builds its reverse link graph from this same
-// reading, and it is what an egress gate reads links with.
+// what an egress gate reads links with; Citations is the same reading for the
+// pages.
 func LinkTargets(body string) []egress.Link {
 	links := extractWikilinks(body, 1)
 	cited := make([]egress.Link, 0, len(links))

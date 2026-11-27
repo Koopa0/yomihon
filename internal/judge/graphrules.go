@@ -128,21 +128,19 @@ func linkHealth(
 			if lessons[link.offset] {
 				continue
 			}
-			// A name two files share is the collision rule's to report. A
-			// path suffix several files end with is a name none of them
-			// carries, so no collision reports it; the page links nothing and
-			// check reports the same broken link it always has.
-			if idx.Names(link.target) {
+			targetNotes := titles[graph.NormalizeKey(link.target)]
+			standing := Standing(Citation{Target: link.target, Owed: link.underGapHeading}, idx, planned, len(targetNotes) > 0)
+			if standing == LinkResolves {
 				continue
 			}
 			if link.embed && render.NamesAFile(link.target) {
 				out = appendMissingEmbed(out, n, link, authority, partial)
 				continue
 			}
-			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
+			if standing == LinkTitleOnly {
 				out = append(out, titleNotAlias(n, link, targetNotes))
 			} else {
-				out = append(out, brokenLink(n, link, planned))
+				out = append(out, brokenLink(n, link, standing == LinkOwed))
 			}
 		}
 	}
@@ -181,10 +179,8 @@ func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 }
 
 // brokenLink is a link that resolves to nothing. It is informational when it is
-// a tracked forward-reference — under a gap heading, or naming a planned
-// concept — and a warning otherwise.
-func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
-	tracked := link.underGapHeading || planned.Has(link.target)
+// owed, a tracked forward-reference, and a warning otherwise.
+func brokenLink(n *note, link *wikiLink, tracked bool) Finding {
 	severity := SeverityWarn
 	evidence := "no filename or alias matches the target"
 	action := "create the target note, or change the link to an existing filename/alias"

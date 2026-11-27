@@ -77,11 +77,11 @@ var stagePanics = []struct {
 	}},
 	{"the link targets", func(p noteParsers) noteParsers {
 		genuine := p.links
-		p.links = func(body string) []string {
+		p.links = func(body string, contract *schema.Contract) []judge.Citation {
 			if strings.Contains(body, poisonMark) {
 				panic(panicValue)
 			}
-			return genuine(body)
+			return genuine(body, contract)
 		}
 		return p
 	}},
