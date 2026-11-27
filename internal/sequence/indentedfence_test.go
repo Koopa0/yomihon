@@ -12,7 +12,7 @@ import (
 // the end of the note and the lesson rows written below it stop being links.
 // The course and the map read their links through this one scan, so a part
 // that shows a fence loses its lessons on both faces at once.
-func TestLiveWikilinksSurviveAnIndentedFenceExample(t *testing.T) {
+func TestLiveScanSurvivesAnIndentedFenceExample(t *testing.T) {
 	t.Parallel()
 
 	const lessons = "- [[L01]]\n- [[L02]]\n"
@@ -77,22 +77,23 @@ func TestLiveWikilinksSurviveAnIndentedFenceExample(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			links, _ := sequence.LiveScan(tt.body)
 			var got []string
-			for _, link := range sequence.LiveWikilinks(tt.body) {
+			for _, link := range links {
 				got = append(got, link.Target)
 			}
 			if len(got) != len(tt.want) {
-				t.Fatalf("LiveWikilinks() = %v, want %v", got, tt.want)
+				t.Fatalf("LiveScan() = %v, want %v", got, tt.want)
 			}
 			for i, want := range tt.want {
 				if got[i] != want {
-					t.Errorf("LiveWikilinks()[%d] = %q, want %q", i, got[i], want)
+					t.Errorf("LiveScan()[%d] = %q, want %q", i, got[i], want)
 				}
 			}
 			if tt.absent != "" {
 				for _, target := range got {
 					if target == tt.absent {
-						t.Errorf("LiveWikilinks() = %v, must not contain %q", got, tt.absent)
+						t.Errorf("LiveScan() = %v, must not contain %q", got, tt.absent)
 					}
 				}
 			}

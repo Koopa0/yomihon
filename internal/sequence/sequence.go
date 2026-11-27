@@ -163,10 +163,6 @@ type Candidate struct {
 	State      EntryState
 }
 
-// Accepted reports whether this row passed canonical validation. Every other
-// state still makes the row a row for the purpose of its branch's state.
-func (c *Candidate) Accepted() bool { return c.State == EntryAccepted }
-
 // Group is one branch of a study path: a heading, or a nested list container
 // the author marked with a role. Name is the author's text with a recognized
 // marker removed; the source bytes are untouched.
@@ -1104,18 +1100,9 @@ type linkHit struct {
 // span is where this link is written, as the occurrence identity a row keeps.
 func (h linkHit) span() Span { return Span{Start: h.start, Stop: h.stop} }
 
-// LiveWikilinks are the live wikilinks in body, in document order. It is the
-// same scan a study path's rows already use, so a link written inside a
-// fence, a code span, an authored HTML block, or an Obsidian comment is
-// not live here either.
-func LiveWikilinks(body string) []Link {
-	links, _ := LiveScan(body)
-	return links
-}
-
-// LiveScan is the live wikilinks in body together with the skip zones that
-// filtered them. A map's heading walk reads these same zones so a line
-// skipped for a link is skipped for a heading.
+// LiveScan is the live wikilinks in body, in document order, together with the
+// skip zones that filtered them. A map's heading walk reads these same zones
+// so a line skipped for a link is skipped for a heading.
 func LiveScan(body string) (links []Link, zones []Span) {
 	if body == "" {
 		return nil, nil

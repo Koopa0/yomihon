@@ -42,7 +42,7 @@ func TestTargetSpanIsTheWrittenLink(t *testing.T) {
 			t.Parallel()
 			doc := Parse(tt.body, 1)
 			entry := onlyEntry(t, doc)
-			if !entry.Accepted() {
+			if entry.State != EntryAccepted {
 				t.Fatalf("row state = %s, want accepted", entry.State)
 			}
 			if entry.TargetSpan.Zero() {

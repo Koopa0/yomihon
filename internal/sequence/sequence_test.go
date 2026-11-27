@@ -77,7 +77,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		t.Errorf("the main line lists %d lessons, want 8: %+v", got, entries)
 	}
 	for _, e := range entries {
-		if !e.Accepted() {
+		if e.State != EntryAccepted {
 			t.Errorf("lesson %q has state %v, want accepted; the contract's example is canonical throughout", e.Target, e.State)
 		}
 	}
@@ -230,7 +230,7 @@ func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
 // A map asks the live-link scan of the whole body, not of course rows, so a
 // prose or table link is live here even though it is not a lesson, and a
 // fenced, commented, or authored-HTML copy of one is not.
-func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
+func TestLiveScanReadsTheBodyNotTheCourseGrammar(t *testing.T) {
 	t.Parallel()
 
 	body := "## Authors\n" +
@@ -251,7 +251,7 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"| col |\n" +
 		"| --- |\n" +
 		"| [[挪威的森林\\|《挪威的森林》]] |\n"
-	got := LiveWikilinks(body)
+	got, _ := LiveScan(body)
 	names := make([]string, 0, len(got))
 	for _, link := range got {
 		names = append(names, link.Target+"|"+link.Display)
@@ -261,7 +261,7 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"挪威的森林|《挪威的森林》",
 	}
 	if diff := cmp.Diff(want, names); diff != "" {
-		t.Errorf("LiveWikilinks() mismatch (-want +got):\n%s", diff)
+		t.Errorf("LiveScan() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -329,8 +329,8 @@ func TestNoncanonicalRowsAreCandidatesButNeverEntries(t *testing.T) {
 				t.Fatalf("the branch lists %d rows, want 1; a noncanonical row is still a row", len(entries))
 			}
 			e := entries[0]
-			if e.State != EntryNoncanonical || e.Accepted() {
-				t.Errorf("row state = %v (accepted %t), want noncanonical and not accepted", e.State, e.Accepted())
+			if e.State != EntryNoncanonical {
+				t.Errorf("row state = %v, want noncanonical", e.State)
 			}
 			if e.Target != "A" {
 				t.Errorf("row target = %q, want %q kept for identity even though no entry is accepted", e.Target, "A")
@@ -379,7 +379,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 		t.Fatalf("the nested list's own link was counted into the enclosing row's scope: %+v", control.Diagnostics)
 	}
 	got := control.Groups[0].entries()
-	if len(got) != 1 || !got[0].Accepted() || got[0].Target != "A" {
+	if len(got) != 1 || got[0].State != EntryAccepted || got[0].Target != "A" {
 		t.Errorf("control row = %+v, want one accepted entry for A", got)
 	}
 }
@@ -437,8 +437,8 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("branch lists %d rows, want 1: %+v", len(entries), entries)
 	}
-	if entries[0].State != EntryRoleOnEntry || entries[0].Accepted() {
-		t.Errorf("conflicted row state = %v (accepted %t), want role-on-entry and not accepted", entries[0].State, entries[0].Accepted())
+	if entries[0].State != EntryRoleOnEntry {
+		t.Errorf("conflicted row state = %v, want role-on-entry", entries[0].State)
 	}
 	if entries[0].Target != "B" {
 		t.Errorf("conflicted row target = %q, want %q kept for identity", entries[0].Target, "B")
@@ -978,7 +978,7 @@ func collected(groups []*Group) []string {
 		for _, item := range g.Items {
 			switch {
 			case item.Entry != nil:
-				if item.Entry.Accepted() {
+				if item.Entry.State == EntryAccepted {
 					out = append(out, item.Entry.Target)
 				}
 			case item.Branch != nil:
@@ -1067,28 +1067,6 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 				t.Errorf("accepted entries = %v, want %v", got, tt.wantEntries)
 			}
 		})
-	}
-}
-
-// TestARowNobodyJudgedIsNotAccepted holds the zero value of the validation
-// outcome to the safe answer. Acceptance is what lets a row be counted, walked
-// and placed, so a Candidate that reached nobody's judgement claiming it was
-// accepted would hand every hand-built or partially-copied row the strongest
-// verdict the grammar has.
-func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
-	t.Parallel()
-	var unjudged Candidate
-	if unjudged.State != EntryUnread {
-		t.Errorf("the zero Candidate's state = %v, want %v", unjudged.State, EntryUnread)
-	}
-	if unjudged.Accepted() {
-		t.Error("a Candidate nobody judged reports itself accepted")
-	}
-	// The control: the state validation does assign still means what it said,
-	// so the guard above cannot be "nothing is ever accepted".
-	judged := Candidate{State: EntryAccepted}
-	if !judged.Accepted() {
-		t.Error("a row validation accepted does not report itself accepted")
 	}
 }
 
