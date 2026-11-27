@@ -11,9 +11,28 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-func TestSectionIDKeepsTheMarksWrittenOnALetter(t *testing.T) {
+// TestSectionID pins the id a section name folds to. The page that stamps an
+// id and every face that follows one read it from here, so a change made for
+// one of them moves every anchor in the vault at once. Decomposed forms are
+// written as escapes, since a source file cannot show which form it carries.
+func TestSectionID(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, heading, id string }{
+		{"plain words", "Plain Heading", "plain-heading"},
+		{"surrounding space", "  Trailing and leading  ", "trailing-and-leading"},
+		{"CJK letters", "CJK 標題", "cjk-標題"},
+		{"a punctuation run is one separator", "Heading -- with punctuation!", "heading-with-punctuation"},
+		{"an apostrophe separates", "What's new?", "what-s-new"},
+		{"underscore separates", "under_score", "under-score"},
+		{"superscript digit", "x²", "x²"},
+		{"vulgar fraction", "½", "½"},
+		{"only punctuation", "!!!", "section"},
+		{"empty", "", "section"},
+		{"only spaces", "   ", "section"},
+		{"fullwidth letters", "ＦＵＬＬＷＩＤＴＨ", "ｆｕｌｌｗｉｄｔｈ"},
+		{"decomposed Latin", "Man\u0303ana", "ma\u00f1ana"},
+		{"decomposed kana", "\u304b\u3099\u3093", "\u304c\u3093"},
+		{"decomposed capital", "A\u030a", "\u00e5"},
 		{"Hindi short vowel", "कि", "कि"},
 		{"Hindi long vowel", "की", "की"},
 		{"Hindi word", "हिन्दी", "हिन्दी"},
