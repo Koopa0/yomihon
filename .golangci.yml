@@ -232,6 +232,15 @@ linters:
               desc: manual wiring in cmd/app — no DI frameworks
             - pkg: go.uber.org/fx
               desc: manual wiring in cmd/app — no DI frameworks
+        # The contract is read before any reader asks, so it speaks no
+        # interface language.
+        schema:
+          files:
+            - "**/internal/schema/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/koopa0/yomihon/internal/wording
+              desc: the contract is loaded before a reader's language is known; wording belongs to the faces that know it
 
     forbidigo:
       analyze-types: true
