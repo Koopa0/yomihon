@@ -573,15 +573,21 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 // TestABranchThatOnlyGroupsOtherBranchesIsSilent separates the two undeclared
 // states. Forgetting to declare is a problem; a heading whose whole job is to
 // hold other headings is not, and reporting it would train the author to ignore
-// the report.
+// the report. A word that only begins like the key, as a Mermaid
+// sequenceDiagram does, is not a declaration either.
 func TestABranchThatOnlyGroupsOtherBranchesIsSilent(t *testing.T) {
 	t.Parallel()
-	doc := Parse("## Part\n\n### Module {sequence=primary}\n\n- [[A]]\n", 1)
-	if len(doc.Diagnostics) != 0 {
-		t.Errorf("a branch that lists nothing of its own was reported: %+v", doc.Diagnostics)
-	}
-	if doc.Groups[0].Role != RoleStructural {
-		t.Errorf("outer branch role = %v, want structural", doc.Groups[0].Role)
+	for _, outer := range []string{"## Part", "## Notes on {sequenceDiagram}"} {
+		t.Run(outer, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(outer+"\n\n### Module {sequence=primary}\n\n- [[A]]\n", 1)
+			if len(doc.Diagnostics) != 0 {
+				t.Errorf("a branch that lists nothing of its own was reported: %+v", doc.Diagnostics)
+			}
+			if doc.Groups[0].Role != RoleStructural {
+				t.Errorf("outer branch role = %v, want structural", doc.Groups[0].Role)
+			}
+		})
 	}
 }
 

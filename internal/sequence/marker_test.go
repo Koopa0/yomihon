@@ -95,11 +95,9 @@ func TestAHeadingThatIsOnlyADeclarationKeepsItsLine(t *testing.T) {
 	}
 }
 
-// A branch's name ends with the author's last word. The space they left in
-// front of the declaration is spacing, and a name carrying it would fold to
-// the same id anyway while every report quoting it showed the gap. Until now
-// only a reading-page test noticed the trim, and the page is not where the
-// rule lives.
+// A branch's name ends with the author's last word. Space in front of the
+// declaration, or on either side of its "=", is spacing: it is neither part of
+// the name nor a reason to refuse the value.
 func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +106,8 @@ func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 		"基本觀念   {sequence=primary}",
 		"基本觀念\t{sequence=primary}",
 		"基本觀念 \t {sequence=primary}",
+		"基本觀念 {sequence =primary}",
+		"基本觀念 {sequence = primary}",
 	}
 	for _, heading := range headings {
 		t.Run(heading, func(t *testing.T) {

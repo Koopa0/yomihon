@@ -1,6 +1,10 @@
 package sequence
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // The marker declares a branch's part in the course order and nothing else:
 // one key, three values, closed on purpose.
@@ -104,10 +108,11 @@ func readMarker(line string, spans []lineSpan) (name string, role Role, decl dec
 	return strings.TrimRight(line[:span.Start], " \t"), role, declValid
 }
 
-// markerValue reads the value out of one whole marker.
+// markerValue reads the value out of one whole marker. Space on either side of
+// the "=" is spacing, so the two sides are trimmed alike.
 func markerValue(marker string) (Role, bool) {
 	inner := strings.TrimSuffix(strings.TrimPrefix(marker, markerOpen), markerClose)
-	value, found := strings.CutPrefix(inner, "=")
+	value, found := strings.CutPrefix(strings.TrimSpace(inner), "=")
 	if !found {
 		return RoleStructural, false
 	}
@@ -123,8 +128,10 @@ func markerValue(marker string) (Role, bool) {
 	}
 }
 
-// markerSpans locates every "{sequence...}" on a line. An opener with no
-// closing brace is text the author wrote, so it ends the scan.
+// markerSpans locates every "{sequence...}" on a line. The key ends at "=",
+// "}" or space, so a word that only begins like it, such as a Mermaid
+// "{sequenceDiagram}", is the author's text. An opener with no closing brace is
+// text too, so it ends the scan.
 func markerSpans(line string) []lineSpan {
 	var spans []lineSpan
 	for off := 0; ; {
@@ -133,6 +140,11 @@ func markerSpans(line string) []lineSpan {
 			return spans
 		}
 		start := off + rel
+		after := start + len(markerOpen)
+		if next, _ := utf8.DecodeRuneInString(line[after:]); next != '=' && next != '}' && !unicode.IsSpace(next) {
+			off = after
+			continue
+		}
 		relEnd := strings.Index(line[start:], markerClose)
 		if relEnd < 0 {
 			return spans
