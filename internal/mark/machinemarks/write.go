@@ -198,7 +198,7 @@ type proposal struct {
 // a change of one the page had read, which base says how far. A change of state
 // is a Put of the same ID with another Kind. edit names the page's editing
 // session, nil when it has none. A mark that exists and the gate withholds is
-// ErrGone, which is what Delete and Choose answer for a mark that is not there;
+// ErrGone, which is what Delete answers for a mark that is not there;
 // Put of an id that is not there is a new mark, so for it the answer does tell
 // the two apart, and only a caller who already holds the id of a withheld mark
 // can ask. The gate is not optional and a nil one panics.
@@ -238,36 +238,6 @@ func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit, ga
 	})
 }
 
-// Pick names one value of a mark: the line of one writer at one rev.
-type Pick struct {
-	Writer string
-	Rev    uint64
-}
-
-// Choose makes the value pick names the mark's value, written whole on top of
-// what the page had read. Only a value the mark's conflict holds now can be
-// chosen; one that was replaced since, or that another page already chose, is
-// ErrStale and nothing is written. A line that appeared after the page read
-// stays beside the chosen one. A mark the gate withholds is ErrGone.
-func (m *Marks) Choose(ctx context.Context, id string, pick Pick, base Seen, gate Gate) (Result, error) {
-	needGate(gate)
-	return m.change(ctx, func(v *view) (*proposal, error) {
-		r, ok := v.byMark[id]
-		if !ok || withheld(v, id, gate) {
-			return nil, ErrGone
-		}
-		for _, l := range r.heads {
-			if l.Writer() == pick.Writer && l.Rev == pick.Rev {
-				if err := validate(&l.Mark, nil); err != nil {
-					return nil, err
-				}
-				return &proposal{mark: l.Mark, base: base}, nil
-			}
-		}
-		return nil, &StaleError{Seen: r.entry(func(*kept) bool { return false }).Seen}
-	})
-}
-
 // needGate refuses a write that names no gate: it would answer for a mark the
 // reader's rules hold back.
 func needGate(gate Gate) {
@@ -291,35 +261,6 @@ func (m *Marks) Restore(ctx context.Context) (Result, error) {
 	return m.change(ctx, func(v *view) (*proposal, error) {
 		return &proposal{restore: true}, nil
 	})
-}
-
-// NoticeNewID records that the reader was told this machine took a new id, so
-// that it is said once.
-func (m *Marks) NoticeNewID(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Looked at before the lock is taken, so that a machine with nothing to say
-	// leaves not even a lock file behind; the look is made again under it.
-	if st, err := m.machine(); err != nil || !st.unsaid {
-		return err
-	}
-	return confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
-		st, err := m.machine()
-		if err != nil || !st.unsaid {
-			return err
-		}
-		_, err = m.ledger.Record(ctx, &ledger.Event{Kind: kindSaid, ID: st.id})
-		return err
-	})
-}
-
-// machine is what the ledger says of this machine now.
-func (m *Marks) machine() (machine, error) {
-	events, _, err := m.ledger.Events()
-	if err != nil {
-		return machine{}, err
-	}
-	return stateOf(events), nil
 }
 
 // live says the mark is one that is not deleted.

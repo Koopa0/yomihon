@@ -134,16 +134,7 @@ func TestAReadMakesNothing(t *testing.T) {
 	if got := v.Entries(open); len(got) != 0 || v.MachineID() != "" || v.Missing() != 0 {
 		t.Fatalf("a vault nobody marked reads as %d marks, id %q, %d missing", len(got), v.MachineID(), v.Missing())
 	}
-	for _, step := range []func(){
-		func() { a.view() },
-		func() {
-			if err := a.m.NoticeNewID(t.Context()); err != nil {
-				t.Error(err)
-			}
-		},
-	} {
-		step()
-	}
+	a.view()
 	if diff := changedPaths(vaultBefore, tree(t, a.root)); diff != "" {
 		t.Errorf("a read changed the vault: %s", diff)
 	}
@@ -233,7 +224,7 @@ func TestTwoMachinesEditOneMarkAtOnce(t *testing.T) {
 	pull(b, a)
 	for _, c := range []*clone{a, b} {
 		e := c.entry(mid(1))
-		if !e.Conflict() || len(e.Values) != 2 {
+		if len(e.Values) != 2 {
 			t.Fatalf("%s reads %d values, want 2", c.name, len(e.Values))
 		}
 		if got := c.words(1); got != "B's words | A's words" {
@@ -489,54 +480,6 @@ func TestTheSendsOfOneEdit(t *testing.T) {
 	}
 }
 
-func TestChooseTakesOnlyAValueInTheConflict(t *testing.T) {
-	t.Parallel()
-	a, b, c := newClone(t, "A"), newClone(t, "B"), newClone(t, "C")
-	a.say(1, "first")
-	pull(a, b)
-	pull(a, c)
-	a.say(1, "A's words")
-	b.say(1, "B's words")
-	pull(b, a)
-	e := a.entry(mid(1))
-	var aValue, bValue Value
-	for _, v := range e.Values {
-		if v.Mark.Body == "A's words" {
-			aValue = v
-		} else {
-			bValue = v
-		}
-	}
-	// A value that is not in the conflict is stale, and nothing is written.
-	before := tree(t, a.root)
-	if _, err := a.m.Choose(t.Context(), mid(1), Pick{Writer: aValue.Writer, Rev: aValue.Rev + 99}, e.Seen, open); !errors.Is(err, ErrStale) {
-		t.Fatalf("Choose of a value that is not there = %v, want ErrStale", err)
-	}
-	if _, err := a.m.Choose(t.Context(), mid(99), Pick{}, e.Seen, open); !errors.Is(err, ErrGone) {
-		t.Fatalf("Choose of a mark that is not there = %v, want ErrGone", err)
-	}
-	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
-		t.Fatalf("a refused choice wrote %s", diff)
-	}
-	// While the page is open a third machine writes over what it had read of
-	// the mark and not over this page's: its line is one the choice never read,
-	// so it stays beside the one chosen.
-	c.say(1, "C, unseen")
-	pull(c, a)
-	if _, err := a.m.Choose(t.Context(), mid(1), Pick{Writer: bValue.Writer, Rev: bValue.Rev}, e.Seen, open); err != nil {
-		t.Fatalf("Choose of B's value = %v", err)
-	}
-	if got := a.words(1); got != "C, unseen | B's words" && got != "B's words | C, unseen" {
-		t.Fatalf("after the choice the mark reads %q, want B's words beside C's, which was not read", got)
-	}
-	// What was chosen is read by the other machines as the one value: after a
-	// pull B reads B's words with C's beside it, and not A's.
-	pull(a, b)
-	if got := b.words(1); strings.Contains(got, "A's words") {
-		t.Fatalf("B still reads A's words after A chose: %q", got)
-	}
-}
-
 // A page that claims to have read more than there is covers nothing it did not
 // read: a line written afterwards by the same writer is not replaced by it.
 func TestAPageCannotClaimToHaveReadALineThatIsNotThereYet(t *testing.T) {
@@ -652,7 +595,7 @@ func TestADeletionAfterARestartCoversTheLineOfTheProcessBefore(t *testing.T) {
 	}
 	a.restart()
 	e := a.entry(mid(1))
-	if !e.Deleted() || e.Conflict() {
+	if !e.Deleted() || len(e.Values) > 1 {
 		t.Fatalf("after the old file came back the mark is deleted=%v with %d values, want deleted and no conflict: %s", e.Deleted(), len(e.Values), a.words(1))
 	}
 }
@@ -717,7 +660,7 @@ func TestAnAnswerSaysOnlyWhatThePageHadRead(t *testing.T) {
 		t.Fatalf("the second send: %v", err)
 	}
 	got := a.entry(mid(1))
-	if !got.Conflict() {
+	if len(got.Values) < 2 {
 		t.Fatalf("B's edit was covered by a page that had not read it: %s", a.words(1))
 	}
 	if words := a.words(1); !strings.Contains(words, "B's edit") || !strings.Contains(words, "A, typing on") || strings.Contains(words, "A, typing |") {

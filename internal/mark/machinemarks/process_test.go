@@ -225,8 +225,8 @@ func TestTwoProcessesWriteAtOnceAndLoseNothing(t *testing.T) {
 	}
 	a.restart()
 	v := a.view()
-	if v.Damaged() != 0 || v.DamagedOwn() != 0 || v.Missing() != 0 || v.Markers() != 0 {
-		t.Fatalf("%d damaged, %d own damaged, %d missing, %d markers", v.Damaged(), v.DamagedOwn(), v.Missing(), v.Markers())
+	if v.Damaged() != 0 || v.DamagedOwn() != 0 || v.Missing() != 0 {
+		t.Fatalf("%d damaged, %d own damaged, %d missing", v.Damaged(), v.DamagedOwn(), v.Missing())
 	}
 	if bytes.Contains(a.ledgerBytes(), []byte(`"kind":"retire"`)) {
 		t.Fatal("a process of this machine was taken for another machine")
@@ -238,7 +238,7 @@ func TestTwoProcessesWriteAtOnceAndLoseNothing(t *testing.T) {
 			}
 		}
 	}
-	if e := a.entry(mid(1)); e.Conflict() {
+	if e := a.entry(mid(1)); len(e.Values) > 1 {
 		t.Fatalf("the shared mark is a conflict of %d values after writers that each read the last", len(e.Values))
 	}
 	if got := len(v.Entries(open)); got != 1+2*togetherMarks {
@@ -378,8 +378,8 @@ func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 		}
 		a.restart()
 		v := a.view()
-		if v.DamagedOwn() != 0 || v.Markers() != 0 || v.LedgerChanged() != 0 {
-			t.Fatalf("after kill %d: %d own lines damaged, %d markers, %d ledger lines changed", kills, v.DamagedOwn(), v.Markers(), v.LedgerChanged())
+		if v.DamagedOwn() != 0 || v.LedgerChanged() != 0 {
+			t.Fatalf("after kill %d: %d own lines damaged, %d ledger lines changed", kills, v.DamagedOwn(), v.LedgerChanged())
 		}
 		if v.Missing() > 0 {
 			inWindow++

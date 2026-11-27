@@ -116,17 +116,13 @@ func TestThisMachinesOwnFileConflictsOnABranch(t *testing.T) {
 	if markersIn(readFile(t, file)) == 0 {
 		t.Fatal("the merged file has no markers")
 	}
-	v := a.view()
-	if v.Markers() != 3 && v.Markers() == 0 {
-		t.Fatalf("Markers = %d", v.Markers())
-	}
 	// Both sides were written by this machine's one process, in order: the
 	// later replaces the earlier, and the reader's words are what is read.
 	if got := a.words(1); got != "the reader's side" {
 		t.Fatalf("reads %q", got)
 	}
 	a.say(2, "written after the merge")
-	if markersIn(readFile(t, file)) != 0 || a.view().Markers() != 0 {
+	if markersIn(readFile(t, file)) != 0 {
 		t.Fatal("a write left the markers in the file")
 	}
 	// The markers' bytes, the damaged line among them if any, are in the ledger.

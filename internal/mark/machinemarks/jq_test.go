@@ -17,15 +17,16 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/sealedline"
 )
 
-// jqOf is what the program in read-marks.jq reads of the machine files in dir: one
-// entry for each mark, by its id. It skips the test when jq is not installed,
-// unless YOMIHON_REQUIRE_JQ is set, which a CI job that is meant to have it sets.
+// jqEntry is one mark as the program in read-marks.jq prints it.
 type jqEntry struct {
 	ID       string           `json:"id"`
 	Mark     map[string]any   `json:"mark"`
 	Conflict []map[string]any `json:"conflict"`
 }
 
+// jqOf is what the program in read-marks.jq reads of the machine files in dir: one
+// entry for each mark, by its id. It skips the test when jq is not installed,
+// unless YOMIHON_REQUIRE_JQ is set, which a CI job that is meant to have it sets.
 func jqOf(t *testing.T, dir string) map[string]jqEntry {
 	t.Helper()
 	path, err := exec.LookPath("jq")
@@ -205,14 +206,14 @@ func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	if _, ok := want[mid(77)]; ok {
 		t.Error("a line of a later format was read")
 	}
-	if v := d.view(); v.Markers() != 3 || v.Newer() != 1 || v.Damaged() != 1 {
-		t.Errorf("%d markers, %d newer, %d damaged; want 3, 1, 1", v.Markers(), v.Newer(), v.Damaged())
+	if v := d.view(); v.Newer() != 1 || v.Damaged() != 1 {
+		t.Errorf("%d newer, %d damaged; want 1 and 1", v.Newer(), v.Damaged())
 	}
 }
 
 // The line a hand changed is where the two part, which the program in read-marks.jq
 // says: it has no way to check a checksum.
-func TestTheProgramInTestdataDoesNotCheckAChecksum(t *testing.T) {
+func TestTheJqProgramDoesNotCheckAChecksum(t *testing.T) {
 	t.Parallel()
 	a, d := newClone(t, "A"), newClone(t, "D")
 	a.say(1, "words")
@@ -285,30 +286,3 @@ func TestRandomVaultsReadTheSameWithoutYomihon(t *testing.T) {
 	}
 }
 
-// The command a reader is shown to run is the program the tests hold to the
-// screen: run as shown, in the vault's folder, it prints the marks.
-func TestTheShownCommandReadsTheMarks(t *testing.T) {
-	t.Parallel()
-	if _, err := exec.LookPath("jq"); err != nil {
-		if os.Getenv("YOMIHON_REQUIRE_JQ") != "" {
-			t.Fatalf("jq is required and is not installed: %v", err)
-		}
-		t.Skip("jq is not installed")
-	}
-	command := ReadMarksCommand()
-	if strings.Contains(command, "\n#") || strings.HasPrefix(strings.TrimPrefix(command, "jq -c -n -R '"), "#") {
-		t.Fatal("the command carries a comment of the program")
-	}
-	a := newClone(t, "A")
-	a.say(1, "first words")
-	a.say(2, "second words")
-	cmd := exec.CommandContext(t.Context(), "sh", "-c", command) // #nosec G204 -- the command the page shows
-	cmd.Dir = a.root
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("the shown command failed: %v", err)
-	}
-	if n := len(sealedline.Lines(out)); n != 2 || !bytes.Contains(out, []byte("first words")) || !bytes.Contains(out, []byte("second words")) {
-		t.Fatalf("the shown command printed %d marks: %s", n, out)
-	}
-}

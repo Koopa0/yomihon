@@ -22,8 +22,8 @@
 // read the words does not hide them, and the others are shown beside it.
 // Nothing is decided by a clock: the time on a line only orders what is shown.
 //
-// The rule is one a reader without Yomihon can follow, and testdata holds a
-// program for jq that does.
+// The rule is one a reader without Yomihon can follow: read-marks.jq is a
+// program for jq that does, and the tests hold it to what this package reads.
 //
 // # This machine's own lines
 //
@@ -43,7 +43,7 @@
 // code of the same shape, written on every line it writes. A line under this
 // machine's id whose process this machine never ran was written by another
 // computer that has a copy of this one's configuration. The machine that finds
-// one leaves its id for a new one, and the reader is told once. The lines it
+// one leaves its id for a new one, and says so to the log. The lines it
 // wrote under the old id stay its own and are written into the file of the new
 // id, since the file of the old one is another machine's now; the lines it
 // did not write are never taken for its own. So a file can hold lines whose m

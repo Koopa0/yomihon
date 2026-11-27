@@ -53,7 +53,6 @@ type view struct {
 	missing    int
 	damaged    int
 	damagedOwn int
-	markers    int
 	newer      int
 	unreadable int
 	// ownUnreadable says this machine's own file is there and could not be read.
@@ -144,7 +143,8 @@ func (m *Marks) scan(v *view, f *machinefile.File) []*kept {
 		l, verdict := decode(raw)
 		switch verdict {
 		case marker:
-			v.markers++
+			// git's conflict markers are read past, and the lines between them
+			// are read as any are.
 		case damaged:
 			if own {
 				v.damagedOwn++

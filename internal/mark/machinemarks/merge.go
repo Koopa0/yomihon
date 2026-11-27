@@ -47,10 +47,6 @@ type Entry struct {
 // Mark is the value that counts.
 func (e Entry) Mark() Mark { return e.Values[0].Mark }
 
-// Conflict says two writers changed the mark without either having read the
-// other's change.
-func (e Entry) Conflict() bool { return len(e.Values) > 1 }
-
 // Deleted says the mark is deleted: every value of it is.
 func (e Entry) Deleted() bool { return e.Values[0].Mark.Deleted }
 

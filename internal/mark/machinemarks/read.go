@@ -95,10 +95,6 @@ func (v *View) Damaged() int { return v.v.damaged }
 // they were written.
 func (v *View) DamagedOwn() int { return v.v.damagedOwn }
 
-// Markers is how many lines of the files are git's conflict markers, which are
-// read past: the lines between them are read as any are.
-func (v *View) Markers() int { return v.v.markers }
-
 // Newer is how many whole lines are of a format a later version wrote. They are
 // not read, and not lost: a file of this machine's keeps them.
 func (v *View) Newer() int { return v.v.newer }
@@ -122,18 +118,10 @@ func (v *View) LegacySkipped() int { return len(v.v.st.skipped) }
 // written, which is said and never read.
 func (v *View) LedgerChanged() int { return v.v.ledgerChanged }
 
-// NewIDUnsaid says this machine took a new id, because another was found
-// writing under its old one, and the reader has not been told. NoticeNewID
-// records that they were.
-func (v *View) NewIDUnsaid() bool { return v.v.st.unsaid }
-
-// OwnBytes is the length of this machine's own file in the vault, 0 where there
-// is none or it could not be read.
-func (v *View) OwnBytes() int { return len(v.v.ownDisk) }
-
-// Live is how many marks of every machine are not deleted, which is what the
-// limit counts.
-func (v *View) Live() int { return v.v.live() }
+// IDRetired says this machine took a new id, because another computer was found
+// writing under its old one: a copy of this one's configuration. It is for the
+// log; the reader is not told.
+func (v *View) IDRetired() bool { return len(v.v.st.retired) > 0 }
 
 // AwaitsTakeIn says the marks of the earlier file have not been taken in yet:
 // this machine has no file of marks and no conversion in its ledger, so its next

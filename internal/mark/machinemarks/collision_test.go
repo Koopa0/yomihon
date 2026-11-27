@@ -33,7 +33,7 @@ func copyConfig(t *testing.T, from, to *clone) {
 // The configuration directory of one machine is copied to another, so two
 // computers write under one machine id. Each notices, by a line under its id
 // that none of its processes wrote, and the one that finds it leaves the id:
-// nothing is lost, and it is told once.
+// nothing is lost, and the view says it took a new one.
 func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	t.Parallel()
 	a, b := newClone(t, "A"), newClone(t, "B")
@@ -54,8 +54,8 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(b.marksDir(), idA+".jsonl"), readFile(t, filepath.Join(a.marksDir(), idA+".jsonl")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := b.view(); got.NewIDUnsaid() {
-		t.Fatal("B was told of a new id before it wrote")
+	if b.view().IDRetired() {
+		t.Fatal("B left its id before it wrote")
 	}
 	// A reading alone does not retire anything; the write does.
 	b.say(4, "B writes after the pull")
@@ -67,20 +67,8 @@ func TestACopiedConfigurationDirectoryIsTwoMachines(t *testing.T) {
 			t.Errorf("B reads mark %d as %q, want %q", n, got, want)
 		}
 	}
-	if !b.view().NewIDUnsaid() {
-		t.Fatal("the new id was not there to be said")
-	}
-	if err := b.m.NoticeNewID(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	b.restart()
-	if b.view().NewIDUnsaid() {
-		t.Fatal("the new id is still unsaid after it was said, in another process")
-	}
-	// Said once: another write does not say it again.
-	b.say(5, "and once more")
-	if b.view().NewIDUnsaid() {
-		t.Fatal("a later write said the new id again")
+	if !b.view().IDRetired() {
+		t.Fatal("the view does not say B left its id")
 	}
 	// A's own file is not rewritten by B: it is the old id's, which is A's now.
 	if got := string(readFile(t, filepath.Join(b.marksDir(), idA+".jsonl"))); got != string(readFile(t, filepath.Join(a.marksDir(), idA+".jsonl"))) {

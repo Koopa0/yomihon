@@ -226,7 +226,7 @@ func TestStaleSeenDoesNotCoverALineOfAnotherComputerThePageNeverRead(t *testing.
 		t.Fatalf("writing on top of the stale answer: %v", err)
 	}
 	got := a.words(1)
-	if !strings.Contains(got, "from the stale page") || !strings.Contains(got, "B's words, read A's first") || !a.entry(mid(1)).Conflict() {
+	if !strings.Contains(got, "from the stale page") || !strings.Contains(got, "B's words, read A's first") || len(a.entry(mid(1)).Values) < 2 {
 		t.Fatalf("after use my words the mark reads %q, want B's words kept beside as a conflict", got)
 	}
 }

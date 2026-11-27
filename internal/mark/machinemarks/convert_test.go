@@ -165,7 +165,7 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 		t.Fatal(err)
 	}
 	pull(b, a)
-	if !a.entry(mid(3)).Conflict() {
+	if len(a.entry(mid(3)).Values) < 2 {
 		t.Fatal("no conflict was made")
 	}
 	if _, ok := a.view().Entry(mid(3), notReserved); ok {
@@ -189,7 +189,7 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 	}
 	a.say(4, "A's newer side")
 	pull(b, a)
-	if e := a.entry(mid(4)); !e.Conflict() || e.Mark().Body != "A's newer side" {
+	if e := a.entry(mid(4)); len(e.Values) < 2 || e.Mark().Body != "A's newer side" {
 		t.Fatalf("mark 4 is %+v, want a conflict that shows A's newer side first", e.Values)
 	}
 	if _, ok := a.view().Entry(mid(4), notReserved); ok {
@@ -212,7 +212,7 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 }
 
 // A write is asked through the gate too: a mark the gate withholds answers a
-// Put, a Delete and a Choose exactly as a mark that is not there does, so that
+// Put and a Delete exactly as a mark that is not there does, so that
 // the answer says nothing of it, and no error carries its writers or revs.
 func TestAWriteToAWithheldMarkAnswersAsIfThereWasNone(t *testing.T) {
 	t.Parallel()
@@ -232,7 +232,7 @@ func TestAWriteToAWithheldMarkAnswersAsIfThereWasNone(t *testing.T) {
 	a.say(2, "A's newer side")
 	pull(b, a)
 	notReserved := func(m *Mark) bool { return !strings.HasPrefix(m.Path, "agent/") }
-	if e := a.entry(mid(2)); !e.Conflict() {
+	if e := a.entry(mid(2)); len(e.Values) < 2 {
 		t.Fatal("no conflict was made")
 	}
 	seen1, seen2 := a.entry(mid(1)).Seen, a.entry(mid(2)).Seen
@@ -252,14 +252,6 @@ func TestAWriteToAWithheldMarkAnswersAsIfThereWasNone(t *testing.T) {
 		"Put on a withheld conflict":    func() error { _, err := a.m.Put(t.Context(), &edit2, seen2, nil, notReserved); return err },
 		"Delete":                        func() error { _, err := a.m.Delete(t.Context(), mid(1), seen1, nil, notReserved); return err },
 		"Delete of a withheld conflict": func() error { _, err := a.m.Delete(t.Context(), mid(2), seen2, nil, notReserved); return err },
-		"Choose": func() error {
-			_, err := a.m.Choose(t.Context(), mid(2), Pick{Writer: a.writer(), Rev: 1}, seen2, notReserved)
-			return err
-		},
-		"Choose of a value that is not there": func() error {
-			_, err := a.m.Choose(t.Context(), mid(2), Pick{Writer: "ffffffff/", Rev: 99}, seen2, notReserved)
-			return err
-		},
 	} {
 		if err := call(); !saysGone(err) {
 			t.Errorf("%s = %#v, want what a mark that is not there answers, ErrGone and nothing more", name, err)
@@ -269,16 +261,12 @@ func TestAWriteToAWithheldMarkAnswersAsIfThereWasNone(t *testing.T) {
 	if _, err := a.m.Delete(t.Context(), mid(99), nil, nil, notReserved); !saysGone(err) {
 		t.Fatalf("Delete of nothing = %v, want ErrGone", err)
 	}
-	if _, err := a.m.Choose(t.Context(), mid(99), Pick{}, nil, notReserved); !saysGone(err) {
-		t.Fatalf("Choose of nothing = %v, want ErrGone", err)
-	}
 	if string(a.ledgerBytes()) != before || changedPaths(tree1, tree(t, a.root)) != "" {
 		t.Fatal("a refused write changed the ledger or the vault")
 	}
 	for name, call := range map[string]func(){
-		"Put":    func() { _, _ = a.m.Put(t.Context(), &edit, nil, nil, nil) },        //nolint:errcheck // it panics
-		"Delete": func() { _, _ = a.m.Delete(t.Context(), mid(1), nil, nil, nil) },    //nolint:errcheck // it panics
-		"Choose": func() { _, _ = a.m.Choose(t.Context(), mid(1), Pick{}, nil, nil) }, //nolint:errcheck // it panics
+		"Put":    func() { _, _ = a.m.Put(t.Context(), &edit, nil, nil, nil) },     //nolint:errcheck // it panics
+		"Delete": func() { _, _ = a.m.Delete(t.Context(), mid(1), nil, nil, nil) }, //nolint:errcheck // it panics
 	} {
 		func() {
 			defer func() {

@@ -16,8 +16,6 @@ const (
 	// kindRetire says the machine id ID is no longer this machine's: another
 	// machine was found writing under it. Its processes stay this machine's.
 	kindRetire = "retire"
-	// kindSaid says the reader was told that the machine took a new id.
-	kindSaid = "said"
 	// kindConverted holds the lines the marks of the earlier file were
 	// converted to, whole, as one commit: a conversion is one line of the
 	// ledger however many marks it has, one sync and not one for each.
@@ -47,8 +45,6 @@ type machine struct {
 	retired []string
 	// sessions are the processes this machine was, by the id they wrote under.
 	sessions map[string]map[string]bool
-	// unsaid is a new id the reader has not been told of.
-	unsaid bool
 	// converted says the earlier file's marks were taken in.
 	converted bool
 	// skipped are the ids of the marks of the earlier file that were not taken
@@ -80,9 +76,6 @@ func stateOf(events []ledger.Event) machine {
 			if !slices.Contains(st.retired, e.ID) {
 				st.retired = append(st.retired, e.ID)
 			}
-			st.unsaid = true
-		case kindSaid:
-			st.unsaid = false
 		case kindSkipped:
 			if id, _, found := strings.Cut(string(e.Content), " "); found {
 				st.skipped[id] = true

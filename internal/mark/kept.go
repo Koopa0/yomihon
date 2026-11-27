@@ -281,7 +281,7 @@ func (k *Kept) Mend() {
 		"other_computers_damaged", view.Damaged(), "own_damaged", view.DamagedOwn(),
 		"unreadable_files", view.Unreadable(), "own_file_unreadable", view.OwnUnreadable(),
 		"later_format_lines", view.Newer(), "earlier_file_skipped", view.LegacySkipped(),
-		"ledger_changed", view.LedgerChanged(), "configuration_copied", view.NewIDUnsaid())
+		"ledger_changed", view.LedgerChanged(), "configuration_copied", view.IDRetired())
 	missing := view.Missing()
 	if missing == 0 {
 		k.say("missing", "", "")
@@ -304,10 +304,10 @@ func (k *Kept) Mend() {
 // edgeState names the states of the files that the reader is not told of, empty
 // when there is none, so that the log says a state when it changes.
 func edgeState(v *machinemarks.View) string {
-	if v.Damaged()+v.DamagedOwn()+v.Unreadable()+v.Newer()+v.LegacySkipped()+v.LedgerChanged() == 0 && !v.OwnUnreadable() && !v.NewIDUnsaid() {
+	if v.Damaged()+v.DamagedOwn()+v.Unreadable()+v.Newer()+v.LegacySkipped()+v.LedgerChanged() == 0 && !v.OwnUnreadable() && !v.IDRetired() {
 		return ""
 	}
-	return fmt.Sprintf("%d/%d/%d/%d/%d/%d/%t/%t", v.Damaged(), v.DamagedOwn(), v.Unreadable(), v.Newer(), v.LegacySkipped(), v.LedgerChanged(), v.OwnUnreadable(), v.NewIDUnsaid())
+	return fmt.Sprintf("%d/%d/%d/%d/%d/%d/%t/%t", v.Damaged(), v.DamagedOwn(), v.Unreadable(), v.Newer(), v.LegacySkipped(), v.LedgerChanged(), v.OwnUnreadable(), v.IDRetired())
 }
 
 // say logs a state of one topic at Warn the first time it is seen and again only
