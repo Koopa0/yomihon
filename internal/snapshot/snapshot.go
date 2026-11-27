@@ -370,8 +370,8 @@ type Skipped struct {
 	Size   int64
 }
 
-// overSourceBound is the reason a size skip carries. It is the phrase the
-// health row shows, and the one the lock looks for.
+// overSourceBound is the reason a size skip carries, the phrase the health
+// row shows.
 const overSourceBound = "over the source bound"
 
 // Skipped returns the paths this generation saw and did not index: a
@@ -988,7 +988,7 @@ func (s *Store) buildGeneration(
 	backlinks := newBacklinks(b.ordered, links, graphIndex, titles)
 	sources := newBasedOnBy(b.ordered, graphIndex, titles)
 	// What the schema said is gathered here, with the rest of the whole-folder
-	// view, because every page's rail now states how many findings stand
+	// view, because every page's sidebar states how many findings stand
 	// against the folder and a walk over every note is not a thing to do on
 	// every page.
 	conceptType, hasConceptType := s.contract.ConceptType()
@@ -1034,7 +1034,7 @@ func (s *Store) buildGeneration(
 
 // markdownCount is how many of these entries are notes rather than the other
 // files a folder holds. It is counted here, while the folder is being read,
-// because every page's rail states how large the folder is and asking that
+// because every page's sidebar states how large the folder is and asking that
 // question later would mean a copy of the file list on every one of them.
 func markdownCount(entries []vault.Entry) int {
 	total := 0
@@ -1146,7 +1146,7 @@ func (b *build) omitDeclaredBasenames(entries []vault.Entry, contract *schema.Co
 // name so a citation still lands and the page can say the file is there;
 // nothing of the file is retained. The skip itself is stored so Skipped()
 // can name it on /health; a log line alone is not a face. A non-note that
-// was not wanted is simply absent, as before.
+// was not wanted is simply absent.
 func (b *build) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
 	if !note {
 		if figure.Is(entry.Path()) && !withinSourceCap(entry) {
