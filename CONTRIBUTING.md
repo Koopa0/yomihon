@@ -343,10 +343,10 @@ When you want to write a list of note types, domains, or marks, it is already
 declared somewhere. `internal/schema` is the only package that reads
 `System/schemas/vault-schema.toml`, and the only importer of a TOML decoder; do
 not copy its enums or field lists anywhere else. A test in `internal/archlock`
-fails when a word the rules file owns — `lesson`, `concept`, `inbox`, `draft`,
-`ready`, `published` — stands as a whole string literal in the Go or templates
-this repository ships, outside `internal/schema`. When you feel the urge to
-write `if noteType == "lesson"`, the answer is already in `internal/schema`.
+fails when a word the rules file owns — `lesson`, `concept`, `draft` — stands
+as a whole string literal in the Go or templates this repository ships, outside
+`internal/schema`. When you feel the urge to write `if noteType == "lesson"`,
+the answer is already in `internal/schema`.
 
 ### Delete what your change made dead
 

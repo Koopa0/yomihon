@@ -347,19 +347,13 @@ stylelint-check:
 	while IFS= read -r file; do set -- "$$@" "$$file"; done < "$$tmp/files"; \
 	npm exec --prefix .github -- stylelint --config .stylelintrc.json --config-basedir .github "$$@"
 
-# convention-check runs the checks that keep the module's shape from drifting
-# while every individual change looks reasonable: the layer boundaries, the
-# bilingual interface text, and the code nothing reaches any more. They are Go
-# tests, so `make test` already runs them; naming them here gives the failure a
-# name an operator can act on, and keeps the count of things `verify` asserts
-# visible in one line.
+# convention-check is the check of the module's shape that is not a Go test.
+# The checks in internal/archlock are tests, and `make test` runs them.
 convention-check: deadcode-check
-	go test ./internal/archlock/ ./internal/sourcebytes/
 
 # deadcode-check reports functions nothing reaches, counting every test as a
-# caller. A function only its own tests reach is a real answer to a real
-# question and stays; a function nothing reaches at all is weight a reader
-# carries for nothing, and the report is empty today.
+# caller, so a function only tests reach is not reported here and is dead all
+# the same.
 deadcode-check:
 	@$(call require-go-tool,deadcode,golang.org/x/tools,$(DEADCODE_VERSION))
 	@set -eu; \
