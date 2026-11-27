@@ -93,10 +93,10 @@ func TestFragmentNormalizationReturnsCanonicalIDs(t *testing.T) {
 			} {
 				got := owner.fold(tt.input)
 				if got != tt.want || !norm.NFC.IsNormalString(got) {
-					t.Errorf("caught: fragment-normalization %s(%q) = %q, want NFC %q", owner.name, tt.input, got, tt.want)
+					t.Errorf("%s(%q) = %q, want NFC %q", owner.name, tt.input, got, tt.want)
 				}
 				if rebuilt := owner.fold(got); rebuilt != got {
-					t.Errorf("caught: fragment-normalization %s reread(%q) = %q, want unchanged", owner.name, got, rebuilt)
+					t.Errorf("%s(%q) = %q, want it unchanged", owner.name, got, rebuilt)
 				}
 			}
 		})
@@ -119,17 +119,17 @@ func TestFragmentNormalizationPreservesPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := graph.FoldFragment(tt.input); got != tt.fold {
-				t.Errorf("caught: fragment-normalization FoldFragment(%q) = %q, want %q", tt.input, got, tt.fold)
+				t.Errorf("FoldFragment(%q) = %q, want %q", tt.input, got, tt.fold)
 			}
 			if got := graph.SectionID(tt.input); got != tt.section {
-				t.Errorf("caught: fragment-normalization SectionID(%q) = %q, want %q", tt.input, got, tt.section)
+				t.Errorf("SectionID(%q) = %q, want %q", tt.input, got, tt.section)
 			}
 		})
 	}
 	t.Run("pure caret transform", func(t *testing.T) {
 		t.Parallel()
 		if got := graph.FoldFragment("^Y\u030a-1"); got != "^\u1e99-1" {
-			t.Errorf("caught: fragment-normalization FoldFragment caret string = %q, want %q", got, "^\u1e99-1")
+			t.Errorf("FoldFragment(%q) = %q, want %q", "^Y\u030a-1", got, "^\u1e99-1")
 		}
 	})
 }

@@ -46,9 +46,8 @@ func TestBlockAddressExtractsOnlySupportedAuthoredTokens(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Logf("hit: BlockAddress literal case %s", tt.name)
 			if got := BlockAddress(tt.line); got != tt.want {
-				t.Errorf("caught: shared block grammar changed: BlockAddress(%q) = %q, want %q", tt.line, got, tt.want)
+				t.Errorf("BlockAddress(%q) = %q, want %q", tt.line, got, tt.want)
 			}
 		})
 	}
