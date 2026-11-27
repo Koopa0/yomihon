@@ -227,3 +227,23 @@ func refuse(ctx context.Context, tb testing.TB, command, root string) error {
 	}
 	return err
 }
+
+// extractCalloutTitles reads one body's callout titles the way parseNote does.
+func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
+	facts := inspectBody(body, nil)
+	return extractCalloutTitlesFrom(body, bodyStartLine, facts.comments)
+}
+
+// extractPathRefs reads one body's file references the way parseNote does.
+func extractPathRefs(body string, bodyStartLine int) []pathRef {
+	facts := inspectBody(body, nil)
+	refs, _, _ := extractReferencesFrom(body, bodyStartLine, facts.comments)
+	return refs
+}
+
+// anchorSurface reads one body into what its page answers a fragment with, the
+// way parseNote does.
+func anchorSurface(body string) (sections, excerptSections map[string]bool, blockAddresses []string) {
+	facts := inspectBody(body, nil)
+	return anchorSurfaceFrom(body, facts.comments)
+}
