@@ -33,7 +33,7 @@ func TestSchemaFaultsArriveInVaultPathOrder(t *testing.T) {
 	// Written back to front, so nothing downstream can be reading the order
 	// they were laid down in and passing for the order the folder is in.
 	for _, name := range slices.Backward(names) {
-		writeBenchNote(t, root, "Writing/"+name+".md",
+		writeNote(t, root, "Writing/"+name+".md",
 			"---\ntype: lesson\nnot_a_field: 1\n---\n\nbody\n")
 	}
 	contract := testContract(t, root)

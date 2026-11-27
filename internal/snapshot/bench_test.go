@@ -3,8 +3,6 @@ package snapshot
 import (
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -12,26 +10,22 @@ import (
 
 var representativeBench = flag.Bool("snapshot-bench", false, "include representative snapshot lifecycle benchmarks")
 
-var representativePhases = []string{"initial", "rebuild", "idle", "overlap", "visible"}
-
-// BenchmarkBuildSnapshot measures one scan-and-rebuild of all three derived
-// models over a small fixed vault written once to a temp directory. It reads
-// the vault from disk each iteration, matching the work the scanner does on a
-// change. The vault is stable so the number is meaningful across runs of a
-// single machine.
+// BenchmarkBuildSnapshot measures one scan and build of a generation over a
+// small fixed vault, read from disk each iteration as the scanner reads it on a
+// change. The vault is stable so the number is comparable across runs on one
+// machine.
 func BenchmarkBuildSnapshot(b *testing.B) {
 	root := b.TempDir()
 	for rel, content := range benchVault {
-		writeBenchNote(b, root, rel, content)
+		writeNote(b, root, rel, content)
 	}
-	log := discardLogger()
 	contract := testContract(b, root)
 	reader, err := vault.Open(root)
 	if err != nil {
 		b.Fatal(err)
 	}
 	b.Cleanup(func() { closeReader(b, reader) })
-	store := newStore(reader, log, contract, contract.Governance())
+	store := newStore(reader, discardLogger(), contract, contract.Governance())
 	b.ReportAllocs()
 	for b.Loop() {
 		scan, err := reader.ScanAvailable(b.Context())
@@ -44,79 +38,32 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 	}
 }
 
-// BenchmarkRepresentativeSnapshot observes initial builds, reconciliation,
-// retained generations and body-edit visibility over complete synthetic
-// vaults. Every measurement requires explicit opt-in before fixture setup.
+// BenchmarkRepresentativeSnapshot measures the lifecycle of synthetic vaults
+// of several sizes: the first build, a rebuild after an edit, an idle rescan,
+// the heap while two generations overlap, and how long an edit takes to reach
+// a reader. It runs only with -snapshot-bench, and skips before building any
+// fixture without it.
 func BenchmarkRepresentativeSnapshot(b *testing.B) {
 	for _, notes := range representativeSizes {
 		b.Run(fmt.Sprintf("notes=%d", notes), func(b *testing.B) {
 			for _, phase := range representativePhases {
-				b.Run(phase, func(b *testing.B) {
+				b.Run(phase.name, func(b *testing.B) {
 					if !*representativeBench {
 						b.Skip("representative snapshots require -snapshot-bench")
 					}
-					f := representativeBenchmarkFixture(b, notes)
-					store := representativeGeneration(b, f)
-					receipt := representativeReceipt(b, f, store.Current())
-					if phase == "idle" || phase == "overlap" || phase == "visible" {
-						benchmarkLifecycle(b, f, store, phase)
-						reportRepresentativeMetrics(b, receipt)
-						return
-					}
-					const edited = "Concepts/golang/Note-00000.md"
-					original := f.sources[edited]
-					longer := false
+					f := newRepresentativeFixture(b, notes)
 					b.ReportAllocs()
-					for b.Loop() {
-						if phase == "initial" {
-							store = representativeGeneration(b, f)
-							b.StopTimer()
-						} else {
-							b.StopTimer()
-							previous := store.Current()
-							suffix := "\nA small edit.\n"
-							if longer {
-								suffix = "\nA slightly longer edit.\n"
-							}
-							longer = !longer
-							f.sources[edited] = original + suffix
-							writeBenchNote(b, f.root, edited, f.sources[edited])
-							b.StartTimer()
-							store.rescan(b.Context())
-							b.StopTimer()
-							if store.Current() == previous {
-								b.Fatal("caught: benchmark edit did not publish a replacement generation")
-							}
-						}
-						representativeReceipt(b, f, store.Current())
-						b.StartTimer()
-					}
-					reportRepresentativeMetrics(b, receipt)
+					gen := phase.run(b, f)
+					f.check(b, gen)
+					f.report(b)
 				})
 			}
 		})
 	}
 }
 
-func representativeBenchmarkFixture(b *testing.B, notes int) *representativeFixture {
-	b.Helper()
-	if testing.Verbose() {
-		b.Log("invoked: representative fixture setup")
-	}
-	return newRepresentativeFixture(b, notes)
-}
-
-func reportRepresentativeMetrics(b *testing.B, receipt representativeMetrics) {
-	b.Helper()
-	b.ReportMetric(float64(receipt.Notes), "notes")
-	b.ReportMetric(float64(receipt.Files), "files")
-	b.ReportMetric(float64(receipt.SourceBytes), "source-B")
-	b.ReportMetric(float64(receipt.Links), "links")
-}
-
-// benchVault is a small vault spanning the directories the three builders read:
-// a study path for navigation, concepts for the graph and search, a map that
-// links them, and a report.
+// benchVault spans the kinds of note a generation projects: a study path,
+// concepts, a map that links them, and a report.
 var benchVault = map[string]string{
 	"Maps/topics/Go MOC.md":        "---\ntype: map\n---\n\nlinks to [[Goroutine]] and [[Channel]].\n",
 	"Concepts/golang/Goroutine.md": "---\ntype: concept\n---\n\nA goroutine is a lightweight thread. See [[Channel]].\n",
@@ -124,17 +71,4 @@ var benchVault = map[string]string{
 	"Concepts/japanese/Kana.md":    "---\ntype: concept\n---\n\nThe kana syllabary maps sounds to symbols.\n",
 	"Writing/paths/Go Path.md":     "---\ntype: study-path\n---\n\n## Course {sequence=primary}\n\n- [[Goroutine]]\n- [[Channel]]\n",
 	"System/reports/coverage.md":   "---\ntype: report\n---\n\nA report note.\n",
-}
-
-// writeBenchNote writes root/rel (rel in slash form), creating parent
-// directories. A write failure stops the benchmark.
-func writeBenchNote(tb testing.TB, root, rel, content string) {
-	tb.Helper()
-	full := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		tb.Fatalf("mkdir for %s: %v", rel, err)
-	}
-	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-		tb.Fatalf("write %s: %v", rel, err)
-	}
 }
