@@ -309,7 +309,7 @@ func (a *action) abort(cause error) error {
 		}
 	}
 	if closeErr := a.close(); closeErr != nil {
-		return closeErr
+		return errors.Join(cause, closeErr)
 	}
 	return cause
 }
@@ -324,7 +324,7 @@ func (a *action) close() error {
 	reader := a.reader
 	a.reader = nil
 	if err := reader.Close(); err != nil {
-		return errVaultScan
+		return fmt.Errorf("%w: %w", errVaultScan, err)
 	}
 	return nil
 }
