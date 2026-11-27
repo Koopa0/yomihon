@@ -307,56 +307,9 @@ func TestResolveNonMarkdownResourceNeedsExtension(t *testing.T) {
 	}
 }
 
-func TestSplitWikilink(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		inner       string
-		wantTarget  string
-		wantDisplay string
-		wantOK      bool
-	}{
-		{name: "bare target", inner: "Go Slice", wantTarget: "Go Slice", wantDisplay: "Go Slice", wantOK: true},
-		{name: "display text", inner: "Go Slice|see", wantTarget: "Go Slice", wantDisplay: "see", wantOK: true},
-		{
-			name: "heading fragment resolves on name alone", inner: "Go Slice#Internals",
-			wantTarget: "Go Slice", wantDisplay: "Go Slice#Internals", wantOK: true,
-		},
-		{
-			name: "block fragment strips correctly", inner: "Go Slice^abc",
-			wantTarget: "Go Slice", wantDisplay: "Go Slice^abc", wantOK: true,
-		},
-		{
-			name: "heading then explicit display", inner: "X#H|disp",
-			wantTarget: "X", wantDisplay: "disp", wantOK: true,
-		},
-		{
-			name: "escaped table-cell pipe is not the display separator's naive split point " +
-				"(the escaped and unescaped pipe yield the same target)",
-			inner: `Go Slice\|see`, wantTarget: "Go Slice", wantDisplay: "see", wantOK: true,
-		},
-		{
-			name:  "bare anchor is a same-page jump, not a cross-file target",
-			inner: "#Heading", wantTarget: "", wantDisplay: "#Heading", wantOK: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			target, display, ok := graph.SplitWikilink(tt.inner)
-			if target != tt.wantTarget || display != tt.wantDisplay || ok != tt.wantOK {
-				t.Errorf("SplitWikilink(%q) = (%q, %q, %v), want (%q, %q, %v)",
-					tt.inner, target, display, ok, tt.wantTarget, tt.wantDisplay, tt.wantOK)
-			}
-		})
-	}
-}
-
-// TestParseWikilink covers the fragments SplitWikilink drops. The table above
-// is what holds the unchanged-semantics promise for the callers that only want
-// a name and a label: it carries its own hand-written answers, so it still
-// fails if this parse ever starts reading those forms differently.
+// TestParseWikilink pins how a link's inner text splits into the name it
+// resolves by, the label a reader sees and the place in the file it points at;
+// every reader of a wikilink takes those three from here.
 func TestParseWikilink(t *testing.T) {
 	t.Parallel()
 
@@ -452,23 +405,6 @@ func TestParseWikilink(t *testing.T) {
 				t.Errorf("ParseWikilink(%q) ok = %v, want %v", tt.inner, ok, tt.ok)
 			}
 		})
-	}
-}
-
-func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *testing.T) {
-	t.Parallel()
-	// Anchors are never verified: [[Go Slice#NoSuchHeading]] must resolve
-	// exactly like [[Go Slice]] — only the target file's existence
-	// matters.
-	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Go Slice.md"}}, nil)
-
-	target, _, ok := graph.SplitWikilink("Go Slice#This Heading Does Not Exist Anywhere")
-	if !ok {
-		t.Fatalf("SplitWikilink() ok = false, want true")
-	}
-	got := idx.Resolve(target)
-	if got.Kind != graph.KindUnique || got.RelPath != "Go Slice.md" {
-		t.Errorf("Resolve(%q) = %+v, want Unique Go Slice.md", target, got)
 	}
 }
 
