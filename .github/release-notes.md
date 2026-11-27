@@ -4,7 +4,7 @@ Since v0.3.0, yomihon edits no note: the only thing it writes into a vault is th
 
 ## What is new
 
-- **No note is written.** The status panel and `POST /status` are gone. Your highlights, thoughts and questions are kept in one file for each computer under `reader-notes/.yomihon/marks/` in the vault, so that git carries them to your other computers; your bookmarks, the local backup of the marks and your figure approvals stay in its configuration directory.
+- **No note is written.** The status panel and `POST /status` are gone. Your highlights, thoughts and questions are kept in one file for each computer under `reader-notes/.yomihon/marks/` in the vault, so that git carries them to your other computers; your bookmarks, the ledger of the marks and your figure approvals stay in its configuration directory.
 - **A note has a title, a domain and an optional `draft` flag.** The title is the first H1 (then the file name) and the domain is the folder the note sits in; neither is written in frontmatter. A draft is marked quietly in the sidebar, the course page, the shelf and search.
 - **A closed list of fields.** `type`, `aliases`, `draft`, `based_on`, `lang`, `created`, `slug`, `level`, `prerequisites`, `verified_on` and `verified_with`. Any other key is reported as `schema.unknown_key`.
 - **A margin beside every section** of a lesson or note: "Not sure yet", "Leave a thought", the thoughts you already wrote there, and the place you left off at. A setting hides the buttons until the pointer rests on a section.

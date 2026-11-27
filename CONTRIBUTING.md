@@ -40,11 +40,11 @@ explicit ruling from the maintainer on the issue.
    differently the reader is shown the newest, every value stays in the files,
    and a value of this computer's own that a later change replaces while it is
    hidden (a change made on a page that was shown the other computer's value) is
-   first set aside whole in the local ledger, which is not in the vault. The
+   first set aside whole in the ledger, which is not in the vault. The
    other computer's value stays in that computer's file, which this one never
    writes.
    The
-   rest of the reader's state (bookmarks, the local backup, caches) lives in the
+   rest of the reader's state (bookmarks, the ledger, caches) lives in the
    platform's configuration directory, outside the vault. `internal/mark` is the
    only package allowed to write at all, and inside a vault only through
    `internal/mark/machinefile`; a test in `internal/archlock` reads every
