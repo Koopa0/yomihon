@@ -18,19 +18,19 @@ func TestHiddenReportZeroInfo(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			want: "0 findings: 0 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths)\n",
+			want: "0 findings: 0 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n",
 		},
 		{
 			name:     "warning",
 			findings: []Finding{{RuleID: "link.broken", Severity: SeverityWarn, Path: "Writing/golang/A.md", Message: "warning text"}},
-			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths)\n" +
+			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
 				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
 				"\n▌ golang\n  [warn] warning text  (Writing/golang/A.md)\n",
 		},
 		{
 			name:     "error",
 			findings: []Finding{{RuleID: "schema.required", Severity: SeverityError, Path: "Writing/golang/A.md", Message: "error text"}},
-			want: "1 findings: 1 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths)\n" +
+			want: "1 findings: 1 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
 				"\ndebt by domain:\n  golang               1 error · 0 warn\n" +
 				"\n▌ golang\n  [error] error text  (Writing/golang/A.md)\n",
 		},
@@ -59,7 +59,7 @@ func TestHiddenReportRetention(t *testing.T) {
 		{name: "default", want: string(golden)},
 		{
 			name: "all", all: true,
-			want: "8 findings: 0 error, 1 warn, 7 hidden (4 planned forward-refs, 3 external paths)\n" +
+			want: "8 findings: 0 error, 1 warn, 7 hidden (4 planned forward-refs, 3 external paths, 0 other)\n" +
 				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
 				"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
@@ -74,7 +74,7 @@ func TestHiddenReportRetention(t *testing.T) {
 		},
 		{
 			name: "path", all: true, paths: []string{"Writing/golang/B.md"},
-			want: "2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths)\n" +
+			want: "2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths, 0 other)\n" +
 				"\nhidden (info):\n" +
 				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
 				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
@@ -97,7 +97,7 @@ func TestHiddenReportBaseline(t *testing.T) {
 		{
 			name:         "repeated identity",
 			fingerprints: []string{"v1:5afd0b44ba074aae"},
-			want: "4 findings: 0 error, 1 warn, 3 hidden (1 planned forward-refs, 2 external paths)\n" +
+			want: "4 findings: 0 error, 1 warn, 3 hidden (1 planned forward-refs, 2 external paths, 0 other)\n" +
 				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
 				"\nhidden (info):\n" +
@@ -108,7 +108,7 @@ func TestHiddenReportBaseline(t *testing.T) {
 		{
 			name:         "no retained info",
 			fingerprints: []string{"v1:5afd0b44ba074aae", "v1:85c048abb2259e9b", "v1:2fb3f6a685f5135d", "v1:f9fe2e12f0b554ce"},
-			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths)\n" +
+			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
 				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n",
 		},

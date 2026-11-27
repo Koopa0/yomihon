@@ -70,8 +70,9 @@ type domainSection struct {
 }
 
 // packed is the report ready to render: the counts, the scoreboard, the
-// leverage callout, the per-domain sections, and the hidden split of tracked
-// forward-references (planned) and external paths.
+// leverage callout, the per-domain sections, and the hidden findings split by
+// kind: tracked forward-references (planned), external paths, and every other
+// informational finding.
 type packed struct {
 	errors     int
 	warns      int
@@ -80,39 +81,43 @@ type packed struct {
 	sections   []domainSection
 	planned    int
 	external   int
+	otherInfo  int
 }
 
-// pack computes the shared view once. The hidden count is derived from the
-// total minus the errors and warns, and the external slice is subtracted from
-// it to leave the planned count, so planned plus external always equals hidden
-// and the count line can never under-report a hidden finding.
+// hidden is the number of informational findings, which the report folds out
+// of its sections.
+func (p *packed) hidden() int {
+	return p.planned + p.external + p.otherInfo
+}
+
+// pack computes the shared view once. Every informational finding lands in
+// exactly one of the three hidden counts, so the count line can never
+// under-report one.
 func pack(findings []Finding, roots domainRoots) packed {
-	errors, warns := 0, 0
-	for i := range findings {
-		switch findings[i].Severity {
-		case SeverityError:
-			errors++
-		case SeverityWarn:
-			warns++
-		case SeverityInfo:
-		}
-	}
-	external := 0
-	for i := range findings {
-		if findings[i].RuleID == "link.broken.path" && findings[i].Severity == SeverityInfo {
-			external++
-		}
-	}
-	hidden := len(findings) - errors - warns
-	return packed{
-		errors:     errors,
-		warns:      warns,
+	p := packed{
 		scoreboard: scoreboard(findings, roots),
 		leverage:   leverage(findings, roots),
 		sections:   domainSections(findings, roots),
-		planned:    hidden - external,
-		external:   external,
 	}
+	for i := range findings {
+		f := &findings[i]
+		switch f.Severity {
+		case SeverityError:
+			p.errors++
+		case SeverityWarn:
+			p.warns++
+		case SeverityInfo:
+			switch f.RuleID {
+			case "link.broken", "course.disk_mismatch":
+				p.planned++
+			case "link.broken.path":
+				p.external++
+			default:
+				p.otherInfo++
+			}
+		}
+	}
+	return p
 }
 
 // scoreboard tallies error and warn counts per domain, dropping domains with
@@ -269,8 +274,8 @@ func sumBlast(items []packedItem) int {
 func humanReport(findings []Finding, roots domainRoots) string {
 	p := pack(findings, roots)
 	var s strings.Builder
-	fmt.Fprintf(&s, "%d findings: %d error, %d warn, %d hidden (%d planned forward-refs, %d external paths)\n",
-		len(findings), p.errors, p.warns, p.planned+p.external, p.planned, p.external)
+	fmt.Fprintf(&s, "%d findings: %d error, %d warn, %d hidden (%d planned forward-refs, %d external paths, %d other)\n",
+		len(findings), p.errors, p.warns, p.hidden(), p.planned, p.external, p.otherInfo)
 
 	if len(p.scoreboard) > 0 {
 		s.WriteString("\ndebt by domain:\n")
@@ -322,7 +327,7 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 	var s strings.Builder
 	s.WriteString(checkReportPreamble(contract))
 	s.WriteString("# yomihon check\n\n")
-	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.planned+p.external)
+	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.hidden())
 
 	if len(p.scoreboard) > 0 {
 		s.WriteString("## Debt by domain\n\n| domain | error | warn |\n|---|--:|--:|\n")
@@ -348,8 +353,8 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 		s.WriteByte('\n')
 	}
 
-	if p.planned+p.external > 0 {
-		fmt.Fprintf(&s, "<details><summary>%d tracked forward-references · %d external paths (info)</summary>\n\n", p.planned, p.external)
+	if p.hidden() > 0 {
+		fmt.Fprintf(&s, "<details><summary>%d tracked forward-references · %d external paths · %d other (info)</summary>\n\n", p.planned, p.external, p.otherInfo)
 		for i := range findings {
 			f := &findings[i]
 			if f.Severity == SeverityInfo {

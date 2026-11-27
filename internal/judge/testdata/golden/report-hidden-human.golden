@@ -1,4 +1,4 @@
-6 findings: 0 error, 1 warn, 5 hidden (3 planned forward-refs, 2 external paths)
+6 findings: 0 error, 1 warn, 5 hidden (3 planned forward-refs, 2 external paths, 0 other)
 
 debt by domain:
   golang               0 error · 1 warn

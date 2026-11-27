@@ -58,3 +58,22 @@ func TestReportGolden(t *testing.T) {
 		})
 	}
 }
+
+// TestPackCountsOnlyForwardReferencesAsPlanned asserts the hidden count is
+// split by what each informational finding is: a tracked forward-reference, an
+// external path, or neither.
+func TestPackCountsOnlyForwardReferencesAsPlanned(t *testing.T) {
+	t.Parallel()
+	findings := []Finding{
+		{RuleID: "link.broken", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "course.disk_mismatch", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.broken.path", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.unused.definition", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "callout.title_markup", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.broken", Severity: SeverityWarn, Path: "a.md"},
+	}
+	p := pack(findings, nil)
+	if p.planned != 2 || p.external != 1 || p.otherInfo != 2 {
+		t.Errorf("pack(findings) planned, external, other = %d, %d, %d, want 2, 1, 2", p.planned, p.external, p.otherInfo)
+	}
+}
