@@ -47,8 +47,11 @@ var ErrNotNamed = errors.New("the vault's files need a configuration directory a
 var ErrTooLarge = errors.New("the file is longer than its limit")
 
 // ErrNotRegular means the name is something other than a file: a named pipe, a
-// device, a directory. Opening one could wait for ever for a writer that never
-// comes, so it is refused before it is opened, and read as damaged.
+// device, a directory. Opening a named pipe could wait for ever for a writer
+// that never comes, so a name that a look finds is not a regular file is
+// refused without being opened, and read as damaged. One put in place of the
+// file between the look and the open is opened: only a program of the reader's
+// own can do that, and nothing yomihon reads carries a named pipe there.
 var ErrNotRegular = errors.New("the name is not a regular file")
 
 // nameLength is how much of the vault digest names the directory. Half of the
@@ -117,8 +120,8 @@ func VaultID(vaultRoot string) string {
 // which would put the reader's files beside whatever folder the process
 // happened to start in and look like it had worked.
 func VaultDir(configDir ConfigDir, vaultRoot string) (Dir, error) {
-	if configDir.IsZero() || vaultRoot == "" {
-		return Dir{}, fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir.dir, vaultRoot)
+	if vaultRoot == "" {
+		return Dir{}, fmt.Errorf("%w: configuration directory %q, no vault root", ErrNotNamed, configDir.dir)
 	}
 	home, err := Home(configDir)
 	if err != nil {
@@ -128,8 +131,9 @@ func VaultDir(configDir ConfigDir, vaultRoot string) (Dir, error) {
 }
 
 // Read returns the file called name in dir, refusing one longer than limit
-// bytes with ErrTooLarge. A file that is not there answers an error that
-// satisfies errors.Is(err, os.ErrNotExist).
+// bytes with ErrTooLarge and a name that is not a regular file with
+// ErrNotRegular. A link to a regular file is read where it leads. A file that
+// is not there answers an error that satisfies errors.Is(err, os.ErrNotExist).
 func Read(dir Dir, name string, limit int64) ([]byte, error) {
 	if err := dir.named(); err != nil {
 		return nil, err
@@ -318,9 +322,10 @@ func RemoveLeftovers(dir Dir, name string) error {
 // The directory is synced on that first append and not only when the file is
 // made, since the call that made it may have failed after it did, or been
 // another process's that stopped. A file another process has replaced since is
-// a file this process has not appended to. An error means data may be there in part or
-// whole and may not be on stable storage. A name that is something other
-// than a regular file, a link among them, is refused before it is opened.
+// a file this process has not appended to. An error means data may be there in
+// part or whole and may not be on stable storage. A name that a look finds is
+// something other than a regular file, a link among them, is refused without
+// being opened.
 //
 // Everything is owner-only, as Replace makes it.
 func Append(dir Dir, name string, data []byte) error {
