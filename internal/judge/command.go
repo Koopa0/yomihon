@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/egress"
-	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // The three subcommands — check, coverage, exists — run as stateless actions:
@@ -21,55 +20,6 @@ import (
 // arguments in and the exit code out. Those codes are the frozen contract the
 // pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
 // error, which a runner reports as a non-nil error.
-
-// ruleIDs is every rule a finding can carry. A --deny value is validated
-// against it so a typo fails loudly instead of silently disabling the gate.
-var ruleIDs = allRuleIDs()
-
-// allRuleIDs lists the rules this package decides for itself, then appends the
-// study-path rules from the grammar that names them. The grammar's half is
-// asked for rather than copied, so a rule it gains later can still be gated on
-// by name instead of being silently undeniable.
-func allRuleIDs() []RuleID {
-	ids := []RuleID{
-		"link.title_not_alias",
-		"link.broken",
-		"link.broken.image",
-		"link.unused.definition",
-		"link.section_missing",
-		"link.block_missing",
-		"embed.section_missing",
-		"embed.block_missing",
-		"collision.alias",
-		"provenance.unresolved",
-		"course.disk_mismatch",
-		"course.disk_unlisted",
-		"link.broken.path",
-		"schema.enum",
-		"schema.required",
-		"schema.unknown_key",
-		"schema.type_dependent",
-		"schema.slug",
-		"schema.provenance",
-		"schema.reference_nested_sequence",
-		"schema.frontmatter",
-		"schema.unmatched_knowledge_dir",
-		navigationUnavailableRule,
-		"scan.skipped",
-		unreadableRule,
-		"collision.name",
-		calloutTitleMarkupRule,
-		// The authoring contract's own rules. This list has to match what the
-		// rules emit, in both directions.
-		"schema.language",
-		"schema.draft",
-		"provenance.alias_resolved",
-	}
-	for _, rule := range sequence.Rules() {
-		ids = append(ids, RuleID(rule))
-	}
-	return ids
-}
 
 // Format is the output format of a subcommand.
 type Format int
@@ -365,7 +315,7 @@ func gated(findings []Finding, deny []string) bool {
 		if f.Severity >= SeverityWarn && slices.Contains(deny, string(f.RuleID)) {
 			return true
 		}
-		if f.RuleID == navigationUnavailableRule && slices.ContainsFunc(deny, silencedWithoutNavigation) {
+		if f.RuleID == RuleSchemaNavigationUnavailable && slices.ContainsFunc(deny, silencedWithoutNavigation) {
 			return true
 		}
 	}
@@ -453,6 +403,6 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 // leave a report that is short of those rules and says nothing about why.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return f.RuleID != unreadableRule && baseline[f.Fingerprint]
+		return f.RuleID != RuleScanUnreadable && baseline[f.Fingerprint]
 	})
 }

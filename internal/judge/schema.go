@@ -59,7 +59,7 @@ func checkKnowledgeScope(scan vault.Scan, contract *schema.Contract) []Finding {
 // keys on it alone, the fault being one line of the contract.
 func unmatchedKnowledgeDir(dir string) Finding {
 	return Finding{
-		RuleID:          "schema.unmatched_knowledge_dir",
+		RuleID:          RuleSchemaUnmatchedKnowledgeDir,
 		Severity:        SeverityError,
 		Path:            dir,
 		Message:         "knowledge directory \"" + dir + "\" matches nothing in this vault, so the frontmatter rules reach nothing there",
@@ -67,7 +67,7 @@ func unmatchedKnowledgeDir(dir string) Finding {
 		SuggestedAction: "correct the spelling in the rules file, or drop the entry if the directory is gone",
 		SourceRule:      sourceContractFolders,
 		Target:          new(dir),
-		Fingerprint:     fingerprint("schema.unmatched_knowledge_dir", "", dir),
+		Fingerprint:     fingerprint(RuleSchemaUnmatchedKnowledgeDir, "", dir),
 	}
 }
 
@@ -136,18 +136,18 @@ func (r *lintRun) note(n *note) []Finding {
 			return []Finding{unclosedFrontmatterFinding(n)}
 		}
 		if r.requiresFrontmatter {
-			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
+			return []Finding{schemaFinding(n, RuleSchemaFrontmatter, "", "", "is missing")}
 		}
 		return nil
 	}
 	if n.badFrontmatter {
-		return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}
+		return []Finding{schemaFinding(n, RuleSchemaFrontmatter, "", "", "is not valid YAML")}
 	}
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	if hasType && !slices.Contains(r.contract.EnumValues("type"), schema.NormalizeWord(ty)) {
-		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
+		out = append(out, schemaFinding(n, RuleSchemaEnum, "type", ty, "is not an allowed type"))
 	}
 
 	isLesson := hasType && n.noteType == r.lessonType
@@ -173,7 +173,7 @@ func (r *lintRun) referenceNestedSequences(n *note) []Finding {
 			continue
 		}
 		out = append(out, Finding{
-			RuleID:          "schema.reference_nested_sequence",
+			RuleID:          RuleSchemaReferenceNestedSequence,
 			Severity:        SeverityError,
 			Path:            n.path,
 			Field:           new(field.name),
@@ -181,7 +181,7 @@ func (r *lintRun) referenceNestedSequences(n *note) []Finding {
 			Evidence:        "a reference item was read as a YAML sequence",
 			SuggestedAction: "quote the reference, for example " + field.name + ": [\"[[Note]]\"] or " + field.name + ": [\"Note\"]",
 			SourceRule:      field.sourceRule,
-			Fingerprint:     fingerprint("schema.reference_nested_sequence", n.path, field.name+"\x1f"),
+			Fingerprint:     fingerprint(RuleSchemaReferenceNestedSequence, n.path, field.name+"\x1f"),
 		})
 	}
 	return out
@@ -198,10 +198,10 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 		return nil
 	}
 	if value.isList || !value.scalarIsString || value.scalar == "" {
-		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "must be a non-empty BCP 47 language tag")}
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "must be a non-empty BCP 47 language tag")}
 	}
 	if _, err := schema.ParseLanguageTag(value.scalar); err != nil {
-		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "is not a valid BCP 47 language tag")}
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "is not a valid BCP 47 language tag")}
 	}
 	return nil
 }
@@ -223,11 +223,11 @@ func (r *lintRun) unknownKeys(n *note, noteType string) []Finding {
 			deferred = true
 			continue
 		case schema.FieldUnknown:
-			out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+			out = append(out, schemaFinding(n, RuleSchemaUnknownKey, "", key, "is not a known field"))
 		}
 	}
 	if deferred {
-		finding := schemaFinding(n, "schema.type_dependent", "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
+		finding := schemaFinding(n, RuleSchemaTypeDependent, "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
 		finding.SuggestedAction = "fix type before judging type-only fields"
 		out = append(out, finding)
 	}
@@ -246,7 +246,7 @@ func (r *lintRun) draft(n *note) []Finding {
 	if !v.isList && !v.scalarIsString && (v.scalar == "true" || v.scalar == "false") {
 		return nil
 	}
-	return []Finding{schemaFinding(n, "schema.draft", schema.DraftField, v.scalar, "must be true or false")}
+	return []Finding{schemaFinding(n, RuleSchemaDraft, schema.DraftField, v.scalar, "must be true or false")}
 }
 
 // lessonSlug reports the slug faults of a note holding the lesson role.
@@ -254,10 +254,10 @@ func (r *lintRun) lessonSlug(n *note, noteType string) []Finding {
 	var out []Finding
 	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
 	case !ok:
-		out = append(out, schemaFinding(n, "schema.required", "slug", "", "is required for a unit"))
+		out = append(out, schemaFinding(n, RuleSchemaRequired, "slug", "", "is required for a unit"))
 	default:
 		if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
-			out = append(out, schemaFinding(n, "schema.slug", "slug", sl, "is not a valid slug"))
+			out = append(out, schemaFinding(n, RuleSchemaSlug, "slug", sl, "is not a valid slug"))
 		}
 	}
 	return out
@@ -273,7 +273,7 @@ func (r *lintRun) required(n *note, noteType string, isLesson bool) []Finding {
 			continue
 		}
 		if v, ok := n.frontmatter[key]; !ok || !v.present() {
-			out = append(out, schemaFinding(n, "schema.required", key, "", "is required"))
+			out = append(out, schemaFinding(n, RuleSchemaRequired, key, "", "is required"))
 		}
 	}
 	return out
@@ -299,7 +299,7 @@ func (r *lintRun) enumFields(n *note) []Finding {
 			continue
 		}
 		if v, ok := fmScalar(n.frontmatter, enum.Field); ok && !slices.Contains(enum.Values, schema.NormalizeWord(v)) {
-			out = append(out, schemaFinding(n, "schema.enum", enum.Field, v, "is not an allowed value"))
+			out = append(out, schemaFinding(n, RuleSchemaEnum, enum.Field, v, "is not an allowed value"))
 		}
 	}
 	return out
@@ -313,7 +313,7 @@ func (r *lintRun) structural(n *note) []Finding {
 	// nothing for this rule to be about.
 	if r.conceptDeclared && n.noteType == r.conceptType &&
 		!hasProvenance(n.frontmatter, r.provenance) {
-		return []Finding{schemaFinding(n, "schema.provenance", "", "", "concept has neither based_on nor source_locator")}
+		return []Finding{schemaFinding(n, RuleSchemaProvenance, "", "", "concept has neither based_on nor source_locator")}
 	}
 	return nil
 }
@@ -348,9 +348,9 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 // every other rule reads several tables and cites the file without an anchor.
 func schemaRuleSource(ruleID RuleID) string {
 	switch ruleID {
-	case "schema.slug":
+	case RuleSchemaSlug:
 		return sourceContractTypes
-	case "schema.provenance":
+	case RuleSchemaProvenance:
 		return sourceContractRules
 	default:
 		return sourceContract
@@ -400,7 +400,7 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 // there is no frontmatter to fix: the evidence says where the value came from
 // and the action moves the note or widens the vocabulary.
 func unlistedDomainFinding(n *note, domain string) Finding {
-	f := schemaFinding(n, "schema.enum", "domain", domain, "is not an allowed value")
+	f := schemaFinding(n, RuleSchemaEnum, "domain", domain, "is not an allowed value")
 	f.Evidence = "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the rules file's enums.domain does not list that name"
 	f.SuggestedAction = "move the note into a folder named for a domain the rules file declares, or add the folder's name to enums.domain in the rules file"
 	return f
@@ -412,7 +412,7 @@ func unlistedDomainFinding(n *note, domain string) Finding {
 // wants one, and it keeps the identity those two share: one per path. The
 // action is its own, because nothing here is a mismatch with the schema to fix.
 func unclosedFrontmatterFinding(n *note) Finding {
-	f := schemaFinding(n, "schema.frontmatter", "", "", "opens on line 1 and never closes")
+	f := schemaFinding(n, RuleSchemaFrontmatter, "", "", "opens on line 1 and never closes")
 	f.SuggestedAction = "add the closing --- line, or remove the opening --- if the note has no frontmatter"
 	return f
 }

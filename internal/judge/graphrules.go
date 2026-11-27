@@ -156,14 +156,14 @@ func linkHealth(
 // here counts them, so a title held only publicly once reads as singly held.
 func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 	f := Finding{
-		RuleID:      "link.title_not_alias",
+		RuleID:      RuleLinkTitleNotAlias,
 		Severity:    SeverityWarn,
 		Path:        n.path,
 		Line:        new(link.line),
 		Message:     "[[" + link.target + "]] resolves to no filename or alias",
 		SourceRule:  sourceYomihon,
 		Target:      new(link.target),
-		Fingerprint: fingerprint("link.title_not_alias", n.path, link.target),
+		Fingerprint: fingerprint(RuleLinkTitleNotAlias, n.path, link.target),
 	}
 	if len(targetNotes) > 1 {
 		f.Evidence = "the target is the title of " + strconv.Itoa(len(targetNotes)) + " notes: " + strings.Join(targetNotes, ", ")
@@ -194,7 +194,7 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 		action = "if it is written, check the filename/alias matches; otherwise leave it tracked"
 	}
 	return Finding{
-		RuleID:          "link.broken",
+		RuleID:          RuleLinkBroken,
 		Severity:        severity,
 		Path:            n.path,
 		Line:            new(link.line),
@@ -203,7 +203,7 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
-		Fingerprint:     fingerprint("link.broken", n.path, link.target),
+		Fingerprint:     fingerprint(RuleLinkBroken, n.path, link.target),
 	}
 }
 
@@ -327,7 +327,7 @@ func citedTargets(notes []note, authority scanAuthority) iter.Seq[string] {
 // alone, so a third file joining the collision does not read as a new finding.
 func nameCollisionFinding(name string, members []string) Finding {
 	return Finding{
-		RuleID:           "collision.name",
+		RuleID:           RuleCollisionName,
 		Severity:         SeverityWarn,
 		Path:             members[0],
 		Message:          "\"" + name + "\" is the name of " + strconv.Itoa(len(members)) + " files, so [[" + name + "]] cannot resolve deterministically",
@@ -336,7 +336,7 @@ func nameCollisionFinding(name string, members []string) Finding {
 		SourceRule:       sourceYomihon,
 		Target:           new(name),
 		CollisionMembers: members,
-		Fingerprint:      fingerprint("collision.name", "", name),
+		Fingerprint:      fingerprint(RuleCollisionName, "", name),
 	}
 }
 
@@ -349,7 +349,7 @@ func collisionFinding(alias string, members []string) Finding {
 		path = members[0]
 	}
 	return Finding{
-		RuleID:           "collision.alias",
+		RuleID:           RuleCollisionAlias,
 		Severity:         SeverityWarn,
 		Path:             path,
 		Field:            new("aliases"),
@@ -359,7 +359,7 @@ func collisionFinding(alias string, members []string) Finding {
 		SourceRule:       sourceYomihon,
 		Target:           new(alias),
 		CollisionMembers: members,
-		Fingerprint:      fingerprint("collision.alias", "", alias),
+		Fingerprint:      fingerprint(RuleCollisionAlias, "", alias),
 	}
 }
 
@@ -427,7 +427,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 
 func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 	return Finding{
-		RuleID:          "provenance.unresolved",
+		RuleID:          RuleProvenanceUnresolved,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Field:           new(field),
@@ -436,7 +436,7 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 		SuggestedAction: "fix the reference, or create the target note",
 		SourceRule:      sourceRule,
 		Target:          new(value),
-		Fingerprint:     fingerprint("provenance.unresolved", n.path, value),
+		Fingerprint:     fingerprint(RuleProvenanceUnresolved, n.path, value),
 	}
 }
 
@@ -485,7 +485,7 @@ func basedOnTarget(value string) (string, bool) {
 
 func aliasResolvedFinding(n *note, value, resolved string) Finding {
 	return Finding{
-		RuleID:          "provenance.alias_resolved",
+		RuleID:          RuleProvenanceAliasResolved,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Field:           new("based_on"),
@@ -495,7 +495,7 @@ func aliasResolvedFinding(n *note, value, resolved string) Finding {
 		SourceRule:      sourceYomihon,
 		Target:          new(value),
 		ResolvedTo:      new(resolved),
-		Fingerprint:     fingerprint("provenance.alias_resolved", n.path, value),
+		Fingerprint:     fingerprint(RuleProvenanceAliasResolved, n.path, value),
 	}
 }
 
@@ -627,7 +627,7 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 		severity = SeverityInfo
 	}
 	return Finding{
-		RuleID:          "course.disk_mismatch",
+		RuleID:          RuleCourseDiskMismatch,
 		Severity:        severity,
 		Path:            syllabus.path,
 		Line:            new(link.line),
@@ -636,7 +636,7 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 		SuggestedAction: "create the note, fix the entry, or mark it a planned gap",
 		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
-		Fingerprint:     fingerprint("course.disk_mismatch", syllabus.path, link.target),
+		Fingerprint:     fingerprint(RuleCourseDiskMismatch, syllabus.path, link.target),
 	}
 }
 
@@ -648,7 +648,7 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 // other.
 func diskUnlisted(syllabus, lesson *note) Finding {
 	return Finding{
-		RuleID:          "course.disk_unlisted",
+		RuleID:          RuleCourseDiskUnlisted,
 		Severity:        SeverityWarn,
 		Path:            lesson.path,
 		Message:         "unit is on disk but not listed in course " + syllabus.path,
@@ -657,6 +657,6 @@ func diskUnlisted(syllabus, lesson *note) Finding {
 		SourceRule:      sourceYomihon,
 		Target:          new(lesson.path),
 		ResolvedTo:      new(syllabus.path),
-		Fingerprint:     fingerprint("course.disk_unlisted", lesson.path, syllabus.path),
+		Fingerprint:     fingerprint(RuleCourseDiskUnlisted, lesson.path, syllabus.path),
 	}
 }

@@ -321,11 +321,11 @@ func transclusionMayBringSection(
 // so a baseline that has accepted one cannot swallow the other, and the
 // fingerprint keys on the rule with the address for the same reason.
 func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := RuleID("link.section_missing"), "[["
+	rule, written := RuleID(RuleLinkSectionMissing), "[["
 	evidence := "the note exists and none of its headings answers the section name"
 	action := "fix the section name after #, or add the heading to the target note"
 	if link.embed {
-		rule, written = "embed.section_missing", "![["
+		rule, written = RuleEmbedSectionMissing, "![["
 		evidence = "the note exists and none of its headings answers the section name, so there is no excerpt to cut"
 		action = "fix the section name after #, or add the heading to the embedded note"
 	}
@@ -350,11 +350,11 @@ func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
 // and says so where the words would have been. The two rules are kept apart
 // the way the section rules are.
 func blockMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := RuleID("link.block_missing"), "[["
+	rule, written := RuleID(RuleLinkBlockMissing), "[["
 	evidence := "the note exists and no line in it ends with the block address"
 	action := "fix the block name after ^, or write the address at the end of the intended line"
 	if link.embed {
-		rule, written = "embed.block_missing", "![["
+		rule, written = RuleEmbedBlockMissing, "![["
 		evidence = "the note exists and no line in it ends with the block address, so there is no excerpt to cut"
 		action = "fix the block name after ^, or write the address at the end of the line the excerpt should show"
 	}
@@ -462,12 +462,12 @@ func embedsUnseenGround(rel string, idx *graph.Index, byPath map[string]*note, u
 // what tells two links to different places in one note apart.
 func markdownFragmentMissing(n *note, ref *pathRef, resolved string, gap *render.Diagnostic) Finding {
 	address := ref.target + "#" + ref.fragment
-	rule := RuleID("link.section_missing")
+	rule := RuleID(RuleLinkSectionMissing)
 	message := "link to " + address + " resolves, but no heading matches \"" + gap.Section + "\""
 	evidence := "the note exists and none of its headings answers the fragment"
 	action := "fix the fragment after #, or add the heading to the target note"
 	if gap.Kind == render.DiagLinkFragmentMissing {
-		rule = "link.block_missing"
+		rule = RuleLinkBlockMissing
 		message = "link to " + address + " resolves, but no line carries the address ^" + gap.Block
 		evidence = "the note exists and no line in it ends with the block address"
 		action = "fix the block name after #^, or write the address at the end of the intended line"

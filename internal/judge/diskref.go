@@ -114,7 +114,7 @@ func resolveWithinRoot(baseDir, dest string) (string, bool) {
 // deadInRoot is a relative path that stays inside the vault but has no file.
 func deadInRoot(n *note, pref pathRef, resolved string) Finding {
 	return Finding{
-		RuleID:          "link.broken.path",
+		RuleID:          RuleLinkBrokenPath,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(pref.line),
@@ -123,7 +123,7 @@ func deadInRoot(n *note, pref pathRef, resolved string) Finding {
 		SuggestedAction: "fix the path, restore the file, or remove the reference",
 		SourceRule:      sourceYomihon,
 		Target:          new(pref.target),
-		Fingerprint:     fingerprint("link.broken.path", n.path, pref.target),
+		Fingerprint:     fingerprint(RuleLinkBrokenPath, n.path, pref.target),
 	}
 }
 
@@ -131,7 +131,7 @@ func deadInRoot(n *note, pref pathRef, resolved string) Finding {
 // to stay deterministic across machines.
 func externalRef(n *note, pref pathRef) Finding {
 	return Finding{
-		RuleID:          "link.broken.path",
+		RuleID:          RuleLinkBrokenPath,
 		Severity:        SeverityInfo,
 		Path:            n.path,
 		Line:            new(pref.line),
@@ -140,6 +140,6 @@ func externalRef(n *note, pref pathRef) Finding {
 		SuggestedAction: "if it should be in the vault, fix the path; otherwise informational",
 		SourceRule:      sourceYomihon,
 		Target:          new(pref.target),
-		Fingerprint:     fingerprint("link.broken.path", n.path, pref.target),
+		Fingerprint:     fingerprint(RuleLinkBrokenPath, n.path, pref.target),
 	}
 }

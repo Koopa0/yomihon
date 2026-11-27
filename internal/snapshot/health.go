@@ -117,7 +117,7 @@ func schemaFaultRows(
 			Severity: heaviestFinding(found),
 			Count:    len(found),
 		}
-		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
+		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == judge.RuleSchemaFrontmatter }) {
 			unreadable = append(unreadable, row)
 			continue
 		}

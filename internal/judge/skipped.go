@@ -31,13 +31,13 @@ func skippedFinding(path string, kind vault.SkipKind) Finding {
 		action = "move the file itself into the vault, and cite it from a note with a wikilink rather than linking to it on disk"
 	}
 	return Finding{
-		RuleID:          "scan.skipped",
+		RuleID:          RuleScanSkipped,
 		Severity:        SeverityWarn,
 		Path:            path,
 		Message:         message,
 		Evidence:        "the scan observed the path and left it out, because a note is read only out of a regular file: " + kind.String(),
 		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
-		Fingerprint:     fingerprint("scan.skipped", path, kind.String()),
+		Fingerprint:     fingerprint(RuleScanSkipped, path, kind.String()),
 	}
 }

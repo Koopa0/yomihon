@@ -99,11 +99,11 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 			t.Errorf("%q answered over a vault one file of which was never read, and that file may hold what it says is nowhere", rule)
 		}
 	}
-	if !holedRules[unreadableRule] {
-		t.Errorf("the holed run reports no %q, so the rules it silenced are silently missing", unreadableRule)
+	if !holedRules[RuleScanUnreadable] {
+		t.Errorf("the holed run reports no %q, so the rules it silenced are silently missing", RuleScanUnreadable)
 	}
-	if wholeRules[unreadableRule] {
-		t.Errorf("the whole run reports %q for a vault it read entirely", unreadableRule)
+	if wholeRules[RuleScanUnreadable] {
+		t.Errorf("the whole run reports %q for a vault it read entirely", RuleScanUnreadable)
 	}
 
 	// The other half: judging continues. Every rule some other file tripped in
@@ -132,7 +132,7 @@ func TestTheUnreadableNoticeIsReportedAtTheGravestWeightAndGatesByName(t *testin
 		want int
 	}{
 		{name: "nothing denied", want: 0},
-		{name: "the rule denied by name", deny: []string{string(unreadableRule)}, want: 1},
+		{name: "the rule denied by name", deny: []string{string(RuleScanUnreadable)}, want: 1},
 		{name: "every error denied", deny: []string{"error"}, want: 1},
 	}
 	for _, tt := range tests {
@@ -146,8 +146,8 @@ func TestTheUnreadableNoticeIsReportedAtTheGravestWeightAndGatesByName(t *testin
 			if exit != tt.want {
 				t.Errorf("RunCheck() exit = %d, want %d", exit, tt.want)
 			}
-			if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`","severity":"error"`)) {
-				t.Errorf("RunCheck() output carries no error-weight %q line:\n%s", unreadableRule, stdout)
+			if !bytes.Contains(stdout, []byte(`"rule_id":"`+RuleScanUnreadable+`","severity":"error"`)) {
+				t.Errorf("RunCheck() output carries no error-weight %q line:\n%s", RuleScanUnreadable, stdout)
 			}
 		})
 	}
@@ -198,14 +198,14 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunCheck(against its own output as baseline) error = %v", err)
 	}
-	if !bytes.Contains(second, []byte(`"rule_id":"`+unreadableRule+`"`)) {
-		t.Errorf("a run baselined against its own output dropped the %q notice:\n%s", unreadableRule, second)
+	if !bytes.Contains(second, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)) {
+		t.Errorf("a run baselined against its own output dropped the %q notice:\n%s", RuleScanUnreadable, second)
 	}
 	// The control: everything else the same run reported is subtracted, so the
 	// survival above is this rule's exemption and not a baseline that failed to
 	// load.
 	for line := range strings.SplitSeq(strings.TrimSpace(string(second)), "\n") {
-		if line != "" && !strings.Contains(line, `"rule_id":"`+string(unreadableRule)+`"`) {
+		if line != "" && !strings.Contains(line, `"rule_id":"`+string(RuleScanUnreadable)+`"`) {
 			t.Errorf("a run baselined against its own output still reports: %s", line)
 		}
 	}
@@ -250,8 +250,8 @@ func TestTheUnreadableNoticeOutlastsEveryFilter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
-			if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`"`)) {
-				t.Errorf("a narrowed run reports no %q, so its missing rules have no explanation:\n%s", unreadableRule, stdout)
+			if !bytes.Contains(stdout, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)) {
+				t.Errorf("a narrowed run reports no %q, so its missing rules have no explanation:\n%s", RuleScanUnreadable, stdout)
 			}
 		})
 	}
@@ -367,8 +367,8 @@ func TestAWithheldFileThatCouldNotBeReadIsNamedByNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
 	}
-	if !bytes.Contains(stdout, []byte(`"rule_id":"`+unreadableRule+`","severity":"error","path":""`)) {
-		t.Errorf("RunCheck() carries no path-less %q line:\n%s", unreadableRule, stdout)
+	if !bytes.Contains(stdout, []byte(`"rule_id":"`+RuleScanUnreadable+`","severity":"error","path":""`)) {
+		t.Errorf("RunCheck() carries no path-less %q line:\n%s", RuleScanUnreadable, stdout)
 	}
 	for _, leaked := range []string{"Diary", "2026-08-27", "permission denied"} {
 		if bytes.Contains(stdout, []byte(leaked)) {
@@ -439,7 +439,7 @@ func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
 	if !bytes.Equal(one, three) {
 		t.Errorf("a folder with three unreadable withheld files reads differently from one with a single file, which counts them:\none:\n%s\nthree:\n%s", one, three)
 	}
-	if got := bytes.Count(one, []byte(`"rule_id":"`+unreadableRule+`"`)); got != 1 {
+	if got := bytes.Count(one, []byte(`"rule_id":"`+RuleScanUnreadable+`"`)); got != 1 {
 		t.Errorf("withheld notice lines = %d, want exactly 1", got)
 	}
 }

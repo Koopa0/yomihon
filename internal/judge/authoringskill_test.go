@@ -43,7 +43,7 @@ func TestAuthoringSkillNamesExactlyTheRulesTheChecksEmit(t *testing.T) {
 	t.Parallel()
 
 	known := map[string]bool{}
-	for _, id := range allRuleIDs() {
+	for _, id := range ruleIDs {
 		known[string(id)] = true
 	}
 	for _, rule := range sequence.Rules() {

@@ -44,7 +44,7 @@ func checkImages(notes []note, scan vault.Scan, authority scanAuthority) []Findi
 // line.
 func missingImage(n *note, line int, target string) Finding {
 	return Finding{
-		RuleID:          "link.broken.image",
+		RuleID:          RuleLinkBrokenImage,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(line),
@@ -53,6 +53,6 @@ func missingImage(n *note, line int, target string) Finding {
 		SuggestedAction: "restore the target file, change the image to an existing file, or remove it",
 		SourceRule:      sourceYomihon,
 		Target:          new(target),
-		Fingerprint:     fingerprint("link.broken.image", n.path, target),
+		Fingerprint:     fingerprint(RuleLinkBrokenImage, n.path, target),
 	}
 }

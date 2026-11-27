@@ -37,7 +37,7 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 
 	var got []Finding
 	for _, f := range findings {
-		if f.RuleID == calloutTitleMarkupRule {
+		if f.RuleID == RuleCalloutTitleMarkup {
 			got = append(got, f)
 		}
 	}

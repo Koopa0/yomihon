@@ -10,8 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 )
 
-const calloutTitleMarkupRule RuleID = "callout.title_markup"
-
 // calloutTitle is one recognised callout's opening-line title, with the
 // 1-based file line the opening sits on.
 type calloutTitle struct {
@@ -90,7 +88,7 @@ func calloutTitleFindings(notes []note) []Finding {
 
 func calloutTitleMarkupFinding(n *note, title calloutTitle) Finding {
 	return Finding{
-		RuleID:          calloutTitleMarkupRule,
+		RuleID:          RuleCalloutTitleMarkup,
 		Severity:        SeverityInfo,
 		Path:            n.path,
 		Line:            new(title.line),
@@ -99,7 +97,7 @@ func calloutTitleMarkupFinding(n *note, title calloutTitle) Finding {
 		SuggestedAction: "move the markup into the callout body, or write the title as plain text",
 		SourceRule:      sourceYomihon,
 		Target:          new(title.title),
-		Fingerprint:     fingerprint(calloutTitleMarkupRule, n.path, title.title),
+		Fingerprint:     fingerprint(RuleCalloutTitleMarkup, n.path, title.title),
 	}
 }
 

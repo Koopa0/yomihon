@@ -78,7 +78,7 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 			}
 			var got int
 			for i := range findings {
-				if findings[i].RuleID == navigationUnavailableRule {
+				if findings[i].RuleID == RuleSchemaNavigationUnavailable {
 					got++
 					if findings[i].Path != schema.ContractRelPath {
 						t.Errorf("finding path = %q, want the contract file %q", findings[i].Path, schema.ContractRelPath)
@@ -86,7 +86,7 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 				}
 			}
 			if got != 1 {
-				t.Errorf("runCheckAction() carried %d %s findings, want 1", got, navigationUnavailableRule)
+				t.Errorf("runCheckAction() carried %d %s findings, want 1", got, RuleSchemaNavigationUnavailable)
 			}
 		})
 	}
@@ -103,8 +103,8 @@ func TestNoNavigationFindingWhenTheTableIsUsable(t *testing.T) {
 		t.Fatalf("runCheckAction() error = %v", err)
 	}
 	for i := range findings {
-		if findings[i].RuleID == navigationUnavailableRule {
-			t.Errorf("usable type roles drew %s", navigationUnavailableRule)
+		if findings[i].RuleID == RuleSchemaNavigationUnavailable {
+			t.Errorf("usable type roles drew %s", RuleSchemaNavigationUnavailable)
 		}
 	}
 }
@@ -141,11 +141,11 @@ func TestARoleTwoTypesClaimIsReportedToo(t *testing.T) {
 	}
 	var got int
 	for i := range findings {
-		if findings[i].RuleID == navigationUnavailableRule {
+		if findings[i].RuleID == RuleSchemaNavigationUnavailable {
 			got++
 		}
 	}
 	if got != 1 {
-		t.Errorf("a lesson role two types hold drew %d %s findings, want 1", got, navigationUnavailableRule)
+		t.Errorf("a lesson role two types hold drew %d %s findings, want 1", got, RuleSchemaNavigationUnavailable)
 	}
 }

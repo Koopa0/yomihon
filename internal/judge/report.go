@@ -108,9 +108,9 @@ func pack(findings []Finding, roots domainRoots) packed {
 			p.warns++
 		case SeverityInfo:
 			switch f.RuleID {
-			case "link.broken", "course.disk_mismatch":
+			case RuleLinkBroken, RuleCourseDiskMismatch:
 				p.planned++
-			case "link.broken.path":
+			case RuleLinkBrokenPath:
 				p.external++
 			default:
 				p.otherInfo++
@@ -168,7 +168,7 @@ func leverage(findings []Finding, roots domainRoots) []leverageEntry {
 	byTarget := make(map[string]*agg)
 	for i := range findings {
 		f := &findings[i]
-		if f.RuleID != "link.broken" && f.RuleID != "link.title_not_alias" {
+		if f.RuleID != RuleLinkBroken && f.RuleID != RuleLinkTitleNotAlias {
 			continue
 		}
 		if f.Target == nil {

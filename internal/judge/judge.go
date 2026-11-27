@@ -54,14 +54,9 @@ func (s Severity) MarshalText() ([]byte, error) {
 	return []byte(s.String()), nil
 }
 
-// RuleID is the stable identifier of one thing this face reports, following
-// the study-path grammar's own Rule. The set is closed and [ruleIDs] is all of
-// it, so a consumer covering every rule asks for the set rather than keeping a
-// list that falls behind.
-//
-// It is a string underneath and serializes as one: the rule_id an external
-// pipeline parses is frozen bytes, and naming the type changes what the
-// compiler knows, never what a consumer reads.
+// RuleID is the stable identifier of one thing the check reports, carried on
+// the wire as the rule_id string. The set is closed: the Rule constants and the
+// course grammar's rules.
 type RuleID string
 
 // Finding is one diagnostic, serialized as one JSONL line. The struct layout
