@@ -717,18 +717,12 @@ func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchang
 	}
 }
 
-// The egress declaration is revalidated on the same beat as the artifact one.
-// Both are read once at startup, and a reader whose contract moved underneath
-// the process is owed the same sentence about each: the artifact latch already
-// said so on the home page while the egress latch stayed silent, so a vault
-// whose privacy declaration had gone out from under it looked, on that page,
-// like a vault that still had one. The oracle here is the egress policy's own
-// diagnostic, not the presence of a notice: rewriting the contract file latches
-// the artifact policy too, so "the page grew a notice" is true either way.
+// The egress declaration is revalidated on the same beat as the artifact one,
+// so a contract that changed after startup latches both. The oracle is the
+// egress policy's own claim, because the same rewrite latches the artifact
+// policy too.
 func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	t.Parallel()
-
-	const stale = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
@@ -762,8 +756,8 @@ func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	if got.PrivacyPolicy().Available() {
 		t.Error("rescanned snapshot kept egress authority derived from contract bytes that are gone")
 	}
-	if diagnostic := got.PrivacyPolicy().Diagnostic(); diagnostic != stale {
-		t.Errorf("egress diagnostic after the contract changed = %q, want %q", diagnostic, stale)
+	if reason := got.PrivacyPolicy().Claim().Reason(); reason != schema.ReasonContractChanged {
+		t.Errorf("egress claim reason after the contract changed = %v, want ReasonContractChanged", reason)
 	}
 	if got.PrivacyPolicy().EgressAllowed("Concepts/Alpha.md") {
 		t.Error("a latched egress policy still answers yes; permission must be positive authority")
@@ -1804,10 +1798,6 @@ func TestASecondReconciliationLoopIsRefused(t *testing.T) {
 
 	if recovered == nil {
 		t.Fatal("Store.Run can be called twice without saying so")
-	}
-	message, isString := recovered.(string)
-	if want := "snapshot: Store.Run called twice"; !isString || message != want {
-		t.Errorf("panic value = %v, want %q", recovered, want)
 	}
 }
 

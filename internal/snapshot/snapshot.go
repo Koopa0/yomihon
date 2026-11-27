@@ -50,6 +50,15 @@ const degradeAfter = 3
 // for about an hour; a quiescent folder pays one full re-read per period.
 const reconcilePeriod = time.Hour
 
+// The warnings the reconciliation loop logs about a folder it cannot fully use.
+const (
+	logScanRefused       = "vault scan unavailable; retaining previous snapshot"
+	logRootChanged       = "vault root identity changed; restart required"
+	logRootUnconfirmed   = "vault root identity unconfirmed; restore access or restart"
+	logSourceUnavailable = "vault source unavailable in snapshot generation"
+	logPanicRepeated     = "vault note parse still panics on bytes already reported; treating the note as unreadable"
+)
+
 // Source is the rooted vault a Store reads: the scan and the file reads a
 // generation is built from, and the look at the selected path that tells
 // whether it is still the folder that was opened. It is defined by its only
@@ -741,7 +750,7 @@ func (s *Store) rescan(ctx context.Context) {
 			// The error carries the two files when the refusal is a name
 			// collision, so the line says which ones to repair.
 			s.setCollision(collidingPair(err))
-			s.log.Warn("vault scan unavailable; retaining previous snapshot", "error", err)
+			s.log.Warn(logScanRefused, "error", err)
 		}
 		return
 	}
@@ -824,9 +833,9 @@ func (s *Store) observeRoot(ctx context.Context) bool {
 		return true
 	}
 	if root != nil && (current.root == nil || current.root.Unconfirmed != root.Unconfirmed) {
-		message := "vault root identity changed; restart required"
+		message := logRootChanged
 		if err != nil {
-			message = "vault root identity unconfirmed; restore access or restart"
+			message = logRootUnconfirmed
 		}
 		s.log.Warn(message, "selected_path", identity.SelectedPath, "opened_root_name", identity.OpenedName, "error", err)
 	}
@@ -1107,7 +1116,7 @@ func newBuild(entries int, parsers noteParsers) *build {
 
 func (b *build) warnSourceUnavailable(entry vault.Entry, err error, log *slog.Logger) {
 	if b.warnings.record(entry, warningRead, err.Error()) {
-		log.Warn("vault source unavailable in snapshot generation", "path", entry.Path(), "error", err)
+		log.Warn(logSourceUnavailable, "path", entry.Path(), "error", err)
 	}
 }
 
@@ -1288,8 +1297,7 @@ func (b *build) reportPanic(entry vault.Entry, data []byte, fault *notePanic, lo
 	identity := vault.ContentIdentity(data)
 	if seen, ok := b.reported[relPath]; ok && seen == identity {
 		if b.warnings.record(entry, warningPanic, fault.value) {
-			log.Warn("vault note parse still panics on bytes already reported; treating the note as unreadable",
-				"path", relPath, "panic", fault.value)
+			log.Warn(logPanicRepeated, "path", relPath, "panic", fault.value)
 		}
 		return
 	}

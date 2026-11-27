@@ -327,13 +327,9 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 		tick++
 		mustNotPanic(t, "rebuild", func() { store.rescan(t.Context()) })
 	}
-	counts := func() (errs, warns int) {
-		for _, line := range atLevel(logged(), slog.LevelWarn) {
-			if strings.Contains(line.Message, "still panics") {
-				warns++
-			}
-		}
-		return len(atLevel(logged(), slog.LevelError)), warns
+	counts := func() (errs, repeats int) {
+		lines := logged()
+		return len(atLevel(lines, slog.LevelError)), len(linesWith(lines, logPanicRepeated))
 	}
 
 	restore := breakStage(store, 1)

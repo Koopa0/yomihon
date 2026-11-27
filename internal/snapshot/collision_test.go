@@ -27,17 +27,11 @@ const (
 	freshBody     = "---\ntype: concept\n---\nfresh\n"
 )
 
-// refusedScanMessage is the line the loop logs when a scan fails, which is where
-// the files have to be named for the person watching the terminal.
-const refusedScanMessage = "vault scan unavailable; retaining previous snapshot"
-
 // refusedScanErrors are the error values of every refused-scan line so far.
 func refusedScanErrors(lines []loggedLine) []string {
 	var out []string
-	for i := range lines {
-		if lines[i].Message == refusedScanMessage {
-			out = append(out, lines[i].Attrs["error"])
-		}
+	for _, line := range linesWith(lines, logScanRefused) {
+		out = append(out, line.Attrs["error"])
 	}
 	return out
 }

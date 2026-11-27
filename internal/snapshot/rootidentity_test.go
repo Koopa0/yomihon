@@ -31,11 +31,10 @@ func TestRootObservationCauseStaysInWarning(t *testing.T) {
 	for range 3 {
 		store.rescan(t.Context())
 	}
-	const unconfirmed = "vault root identity unconfirmed; restore access or restart"
-	want := []loggedLine{{Level: slog.LevelWarn, Message: unconfirmed, Attrs: map[string]string{
+	want := []loggedLine{{Level: slog.LevelWarn, Message: logRootUnconfirmed, Attrs: map[string]string{
 		"selected_path": root, "opened_root_name": reader.Name(), "error": observeErr.Error(),
 	}}}
-	if diff := cmp.Diff(want, linesWith(logged(), unconfirmed)); diff != "" {
+	if diff := cmp.Diff(want, linesWith(logged(), logRootUnconfirmed)); diff != "" {
 		t.Fatalf("caught: scanner root WARN cause (-want +got):\n%s", diff)
 	}
 	public := &RootNotice{SelectedPath: root, OpenedName: reader.Name(), Unconfirmed: true}
@@ -62,7 +61,7 @@ func TestRootReplacementWarnsOnceEvenWhenPinnedFilesAreUnchanged(t *testing.T) {
 	if store.Current() != before {
 		t.Fatal("unchanged pinned files unexpectedly rebuilt")
 	}
-	lines := linesWith(logged(), "vault root identity changed; restart required")
+	lines := linesWith(logged(), logRootChanged)
 	if len(lines) != 1 || lines[0].Level != slog.LevelWarn ||
 		lines[0].Attrs["selected_path"] != root || lines[0].Attrs["opened_root_name"] != reader.Name() {
 		t.Fatalf("root replacement warnings = %+v, want one WARN naming %s and %s", lines, root, reader.Name())
@@ -136,11 +135,11 @@ func TestRootNoticeTracksRecoveryAcrossRetainedAndRebuiltCaptures(t *testing.T) 
 	store.rescan(t.Context())
 	var episodes []string
 	for _, line := range logged() {
-		if line.Message == "vault root identity changed; restart required" || line.Message == "vault root identity unconfirmed; restore access or restart" {
+		if line.Message == logRootChanged || line.Message == logRootUnconfirmed {
 			episodes = append(episodes, line.Message)
 		}
 	}
-	if diff := cmp.Diff([]string{"vault root identity changed; restart required", "vault root identity unconfirmed; restore access or restart", "vault root identity changed; restart required"}, episodes); diff != "" {
+	if diff := cmp.Diff([]string{logRootChanged, logRootUnconfirmed, logRootChanged}, episodes); diff != "" {
 		t.Fatalf("root warning episodes (-want +got):\n%s", diff)
 	}
 }
