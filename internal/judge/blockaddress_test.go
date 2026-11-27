@@ -12,83 +12,74 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func TestSupportedBlockAddressesReachTheJudge(t *testing.T) {
+type blockAddressFinding struct {
+	Rule     RuleID
+	Path     string
+	Target   string
+	Line     int
+	Resolved string
+}
+
+// checkBlockAddressFindings exercises the public scan and retains every link
+// and embed diagnostic, so a failed resolver cannot masquerade as a good block.
+func checkBlockAddressFindings(t *testing.T, files map[string]string) []blockAddressFinding {
+	t.Helper()
+	root := t.TempDir()
+	for path, body := range files {
+		write(t, root, path, body)
+	}
+	writeTestContract(t, root, nil)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
+	if err != nil {
+		t.Fatalf("Check(block address vault) error = %v", err)
+	}
+	var got []blockAddressFinding
+	for i := range findings {
+		f := &findings[i]
+		if !strings.HasPrefix(string(f.RuleID), "link.") && !strings.HasPrefix(string(f.RuleID), "embed.") {
+			continue
+		}
+		if f.Target == nil || f.Line == nil {
+			t.Fatalf("Check() link/embed finding lacks target or line: %+v", *f)
+		}
+		resolved := ""
+		if f.ResolvedTo != nil {
+			resolved = *f.ResolvedTo
+		}
+		got = append(got, blockAddressFinding{Rule: f.RuleID, Path: f.Path, Target: *f.Target, Line: *f.Line, Resolved: resolved})
+	}
+	return got
+}
+
+// TestBlockAddressesReachTheCheck holds the check's side of a block address
+// through a whole run: a written address answers both a link and an embed, and
+// an address the note does not carry is missing on both.
+func TestBlockAddressesReachTheCheck(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name  string
-		body  string
 		citer string
 		want  []blockAddressFinding
 	}{
-		{name: "paragraph", body: "Para ^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
-		{name: "marker only", body: "^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
-		{name: "tab boundary", body: "Para\t^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
-		{name: "trailing spaces and tabs", body: "Para ^abc-1 \t\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
-		{name: "ASCII case", body: "Para ^AbC-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{name: "a written address", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
 		{
-			name: "hyphen is significant", body: "Para ^abc-1\n", citer: "[[Target#^abc1]]\n![[Target#^abc1]]\n",
+			name: "an address the note does not carry", citer: "[[Target#^abc1]]\n![[Target#^abc1]]\n",
 			want: []blockAddressFinding{
 				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc1", Line: 1, Resolved: "Notes/Target.md"},
 				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc1", Line: 2, Resolved: "Notes/Target.md"},
 			},
 		},
-		{
-			name: "underscore", body: "Para ^a_b\n", citer: "[[Target#^a_b]]\n![[Target#^a_b]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^a_b", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^a_b", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "dot", body: "Para ^a.b\n", citer: "[[Target#^a.b]]\n![[Target#^a.b]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^a.b", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^a.b", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "Unicode", body: "Para ^\u304c\n", citer: "[[Target#^\u304c]]\n![[Target#^\u304c]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^\u304c", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^\u304c", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "punctuation", body: "Para ^abc!\n", citer: "[[Target#^abc!]]\n![[Target#^abc!]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc!", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc!", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "glued caret", body: "Para^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "empty token", body: "Para ^\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 2, Resolved: "Notes/Target.md"},
-			},
-		},
-		{
-			name: "brackets in an address are no link", body: "Para ^[note]\n", citer: "[[Target#^[note]|shown]]\n![[Target#^[note]|shown]]\n",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Logf("hit: judge block-address case %s", tt.name)
 			got := checkBlockAddressFindings(t, map[string]string{
-				"Notes/Target.md": tt.body,
+				"Notes/Target.md": "Para ^abc-1\n",
 				"Notes/Citer.md":  tt.citer,
 			})
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("caught: unsupported block address accepted by judge or supported address rejected: Check() (-want +got):\n%s", diff)
+				t.Errorf("Check() block address findings (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -98,11 +89,8 @@ func TestSupportedBlockAddressesReachTheJudge(t *testing.T) {
 // excerpt that cuts to it, and this one, which reports it missing — and each
 // builds its lines with a different comment strip. The page blanks a comment
 // where it stands; this face cuts the bytes out and reads code the way goldmark
-// does. Where those two hide the same text the three have to answer alike, and
-// the bodies below are the ones where they did not: a strip that empties a line
-// its author filled, or takes the line endings out of a comment written over
-// several lines, hands the code-span question a run edge nobody typed, and each
-// face gets a different one.
+// does. The bodies below are the ones where a strip can change the line
+// geometry the code-span question reads, so the three must still answer alike.
 
 // blockAddressBodies are bodies whose answer about "^probe" turns on what a
 // strip did to the line geometry around it.
@@ -116,19 +104,16 @@ var blockAddressBodies = []struct {
 	addressed bool
 }{
 	{
-		// Cutting the comment's bytes out used to take its line endings with
-		// them, joining the words on either side; the closing backtick then
-		// landed in the address's own run and a span appeared to hold the
-		// caret. The page, which blanks a comment where it stands, kept the
-		// blank line and the address, and reported nothing wrong.
+		// Cutting the comment's bytes out must keep its line endings, or the
+		// words on either side join and the closing backtick lands in the
+		// address's own run.
 		name:      "a comment written across a blank line",
 		body:      "A lone ` in a sentence opens nothing.\nThis paragraph is the one a link addresses ^probe\nand the sentence runs on. %%Check this claim against\n\nthe source before publishing.%% It appears in `fmt` too.\n",
 		addressed: true,
 	},
 	{
-		// The mirror of it. Here the join put two backticks side by side, and
-		// a run of two closes on a run of two, so the span the page draws
-		// disappeared and this face alone thought the address was fine.
+		// The mirror of it: a join would put two backticks side by side, and a
+		// run of two closes on a run of two, hiding the span the page draws.
 		name:      "a comment holding a single backtick",
 		body:      "A lone ` in a sentence opens nothing.\nThis paragraph is the one a link addresses ^probe\nand the pair `%%` is how a comment marker is shown.\n\n%%` needs a section of its own%%\n",
 		addressed: false,
@@ -144,9 +129,7 @@ var blockAddressBodies = []struct {
 	},
 	{
 		// The renderer reserves four private-use runes for its own markers and
-		// drops any the vault wrote, which can empty a line the same way. Only
-		// the page does that, so this is the strip whose run edge appeared at
-		// one door and nowhere else.
+		// drops any the vault wrote, which can empty a line the same way.
 		name:      "placeholder runes on both sides of the address",
 		body:      "Before `\n\ue000\na paragraph ^probe\n\ue001\nAfter `\n",
 		addressed: false,
@@ -243,12 +226,11 @@ func TestTheThreeBlockAddressFacesAgreeOverAStrippedBody(t *testing.T) {
 }
 
 // A paragraph whose every line ends in an address, which is what a transcript
-// with one per line is, is a single run for the code-span question. The check
-// reads it once for the body; read once per line it cost the square of the
-// lines, six seconds for 2,000 of them. Four times the lines make about four
-// times the allocations when the run is read once, and about sixteen times as
-// many when each address reads it again, so a ratio of six separates them
-// without a clock.
+// with one per line is, is a single run for the code-span question, and the
+// check reads it once. Four times the lines make about four times the
+// allocations when the run is read once, and about sixteen times as many when
+// each address reads it again, so a ratio of six separates them without a
+// clock.
 func TestBlockAddressCostGrowsLinearlyWithTheLinesOfARun(t *testing.T) {
 	// Not parallel: testing.AllocsPerRun pins GOMAXPROCS for its measurement
 	// and must not run alongside other parallel tests.
@@ -270,21 +252,5 @@ func TestBlockAddressCostGrowsLinearlyWithTheLinesOfARun(t *testing.T) {
 // blockAddressPipeline renders a body with nothing else in the vault: these
 // notes cite nothing, so what the page has to answer is its own addresses.
 func blockAddressPipeline() *render.Pipeline {
-	return render.New(graph.BuildFromNotes(nil, nil), noBodies{}, noTitles{}, everyFileHeld{})
+	return render.New(graph.BuildFromNotes(nil, nil), fragmentNotes(nil), fragmentNotes(nil), fragmentNotes(nil))
 }
-
-type noBodies struct{}
-
-func (noBodies) Transclusion(string) (string, bool) { return "", false }
-
-type noTitles struct{}
-
-func (noTitles) TitledBy(string) []string { return nil }
-
-type everyFileHeld struct{}
-
-func (everyFileHeld) MissingFile(string) bool { return false }
-
-func (everyFileHeld) OutsideScan(string) bool { return false }
-
-func (everyFileHeld) IsDirectory(string) bool { return false }

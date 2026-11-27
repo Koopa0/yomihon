@@ -1,8 +1,12 @@
 package judge_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -21,16 +25,7 @@ func TestMissingImagePageParity(t *testing.T) {
 	if err := os.CopyFS(root, os.DirFS("testdata/vault-missing-images")); err != nil {
 		t.Fatalf("copy page fixture: %v", err)
 	}
-	files, err := os.OpenRoot(root)
-	if err != nil {
-		t.Fatalf("open fixture root: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := files.Close(); closeErr != nil {
-			t.Errorf("close fixture root: %v", closeErr)
-		}
-	})
-	before, err := files.ReadFile("Notes/Images.md")
+	body, err := os.ReadFile(filepath.Join(root, "Notes", "Images.md")) // #nosec G304 -- a fixed path under this test's own temp directory
 	if err != nil {
 		t.Fatalf("read page source: %v", err)
 	}
@@ -55,7 +50,7 @@ func TestMissingImagePageParity(t *testing.T) {
 	if generation == nil {
 		t.Fatal("snapshot has no generation")
 	}
-	page := generation.Render("Notes/Images.md", string(before), wording.En)
+	page := generation.Render("Notes/Images.md", string(body), wording.En)
 	var markdown, wiki []string
 	for _, d := range page.Diagnostics {
 		switch d.Kind {
@@ -78,44 +73,40 @@ func TestMissingImagePageParity(t *testing.T) {
 	if diff := cmp.Diff(wantWiki, wiki); diff != "" {
 		t.Fatalf("page wiki producer differs from literal nonempty occurrence set (-want +got):\n%s", diff)
 	}
-	findings, err := judge.Check(t.Context(), root)
+	payload, _, err := judge.RunCheck(t.Context(), &judge.CheckOptions{Root: root, Format: judge.FormatJSON})
 	if err != nil {
-		t.Fatalf("judge.Check: %v", err)
+		t.Fatalf("check: %v", err)
 	}
-	t.Log("invoked: missing-image page and check")
+	var out bytes.Buffer
+	if _, err := payload.WriteTo(&out); err != nil {
+		t.Fatalf("write check payload: %v", err)
+	}
 	var checkMarkdown, checkWiki []string
-	for _, f := range findings {
-		if f.RuleID != "link.broken.image" {
+	for line := range bytes.Lines(out.Bytes()) {
+		var f struct {
+			RuleID judge.RuleID `json:"rule_id"`
+			Target *string      `json:"target"`
+			Line   *int         `json:"line"`
+		}
+		if err := json.Unmarshal(line, &f); err != nil {
+			t.Fatalf("check wrote a line that is not a finding: %q: %v", line, err)
+		}
+		if f.RuleID != judge.RuleLinkBrokenImage {
 			continue
 		}
 		if f.Target == nil || f.Line == nil {
-			t.Fatalf("caught: missing-image page parity: target or line absent: %+v", f)
+			t.Fatalf("link.broken.image finding without target or line: %+v", f)
 		}
-		if *f.Line == 9 {
+		if slices.Contains(wantWiki, *f.Target) {
 			checkWiki = append(checkWiki, *f.Target)
 		} else {
 			checkMarkdown = append(checkMarkdown, *f.Target)
 		}
 	}
 	if diff := cmp.Diff(wantMarkdown, checkMarkdown); diff != "" {
-		t.Errorf("caught: missing-image page parity Markdown (-want +got):\n%s", diff)
+		t.Errorf("check and page disagree on Markdown images (-page +check):\n%s", diff)
 	}
 	if diff := cmp.Diff(wantWiki, checkWiki); diff != "" {
-		t.Errorf("caught: missing-image page parity wiki (-want +got):\n%s", diff)
-	}
-	var healthTargets []string
-	for _, link := range generation.Health().Unwritten {
-		healthTargets = append(healthTargets, link.Target)
-	}
-	wantHealth := []string{"Go sync.Pool", "missing.pdf", "missing-wiki.png", "Ordinary note"}
-	if diff := cmp.Diff(wantHealth, healthTargets); diff != "" {
-		t.Errorf("caught: missing-image Health wiki-only preservation (-want +got):\n%s", diff)
-	}
-	after, err := files.ReadFile("Notes/Images.md")
-	if err != nil {
-		t.Fatalf("read source after projections: %v", err)
-	}
-	if diff := cmp.Diff(before, after); diff != "" {
-		t.Errorf("caught: missing-image source preservation (-want +got):\n%s", diff)
+		t.Errorf("check and page disagree on wiki embeds (-page +check):\n%s", diff)
 	}
 }

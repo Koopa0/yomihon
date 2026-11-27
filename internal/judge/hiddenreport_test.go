@@ -3,141 +3,96 @@ package judge
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestHiddenReportZeroInfo(t *testing.T) {
+// TestHiddenFindingsFollowScopeAndBaseline holds which findings a check keeps
+// over the hidden-report fixture: all brings back the notes outside the
+// knowledge layer, a path keeps its own, and a baseline subtracts every line
+// whose fingerprint it names, a repeated one included.
+func TestHiddenFindingsFollowScopeAndBaseline(t *testing.T) {
 	t.Parallel()
+	const (
+		missing      = "warn link.broken Writing/golang/A.md:9"
+		futureA3     = "info link.broken Writing/golang/A.md:3"
+		futureA4     = "info link.broken Writing/golang/A.md:4"
+		outsideA     = "info link.broken.path Writing/golang/A.md:8"
+		futureB      = "info link.broken Writing/golang/B.md:3"
+		outsideB     = "info link.broken.path Writing/golang/B.md:7"
+		elsewhere    = "info link.broken Other/Outside.md:3"
+		outsideOther = "info link.broken.path Other/Outside.md:7"
+	)
 	for _, tt := range []struct {
 		name     string
-		findings []Finding
-		want     string
+		all      bool
+		paths    []string
+		baseline []string
+		want     []string
 	}{
+		{name: "default", want: []string{futureA3, futureA4, outsideA, missing, futureB, outsideB}},
+		{name: "all", all: true, want: []string{elsewhere, outsideOther, futureA3, futureA4, outsideA, missing, futureB, outsideB}},
+		{name: "path", all: true, paths: []string{"Writing/golang/B.md"}, want: []string{futureB, outsideB}},
 		{
-			name: "empty",
-			want: "0 findings: 0 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n",
+			name:     "a repeated fingerprint",
+			baseline: []string{"v1:5afd0b44ba074aae"},
+			want:     []string{outsideA, missing, futureB, outsideB},
 		},
 		{
-			name:     "warning",
-			findings: []Finding{{RuleID: "link.broken", Severity: SeverityWarn, Path: "Writing/golang/A.md", Message: "warning text"}},
-			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
-				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
-				"\n▌ golang\n  [warn] warning text  (Writing/golang/A.md)\n",
-		},
-		{
-			name:     "error",
-			findings: []Finding{{RuleID: "schema.required", Severity: SeverityError, Path: "Writing/golang/A.md", Message: "error text"}},
-			want: "1 findings: 1 error, 0 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
-				"\ndebt by domain:\n  golang               1 error · 0 warn\n" +
-				"\n▌ golang\n  [error] error text  (Writing/golang/A.md)\n",
+			name:     "every info fingerprint",
+			baseline: []string{"v1:5afd0b44ba074aae", "v1:85c048abb2259e9b", "v1:2fb3f6a685f5135d", "v1:f9fe2e12f0b554ce"},
+			want:     []string{missing},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, humanReport(tt.findings, domainRoots{"Writing"})); diff != "" {
-				t.Errorf("humanReport(no info) bytes differ (-want +got):\n%s", diff)
+			o := &CheckOptions{Root: "testdata/vault-report-hidden", All: tt.all, Paths: tt.paths, Format: FormatJSON}
+			if tt.baseline != nil {
+				var lines strings.Builder
+				for _, fp := range tt.baseline {
+					lines.WriteString(`{"fingerprint":"` + fp + "\"}\n")
+				}
+				o.Baseline = filepath.Join(t.TempDir(), "baseline.jsonl")
+				if err := os.WriteFile(o.Baseline, []byte(lines.String()), 0o600); err != nil {
+					t.Fatalf("write baseline: %v", err)
+				}
+			}
+			out, exit, err := checkBytes(t.Context(), o)
+			if err != nil {
+				t.Fatalf("RunCheck(%+v): %v", o, err)
+			}
+			if exit != 0 {
+				t.Errorf("RunCheck(%+v) exit = %d, want 0", o, exit)
+			}
+			var got []string
+			for _, f := range decodeFindings(t, out) {
+				got = append(got, f.Severity.String()+" "+string(f.RuleID)+" "+f.Path+":"+strconv.Itoa(*f.Line))
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("RunCheck(%+v) findings (-want +got):\n%s", o, diff)
 			}
 		})
 	}
 }
 
-func TestHiddenReportRetention(t *testing.T) {
+// TestPackCountsOnlyForwardReferencesAsPlanned asserts the hidden count is
+// split by what each informational finding is: a tracked forward-reference, an
+// external path, or neither.
+func TestPackCountsOnlyForwardReferencesAsPlanned(t *testing.T) {
 	t.Parallel()
-	golden, err := os.ReadFile("testdata/golden/report-hidden-human.golden")
-	if err != nil {
-		t.Fatalf("read hidden human golden: %v", err)
+	findings := []Finding{
+		{RuleID: "link.broken", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "course.disk_mismatch", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.broken.path", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.unused.definition", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "callout.title_markup", Severity: SeverityInfo, Path: "a.md"},
+		{RuleID: "link.broken", Severity: SeverityWarn, Path: "a.md"},
 	}
-	for _, tt := range []struct {
-		name  string
-		all   bool
-		paths []string
-		want  string
-	}{
-		{name: "default", want: string(golden)},
-		{
-			name: "all", all: true,
-			want: "8 findings: 0 error, 1 warn, 7 hidden (4 planned forward-refs, 3 external paths, 0 other)\n" +
-				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
-				"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n" +
-				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
-				"\nhidden (info):\n" +
-				"  [link.broken] [[Elsewhere]] resolves to no note — Other/Outside.md:3\n" +
-				"  [link.broken.path] link to ../../outside-other.md points outside the vault root — Other/Outside.md:7\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:3\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:4\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md:8\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
-		},
-		{
-			name: "path", all: true, paths: []string{"Writing/golang/B.md"},
-			want: "2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths, 0 other)\n" +
-				"\nhidden (info):\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			hiddenReportOutput(t, &CheckOptions{Root: "testdata/vault-report-hidden", All: tt.all, Paths: tt.paths, Format: FormatHuman}, tt.want)
-		})
-	}
-}
-
-func TestHiddenReportBaseline(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name         string
-		fingerprints []string
-		want         string
-	}{
-		{
-			name:         "repeated identity",
-			fingerprints: []string{"v1:5afd0b44ba074aae"},
-			want: "4 findings: 0 error, 1 warn, 3 hidden (1 planned forward-refs, 2 external paths, 0 other)\n" +
-				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
-				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
-				"\nhidden (info):\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md:8\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
-		},
-		{
-			name:         "no retained info",
-			fingerprints: []string{"v1:5afd0b44ba074aae", "v1:85c048abb2259e9b", "v1:2fb3f6a685f5135d", "v1:f9fe2e12f0b554ce"},
-			want: "1 findings: 0 error, 1 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)\n" +
-				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
-				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var baseline strings.Builder
-			for _, fp := range tt.fingerprints {
-				baseline.WriteString("{\"fingerprint\":\"" + fp + "\"}\n")
-			}
-			path := filepath.Join(t.TempDir(), "baseline.jsonl")
-			if err := os.WriteFile(path, []byte(baseline.String()), 0o600); err != nil {
-				t.Fatalf("write baseline: %v", err)
-			}
-			hiddenReportOutput(t, &CheckOptions{Root: "testdata/vault-report-hidden", Baseline: path, Format: FormatHuman}, tt.want)
-		})
-	}
-}
-
-func hiddenReportOutput(t *testing.T, options *CheckOptions, want string) {
-	t.Helper()
-	stdout, exit, err := checkBytes(t.Context(), options)
-	if err != nil {
-		t.Fatalf("RunCheck(hidden report): %v", err)
-	}
-	if exit != 0 {
-		t.Fatalf("RunCheck(hidden report) exit = %d, want 0", exit)
-	}
-	if diff := cmp.Diff(want, string(stdout)); diff != "" {
-		t.Errorf("caught: retained hidden report bytes differ (-want +got):\n%s", diff)
+	p := pack(findings, nil)
+	if p.planned != 2 || p.external != 1 || p.otherInfo != 2 {
+		t.Errorf("pack(findings) planned, external, other = %d, %d, %d, want 2, 1, 2", p.planned, p.external, p.otherInfo)
 	}
 }

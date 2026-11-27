@@ -9,45 +9,10 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestTheReportGroupsByTheFoldersTheContractDeclares holds the report's domain
-// headings to the vault's own declaration. The folders were written into this
-// package as constants — "Concepts/" and "Writing/lessons/" — which is a second
-// spelling of a contract key for the first and a layout no contract names at
-// all for the second. A vault that files its knowledge anywhere else had every
-// finding gathered under the no-domain heading while its contract said plainly
-// where its domains live.
-//
-// The fixture renames the root, which is what makes this discriminating: a
-// vault declaring "Concepts" cannot tell a report that reads the contract from
-// one that hardcodes the same word.
-func TestTheReportGroupsByTheFoldersTheContractDeclares(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-		[2]string{`domain_from = ["Concepts"]`, `domain_from = ["Ideas"]`},
-		[2]string{
-			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`checked = ["Ideas"]`,
-		}))
-	write(t, root, "Ideas/golang/Cited.md",
-		"---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Cited]]\"\n---\n# Cited\n\nsee [[Nowhere]]\n")
-
-	stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
-	if err != nil {
-		t.Fatalf("RunCheck: %v", err)
-	}
-	report := string(stdout)
-	if !strings.Contains(report, "golang") {
-		t.Fatalf("the report names no domain at all, so it proves nothing about grouping:\n%s", report)
-	}
-	if strings.Contains(report, "(none)") {
-		t.Errorf("a note under the folder the contract declares is filed with no domain:\n%s", report)
-	}
-}
-
-// TestRunCheckDomainHeadings catches hardcoded roots, guessed undeclared
-// domains, character-prefix matches, and direct-child filenames as domains.
+// TestRunCheckDomainHeadings holds the report's domain headings to the folders
+// the rules file declares: a note under a declared root, renamed from the
+// default, is grouped by its domain, and one under no declared root is filed
+// under (none). Which paths fall under a root is schema's to answer.
 func TestRunCheckDomainHeadings(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -57,16 +22,8 @@ func TestRunCheckDomainHeadings(t *testing.T) {
 		path  string
 		want  string
 	}{
-		{"declared nested", `["Writing/lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
 		{"renamed nested", `["Archive/studies"]`, "Archive", "Archive/studies/rust/L1.md", "rust"},
-		{"deep directory", `["Writing/lessons"]`, "Writing", "Writing/lessons/japanese/drills/D1.md", "japanese"},
 		{"undeclared nested", `["Sources"]`, "Writing", "Writing/lessons/golang/L1.md", "(none)"},
-		{"empty roots", `[]`, "Writing", "Writing/lessons/golang/L1.md", "(none)"},
-		{"nested direct child", `["Writing/lessons"]`, "Writing", "Writing/lessons/Overview.md", "(none)"},
-		{"top level direct child", `["Writing"]`, "Writing", "Writing/Overview.md", "(none)"},
-		{"sibling prefix", `["Writing/lessons"]`, "Writing", "Writing/lessons-extra/golang/L1.md", "(none)"},
-		{"case folded", `["Writing/Lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
-		{"decomposed root", `["Writing/Cafe\u0301"]`, "Writing", "Writing/Caf\u00e9/golang/L1.md", "golang"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

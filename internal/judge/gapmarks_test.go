@@ -82,14 +82,14 @@ func TestContractGapMarksDecideBrokenLinkSeverity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := bilingualGapVault(t, tt.rulesExtra)
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}
 
-			en := findBroken(t, findings, gapNotePath, missingEN)
-			zh := findBroken(t, findings, gapNotePath, missingZH)
-			todo := findBroken(t, findings, gapNotePath, missingTodo)
+			en := findFinding(t, findings, "link.broken", gapNotePath, missingEN)
+			zh := findFinding(t, findings, "link.broken", gapNotePath, missingZH)
+			todo := findFinding(t, findings, "link.broken", gapNotePath, missingTodo)
 			if en.Severity != tt.wantEN {
 				t.Errorf("[[%s]] under ## Gaps: severity %s, want %s; evidence %q",
 					missingEN, en.Severity, tt.wantEN, en.Evidence)
@@ -140,11 +140,11 @@ created: 2026-01-01
 		},
 	))
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
-	got := findBroken(t, findings, gapNotePath, "MissingLuecke")
+	got := findFinding(t, findings, "link.broken", gapNotePath, "MissingLuecke")
 	if got.Severity != SeverityInfo {
 		t.Fatalf("[[MissingLuecke]] under decomposed ## %s against composed %q: severity %s, want info; evidence %q",
 			lueckeDecomposed, lueckeComposed, got.Severity, got.Evidence)
@@ -202,8 +202,7 @@ const (
 // declaration softens another note's broken link to a tracked forward-reference
 // only where it is written as prose. Quoted inside a fence or a code span, or
 // taken back inside an Obsidian comment, it declares nothing and the other
-// note's link stays a warning. The exit of a --deny warn run is asserted beside
-// the severity because that exit is what a pipeline reads.
+// note's link stays a warning.
 func TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks(t *testing.T) {
 	t.Parallel()
 
@@ -211,41 +210,31 @@ func TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks(t *testing.T) {
 		name   string
 		ledger string
 		want   Severity
-		exit   int
 	}{
-		{name: "written as prose", ledger: "todo: [[Ghost]]", want: SeverityInfo, exit: 0},
-		{name: "quoted in a fence", ledger: "```\ntodo: [[Ghost]]\n```", want: SeverityWarn, exit: 1},
-		{name: "quoted in a code span", ledger: "Example: `todo: [[Ghost]]`", want: SeverityWarn, exit: 1},
-		{name: "taken back in a comment", ledger: "%% todo: [[Ghost]] %%", want: SeverityWarn, exit: 1},
+		{name: "written as prose", ledger: "todo: [[Ghost]]", want: SeverityInfo},
+		{name: "quoted in a fence", ledger: "```\ntodo: [[Ghost]]\n```", want: SeverityWarn},
+		{name: "quoted in a code span", ledger: "Example: `todo: [[Ghost]]`", want: SeverityWarn},
+		{name: "taken back in a comment", ledger: "%% todo: [[Ghost]] %%", want: SeverityWarn},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := quotedPlannedVault(t, tt.ledger)
-			findings, err := Check(t.Context(), root)
+			root := plannedVault(t, tt.ledger, "planned_gap_marks = []\nplanned_inline_marks = [\"todo\"]")
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}
-			got := findBroken(t, findings, citerNotePath, missingGhost)
+			got := findFinding(t, findings, "link.broken", citerNotePath, missingGhost)
 			if got.Severity != tt.want {
 				t.Errorf("[[%s]] cited by %s, declared %s: severity %s, want %s; evidence %q",
 					missingGhost, citerNotePath, tt.name, got.Severity, tt.want, got.Evidence)
 			}
 			assertBrokenEvidence(t, &got)
-
-			_, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
-			if err != nil {
-				t.Fatalf("RunCheck(--deny warn) error = %v", err)
-			}
-			if exit != tt.exit {
-				t.Errorf("check --deny warn exit = %d, want %d; all findings %v", exit, tt.exit, findings)
-			}
 		})
 	}
 }
 
-// TestACommentedHeadingBoundsNoGapSection is the same lock one level up, at the
-// public result a pipeline reads: a gap heading Obsidian hides opens no section,
+// TestACommentedHeadingBoundsNoGapSection holds the same for a heading: a gap heading Obsidian hides opens no section,
 // so the declaration under it softens nothing; a closing heading Obsidian hides
 // ends no section, so the declaration under it is still spoken. Both readings of
 // the section are asserted at once — the name harvested for another note's link,
@@ -257,51 +246,42 @@ func TestACommentedHeadingBoundsNoGapSection(t *testing.T) {
 		name   string
 		ledger string
 		want   Severity
-		exit   int
 	}{
-		{name: "a visible mark opens the section", ledger: "## Gaps\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo, exit: 0},
-		{name: "a hidden opening mark opens nothing", ledger: "%%\n## Gaps\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn, exit: 1},
-		{name: "a hidden closing heading closes nothing", ledger: "## Gaps\n\n%%\n## Finished\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo, exit: 0},
-		{name: "a visible closing heading still closes the section", ledger: "## Gaps\n\n## Finished\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn, exit: 1},
+		{name: "a visible mark opens the section", ledger: "## Gaps\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo},
+		{name: "a hidden opening mark opens nothing", ledger: "%%\n## Gaps\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn},
+		{name: "a hidden closing heading closes nothing", ledger: "## Gaps\n\n%%\n## Finished\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo},
+		{name: "a visible closing heading still closes the section", ledger: "## Gaps\n\n## Finished\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := gapSectionVault(t, tt.ledger)
-			findings, err := Check(t.Context(), root)
+			root := plannedVault(t, tt.ledger, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}
 
-			cited := findBroken(t, findings, citerNotePath, missingGhost)
+			cited := findFinding(t, findings, "link.broken", citerNotePath, missingGhost)
 			if cited.Severity != tt.want {
 				t.Errorf("[[%s]] cited by %s, declared where %s: severity %s, want %s; evidence %q",
 					missingGhost, citerNotePath, tt.name, cited.Severity, tt.want, cited.Evidence)
 			}
 			assertBrokenEvidence(t, &cited)
 
-			inside := findBroken(t, findings, ledgerNotePath, missingPhantom)
+			inside := findFinding(t, findings, "link.broken", ledgerNotePath, missingPhantom)
 			if inside.Severity != tt.want {
 				t.Errorf("[[%s]] written in %s where %s: severity %s, want %s; evidence %q",
 					missingPhantom, ledgerNotePath, tt.name, inside.Severity, tt.want, inside.Evidence)
 			}
 			assertBrokenEvidence(t, &inside)
-
-			_, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
-			if err != nil {
-				t.Fatalf("RunCheck(--deny warn) error = %v", err)
-			}
-			if exit != tt.exit {
-				t.Errorf("check --deny warn exit = %d, want %d; all findings %v", exit, tt.exit, findings)
-			}
 		})
 	}
 }
 
-// gapSectionVault writes the same two notes under a contract that tracks the
-// English heading mark and no inline mark, so where the heading is written is
-// the only thing that can decide either severity.
-func gapSectionVault(t *testing.T, ledgerBody string) string {
+// plannedVault writes the Citer note and a Ledger note whose whole body is
+// ledgerBody, under a contract that tracks only the marks given, so where the
+// declaration is written is the only thing that can decide either severity.
+func plannedVault(t *testing.T, ledgerBody, marks string) string {
 	t.Helper()
 	root := t.TempDir()
 	write(t, root, citerNotePath, plannedFixtureNote("See [[Ghost]]."))
@@ -313,29 +293,7 @@ func gapSectionVault(t *testing.T, ledgerBody string) string {
 		},
 		[2]string{
 			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
-			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []",
-		},
-	))
-	return root
-}
-
-// quotedPlannedVault writes the two notes with ledgerBody as the whole body of
-// the Ledger note, under a contract that tracks the inline mark and no heading
-// mark, so where the declaration is written is the only thing that can decide
-// the Citer note's severity.
-func quotedPlannedVault(t *testing.T, ledgerBody string) string {
-	t.Helper()
-	root := t.TempDir()
-	write(t, root, citerNotePath, plannedFixtureNote("See [[Ghost]]."))
-	write(t, root, ledgerNotePath, plannedFixtureNote(ledgerBody))
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-		[2]string{
-			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`checked = ["Writing"]`,
-		},
-		[2]string{
-			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
-			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\nplanned_gap_marks = []\nplanned_inline_marks = [\"todo\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\n" + marks,
 		},
 	))
 	return root

@@ -355,3 +355,21 @@ func TestAFolderThatFilesNoConceptsHasNoUnmappedConceptGroup(t *testing.T) {
 		t.Errorf("a folder with no contract lists %d unmapped concepts: %v", len(got), got)
 	}
 }
+
+// TestHealthListsAMissingFileByItsWikiFormOnly holds the unwritten list to
+// citations: an embed naming a file nothing holds is one, and a Markdown image
+// is the page's own missing-image notice rather than a citation.
+func TestHealthListsAMissingFileByItsWikiFormOnly(t *testing.T) {
+	t.Parallel()
+
+	notes := []*vault.Note{parse("Notes/Images.md", "# Images\n\n![[missing-wiki.png]]\n\n![](missing.png)\n")}
+	h := healthOf(notes, nil)
+
+	var targets []string
+	for _, link := range h.Unwritten {
+		targets = append(targets, link.Target)
+	}
+	if diff := cmp.Diff([]string{"missing-wiki.png"}, targets); diff != "" {
+		t.Errorf("Unwritten targets (-want +got):\n%s", diff)
+	}
+}

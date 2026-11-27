@@ -4,34 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/google/go-cmp/cmp"
 )
-
-// unlistedContract declares the lesson and course roles and derives each
-// note's domain from the folder under Writing/lessons, so a course and the
-// lessons beside it share a domain without either writing one.
-const unlistedContract = `[folders]
-checked = ["Maps", "Writing"]
-templates = []
-domain_from = ["Writing/lessons"]
-
-[enums]
-
-[fields]
-common = ["type", "draft"]
-required = ["type"]
-
-[types.lesson]
-role = "lesson"
-fields = ["slug"]
-slug_pattern = '^[a-z]+$'
-
-[types.study-path]
-role = "course"
-
-[privacy]
-never_egress_dirs = []
-`
 
 // unlistedDir is the japanese domain's folder, where the courses and lessons
 // below are written.
@@ -59,7 +33,7 @@ func TestUnlistedLessonExemptsOnlyADraft(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, unlistedContract)
+			writeCourseContract(t, root)
 			write(t, root, unlistedDir+"Japanese Path.md",
 				"---\ntype: study-path\n---\n# Japanese Path\n\n## Main {sequence=primary}\n\n- [[Listed]]\n")
 			write(t, root, unlistedDir+"Listed.md", "---\ntype: lesson\nslug: listed\n---\nbody\n")
@@ -76,13 +50,13 @@ func TestUnlistedLessonExemptsOnlyADraft(t *testing.T) {
 }
 
 // TestDiskUnlistedUsesTheDomainPathUnion holds that course.disk_unlisted
-// answers from the union of a domain's study paths, not from each path
+// answers from the union of a domain's courses, not from each course
 // walking the domain alone. Two paths that each list half the lessons of one
 // domain produce no finding: those lessons are listed, just not on every path.
 func TestDiskUnlistedUsesTheDomainPathUnion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, unlistedContract)
+	writeCourseContract(t, root)
 	write(t, root, unlistedDir+"Path A.md",
 		"---\ntype: study-path\n---\n# Path A\n\n## Main {sequence=primary}\n\n- [[Lesson A]]\n")
 	write(t, root, unlistedDir+"Path B.md",
@@ -97,13 +71,13 @@ func TestDiskUnlistedUsesTheDomainPathUnion(t *testing.T) {
 }
 
 // TestDiskUnlistedIsOneFindingPerLesson holds that an unlisted lesson is one
-// domain fact, not one row per study path of that domain. Two paths that list
-// none of a lesson produce one finding, attached to the first path in check
+// domain fact, not one row per course of that domain. Two courses that list
+// none of a lesson produce one finding, attached to the first course in check
 // order — the file the reader opens next to add the lesson.
 func TestDiskUnlistedIsOneFindingPerLesson(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, unlistedContract)
+	writeCourseContract(t, root)
 	write(t, root, unlistedDir+"Path A.md",
 		"---\ntype: study-path\n---\n# Path A\n\n## Main {sequence=primary}\n\n- [[Listed]]\n")
 	write(t, root, unlistedDir+"Path B.md",
@@ -111,17 +85,13 @@ func TestDiskUnlistedIsOneFindingPerLesson(t *testing.T) {
 	write(t, root, unlistedDir+"Listed.md", "---\ntype: lesson\nslug: listed\n---\nbody\n")
 	write(t, root, unlistedDir+"Unlisted.md", "---\ntype: lesson\nslug: unlisted\n---\nbody\n")
 
-	out := string(runCheck(t, root))
-	if n := strings.Count(out, `"rule_id":"course.disk_unlisted"`); n != 1 {
-		t.Errorf("course.disk_unlisted reported %d times, want 1 for one unlisted lesson; findings:\n%s", n, out)
+	var got []string
+	for _, f := range decodeFindings(t, runCheck(t, root)) {
+		if f.RuleID == "course.disk_unlisted" {
+			got = append(got, f.Path+" -> "+*f.ResolvedTo)
+		}
 	}
-	if !strings.Contains(out, `"path":"`+unlistedDir+`Unlisted.md"`) {
-		t.Errorf("the finding did not name the unlisted lesson; findings:\n%s", out)
-	}
-	if !strings.Contains(out, "not listed in course "+unlistedDir+"Path A.md") {
-		t.Errorf("the finding did not attach to the first path in check order; findings:\n%s", out)
-	}
-	if strings.Contains(out, "not listed in course "+unlistedDir+"Path B.md") {
-		t.Errorf("the finding also attached to a later path of the same domain; findings:\n%s", out)
+	if diff := cmp.Diff([]string{unlistedDir + "Unlisted.md -> " + unlistedDir + "Path A.md"}, got); diff != "" {
+		t.Errorf("course.disk_unlisted findings (-want +got):\n%s", diff)
 	}
 }

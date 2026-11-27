@@ -48,7 +48,7 @@ func TestAPanicParsingOneNoteIsReportedUnreadableLikeAFileNothingCouldOpen(t *te
 	t.Parallel()
 
 	root := judgeFixtureRoot(t, unreadableFixture)
-	whole, err := Check(t.Context(), root)
+	whole, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check(whole vault) error = %v; the run below proves nothing without it", err)
 	}

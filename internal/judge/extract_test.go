@@ -8,14 +8,12 @@ import (
 	"github.com/koopa0/yomihon/internal/egress"
 )
 
-// A backslash in front of a wikilink is the author showing the syntax rather
-// than writing a link — the CommonMark backslash escape — and the reading page
-// prints it as the text it is, with nothing to report. The adjudicator reads
-// the same bytes for the same vault, so a name written that way is not a
-// citation here either: one product cannot red a link on a page that shows no
-// link, and the same extraction feeds the list of notes citing a note, which
-// would otherwise name a citation the citing page does not make.
-func TestExtractedLinksSkipEscapedBrackets(t *testing.T) {
+// TestLinkTargetsSkipWhatThePageDoesNotLink holds the citations this face
+// reads to the ones the page links where a comment, an escape or code meets
+// another construct: a backslash escape shows the syntax, a comment left open
+// in a quote or a list item ends with its block, and a comment mark inside a
+// fence or a code span opens nothing.
+func TestLinkTargetsSkipWhatThePageDoesNotLink(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -23,55 +21,16 @@ func TestExtractedLinksSkipEscapedBrackets(t *testing.T) {
 		body string
 		want []string
 	}{
-		{name: "a plain link is a citation", body: `[[Real]]`, want: []string{"Real"}},
-		{name: "an escaped link is not", body: `\[[Ghost]]`, want: nil},
-		{name: "an escaped embed is not", body: `\![[Phantom]]`, want: nil},
-		{name: "a plain embed still is", body: `![[Real]]`, want: []string{"Real"}},
+		{name: "an escaped link is not a citation", body: `\[[Ghost]]`},
+		{name: "an escaped embed is not either", body: `\![[Phantom]]`},
 		{name: "an escaped backslash leaves the link", body: `\\[[Real]]`, want: []string{"Real"}},
-		{name: "an odd run keeps the link escaped", body: `\\\[[Ghost]]`, want: nil},
+		{name: "an odd run keeps the link escaped", body: `\\\[[Ghost]]`},
 		{name: "one escape does not cover the line", body: `see \[[Ghost]] then [[Real]]`, want: []string{"Real"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := egress.Targets(LinkTargets(tt.body))
-			if len(got) == 0 {
-				got = nil
-			}
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("LinkTargets(%q) mismatch (-want +got):\n%s", tt.body, diff)
-			}
-		})
-	}
-}
-
-// TestExtractedLinksSkipUnclosedComments is the case TestCheckSkipsFileReferencesInComments
-// does not cover: its fixture is a closed pair. An unpaired trailing mark used
-// to be dropped, so a link the page hid was still a citation here.
-func TestExtractedLinksSkipUnclosedComments(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{
-			name: "a closed pair hides what it wraps",
-			body: "[[Shown]]\n%%[[Hidden]]%%\n[[Also]]\n",
-			want: []string{"Shown", "Also"},
-		},
-		{
-			name: "an unclosed mark hides the rest",
-			body: "[[Shown]]\n%%\n[[Hidden]]\n",
-			want: []string{"Shown"},
-		},
-		{
-			name: "a mark inside a fence is not a comment",
-			body: "[[Shown]]\n```\n%%\n```\n[[Also]]\n",
-			want: []string{"Shown", "Also"},
-		},
+		{name: "an escaped comment opener opens nothing", body: `\<!-- [[Shown]] -->`, want: []string{"Shown"}},
+		{name: "a comment opener in a code span opens nothing", body: "`<!--` [[Shown]]", want: []string{"Shown"}},
+		{name: "a comment mark inside a fence opens nothing", body: "[[Shown]]\n```\n%%\n```\n[[Also]]\n", want: []string{"Shown", "Also"}},
+		{name: "a comment left open in a quote ends with the quote", body: "[[Shown]]\n> <!-- [[Hidden]]\n> secret\n\n[[Also]]", want: []string{"Shown", "Also"}},
+		{name: "a comment left open in a list item hides the item", body: "- Item\n  <!-- [[Hidden]]\n  secret\n\n[[Also]]", want: []string{"Also"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,6 +135,16 @@ func TestGapListItemGrammar(t *testing.T) {
 			body: "## 筆記\n- 甲\n",
 			want: nil,
 		},
+		{
+			name: "a code-span mark does not make a gap heading",
+			body: "## 工具 `缺口` 對照\n- 甲\n",
+			want: nil,
+		},
+		{
+			name: "a prose mark beside a code span still does",
+			body: "## 缺口 `code`\n- 甲\n",
+			want: []string{"甲"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -270,38 +239,6 @@ func TestGapEntrySplitsEnumeratorsAndDropsAnnotations(t *testing.T) {
 	}
 }
 
-// A gap mark quoted in code is shown, not written: a code span inside a
-// heading is not heading prose, so it opens no gap section.
-func TestGapMarkInsideACodeSpanOpensNothing(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		body string
-		want []string
-	}{
-		{
-			name: "a code-span mark does not make a gap heading",
-			body: "## 工具 `缺口` 對照\n- 甲\n",
-			want: nil,
-		},
-		{
-			name: "a prose mark beside a code span still does",
-			body: "## 缺口 `code`\n- 甲\n",
-			want: []string{"甲"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := extractPlannedNames(tt.body)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("extractPlannedNames(%q) mismatch (-want +got):\n%s", tt.body, diff)
-			}
-		})
-	}
-}
-
 // A gap mark in a heading counts where a word starts. The same characters
 // buried after another ideograph are ordinary prose — a topic about gaps is not
 // an owed section — so the broken links under such a heading keep their
@@ -331,64 +268,6 @@ func TestHeadingGapMarkMatchesAtWordStartOnly(t *testing.T) {
 			got := len(extractPlannedNames("## "+tt.heading+"\n- 甲\n")) > 0
 			if got != tt.want {
 				t.Errorf("heading %q opens a gap section = %v, want %v", tt.heading, got, tt.want)
-			}
-		})
-	}
-}
-
-// A heading wrapped in %% is content the author took back: Obsidian hides it,
-// so it is no more a section boundary than a commented-out link is a link. The
-// same note is written four ways — mark visible, opening mark hidden, a closing
-// heading hidden, and that closing heading left visible — and both readings of
-// a section have to agree: the names harvested under it, and whether a link
-// below it is owned by it.
-func TestAHeadingInsideACommentBoundsNoSection(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		body         string
-		wantNames    []string
-		wantUnderGap bool
-	}{
-		{
-			name:         "a visible mark opens the section",
-			body:         "## 缺口\n\n- 甲\n\n[[Ghost]]\n",
-			wantNames:    []string{"甲"},
-			wantUnderGap: true,
-		},
-		{
-			name:         "a hidden opening mark opens nothing",
-			body:         "%%\n## 缺口\n%%\n\n- 甲\n\n[[Ghost]]\n",
-			wantNames:    nil,
-			wantUnderGap: false,
-		},
-		{
-			name:         "a hidden closing heading closes nothing",
-			body:         "## 缺口\n\n%%\n## 完成\n%%\n\n- 甲\n\n[[Ghost]]\n",
-			wantNames:    []string{"甲"},
-			wantUnderGap: true,
-		},
-		{
-			name:         "a visible closing heading still closes the section",
-			body:         "## 缺口\n\n## 完成\n\n- 甲\n\n[[Ghost]]\n",
-			wantNames:    nil,
-			wantUnderGap: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if diff := cmp.Diff(tt.wantNames, extractPlannedNames(tt.body)); diff != "" {
-				t.Errorf("extractPlannedNames(%q) mismatch (-want +got):\n%s", tt.body, diff)
-			}
-			links := extractWikilinksWith(tt.body, 1, defaultPlannedMarks().heading)
-			if len(links) != 1 || links[0].target != "Ghost" {
-				t.Fatalf("extractWikilinksWith(%q) = %+v, want the one [[Ghost]] link", tt.body, links)
-			}
-			if links[0].underGapHeading != tt.wantUnderGap {
-				t.Errorf("[[Ghost]] in %q: underGapHeading = %t, want %t",
-					tt.body, links[0].underGapHeading, tt.wantUnderGap)
 			}
 		})
 	}
@@ -427,13 +306,22 @@ func TestPathRefsSplitNoteFromResourceOnTheExactExtension(t *testing.T) {
 		{name: "a backticked path with no whitespace is still a ref", body: "`Notes/Missing.md`", want: []string{"Notes/Missing.md"}},
 		{name: "a backticked path with a space after its first folder is still a ref", body: "`Notes/Reading list/a.md`", want: []string{"Notes/Reading list/a.md"}},
 		{name: "a backticked path whose first folder name has a space is not a ref", body: "`Reading list/a.md`", want: nil},
+		{name: "a link keeps its written path and fragment without the query", body: "[missing](Nothing%20here.md?at=1#part)", want: []string{"Nothing%20here.md#part"}},
+		{name: "an encoded backticked path is not a ref", body: "`Notes/Missing%20note.md`", want: nil},
+		{name: "a malformed escape is not a ref", body: "[invalid](Bad%2.md)", want: nil},
+		{name: "a remote link is not a ref", body: "[remote](https://host/Remote.md)", want: nil},
+		{name: "a resource link is not a ref", body: "[resource](picture.png)", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
 			for _, ref := range extractPathRefs(tt.body, 1) {
-				got = append(got, ref.target)
+				target := ref.target
+				if ref.fragment != "" {
+					target += "#" + ref.fragment
+				}
+				got = append(got, target)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("extractPathRefs(%q) targets (-want +got):\n%s", tt.body, diff)

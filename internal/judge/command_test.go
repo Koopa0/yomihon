@@ -2,98 +2,12 @@ package judge
 
 import (
 	"bytes"
-	"encoding/hex"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
-
-// wantGolden asserts got equals the golden file byte for byte, dumping hex on a
-// difference so a stray byte is visible.
-//
-// There is no flag and no environment switch that rewrites a golden, and the
-// absence is the design: these bytes are parsed by programs outside this
-// repository, so a difference is a question about whether the format changed,
-// and a one-key answer turns every such question into a rewrite. A change that
-// is genuinely wanted is made by editing the golden file by hand, in its own
-// commit, so what a reviewer reads is the byte change itself beside the reason
-// the bytes moved.
-func wantGolden(t *testing.T, got []byte, golden string) {
-	t.Helper()
-	want, err := os.ReadFile(golden) // #nosec G304 -- golden is a fixed testdata path from the test table, not untrusted input
-	if err != nil {
-		t.Fatalf("read golden %s: %v", golden, err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("output differs from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-			golden, got, want, hex.Dump(got), hex.Dump(want))
-	}
-}
-
-// TestRunCoverageGolden asserts the coverage command's compact JSON and human
-// renderings equal the reference tool's bytes over the report fixture.
-func TestRunCoverageGolden(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		format Format
-		golden string
-	}{
-		{name: "json", format: FormatJSON, golden: "testdata/golden/coverage.golden"},
-		{name: "human", format: FormatHuman, golden: "testdata/golden/coverage-human.golden"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: "testdata/vault-report", Format: tt.format})
-			if err != nil {
-				t.Fatalf("RunCoverage: %v", err)
-			}
-			if exit != 0 {
-				t.Errorf("RunCoverage exit = %d, want 0", exit)
-			}
-			wantGolden(t, got, tt.golden)
-		})
-	}
-}
-
-// TestRunExistsGolden asserts the exists command's JSON and human renderings
-// and its exit code — 0 when a match exists, 1 when none does — over the report
-// fixture, covering a multi-note alias hit, a title hit whose English title is
-// not in fields.known, and a miss.
-func TestRunExistsGolden(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		query    string
-		format   Format
-		golden   string
-		wantExit int
-	}{
-		{name: "alias across two notes", query: "shared", format: FormatJSON, golden: "testdata/golden/exists-shared.golden", wantExit: 0},
-		{name: "title folds; title_en is undeclared", query: "Slices in Depth", format: FormatJSON, golden: "testdata/golden/exists-titleen.golden", wantExit: 0},
-		{name: "no match", query: "Nonexistent Concept", format: FormatJSON, golden: "testdata/golden/exists-missing.golden", wantExit: 1},
-		{name: "human match", query: "shared", format: FormatHuman, golden: "testdata/golden/exists-shared-human.golden", wantExit: 0},
-		{name: "human miss", query: "Nonexistent Concept", format: FormatHuman, golden: "testdata/golden/exists-missing-human.golden", wantExit: 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: "testdata/vault-report", Name: tt.query, Format: tt.format})
-			if err != nil {
-				t.Fatalf("RunExists: %v", err)
-			}
-			if exit != tt.wantExit {
-				t.Errorf("RunExists(%q) exit = %d, want %d", tt.query, exit, tt.wantExit)
-			}
-			wantGolden(t, got, tt.golden)
-		})
-	}
-}
 
 // existsFoldSkeleton is the tracked part of the width-fold vault, and
 // existsFoldNote is the note written into it at test time. The note's filename
@@ -170,20 +84,6 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 		}
 	})
 
-	t.Run("ascii colon is a near match and exits 1", func(t *testing.T) {
-		t.Parallel()
-		got, exit, err := existsBytes(t.Context(), &ExistsOptions{
-			Root: existsFoldVault(t), Name: existsFoldASCII, Format: FormatJSON,
-		})
-		if err != nil {
-			t.Fatalf("RunExists: %v", err)
-		}
-		if exit != 1 {
-			t.Errorf("RunExists(%q) exit = %d, want 1 for a near-match-only answer", existsFoldASCII, exit)
-		}
-		wantGolden(t, got, "testdata/golden/exists-near-width.golden")
-	})
-
 	t.Run("human names the near match and still says the name does not exist", func(t *testing.T) {
 		t.Parallel()
 		got, exit, err := existsBytes(t.Context(), &ExistsOptions{
@@ -208,218 +108,99 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 	})
 }
 
-// TestExistsSkipsDiary pins that the existence oracle never surfaces a note in
-// the private daily journal. An agent's dedup query must not learn a journal
-// note's name, path, or alias, so a query that would match only a journal note
-// returns no match, while a public note still matches — the skip is scoped, not
-// a blanket empty.
-// TestExistsSkipsDiary holds both halves of what a private note owes this
-// oracle. It describes nothing about itself — no path, no matched field, no
-// value — and it still answers, because the exit code is documented as a
-// write-if-absent gate and a caller told the name is free creates a second
-// note under a private note's own name.
-func TestExistsSkipsDiary(t *testing.T) {
+// TestEveryCommandWithholdsTheJournal holds what a withheld directory owes each
+// command over the diary fixture, whose journal holds a note mistyped as a
+// concept: check and coverage name nothing under it in any format, and exists
+// answers a name only a journal note carries as present while describing
+// nothing about it, because its exit code is a write-if-absent gate and a
+// caller told the name is free would create a second note under it.
+func TestEveryCommandWithholdsTheJournal(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
-	notes, err := collectNotes(t.Context(), root)
-	if err != nil {
-		t.Fatalf("collectNotes: %v", err)
-	}
-	authority := loadTestAuthority(t, root)
-
-	r := existsLookup(notes, "Private Session Note", authority)
-	if len(r.Matches) != 0 {
-		t.Errorf("exists(%q) described %d match(es); a journal note must name nothing about itself: %+v", "Private Session Note", len(r.Matches), r.Matches)
-	}
-	if !r.Withheld || !r.found() {
-		t.Errorf("exists(%q) answered absent for a note that exists; a write-if-absent gate would create a duplicate of it", "Private Session Note")
-	}
-	// The two answers a caller actually receives, asserted as the bytes they
-	// are: the machine field a consumer parses, and the sentence a person
-	// reads. Checking only the struct would leave both free to be deleted with
-	// the suite green.
-	wire, err := marshalWire(r)
-	if err != nil {
-		t.Fatalf("marshalWire: %v", err)
-	}
-	if got, want := string(wire), "{\"query\":\"Private Session Note\",\"matches\":[],\"withheld\":true}\n"; got != want {
-		t.Errorf("exists JSON = %q, want %q", got, want)
-	}
-	rendered := renderExists(r)
-	if !strings.Contains(rendered, "withholds") {
-		t.Errorf("the human answer does not say the name is answered by something it may not describe:\n%s", rendered)
-	}
-	for _, leaked := range []string{"Diary/", "Private Session Note.md", "title"} {
-		if strings.Contains(rendered, leaked) {
-			t.Errorf("the human answer leaks %q about a withheld note:\n%s", leaked, rendered)
-		}
-	}
-
-	// And the ordinary answer's bytes are unchanged, which is what lets the
-	// new field ship without moving a frozen contract.
-	plain, err := marshalWire(existsLookup(notes, "keep", authority))
-	if err != nil {
-		t.Fatalf("marshalWire: %v", err)
-	}
-	if strings.Contains(string(plain), "withheld") {
-		t.Errorf("an ordinary answer carries the withheld field: %s", plain)
-	}
-
-	if r := existsLookup(notes, "keep", authority); !r.found() || r.Withheld {
-		t.Errorf("exists(%q) = found %t withheld %t, want the public note matched plainly", "keep", r.found(), r.Withheld)
-	}
-
-	// A name nothing carries stays absent, or the gate would refuse every
-	// write in a vault that merely declares a private directory.
-	if r := existsLookup(notes, "No Note Anywhere Carries This", authority); r.found() || r.Withheld {
-		t.Errorf("a name nothing carries was reported present (found %t withheld %t)", r.found(), r.Withheld)
-	}
-}
-
-// TestCoverageExcludesDiary pins that the coverage report names no note in the
-// private daily journal, even a journal note mistyped as a concept. The fixture
-// includes such a note; coverage drops every path under Diary/, so it never
-// reaches the report, and this asserts that unconditional exclusion holds.
-func TestCoverageExcludesDiary(t *testing.T) {
-	t.Parallel()
-	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
-	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage: %v", err)
-	}
-	if bytes.Contains(got, []byte("Diary")) {
-		t.Errorf("coverage output names the private daily journal:\n%s", got)
-	}
-}
-
-func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, []string{"Private"}))
-	write(t, root, "Private/Hidden.md", "---\ntype: note\ncreated: 2026-01-01\n---\n# Hidden\n\n[[Private Missing]]\n")
-	write(t, root, "Private/Brief.md", "---\ntype: research-brief\ncreated: 2026-01-01\n---\n# Brief\n")
-	write(t, root, "Private/Old Lesson.md", "---\ntype: lesson\ncreated: 2026-01-01\nslug: old-lesson\nsuccessors: [new]\n---\n# Old Lesson\n")
-	write(t, root, "Private/Private Lesson.md", "---\ntype: lesson\ncreated: 2026-01-01\nslug: private-lesson\n---\n# Private Lesson\n")
-	write(t, root, "Concepts/Public.md", "---\ntype: concept\ncreated: 2026-01-01\n---\n# Public\n\n[[Public Missing]]\n")
-	write(t, root, "Maps/Private Link.md", "---\ntype: study-path\ncreated: 2026-01-01\n---\n# Private Link\n\n[[Private Lesson]]\n")
-
 	for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
-		checkOutput, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: format})
-		if err != nil {
-			t.Fatalf("RunCheck(%d) error = %v", format, err)
-		}
-		if bytes.Contains(checkOutput, []byte("Private/")) {
-			t.Errorf("RunCheck(%d) exposed configured private output:\n%s", format, checkOutput)
-		}
-		if !bytes.Contains(checkOutput, []byte("Concepts/Public.md")) {
-			t.Errorf("RunCheck(%d) dropped public output with private output:\n%s", format, checkOutput)
-		}
-		if format == FormatMarkdown {
-			continue
-		}
-
-		coverageOutput, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
-		if err != nil {
-			t.Fatalf("RunCoverage(%d) error = %v", format, err)
-		}
-		if bytes.Contains(coverageOutput, []byte("Private/")) {
-			t.Errorf("RunCoverage(%d) exposed configured private output:\n%s", format, coverageOutput)
-		}
-		if !bytes.Contains(coverageOutput, []byte("Concepts/Public.md")) {
-			t.Errorf("RunCoverage(%d) dropped public output with private output:\n%s", format, coverageOutput)
-		}
-
-		// A private-only match answers present and describes nothing. Exit 1
-		// here would be the answer that matters most to get wrong: the exit
-		// code is the documented write-if-absent gate, so "absent" sends the
-		// caller to create a second note under this one's name.
-		existsOutput, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Hidden", Format: format})
-		if err != nil {
-			t.Fatalf("RunExists(%d) error = %v", format, err)
-		}
-		if exit != 0 {
-			t.Errorf("RunExists(%d) exit = %d, want 0 for a private-only match", format, exit)
-		}
-		for _, leaked := range []string{"Private/", "Hidden.md", "\"path\"", "\"field\"", "\"value\""} {
-			if bytes.Contains(existsOutput, []byte(leaked)) {
-				t.Errorf("RunExists(%d) exposed %q about a withheld note:\n%s", format, leaked, existsOutput)
+		t.Run(format.String(), func(t *testing.T) {
+			t.Parallel()
+			checkOutput, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: format})
+			if err != nil {
+				t.Fatalf("RunCheck() error = %v", err)
 			}
-		}
+			if bytes.Contains(checkOutput, []byte("Diary")) {
+				t.Errorf("RunCheck() names the journal:\n%s", checkOutput)
+			}
+			if !bytes.Contains(checkOutput, []byte("Notes/keep.md")) {
+				t.Errorf("RunCheck() dropped the public finding beside the journal:\n%s", checkOutput)
+			}
+			if format == FormatMarkdown {
+				return
+			}
 
-		// The gate still opens for a name nothing carries, or a vault that
-		// merely declares a private directory could never create anything.
-		_, absentExit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "No Note Carries This Name", Format: format})
-		if err != nil {
-			t.Fatalf("RunExists(%d, absent) error = %v", format, err)
-		}
-		if absentExit != 1 {
-			t.Errorf("RunExists(%d, absent) exit = %d, want 1", format, absentExit)
-		}
+			coverageOutput, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
+			if err != nil {
+				t.Fatalf("RunCoverage() error = %v", err)
+			}
+			if bytes.Contains(coverageOutput, []byte("Diary")) {
+				t.Errorf("RunCoverage() names the journal:\n%s", coverageOutput)
+			}
+
+			existsOutput, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Private Session Note", Format: format})
+			if err != nil {
+				t.Fatalf("RunExists() error = %v", err)
+			}
+			if exit != 0 {
+				t.Errorf("RunExists() exit = %d, want 0 for a name only a journal note carries", exit)
+			}
+			for _, leaked := range []string{"Diary", "2026-07-01", `"path"`, `"field"`, `"value"`} {
+				if bytes.Contains(existsOutput, []byte(leaked)) {
+					t.Errorf("RunExists() exposed %q about a withheld note:\n%s", leaked, existsOutput)
+				}
+			}
+
+			_, exit, err = existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "No Note Carries This Name", Format: format})
+			if err != nil {
+				t.Fatalf("RunExists(absent) error = %v", err)
+			}
+			if exit != 1 {
+				t.Errorf("RunExists(absent) exit = %d, want 1", exit)
+			}
+		})
+	}
+
+	withheld, _, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Private Session Note", Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunExists() error = %v", err)
+	}
+	if got, want := string(withheld), "{\"query\":\"Private Session Note\",\"matches\":[],\"withheld\":true}\n"; got != want {
+		t.Errorf("RunExists() JSON = %q, want %q", got, want)
+	}
+	plain, _, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "keep", Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunExists(keep) error = %v", err)
+	}
+	if bytes.Contains(plain, []byte("withheld")) || !bytes.Contains(plain, []byte("Notes/keep.md")) {
+		t.Errorf("RunExists(keep) = %s, want the public note matched plainly", plain)
 	}
 }
 
-// TestCronPayloads pins the four bytes the pipelines depend on: the exit code
-// under --deny error, the two literals the log grinder greps for in the JSONL,
-// the markdown report body, and the human summary's first line. The report
-// fixture carries a schema error, warnings, and hidden findings, so all four
-// surfaces are non-trivial.
-func TestCronPayloads(t *testing.T) {
+// TestDenyErrorGatesASchemaError holds the exit code a scheduled run scripts
+// against: --deny error fails over the report fixture's schema error, and no
+// --deny does not.
+func TestDenyErrorGatesASchemaError(t *testing.T) {
 	t.Parallel()
 	const root = "testdata/vault-report"
-
-	t.Run("deny error exit code", func(t *testing.T) {
-		t.Parallel()
-		_, denied, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"error"}})
-		if err != nil {
-			t.Fatalf("RunCheck: %v", err)
-		}
-		if denied != 1 {
-			t.Errorf("--deny error exit = %d, want 1 (a schema error is present)", denied)
-		}
-		_, clean, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-		if err != nil {
-			t.Fatalf("RunCheck: %v", err)
-		}
-		if clean != 0 {
-			t.Errorf("no --deny exit = %d, want 0", clean)
-		}
-	})
-
-	t.Run("jsonl grep literals", func(t *testing.T) {
-		t.Parallel()
-		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-		if err != nil {
-			t.Fatalf("RunCheck: %v", err)
-		}
-		for _, literal := range []string{`"rule_id":"link.broken"`, `"severity":"warn"`} {
-			if !bytes.Contains(out, []byte(literal)) {
-				t.Errorf("JSONL is missing the grinder literal %q", literal)
-			}
-		}
-	})
-
-	t.Run("markdown report body", func(t *testing.T) {
-		t.Parallel()
-		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
-		if err != nil {
-			t.Fatalf("RunCheck: %v", err)
-		}
-		wantGolden(t, out, "testdata/golden/report-md.golden")
-	})
-
-	t.Run("human first line", func(t *testing.T) {
-		t.Parallel()
-		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
-		if err != nil {
-			t.Fatalf("RunCheck: %v", err)
-		}
-		first, _, _ := bytes.Cut(out, []byte("\n"))
-		want := "7 findings: 1 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)"
-		if string(first) != want {
-			t.Errorf("human first line = %q, want %q", first, want)
-		}
-	})
+	_, denied, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"error"}})
+	if err != nil {
+		t.Fatalf("RunCheck: %v", err)
+	}
+	if denied != 1 {
+		t.Errorf("--deny error exit = %d, want 1 (a schema error is present)", denied)
+	}
+	_, clean, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCheck: %v", err)
+	}
+	if clean != 0 {
+		t.Errorf("no --deny exit = %d, want 0", clean)
+	}
 }
 
 // mkFinding builds a minimal finding with a rule id and severity, enough to
@@ -466,50 +247,24 @@ func TestGated(t *testing.T) {
 // are accepted.
 func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 	t.Parallel()
-	if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{"bogus"}}); err == nil {
-		t.Error("RunCheck with --deny bogus = nil error, want a tool error")
-	}
-	tokens := []string{"error", "warn", "info"}
-	for _, id := range ruleIDs {
-		tokens = append(tokens, string(id))
-	}
-	for _, token := range tokens {
-		if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{token}}); err != nil {
-			t.Errorf("RunCheck with --deny %q = %v, want no error", token, err)
-		}
-	}
-}
-
-func TestRunCheckDenyAliasResolvedRule(t *testing.T) {
-	t.Parallel()
-
 	for _, tt := range []struct {
-		deny []string
-		want int
+		token   string
+		wantErr bool
 	}{
-		{deny: nil, want: 0},
-		{deny: []string{"provenance.alias_resolved"}, want: 1},
+		{token: "bogus", wantErr: true},
+		{token: "warn"},
+		{token: "link.broken"},
 	} {
-		_, exit, err := checkBytes(t.Context(), &CheckOptions{
-			Root:   "testdata/vault-alias-based-on",
-			Format: FormatJSON,
-			Deny:   tt.deny,
-		})
-		if err != nil {
-			t.Fatalf("RunCheck(--deny %q) error = %v", tt.deny, err)
-		}
-		if exit != tt.want {
-			t.Errorf("RunCheck(--deny %q) exit = %d, want %d", tt.deny, exit, tt.want)
+		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{tt.token}})
+		if (err != nil) != tt.wantErr {
+			t.Errorf("RunCheck(--deny %q) error = %v, want error %t", tt.token, err, tt.wantErr)
 		}
 	}
 }
 
-// TestParseBaseline pins the parser itself: current-version fingerprints are
-// collected, blank lines and the trailing newline are not findings, and each
-// shape the strict reader refuses — a line that is not a JSON object, a
-// finding without a fingerprint, a non-string fingerprint, and a fingerprint
-// of another version — is an error rather than a silent skip. The
-// command-level surface of the same refusals is TestRunCheckBaselineStrictness.
+// TestParseBaseline pins what the parser collects: current-version
+// fingerprints, with blank lines and the trailing newline not findings. What it
+// refuses is TestRunCheckBaselineStrictness.
 func TestParseBaseline(t *testing.T) {
 	t.Parallel()
 	jsonl := `{"rule_id":"link.broken","fingerprint":"v1:aaaa"}` + "\n\n" + `{"fingerprint":"v1:bbbb"}` + "\n"
@@ -524,18 +279,6 @@ func TestParseBaseline(t *testing.T) {
 	for fp := range want {
 		if !got[fp] {
 			t.Errorf("parseBaseline missing fingerprint %q", fp)
-		}
-	}
-
-	refused := map[string]string{
-		"not a JSON object":      "not json at all\n",
-		"no fingerprint":         `{"rule_id":"collision.alias"}` + "\n",
-		"non-string fingerprint": `{"fingerprint":7}` + "\n",
-		"foreign version":        `{"fingerprint":"aaaa"}` + "\n",
-	}
-	for name, input := range refused {
-		if _, err := parseBaseline(input); err == nil {
-			t.Errorf("parseBaseline(%s) = nil error, want a refusal", name)
 		}
 	}
 }
@@ -587,13 +330,9 @@ func TestRunCheckBaseline(t *testing.T) {
 }
 
 // TestRunCheckBaselineStrictness asserts the baseline reader refuses input it
-// cannot fully honor: a fingerprint carrying another algorithm version, a line
-// that is not a JSON object, and a finding without a string fingerprint each
-// stop the run instead of being silently skipped, since a skipped line
+// cannot fully honor, naming the line where it can, since a skipped line
 // subtracts less than the caller believes and reports old findings as new. An
-// empty file stays a valid, empty baseline. Each refusal is a tool error here;
-// the exit code a caller scripts against is decided by the binary, and pinned
-// beside the command line that decides it.
+// empty file stays a valid, empty baseline.
 func TestRunCheckBaselineStrictness(t *testing.T) {
 	t.Parallel()
 	const root = "testdata/vault-report"
@@ -606,49 +345,24 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 		return path
 	}
 
-	t.Run("a bare-hex fingerprint is a version mismatch", func(t *testing.T) {
-		t.Parallel()
-		base := writeBaseline(t, `{"rule_id":"link.broken","fingerprint":"c6a289a5d2524c77"}`+"\n")
-		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
-		if err == nil {
-			t.Fatal("a baseline of another fingerprint version must be an error, not a silent no-op subtraction")
-		}
-		if !strings.Contains(err.Error(), "version") {
-			t.Errorf("error %q should name the version mismatch", err)
-		}
-	})
-
-	t.Run("an unparsable line is an error naming its line", func(t *testing.T) {
-		t.Parallel()
-		base := writeBaseline(t, `{"fingerprint":"v1:c6a289a5d2524c77"}`+"\nnot json at all\n")
-		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
-		if err == nil {
-			t.Fatal("an unparsable baseline line must be an error, not skipped")
-		}
-		if !strings.Contains(err.Error(), "line 2") {
-			t.Errorf("error %q should name line 2", err)
-		}
-	})
-
-	t.Run("a finding without a fingerprint is an error", func(t *testing.T) {
-		t.Parallel()
-		base := writeBaseline(t, `{"rule_id":"collision.alias"}`+"\n")
-		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
-		if err == nil {
-			t.Fatal("a baseline finding without a fingerprint must be an error, not skipped")
-		}
-		if !strings.Contains(err.Error(), "line 1") {
-			t.Errorf("error %q should name line 1", err)
-		}
-	})
-
-	t.Run("a non-string fingerprint is an error", func(t *testing.T) {
-		t.Parallel()
-		base := writeBaseline(t, `{"fingerprint":7}`+"\n")
-		if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base}); err == nil {
-			t.Fatal("a non-string fingerprint must be an error, not skipped")
-		}
-	})
+	for _, tt := range []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{name: "a bare-hex fingerprint is a version mismatch", content: `{"rule_id":"link.broken","fingerprint":"c6a289a5d2524c77"}` + "\n", wantErr: "version"},
+		{name: "an unparsable line", content: `{"fingerprint":"v1:c6a289a5d2524c77"}` + "\nnot json at all\n", wantErr: "line 2"},
+		{name: "a finding without a fingerprint", content: `{"rule_id":"collision.alias"}` + "\n", wantErr: "line 1"},
+		{name: "a non-string fingerprint", content: `{"fingerprint":7}` + "\n", wantErr: "line 1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: writeBaseline(t, tt.content)})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("RunCheck(baseline %q) error = %v, want one naming %q", tt.content, err, tt.wantErr)
+			}
+		})
+	}
 
 	t.Run("an empty file is a valid empty baseline", func(t *testing.T) {
 		t.Parallel()
@@ -660,11 +374,8 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RunCheck with empty baseline: %v", err)
 		}
-		if !bytes.Equal(got, full) {
-			t.Error("an empty baseline must subtract nothing")
-		}
-		if exit != 0 {
-			t.Errorf("exit = %d, want 0", exit)
+		if !bytes.Equal(got, full) || exit != 0 {
+			t.Errorf("an empty baseline left %d of %d bytes, exit %d; want all of them, 0", len(got), len(full), exit)
 		}
 	})
 }

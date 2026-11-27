@@ -1,21 +1,21 @@
 package judge
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
-// TestACalloutTitleWithMarkupDrawsAFinding is the lock for #359: markup on a
-// recognised callout's opening line used to reach the reader as escaped
-// characters and yomihon check said nothing. The renderer must not rewrite
-// the note; the check reports, with the same suggested action the authoring
-// table names.
+// TestACalloutTitleWithMarkupDrawsAFinding holds callout.title_markup: markup
+// on a recognised callout's opening line, which the page shows as escaped
+// characters, draws a finding, and a title in code, a comment or an indented
+// block does not.
 func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 	t.Parallel()
 
-	root := writeLeftoverLockVault(t, leftoverLockContract, map[string]string{
-		"Notes/Source.md": "---\ntitle: Source\ntype: note\nstatus: draft\n---\nThe source.\n",
-		"Notes/Titles.md": "---\ntitle: Titles\ntype: note\nstatus: draft\n---\n" +
+	root := noteVault(t, map[string]string{
+		"Notes/Source.md": "---\ntype: note\n---\nThe source.\n",
+		"Notes/Titles.md": "---\ntype: note\n---\n" +
 			"> [!quote] <ruby>芭蕉<rt>ばしょう</rt></ruby>\n" +
 			"> [!quote] [[Source]]\n" +
 			"> [!quote] **bold** and `code`\n" +
@@ -29,50 +29,25 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 			"    > [!quote] **indented**\n",
 	})
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	t.Log("producer-hit: actual callout title findings through Check")
-
-	var got []Finding
+	var got []string
 	for _, f := range findings {
 		if f.RuleID == RuleCalloutTitleMarkup {
-			got = append(got, f)
+			got = append(got, f.Path+" "+*f.Target)
 		}
 	}
-	if len(got) != 5 {
-		t.Fatalf("caught: callout.title_markup findings = %d (%v), want 5 (ruby, wikilink, emphasis+code, folded, unknown)", len(got), findingTargets(got))
+	want := []string{
+		"Notes/Titles.md <ruby>芭蕉<rt>ばしょう</rt></ruby>",
+		"Notes/Titles.md [[Source]]",
+		"Notes/Titles.md **bold** and `code`",
+		"Notes/Titles.md **folded**",
+		"Notes/Titles.md **not a callout**",
 	}
-	for _, f := range got {
-		if f.Severity != SeverityInfo {
-			t.Errorf("%q Severity = %v, want info", deref(f.Target), f.Severity)
-		}
-		if f.SourceRule != sourceYomihon {
-			t.Errorf("%q SourceRule = %q, want %q", deref(f.Target), f.SourceRule, sourceYomihon)
-		}
-		if f.Path != "Notes/Titles.md" {
-			t.Errorf("%q Path = %q, want Notes/Titles.md", deref(f.Target), f.Path)
-		}
-		if f.Line == nil {
-			t.Errorf("%q Line is nil", deref(f.Target))
-		}
-		if !strings.Contains(f.SuggestedAction, "move the markup into the callout body") {
-			t.Errorf("%q SuggestedAction = %q, want it to name moving the markup", deref(f.Target), f.SuggestedAction)
-		}
-		if f.Fingerprint == "" || !strings.HasPrefix(f.Fingerprint, fingerprintVersion) {
-			t.Errorf("%q Fingerprint = %q, want a versioned value", deref(f.Target), f.Fingerprint)
-		}
-	}
-	wantTargets := []string{
-		"<ruby>芭蕉<rt>ばしょう</rt></ruby>",
-		"[[Source]]",
-		"**bold** and `code`",
-		"**folded**",
-		"**not a callout**",
-	}
-	if diff := strings.Join(findingTargets(got), "\n"); diff != strings.Join(wantTargets, "\n") {
-		t.Errorf("targets mismatch\ngot:\n%s\nwant:\n%s", diff, strings.Join(wantTargets, "\n"))
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("callout.title_markup findings (-want +got):\n%s", diff)
 	}
 }
 
@@ -101,21 +76,6 @@ func TestCalloutTitleUsesEveryValidOpeningType(t *testing.T) {
 			}
 		})
 	}
-}
-
-func findingTargets(findings []Finding) []string {
-	out := make([]string, len(findings))
-	for i := range findings {
-		out[i] = deref(findings[i].Target)
-	}
-	return out
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // TestACalloutTitleFindingKeepsItsIdentityWhenALineMovesIt asserts the

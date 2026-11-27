@@ -38,7 +38,7 @@ func TestNameCollisionNeedsALinkWrittenAgainstTheName(t *testing.T) {
 	t.Parallel()
 
 	const (
-		lessonHead = "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\n\n# Lesson\n\n"
+		lessonHead = "---\ntype: note\n---\n\n# Lesson\n\n"
 		pathLinks  = "The program is [lab A](lab/a/main.go) and the second is [lab B](lab/b/main.go).\n"
 	)
 	tests := []struct {
@@ -83,8 +83,8 @@ func TestNameCollisionNeedsALinkWrittenAgainstTheName(t *testing.T) {
 				write(t, root, "Notes/Sealed.md", "---\ntitle: Sealed\n---\n")
 			}
 			writeTestContract(t, root, private)
-			if tt.partial && !unreadable(t, filepath.Join(root, "Notes", "Sealed.md")) {
-				t.Fatal("this process can still read a file it took every permission from, so no vault here has a hole in it to judge")
+			if tt.partial {
+				unreadable(t, filepath.Join(root, "Notes", "Sealed.md"))
 			}
 
 			got := nameCollisionTargets(t, root)

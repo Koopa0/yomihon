@@ -406,20 +406,12 @@ func unclosedFrontmatterFinding(n *note) Finding {
 	return f
 }
 
-// LintFrontmatter reports what the check command would say about one note's
+// FrontmatterLinter reports what the check command would say about a note's
 // frontmatter, so a reading page and the command cannot disagree about a file.
-// It takes the note's own bytes rather than a frontmatter parsed elsewhere,
-// because this parse walks the YAML nodes to see a key written twice; linting
-// the reading parse would be a second, quieter set of rules. The findings come
-// back in the order the command puts them in.
-func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) []Finding {
-	return NewFrontmatterLinter(contract).Lint(relPath, data)
-}
-
-// FrontmatterLinter is LintFrontmatter for a caller with many notes to judge
-// against one contract: the contract is resolved once, rather than once per
-// note, and a note is read for its frontmatter alone, because the frontmatter
-// rules read nothing of the body. The zero value, which is what a folder no
+// The contract is resolved once for many notes, and a note is read from its
+// own bytes, because this parse walks the YAML nodes to see a key written
+// twice, and for its frontmatter alone, because those rules read nothing of
+// the body. The zero value, which is what a folder no
 // contract governs gets, says nothing about any note.
 type FrontmatterLinter struct {
 	run *lintRun
@@ -435,8 +427,7 @@ func NewFrontmatterLinter(contract *schema.Contract) FrontmatterLinter {
 }
 
 // Lint reports what the check command would say about one note's frontmatter,
-// in the order the command puts the findings in. Like LintFrontmatter it takes
-// the note's own bytes.
+// in the order the command puts the findings in.
 func (l FrontmatterLinter) Lint(relPath string, data []byte) []Finding {
 	if l.run == nil {
 		return nil

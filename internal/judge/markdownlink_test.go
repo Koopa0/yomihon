@@ -2,46 +2,25 @@ package judge
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/graph"
 )
 
-func TestMarkdownPathReferenceKeepsItsWrittenIdentity(t *testing.T) {
-	t.Parallel()
-	got := extractPathRefs("Heading\n\n[missing](Nothing%20here.md?at=1#part)\n", 5)
-	want := []pathRef{{target: "Nothing%20here.md", fragment: "part", line: 7, code: false}}
-	if diff := cmp.Diff(want, got, cmp.AllowUnexported(pathRef{})); diff != "" {
-		t.Errorf("encoded Markdown reference (-want +got):\n%s", diff)
-	}
-}
-
-func TestMarkdownCheckSerializesTheWrittenPath(t *testing.T) {
+// TestMarkdownCheckReportsTheWrittenPath holds a Markdown link's finding to
+// the path as its author wrote it, still encoded.
+func TestMarkdownCheckReportsTheWrittenPath(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write(t, root, "Concepts/golang/Source.md", "intro\n\n[missing](Nothing%20here.md)\n")
 	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	var paths []Finding
-	for _, finding := range findings {
-		if finding.RuleID == "link.broken.path" {
-			paths = append(paths, finding)
-		}
-	}
-	var buf bytes.Buffer
-	if err := writeJSONL(&buf, paths); err != nil {
-		t.Fatalf("writeJSONL: %v", err)
-	}
-	want := `{"rule_id":"link.broken.path","severity":"warn","path":"Concepts/golang/Source.md","line":3,"message":"link to Nothing%20here.md resolves to no file","evidence":"Concepts/golang/Nothing here.md does not exist in the vault","suggested_action":"fix the path, restore the file, or remove the reference","source_rule":"yomihon","target":"Nothing%20here.md","fingerprint":"v1:d506cf9915df6962"}` + "\n"
-	if diff := cmp.Diff(want, buf.String()); diff != "" {
-		t.Errorf("encoded Markdown JSONL (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"link.broken.path Nothing%20here.md"}, findingKeys(findings)); diff != "" {
+		t.Errorf("Check() findings (-want +got):\n%s", diff)
 	}
 }
 
@@ -63,7 +42,7 @@ func TestMarkdownCheckIsRelativeAndExact(t *testing.T) {
 				write(t, root, p, "target\n")
 			}
 			writeTestContract(t, root, []string{"Restricted"})
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,7 +73,7 @@ func TestMarkdownLinkToAFolderIsNotAFinding(t *testing.T) {
 	write(t, root, "Concepts/golang/Source.md", "[a](lab/)\n[b](lab)\n[c](../golang/lab/code/)\n[d](missing/)\n")
 	write(t, root, "Concepts/golang/lab/code/main.go", "package main\n")
 	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -122,7 +101,7 @@ func TestLinkIntoWhatTheScanLeftOutIsNotAFinding(t *testing.T) {
 		"[a](../../drafts/plan.md)\n[b](../../node_modules/pkg/README.md)\n[c](../../env/lib/README.md)\n"+
 			"![d](../../drafts/figure.png)\n[gone](../../Nowhere.md)\n")
 	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -137,70 +116,21 @@ func TestLinkIntoWhatTheScanLeftOutIsNotAFinding(t *testing.T) {
 	}
 }
 
-func TestEncodedBacktickReferencesKeepTheirOldDomain(t *testing.T) {
-	t.Parallel()
-	for _, source := range []string{"`Notes/Missing%20note.md`", "[invalid](Bad%2.md)", "[remote](https://host/Remote.md)", "[resource](picture.png)"} {
-		if got := extractPathRefs(source, 1); len(got) != 0 {
-			t.Errorf("unsupported reference %q reached the path rule: %+v", source, got)
-		}
-	}
-	if got := extractPathRefs("`Notes/missing.md`", 1); len(got) != 1 || !got[0].code || !strings.Contains(got[0].target, "Notes/") {
-		t.Errorf("plain backtick reference changed: %+v", got)
-	}
-}
-
-func TestMarkdownOutsideFindingKeepsItsWireIdentity(t *testing.T) {
+// TestMarkdownOutsideFindingIsInformational holds a link that climbs out of
+// the vault to an info finding on the written path: what lies outside is not
+// this vault's to check.
+func TestMarkdownOutsideFindingIsInformational(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write(t, root, "Concepts/golang/Source.md", "[outside](../../../Outside.md)\n")
 	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var paths []Finding
-	for _, finding := range findings {
-		if finding.RuleID == "link.broken.path" {
-			paths = append(paths, finding)
-		}
-	}
-	var wire bytes.Buffer
-	if err := writeJSONL(&wire, paths); err != nil {
-		t.Fatal(err)
-	}
-	want := `{"rule_id":"link.broken.path","severity":"info","path":"Concepts/golang/Source.md","line":1,"message":"link to ../../../Outside.md points outside the vault root","evidence":"external path, not stat'd (existence varies by environment)","suggested_action":"if it should be in the vault, fix the path; otherwise informational","source_rule":"yomihon","target":"../../../Outside.md","fingerprint":"v1:8bf4a52083ad6a90"}` + "\n"
-	if diff := cmp.Diff(want, wire.String()); diff != "" {
-		t.Errorf("outside Markdown JSONL (-want +got):\n%s", diff)
-	}
-}
-
-func TestMarkdownUnreadableCapturedFileStillOwnsItsPath(t *testing.T) {
-	t.Parallel()
-	got := graph.ResolveMarkdown("Notes/source.md", "unreadable.md", func(string) bool { return true }, func(p string) bool {
-		return p == "Notes/unreadable.md"
-	})
-	if got.Kind != graph.KindUnique || got.RelPath != "Notes/unreadable.md" {
-		t.Errorf("captured unreadable path was discarded: %+v", got)
-	}
-}
-
-func TestMarkdownCheckWithholdsTheReportWhenTheCallerCancels(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	write(t, root, "Concepts/golang/Source.md", "[missing](Nothing%20here.md)\n")
-	writeTestContract(t, root, nil)
-	findings, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, found := findingByRule(findings, "link.broken.path"); !found {
-		t.Fatal("live Markdown scan did not reach the path finding")
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	findings, err = Check(ctx, root)
-	if err == nil || findings != nil {
-		t.Errorf("cancelled Markdown scan returned findings=%+v error=%v, want a refusal without a report", findings, err)
+	f := findFinding(t, findings, "link.broken.path", "Concepts/golang/Source.md", "../../../Outside.md")
+	if f.Severity != SeverityInfo {
+		t.Errorf("Severity = %v, want info", f.Severity)
 	}
 }
 
@@ -210,7 +140,7 @@ func TestMarkdownPrivateSourcesStayOutOfPublicCheck(t *testing.T) {
 	writeTestContract(t, root, []string{"Restricted"})
 	write(t, root, "Concepts/golang/Public.md", "[public](Public%20missing.md)\n")
 	write(t, root, "Restricted/source.md", "[private](../Concepts/golang/Secret%20missing.md)\n")
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

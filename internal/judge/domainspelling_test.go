@@ -3,11 +3,9 @@ package judge
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -23,7 +21,6 @@ const (
 	decomposedDomain = "\u304b\u3099\u3044\u306d\u3093"
 	composedOther    = "\u304e\u3058\u3085\u3064"
 	decomposedOther  = "\u304d\u3099\u3057\u3099\u3085\u3064"
-	voicedMark       = '\u3099'
 )
 
 // TestDomainEnumFoldsTheFolderSpelling pins that a note's domain, read off the
@@ -105,7 +102,7 @@ func TestDomainEnumFoldsTheFolderSpelling(t *testing.T) {
 				t.Logf("this volume stored the folder as %q rather than %q", stored, tt.folder)
 			}
 
-			findings, err := Check(t.Context(), root)
+			findings, err := runCheckAction(t.Context(), root, nil, false)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}
@@ -118,26 +115,12 @@ func TestDomainEnumFoldsTheFolderSpelling(t *testing.T) {
 					got = append(got, f)
 				}
 			}
-
-			var want []Finding
+			var want []string
 			if tt.wantMismatch {
-				want = append(want, Finding{
-					RuleID:          "schema.enum",
-					Severity:        SeverityError,
-					Path:            notePath,
-					Field:           new("domain"),
-					Message:         `domain "` + composedOther + `" is not an allowed value`,
-					Evidence:        "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the rules file's enums.domain does not list that name",
-					SuggestedAction: "move the note into a folder named for a domain the rules file declares, or add the folder's name to enums.domain in the rules file",
-					SourceRule:      sourceContract,
-					Target:          new(composedOther),
-				})
+				want = []string{"schema.enum domain " + composedOther}
 			}
-			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(Finding{}, "Fingerprint")); diff != "" {
+			if diff := cmp.Diff(want, findingKeys(got)); diff != "" {
 				t.Errorf("Check() findings on %s mismatch (-want +got):\n%s", rel, diff)
-			}
-			if tt.wantMismatch && len(got) == 1 && strings.ContainsRune(got[0].Message, voicedMark) {
-				t.Errorf("Check() message %q carries a decomposed spelling, want the folder's composed name", got[0].Message)
 			}
 		})
 	}

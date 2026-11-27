@@ -11,7 +11,7 @@ import (
 // the note's words do not.
 func TestInlineFootnoteInAHeadingIsNotPartOfTheSectionName(t *testing.T) {
 	t.Parallel()
-	got := ruleTargets(fragmentRun(t, map[string]string{
+	got := findingKeys(fragmentRun(t, map[string]string{
 		"N.md": "## Heading^[note]\n\ntext\n",
 		"C.md": "[[N#Heading]]\n\n[[N#Heading note]]\n",
 	}))

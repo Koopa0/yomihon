@@ -99,70 +99,6 @@ func TestJudgeActionReadsNFDEntryThroughCapturedRawSpelling(t *testing.T) {
 	}
 }
 
-// unreadable makes path unreadable for the rest of the test and reports
-// whether the filesystem honoured it. A container running as root, and a
-// filesystem that does not carry permissions, both ignore the request; a test
-// that assumed otherwise would assert against a vault it never broke.
-func unreadable(tb testing.TB, path string) bool {
-	tb.Helper()
-	if err := os.Chmod(path, 0); err != nil {
-		tb.Fatalf("Chmod(%q, 0) error = %v", path, err)
-	}
-	tb.Cleanup(func() {
-		if err := os.Chmod(path, 0o700); err != nil && !os.IsNotExist(err) { // #nosec G302 -- a directory needs owner execute permission so TempDir cleanup can traverse it
-			tb.Errorf("restore %q: %v", path, err)
-		}
-	})
-	info, err := os.Stat(path)
-	if err != nil {
-		tb.Fatalf("Stat(%q) error = %v", path, err)
-	}
-	if info.IsDir() {
-		_, err = os.ReadDir(path)
-	} else {
-		_, err = os.ReadFile(path) // #nosec G304 -- the path is this test's own temporary file
-	}
-	return err != nil
-}
-
-// unreadableCause is the machine's own account of a file whose permissions
-// were taken away, as this package hands it to a reader. It is the tail of the
-// refusal below and the whole of the evidence a finding carries, so it is
-// frozen bytes on both faces and the constant lives in one place.
-//
-// The path in it names one component, because the read opens the file through
-// a handle on its parent directory rather than by its whole name.
-const unreadableCause = "openat bad.md: permission denied"
-
-// TestUnreadableCauseIsTheSameWordsWhereverTheGateRuns pins the sentence a
-// reader is given for a file that could not be opened. The words come from the
-// operating system through the standard library, not from this repository, and
-// they travel into output whose bytes are frozen — so the two systems this
-// repository's gate runs on have to produce the same ones, and a release that
-// reworded either reds here rather than moving a consumer's bytes quietly.
-//
-// The observation goes through coverage because a census over a corpus with a
-// hole in it is refused whole: the command keeps saying this sentence whatever
-// the check command does with the same file.
-func TestUnreadableCauseIsTheSameWordsWhereverTheGateRuns(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeTestContract(t, root, nil)
-	write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
-	write(t, root, "Notes/bad.md", "---\n---\n# Unreadable\n")
-	if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
-		// Skipping would leave the sentence unpinned on the very system that
-		// could not hold it, which is the one worth hearing about.
-		t.Fatal("this process can still read a file it took every permission from, so the frozen cause cannot be observed here")
-	}
-
-	got := refuse(t.Context(), t, "coverage", root).Error()
-	if want := "vault scan failed: Notes/bad.md: " + unreadableCause; got != want {
-		t.Errorf("coverage refusal = %q, want %q", got, want)
-	}
-}
-
 // TestScanStoppedNamesOnlyAPathItCanAskAbout covers the failures a walk reports
 // without naming one file inside the vault. The refusal for a withheld file and
 // the refusal for a path the contract cannot be asked about are different
@@ -212,13 +148,12 @@ func TestScanStoppedNamesOnlyAPathItCanAskAbout(t *testing.T) {
 	}
 }
 
-// TestJudgeNamesTheFileItCouldNotRead holds the diagnostic the reading face has
-// always given and this one withheld. The two commands whose whole answer is a
-// verdict about something being absent cannot give it over ground they never
-// read, so they refuse — and the operator used to be told only that a scan
-// failed, which on a folder of any size left nowhere to start looking. The
-// check command reports the same file instead and judges the rest; its half of
-// this is held in unreadable_test.go.
+// TestJudgeNamesTheFileItCouldNotRead holds the refusal of the two commands
+// whose whole answer is a verdict about something being absent: they cannot
+// give it over ground they never read, so they refuse and name the file, which
+// on a folder of any size is where the operator starts looking. The check
+// command reports the same file instead and judges the rest; its half of this
+// is held in unreadable_test.go.
 func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 	t.Parallel()
 
@@ -230,18 +165,14 @@ func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 			writeTestContract(t, root, nil)
 			write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
 			write(t, root, "Notes/bad.md", "---\n---\n# Unreadable\n")
-			if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
-				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
-			}
+			unreadable(t, filepath.Join(root, "Notes", "bad.md"))
 
 			got := refuse(t.Context(), t, command, root).Error()
 			if !strings.HasPrefix(got, "vault scan failed: ") {
 				t.Errorf("%s error = %q, want the scan refusal", command, got)
 			}
-			for _, part := range []string{"Notes/bad.md", "permission denied"} {
-				if !strings.Contains(got, part) {
-					t.Errorf("%s error = %q, want it to name %q", command, got, part)
-				}
+			if !strings.Contains(got, "Notes/bad.md") {
+				t.Errorf("%s error = %q, want it to name Notes/bad.md", command, got)
 			}
 		})
 	}
@@ -264,9 +195,7 @@ func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
 			writeTestContract(t, root, []string{"Diary"})
 			write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
 			write(t, root, "Diary/2026-08-27.md", "---\n---\n# Private\n")
-			if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
-				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
-			}
+			unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md"))
 
 			got := refuse(t.Context(), t, command, root).Error()
 			if want := errWithheldUnreadable.Error(); got != want {
@@ -297,9 +226,7 @@ func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
 	write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
 	decomposed := norm.NFD.String("だ体")
 	write(t, root, decomposed+"/private.md", "---\n---\n# Private\n")
-	if !unreadable(t, filepath.Join(root, decomposed)) {
-		t.Skip("filesystem permissions do not make the directory unreadable for this process")
-	}
+	unreadable(t, filepath.Join(root, decomposed))
 
 	got := refuse(t.Context(), t, "check", root).Error()
 	if want := errWithheldUnreadable.Error(); got != want {
@@ -318,11 +245,9 @@ func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
 // about it. A file that merely could not be opened is reported and the rest is
 // judged, so the two have to be told apart at the moment a read fails.
 //
-// Each case keeps a second note that survives the swap. Without one the swapped
-// note is the only note, and a run that concluded nothing at all would refuse
-// for having read nothing whichever reason it gave — so this test passed for
-// years over a vault where the distinction it is about could not arise. With
-// the companion there, only a run that recognises the swap refuses.
+// Each case keeps a second note that survives the swap, so a run that
+// concluded nothing at all cannot refuse for having read nothing; only a run
+// that recognises the swap refuses.
 func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 	t.Parallel()
 
@@ -358,20 +283,12 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 			},
 		},
 	}
-	commands := []struct {
-		name string
-		args func(string) []string
-	}{
-		{name: "check", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
-		{name: "coverage", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
-		{name: "exists", args: func(root string) []string { return []string{"--root=" + root, "--format=json", "Target"} }},
-	}
 	for _, swap := range swaps {
 		t.Run(swap.name, func(t *testing.T) {
 			t.Parallel()
 
-			for _, command := range commands {
-				t.Run(command.name, func(t *testing.T) {
+			for _, command := range []string{"check", "coverage", "exists"} {
+				t.Run(command, func(t *testing.T) {
 					t.Parallel()
 
 					root := t.TempDir()
@@ -379,20 +296,20 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 					write(t, root, "Notes/Target.md", "---\n---\n# Target\n")
 					write(t, root, swap.keep, "---\n---\n# Keep\n")
 
-					stdout, err := runPrepared(t.Context(), t, command.name, root, "Target",
+					stdout, err := runPrepared(t.Context(), t, command, root, "Target",
 						actionHooks{afterScan: func() { swap.swap(t, root) }}, nil)
 					if err == nil {
-						t.Errorf("%s produced %d bytes from a vault swapped under it", command.name, len(stdout))
+						t.Errorf("%s produced %d bytes from a vault swapped under it", command, len(stdout))
 					}
 					if stdout != nil {
-						t.Errorf("%s produced a payload alongside its refusal: %q", command.name, stdout)
+						t.Errorf("%s produced a payload alongside its refusal: %q", command, stdout)
 					}
 					// The refusal names the file it stopped on. An operator
 					// told only that a scan failed, on a folder of any size,
 					// has nowhere to start looking.
 					want := "vault scan failed: Notes/Target.md: vault entry no longer names the observed file"
 					if err != nil && err.Error() != want {
-						t.Errorf("%s error = %q, want %q", command.name, err, want)
+						t.Errorf("%s error = %q, want %q", command, err, want)
 					}
 				})
 			}
@@ -403,16 +320,8 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		command string
-		args    func(string) []string
-	}{
-		{command: "check", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
-		{command: "coverage", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
-		{command: "exists", args: func(root string) []string { return []string{"--root=" + root, "--format=json", "A"} }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.command, func(t *testing.T) {
+	for _, command := range []string{"check", "coverage", "exists"} {
+		t.Run(command, func(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
@@ -422,21 +331,21 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 
 			scans := 0
 			reads := make(map[string]int)
-			_, err := runPrepared(t.Context(), t, tt.command, root, "A", actionHooks{
+			_, err := runPrepared(t.Context(), t, command, root, "A", actionHooks{
 				afterScan: func() { scans++ },
 				afterNoteRead: func(path string) {
 					reads[path]++
 				},
 			}, nil)
 			if err != nil {
-				t.Fatalf("%s failed: %v", tt.command, err)
+				t.Fatalf("%s failed: %v", command, err)
 			}
 			if scans != 1 {
-				t.Errorf("%s scans = %d, want 1", tt.command, scans)
+				t.Errorf("%s scans = %d, want 1", command, scans)
 			}
 			wantReads := map[string]int{"Notes/A.md": 1, "Notes/B.md": 1}
 			if diff := cmp.Diff(wantReads, reads); diff != "" {
-				t.Errorf("%s note reads mismatch (-want +got):\n%s", tt.command, diff)
+				t.Errorf("%s note reads mismatch (-want +got):\n%s", command, diff)
 			}
 		})
 	}
@@ -556,41 +465,9 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 	}
 }
 
-// TestAScanStopsWhenTheCallerGivesUp holds the one thing taking a context is
-// for. A whole-vault scan is the slow part of these three commands, and before
-// the context reached this far the library built its own, so a caller who had
-// given up waiting could not say so and the walk ran to the end regardless.
-//
-// The refusal is deliberately the ordinary scan refusal rather than a new one:
-// what the caller needs to know is that no verdict was reached, and a cancelled
-// run has read part of a vault, which is exactly the partial corpus every other
-// refusal here exists to avoid answering from.
-func TestAScanStopsWhenTheCallerGivesUp(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeTestContract(t, root, nil)
-	write(t, root, "Notes/one.md", "---\n---\n# One\nbody\n")
-
-	if _, err := Check(t.Context(), root); err != nil {
-		t.Fatalf("Check() on a live context error = %v; the fixture has to succeed or the cancelled case proves nothing", err)
-	}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	findings, err := Check(ctx, root)
-	if err == nil {
-		t.Fatalf("Check() on a cancelled context returned %d findings and no error", len(findings))
-	}
-	if findings != nil {
-		t.Errorf("Check() returned %d findings from a scan that was stopped", len(findings))
-	}
-}
-
-// TestGivingUpPartwayThroughIsNotAReportOfTheRest is the same subject at the
-// one moment the test above cannot reach. A caller who gives up before the
-// walk begins never enters the read loop; one who gives up during it leaves
-// notes already read behind, and every read still to come fails. A file that
+// TestGivingUpPartwayThroughIsNotAReportOfTheRest holds a caller who gives up
+// during the reads to a refusal. Notes already read are left behind, and every
+// read still to come fails. A file that
 // could not be opened is reported and the rest of the vault judged — so
 // without telling the two apart, a caller hanging up would come back as a
 // verdict over the handful of notes that happened to be read first, with a

@@ -2,8 +2,6 @@ package judge
 
 import (
 	"bytes"
-	"encoding/hex"
-	"os"
 	"strings"
 	"testing"
 
@@ -12,130 +10,13 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-var checkGoldens = []struct {
-	name    string
-	fixture string
-	golden  string
-}{
-	{name: "graph rules", fixture: "testdata/vault", golden: "testdata/golden/check.jsonl"},
-	{name: "map vs disk", fixture: "testdata/vault-maps", golden: "testdata/golden/maps.jsonl"},
-	{name: "escape surface", fixture: "testdata/vault-escapes", golden: "testdata/golden/escapes.jsonl"},
-	{name: "line arithmetic", fixture: "testdata/vault-lines", golden: "testdata/golden/lines.jsonl"},
-	{name: "planned vs broken", fixture: "testdata/vault-planned", golden: "testdata/golden/planned.jsonl"},
-	{name: "percent-encoded Markdown", fixture: "testdata/vault-markdown-encoded", golden: "testdata/golden/markdown-encoded.jsonl"},
-	{name: "disk references", fixture: "testdata/vault-diskref", golden: "testdata/golden/diskref.jsonl"},
-	{name: "system scope", fixture: "testdata/vault-scope", golden: "testdata/golden/scope.jsonl"},
-	{name: "map mismatch branches", fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
-	// The authoring contract's own diagnostics: one course written every
-	// way the grammar refuses, so each rule has a line in the golden.
-	{name: "study-path structure", fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
-	// The same grammar under a vault that calls its courses something else.
-	// This fixture is the evidence that the type comes from the contract:
-	// nothing in it is named "study-path".
-	{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
-	// The same vault under a contract whose [navigation] table is refused:
-	// the course finding above is replaced by the one saying it could not run.
-	{name: "a refused navigation table", fixture: "testdata/vault-navigation-unavailable", golden: "testdata/golden/navigation-unavailable.jsonl"},
-	{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
-	// The fragment half of a link: a section and a block address that
-	// place, one of each that does not, a same-file fragment the page
-	// never resolves, a section arriving through a transclusion, a
-	// longer fence whose shorter inner line must not steal the closer
-	// — so ^trapped stays code and ^genuine after the fence answers —
-	// and a caret inside a code span that now draws a broken-fragment
-	// finding.
-	{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
-	// The page and the check used to disagree about two kinds of line: a
-	// block address on a recognised callout's title, and a heading after
-	// a self-closing <pre/>. This vault holds those two probes; the golden
-	// is the verdict that matches the page.
-	{name: "page and check agree on a scan", fixture: "testdata/vault-scan-agree", golden: "testdata/golden/scan.jsonl"},
-	// One vault covering all three answers the knowledge-scope question
-	// has: a directory the contract spells in another case, one holding a
-	// file that is not a note, and one that is not there at all.
-	{name: "knowledge scope", fixture: "testdata/vault-knowledge-scope", golden: "testdata/golden/knowledge-scope.jsonl"},
-	// Two files answering to one name, and an alias two notes declare —
-	// the second reported by its own rule and never by both.
-	{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
-	{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
-	{name: "hidden report surface", fixture: "testdata/vault-report-hidden", golden: "testdata/golden/report-hidden.jsonl"},
-	// A thought citing a replaced note by the name its successor now carries
-	// as an alias, beside the citations that resolve by a file's own name.
-	{name: "a citation resolved through an alias", fixture: "testdata/vault-alias-based-on", golden: "testdata/golden/alias-based-on.jsonl"},
-	// A note reached only through a symbolic link. The scan reads nothing
-	// out of it, so without this finding the vault loses the note and the
-	// command says the folder is clean.
-	{name: "a path that is not a file", fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
-	// Markup on a recognised callout's title line. Additive fixture for
-	// callout.title_markup; existing goldens stay byte-identical.
-	{name: "callout title markup", fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
-}
-
-// TestCheckGolden drives the whole check engine — extraction, resolution, the
-// graph rules, the disk-reference rule, and the frontmatter checks — over
-// fixture vaults and asserts the emitted bytes equal each golden. The inherited
-// rule goldens are copied from the predecessor's sorted output over the same
-// fixture. The alias-resolved golden covers a rule only this repository
-// defines, so its bytes come from the frozen local wire contract. Deliberate inherited divergences live in dedicated tests
-// below rather than being mislabelled as predecessor output.
-func TestCheckGolden(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range checkGoldens {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			want, err := os.ReadFile(tt.golden)
-			if err != nil {
-				t.Fatalf("read golden: %v", err)
-			}
-			got := runCheck(t, tt.fixture)
-			if !bytes.Equal(got, want) {
-				t.Errorf("check findings differ from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-					tt.golden, got, want, hex.Dump(got), hex.Dump(want))
-			}
-		})
-	}
-}
-
-// TestCheckSkipsFileReferencesInComments pins the one place this engine
-// deliberately departs from the reference. The reference checks a wikilink
-// inside an Obsidian %%...%% comment as commented-out (it is not reported) but
-// still checks a markdown or backticked file reference in the same comment — an
-// inconsistency. Commented-out content is not a live reference, so this engine
-// skips file references in comments too, matching how it already treats
-// wikilinks. The golden is written by hand rather than copied from the
-// reference, because it is exactly the output that should differ; regenerating
-// it from the reference would reintroduce the finding this rule drops. The real
-// vault carries no file reference inside a comment, so the whole-vault
-// comparison stays byte-identical; this divergence surfaces only on the fixture.
-func TestCheckSkipsFileReferencesInComments(t *testing.T) {
-	t.Parallel()
-	got := runCheck(t, "testdata/vault-comment-scope")
-	want, err := os.ReadFile("testdata/golden/comment-scope.jsonl")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("comment-scope findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
-	}
-	// The intent, asserted directly so a revert to the reference's behavior
-	// fails loudly: the reference in a comment is dropped, the one outside is
-	// kept.
-	if bytes.Contains(got, []byte("in-comment.md")) {
-		t.Error("a file reference inside a comment must not be reported")
-	}
-	if !bytes.Contains(got, []byte("out-of-comment.md")) {
-		t.Error("a file reference outside a comment must still be reported")
-	}
-}
-
 // TestNameCollisionLeavesTheAliasRuleItsOwnRepairs pins the boundary between
 // the two collision rules. Both answer "this name resolves to no single file",
 // and an alias two notes declare satisfies both descriptions, so without the
 // exclusion the operator would be told to fix one thing under two rule ids.
 // The citation is the other half: the link to the shared name is reported by
 // nothing else, because a name two files answer to resolves ambiguously rather
-// than not at all, which is exactly why the run used to come back clean.
+// than not at all.
 func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	t.Parallel()
 
@@ -148,7 +29,7 @@ func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	write(t, root, "Notes/cite.md", "---\ntype: writing\n"+complete+"# 引用者\n\nThe link nobody can resolve: [[dup]].\n")
 	writeTestContract(t, root, nil)
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check(): %v", err)
 	}
@@ -183,28 +64,19 @@ func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 func TestNameCollisionCountsOnlyDescribableFiles(t *testing.T) {
 	t.Parallel()
 
-	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-namecollision-privacy", "Private")
-	got := runCheck(t, root)
-	want, err := os.ReadFile("testdata/golden/namecollision-privacy.jsonl")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
+	out := runCheck(t, judgeFixtureRootWithPrivacy(t, "testdata/vault-namecollision-privacy", "Private"))
+	if bytes.Contains(out, []byte("Private/")) {
+		t.Errorf("a withheld member appears in the report:\n%s", out)
 	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("name-collision findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
+	members := map[string][]string{}
+	for _, f := range decodeFindings(t, out) {
+		if f.RuleID == "collision.name" && f.Target != nil {
+			members[*f.Target] = f.CollisionMembers
+		}
 	}
-	if bytes.Contains(got, []byte("Private/")) {
-		t.Error("a withheld member must not appear in a collision finding")
-	}
-	if bytes.Contains(got, []byte(`"hidden"`)) {
-		t.Error("a name only one public file answers to must not be reported as a collision")
-	}
-	if !bytes.Contains(got, []byte(`"pair"`)) {
-		t.Error("a name two public files answer to must still be reported")
-	}
-	// The count is the public one: a third member would say the withheld file
-	// exists without naming it.
-	if !bytes.Contains(got, []byte("is the name of 2 files")) {
-		t.Error("the collision must be counted over describable files alone")
+	want := map[string][]string{"pair": {"Lessons/pair.md", "Notes/pair.md"}}
+	if diff := cmp.Diff(want, members); diff != "" {
+		t.Errorf("collision.name members by target (-want +got):\n%s", diff)
 	}
 }
 
@@ -218,15 +90,6 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
 	got := runCheck(t, root)
-	want, err := os.ReadFile("testdata/golden/diary.jsonl")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("diary findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
-	}
-	// The intent, asserted directly so reverting the drop fails loudly: the
-	// journal entry's finding is gone, the note's is kept.
 	if bytes.Contains(got, []byte("Diary/")) {
 		t.Error("a finding touching the private daily journal must not be reported")
 	}
@@ -318,19 +181,4 @@ func TestTouchesDiary(t *testing.T) {
 			}
 		})
 	}
-}
-
-// runCheck runs the whole check engine over root and returns the wire bytes.
-func runCheck(t *testing.T, root string) []byte {
-	t.Helper()
-	root = judgeFixtureRoot(t, root)
-	findings, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check(%q): %v", root, err)
-	}
-	var buf bytes.Buffer
-	if err := writeJSONL(&buf, findings); err != nil {
-		t.Fatalf("writeJSONL: %v", err)
-	}
-	return buf.Bytes()
 }

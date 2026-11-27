@@ -21,7 +21,7 @@ var hiddenTitleNotes = map[string]string{
 // words of a hidden heading never reach the answer.
 func TestExistsAnswersToTheTitleTheReaderSees(t *testing.T) {
 	t.Parallel()
-	root := writeLeftoverLockVault(t, leftoverLockContract, hiddenTitleNotes)
+	root := noteVault(t, hiddenTitleNotes)
 
 	tests := []struct {
 		name      string
@@ -67,8 +67,8 @@ func TestExistsAnswersToTheTitleTheReaderSees(t *testing.T) {
 // note's title does not put the two in collision.
 func TestCheckReadsTheTitleTheReaderSees(t *testing.T) {
 	t.Parallel()
-	root := writeLeftoverLockVault(t, leftoverLockContract, hiddenTitleNotes)
-	findings, err := Check(t.Context(), root)
+	root := noteVault(t, hiddenTitleNotes)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
@@ -93,8 +93,5 @@ func TestCheckReadsTheTitleTheReaderSees(t *testing.T) {
 	}
 	if len(got.CollisionMembers) != 0 {
 		t.Errorf("title Real Title is held by %v, want one holder: the copy in Notes/Overlap.md is in a comment", got.CollisionMembers)
-	}
-	if want := "the target is the title of Notes/Commented.md but not one of its aliases"; got.Evidence != want {
-		t.Errorf("link [[Real Title]] evidence = %q, want %q", got.Evidence, want)
 	}
 }

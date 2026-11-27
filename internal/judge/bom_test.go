@@ -8,11 +8,15 @@ import (
 
 func TestByteOrderMarkDoesNotHideTheFirstSectionFromTheJudge(t *testing.T) {
 	t.Parallel()
-	for _, prefix := range []string{"", "---\ntitle: Note\n---\n", "---\r\ntitle: Note\r\n---\r\n"} {
-		t.Run(prefix, func(t *testing.T) {
+	for _, tt := range []struct{ name, prefix string }{
+		{name: "no frontmatter", prefix: ""},
+		{name: "frontmatter", prefix: "---\ntitle: Note\n---\n"},
+		{name: "crlf frontmatter", prefix: "---\r\ntitle: Note\r\n---\r\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ruleTargets(fragmentRun(t, map[string]string{
-				"N.md": "\xef\xbb\xbf" + prefix + "# BOM heading\n\nbody\n",
+			got := findingKeys(fragmentRun(t, map[string]string{
+				"N.md": "\xef\xbb\xbf" + tt.prefix + "# BOM heading\n\nbody\n",
 				"C.md": "[[N#BOM heading]]\n\n[[N#Absent]]\n",
 			}))
 			want := []string{"link.section_missing N#Absent"}

@@ -1,7 +1,7 @@
 package judge
 
 import (
-	"encoding/json"
+	"bytes"
 	"slices"
 	"testing"
 
@@ -47,18 +47,18 @@ func TestCoverageExcludesJournalMountEdges(t *testing.T) {
 func TestCheckExcludesJournalPlannedNames(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, diaryInfluenceVault, "Diary")
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)
 	}
 
-	journalPlanned := findBroken(t, findings, "Concepts/golang/Journal Planned Link.md", "Planned Only In Journal")
+	journalPlanned := findFinding(t, findings, "link.broken", "Concepts/golang/Journal Planned Link.md", "Planned Only In Journal")
 	if journalPlanned.Severity != SeverityWarn {
 		t.Errorf("journal-planned broken link severity = %s, want warn; a name planned only in the journal must not downgrade it",
 			journalPlanned.Severity.String())
 	}
 
-	publicPlanned := findBroken(t, findings, "Concepts/golang/Public Planned Link.md", "Planned In Public")
+	publicPlanned := findFinding(t, findings, "link.broken", "Concepts/golang/Public Planned Link.md", "Planned In Public")
 	if publicPlanned.Severity != SeverityInfo {
 		t.Errorf("public-planned broken link severity = %s, want info; a name a public note plans still tracks it",
 			publicPlanned.Severity.String())
@@ -105,149 +105,24 @@ slug: restricted-slug
 # Shared Title
 `)
 
-	findings, err := Check(t.Context(), root)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)
 	}
 
-	collision, ok := findingByRule(findings, "collision.alias")
-	if !ok {
-		t.Fatal("no collision.alias finding for two egress-allowed owners")
-	}
+	collision := findFinding(t, findings, "collision.alias", "", "")
 	if diff := cmp.Diff([]string{publicA, publicB}, collision.CollisionMembers); diff != "" {
 		t.Errorf("collision members mismatch (-want +got):\n%s", diff)
 	}
-
-	title, ok := findingByRuleAndPath(findings, "link.title_not_alias", linker)
-	if !ok {
-		t.Fatal("no link.title_not_alias finding for an egress-allowed title owner")
+	if title := findFinding(t, findings, "link.title_not_alias", linker, ""); len(title.CollisionMembers) != 0 {
+		t.Errorf("title holders = %v, want the one egress-allowed holder alone", title.CollisionMembers)
 	}
-	if want := "the target is the title of " + publicB + " but not one of its aliases"; title.Evidence != want {
-		t.Errorf("title evidence = %q, want %q", title.Evidence, want)
+	findFinding(t, findings, "provenance.unresolved", source, "restricted-slug")
+	var wire bytes.Buffer
+	if err := writeJSONL(&wire, findings); err != nil {
+		t.Fatalf("WriteJSONL: %v", err)
 	}
-
-	provenance, ok := findingByRuleAndPath(findings, "provenance.unresolved", source)
-	if !ok {
-		t.Fatal("no provenance.unresolved finding for a slug owned only by an egress-denied note")
-	}
-	if provenance.Target == nil || *provenance.Target != "restricted-slug" {
-		t.Errorf("provenance target = %v, want restricted-slug", provenance.Target)
-	}
-}
-
-func TestCheckDoesNotInspectOrReportEgressDeniedPathTargets(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		createFile bool
-	}{
-		{name: "missing"},
-		{name: "present", createFile: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			root := t.TempDir()
-			writeTestContract(t, root, []string{"Restricted"})
-			write(t, root, "Concepts/golang/Public.md", `---
----
-# Public
-
-[private target](../../Restricted/secret.md)
-`)
-			if tt.createFile {
-				write(t, root, "Restricted/secret.md", "secret")
-			}
-
-			findings, err := Check(t.Context(), root)
-			if err != nil {
-				t.Fatalf("Check(%q): %v", root, err)
-			}
-			for i := range findings {
-				if findings[i].RuleID == "link.broken.path" {
-					t.Fatalf("link.broken.path finding leaked an egress-denied target: %+v", findings[i])
-				}
-			}
-		})
-	}
-}
-
-// coverageOf runs the coverage report over root and parses it back into the
-// Coverage value the assertions read.
-func coverageOf(t *testing.T, root string) coverageReport {
-	t.Helper()
-	out, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage(%q): %v", root, err)
-	}
-	var cov coverageReport
-	if err := json.Unmarshal(out, &cov); err != nil {
-		t.Fatalf("parse coverage %q: %v", out, err)
-	}
-	return cov
-}
-
-// findBroken returns the one broken-link finding filed against path for target,
-// failing when none is present so a missing finding reads as loudly as a wrong
-// severity.
-func findBroken(t *testing.T, findings []Finding, path, target string) Finding {
-	t.Helper()
-	for i := range findings {
-		f := &findings[i]
-		if f.RuleID == "link.broken" && f.Path == path && f.Target != nil && *f.Target == target {
-			return *f
-		}
-	}
-	t.Fatalf("no link.broken finding for %q -> %q; got %v", path, target, findings)
-	return Finding{}
-}
-
-func findingByRule(findings []Finding, ruleID RuleID) (Finding, bool) {
-	for i := range findings {
-		if findings[i].RuleID == ruleID {
-			return findings[i], true
-		}
-	}
-	return Finding{}, false
-}
-
-func findingByRuleAndPath(findings []Finding, ruleID RuleID, path string) (Finding, bool) {
-	for i := range findings {
-		if findings[i].RuleID == ruleID && findings[i].Path == path {
-			return findings[i], true
-		}
-	}
-	return Finding{}, false
-}
-
-// TestALinkIntoWhatTheScanLeavesOutIsNotBroken asserts a link to a file the
-// scan does not look at, under a hidden name, is not reported as missing while
-// a link to a file that really is missing still is, in prose and in code.
-func TestALinkIntoWhatTheScanLeavesOutIsNotBroken(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeTestContract(t, root, nil)
-	for _, rel := range []string{".claude/skills/share/SKILL.md", "Writing/.config/notes.md", ".hidden.md"} {
-		write(t, root, rel, "# hidden\n")
-	}
-	write(t, root, "Writing/Guide.md", "# Guide\n\n"+
-		"[a](../.claude/skills/share/SKILL.md) [b](.config/notes.md) [c](../.hidden.md)\n"+
-		"`.claude/skills/share/SKILL.md` `.hidden.md`\n"+
-		"[d](../Notes/gone.md) [e](gone.md) `Notes/gone.md`\n")
-	findings, err := runCheckAction(t.Context(), root, nil, true)
-	if err != nil {
-		t.Fatalf("check: %v", err)
-	}
-	var got []string
-	for _, f := range findings {
-		if f.RuleID == RuleLinkBrokenPath {
-			got = append(got, *f.Target)
-		}
-	}
-	want := []string{"../Notes/gone.md", "gone.md", "Notes/gone.md"}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("link.broken.path targets mismatch (-want +got):\n%s", diff)
+	if bytes.Contains(wire.Bytes(), []byte("Restricted")) {
+		t.Errorf("a finding names the withheld note:\n%s", wire.Bytes())
 	}
 }

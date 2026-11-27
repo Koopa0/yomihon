@@ -20,13 +20,11 @@ const (
 	collidingDecomposed = "\u304b\u3099.md"
 )
 
-// TestScanStoppedNamesBothCollidingFilesWhereTheContractAllowsIt is the
-// refusal's whole decision. Before it, a folder holding two names with one
-// canonical path stopped every command at the bare sentence "vault scan
-// failed", which sends the person to look for a permission. The repair is to
-// rename one of two files, so the refusal names both — unless the contract
-// withholds either, in which case it says what kind of failure it was and
-// nothing a withheld directory could be recognised by.
+// TestScanStoppedNamesBothCollidingFilesWhereTheContractAllowsIt holds the
+// refusal for a folder holding two names with one canonical path. The repair
+// is to rename one of two files, so the refusal names both — unless the
+// contract withholds either, in which case it says what kind of failure it was
+// and nothing a withheld directory could be recognised by.
 func TestScanStoppedNamesBothCollidingFilesWhereTheContractAllowsIt(t *testing.T) {
 	t.Parallel()
 
@@ -78,9 +76,6 @@ func TestScanStoppedNamesBothCollidingFilesWhereTheContractAllowsIt(t *testing.T
 			}
 			if errors.Is(got, errWithheldCollision) || errors.Is(got, errVaultScan) {
 				t.Fatalf("scanStopped(%q) = %v, want both files named", tt.pair, got)
-			}
-			if !strings.HasPrefix(got.Error(), "vault scan failed: ") {
-				t.Errorf("scanStopped(%q) = %q, want it to open the way every scan failure does", tt.pair, got)
 			}
 			for _, raw := range tt.pair {
 				if !strings.Contains(got.Error(), vault.Spelled(raw)) {

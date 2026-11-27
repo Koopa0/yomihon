@@ -2,7 +2,6 @@ package judge
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -10,47 +9,23 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// scopeLockContract is the Lock vault: one concept under Notes, one under
-// System/notes, and a System note whose type the contract refuses. The
-// folders.checked line is the only thing each case changes.
-const scopeLockContract = `[folders]
-KNOWLEDGE_DIRS
-templates = []
-skipped_files = ["README.md"]
-
-[enums]
-
-[fields]
-common = ["type", "based_on"]
-required = ["type"]
-
-[types.concept]
-
-[types.note]
-
-[rules]
-concept_requires_provenance = ["based_on"]
-
-[privacy]
-never_egress_dirs = []
-`
-
 const (
-	scopeLockKnowledgeDirs = "KNOWLEDGE_DIRS"
 	scopeLockSystemNote    = "System/notes/Probe.md"
 	scopeLockSystemConcept = "System/notes/Idea.md"
 	scopeLockNotesConcept  = "Notes/Kept.md"
 	scopeLockAwayNote      = "Away/Loose.md"
 )
 
-func writeScopeLockVault(t *testing.T, knowledgeDirsLine string) string {
+// writeScopeLockVault writes one concept under Notes, one under System/notes,
+// and two notes of a type the contract refuses, under the fixture contract
+// with its folders.checked line replaced by checkedLine, which is the only
+// thing each case changes.
+func writeScopeLockVault(t *testing.T, checkedLine string) string {
 	t.Helper()
 	root := t.TempDir()
-	text := strings.Replace(scopeLockContract, scopeLockKnowledgeDirs, knowledgeDirsLine, 1)
-	if text == scopeLockContract {
-		t.Fatal("scopeLockContract no longer contains KNOWLEDGE_DIRS")
-	}
-	write(t, root, schema.ContractRelPath, text)
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil, [2]string{
+		`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, checkedLine,
+	}))
 	write(t, root, scopeLockNotesConcept, "---\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n# Kept\nBody.\n")
 	write(t, root, scopeLockSystemConcept, "---\ntype: concept\nbased_on:\n  - \"[[Kept]]\"\n---\n# Idea\nBody.\n")
 	write(t, root, scopeLockSystemNote, "---\ntype: probe\n---\n# Probe\nBody.\n")
@@ -59,10 +34,11 @@ func writeScopeLockVault(t *testing.T, knowledgeDirsLine string) string {
 	return root
 }
 
-func findingPaths(findings []Finding, rule RuleID) []string {
+// enumPaths returns the sorted paths of the schema.enum findings.
+func enumPaths(findings []Finding) []string {
 	var paths []string
 	for i := range findings {
-		if findings[i].RuleID == rule {
+		if findings[i].RuleID == "schema.enum" {
 			paths = append(paths, findings[i].Path)
 		}
 	}
@@ -70,8 +46,8 @@ func findingPaths(findings []Finding, rule RuleID) []string {
 	return paths
 }
 
-// TestDefaultCheckFollowsDeclaredKnowledgeScope is the check half of the
-// Lock: with System declared, the default check reports the System finding;
+// TestDefaultCheckFollowsDeclaredKnowledgeScope holds the check to the declared
+// knowledge layer: with System declared, the default check reports the System finding;
 // with folders.checked omitted or set to [], every note is linted.
 func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
@@ -83,7 +59,7 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("check(default): %v", err)
 		}
-		got := findingPaths(defaultFindings, "schema.enum")
+		got := enumPaths(defaultFindings)
 		if diff := cmp.Diff([]string{scopeLockSystemNote}, got); diff != "" {
 			t.Errorf("default check schema.enum paths mismatch (-want +got):\n%s", diff)
 		}
@@ -104,7 +80,7 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 			if err != nil {
 				t.Fatalf("check(default): %v", err)
 			}
-			got := findingPaths(defaultFindings, "schema.enum")
+			got := enumPaths(defaultFindings)
 			if diff := cmp.Diff([]string{scopeLockAwayNote, scopeLockSystemNote}, got); diff != "" {
 				t.Errorf("default check schema.enum paths mismatch (-want +got):\n%s", diff)
 			}
@@ -115,63 +91,27 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 	}
 }
 
-// TestCoverageFollowsDeclaredKnowledgeScope is the coverage half of the Lock:
-// with System declared, coverage counts the System concept.
+// TestCoverageFollowsDeclaredKnowledgeScope holds coverage to the declared
+// knowledge layer: with System declared, coverage counts the System concept.
 func TestCoverageFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
 	root := writeScopeLockVault(t, `checked = ["Notes", "System"]`)
-	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if exit != 0 {
-		t.Errorf("RunCoverage() exit = %d, want 0", exit)
-	}
-	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":2,"orphan":0}],"pending_mount":["Notes/Kept.md","System/notes/Idea.md"],"orphans":[]}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
+	wantMounts(t, coverageOf(t, root),
+		[]domainCoverage{{Domain: "(none)", Concepts: 2, PendingMount: 2}},
+		[]string{"Notes/Kept.md", "System/notes/Idea.md"}, nil)
 }
 
 // TestCoverageIgnoresMountSourcesOutsideTheDeclaredLayer holds that a map
-// sitting outside the declared knowledge layer cannot decide a public
-// concept's mount state. The privacy cut already treated a withheld source
-// that way; the knowledge cut is the same silence.
+// sitting outside the declared knowledge layer cannot decide a concept's mount
+// state, the same silence the privacy cut keeps for a withheld source.
 func TestCoverageIgnoresMountSourcesOutsideTheDeclaredLayer(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `[folders]
-checked = ["Notes"]
-templates = []
-
-[enums]
-
-[fields]
-common = ["type", "based_on"]
-required = ["type"]
-
-[types.concept]
-
-[types.atlas]
-role = "map"
-
-[rules]
-concept_requires_provenance = ["based_on"]
-
-[privacy]
-never_egress_dirs = []
-`)
+	write(t, root, schema.ContractRelPath, atlasContract(t, `["Notes"]`))
 	write(t, root, "Notes/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Atlas]]\"\n---\n# Idea\nBody.\n")
 	write(t, root, "Maps/Atlas.md", "---\ntype: atlas\n---\n# Atlas\n\n- [[Idea]]\n")
 
-	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Idea.md"]}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
+	wantMounts(t, coverageOf(t, root), []domainCoverage{{Domain: "(none)", Concepts: 1, Orphan: 1}}, nil, []string{"Notes/Idea.md"})
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/egress"
@@ -33,6 +34,20 @@ const (
 	// have no such view and refuse it.
 	FormatMarkdown
 )
+
+// String names a format; a value outside the three constants panics.
+func (f Format) String() string {
+	switch f {
+	case FormatJSON:
+		return "json"
+	case FormatHuman:
+		return "human"
+	case FormatMarkdown:
+		return "md"
+	default:
+		panic("judge: unknown Format: " + strconv.Itoa(int(f)))
+	}
+}
 
 // CheckOptions is the parsed check command. Paths only filter the output; the
 // graph is always built from the whole root. All restores findings that touch

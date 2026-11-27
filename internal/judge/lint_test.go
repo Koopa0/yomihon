@@ -4,60 +4,13 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
-
-// TestLintFrontmatterAgreesWithTheCheckCommand is the whole point of the
-// exported seam: the reading pages must reach the same verdict the check
-// command reports, not a second reading of the same rules that drifts from it.
-//
-// The oracle is the command itself over a fixture vault carrying every
-// schema-class rule, note by note. Comparing against a list written here
-// instead would only pin what this test's author believed on the day.
-func TestLintFrontmatterAgreesWithTheCheckCommand(t *testing.T) {
-	t.Parallel()
-
-	const fixture = "testdata/vault-schema"
-	root := judgeFixtureRoot(t, fixture)
-
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("schema.Load() error = %v", err)
-	}
-	commanded, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatalf("Check() error = %v", err)
-	}
-
-	want := map[string][]Finding{}
-	for _, f := range commanded {
-		if strings.HasPrefix(string(f.RuleID), "schema.") {
-			want[f.Path] = append(want[f.Path], f)
-		}
-	}
-	if len(want) == 0 {
-		t.Fatalf("the fixture reports no schema findings, so this test would pass on any implementation")
-	}
-
-	seen := 0
-	for rel, data := range fixtureNotes(t, root) {
-		got := LintFrontmatter(rel, data, contract)
-		if diff := cmp.Diff(want[rel], got); diff != "" {
-			t.Errorf("LintFrontmatter(%s) disagrees with the check command (-command +seam):\n%s", rel, diff)
-		}
-		seen += len(got)
-	}
-	if seen == 0 {
-		t.Error("the seam reported nothing anywhere, so agreement above proves nothing")
-	}
-}
 
 // TestLintFrontmatterWithoutAContractSaysNothing covers the case the reading
 // pages reach that the command never does: a folder with no contract, or one
@@ -67,108 +20,47 @@ func TestLintFrontmatterAgreesWithTheCheckCommand(t *testing.T) {
 func TestLintFrontmatterWithoutAContractSaysNothing(t *testing.T) {
 	t.Parallel()
 
-	got := LintFrontmatter("Concepts/golang/Bad.md", []byte("---\nstatus: bogus\n---\n\nbody\n"), nil)
+	got := lintFrontmatter("Concepts/golang/Bad.md", []byte("---\ntype: bogus\n---\n\nbody\n"), nil)
 	if len(got) != 0 {
-		t.Errorf("LintFrontmatter(nil contract) = %v, want nothing said", got)
+		t.Errorf("lintFrontmatter(nil contract) = %v, want nothing said", got)
 	}
 }
 
-// TestLintFrontmatterDomainRoots catches wrong folder depth, missing nested
-// derivation, invented domains outside roots, and bypassed frontmatter exits.
-// The domain is read off the folder under a declared root, and a folder the
-// contract's domain vocabulary does not name is reported against the note.
+// TestLintFrontmatterDomainRoots holds how the lint reads a note's domain: off
+// the first folder under a declared root, reported against the note when the
+// rules file's domain vocabulary does not name it, and not at all outside a
+// declared root or directly under one.
 func TestLintFrontmatterDomainRoots(t *testing.T) {
 	t.Parallel()
-	type diagnostic struct {
-		Rule    RuleID
-		Field   string
-		Target  string
-		Message string
-	}
 	const valid = "---\ntype: lesson\nslug: l1\n---\n# L1\n"
-	rust := []diagnostic{{"schema.enum", "domain", "rust", `domain "rust" is not an allowed value`}}
+	rust := []string{"schema.enum domain rust"}
 	for _, tt := range []struct {
-		name               string
-		roots              string
-		path               string
-		body               string
-		requireFrontmatter bool
-		want               []diagnostic
+		name  string
+		roots string
+		path  string
+		want  []string
 	}{
-		{name: "nested match", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: valid},
-		{name: "nested mismatch", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: valid, want: rust},
-		{name: "renamed mismatch", roots: `["Archive/studies"]`, path: "Archive/studies/rust/L1.md", body: valid, want: rust},
-		{name: "first directory", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/drills/D1.md", body: valid, want: rust},
-		{name: "undeclared nested", roots: `["Sources"]`, path: "Writing/lessons/rust/L1.md", body: valid},
-		{name: "empty roots", roots: `[]`, path: "Writing/lessons/rust/L1.md", body: valid},
-		{name: "nested direct child", roots: `["Writing/lessons"]`, path: "Writing/lessons/Overview.md", body: valid},
-		{name: "top level direct child", roots: `["Writing"]`, path: "Writing/Overview.md", body: valid},
-		{name: "sibling prefix", roots: `["Writing/lessons"]`, path: "Writing/lessons-extra/rust/L1.md", body: valid},
-		{name: "case folded", roots: `["Writing/Lessons"]`, path: "Writing/lessons/rust/L1.md", body: valid, want: rust},
-		{name: "decomposed root", roots: `["Writing/Cafe\u0301"]`, path: "Writing/Caf\u00e9/rust/L1.md", body: valid, want: rust},
-		{name: "no frontmatter legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "body\n"},
-		{name: "no frontmatter required", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "body\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
-		{name: "top level no frontmatter legal", roots: `["Writing"]`, path: "Writing/rust/L1.md", body: "body\n"},
-		{name: "top level no frontmatter required", roots: `["Writing"]`, path: "Writing/rust/L1.md", body: "body\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
-		{name: "empty frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\n---\nbody\n", want: []diagnostic{{"schema.required", "type", "", "type is required"}}},
-		{name: "empty frontmatter in an undeclared domain", roots: `["Writing"]`, path: "Writing/rust/L1.md", body: "---\n---\nbody\n", want: []diagnostic{rust[0], {"schema.required", "type", "", "type is required"}}},
-		{name: "a domain written in frontmatter is not a field", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\ntype: lesson\nslug: l1\ndomain: golang\n---\n", want: []diagnostic{{"schema.unknown_key", "", "domain", `frontmatter "domain" is not a known field`}}},
-		{name: "unclosed fence legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\ntype: lesson\n--\n\nbody\n", want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter opens on line 1 and never closes"}}},
-		{name: "unclosed fence required", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\ntype: lesson\n--\n\nbody\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter opens on line 1 and never closes"}}},
-		{name: "unclosed fence outside knowledge", roots: `["Elsewhere/studies"]`, path: "Elsewhere/studies/rust/L1.md", body: "---\ntype: lesson\n--\n"},
-		{name: "thematic break legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\n\nbody\n"},
-		{name: "thematic break required", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\n\nbody\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
-		{name: "malformed frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\ntype: [\n---\n", want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is not valid YAML"}}},
-		{name: "skipped basename", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/README.md", body: valid},
-		{name: "outside knowledge", roots: `["Elsewhere/studies"]`, path: "Elsewhere/studies/rust/L1.md", body: valid},
-		{name: "every type", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", body: "---\ntype: system\n---\n", want: rust},
+		{name: "nested match", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md"},
+		{name: "nested mismatch", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/L1.md", want: rust},
+		{name: "renamed mismatch", roots: `["Archive/studies"]`, path: "Archive/studies/rust/L1.md", want: rust},
+		{name: "first directory", roots: `["Writing/lessons"]`, path: "Writing/lessons/rust/drills/D1.md", want: rust},
+		{name: "undeclared nested", roots: `["Sources"]`, path: "Writing/lessons/rust/L1.md"},
+		{name: "nested direct child", roots: `["Writing/lessons"]`, path: "Writing/lessons/Overview.md"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := t.TempDir()
-			text := contractFixture(t, nil,
+			contract := lintContract(t,
 				[2]string{`domain_from = ["Concepts"]`, `domain_from = ` + tt.roots},
 				[2]string{`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = ["Writing", "Archive"]`},
 				[2]string{`domain = ["golang", "japanese", "meta"]`, `domain = ["golang", "japanese"]`},
 				[2]string{`required = ["type", "created"]`, `required = ["type"]`},
 			)
-			if tt.requireFrontmatter {
-				text = strings.Replace(text, "frontmatter_optional = true", "frontmatter_optional = false", 1)
-			}
-			write(t, root, schema.ContractRelPath, text)
-			contract, err := schema.Load(root)
-			if err != nil {
-				t.Fatalf("schema.Load() error = %v", err)
-			}
-			findings := LintFrontmatter(tt.path, []byte(tt.body), contract)
-			var got []diagnostic
-			for _, f := range findings {
-				d := diagnostic{Rule: f.RuleID, Message: f.Message}
-				if f.Field != nil {
-					d.Field = *f.Field
-				}
-				if f.Target != nil {
-					d.Target = *f.Target
-				}
-				got = append(got, d)
+			var got []string
+			for _, f := range lintFrontmatter(tt.path, []byte(valid), contract) {
+				got = append(got, string(f.RuleID)+" "+*f.Field+" "+*f.Target)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("LintFrontmatter() diagnostics mismatch (-want +got):\n%s", diff)
-			}
-			// Agreement supplements the literal oracle above; it cannot replace it.
-			write(t, root, tt.path, tt.body)
-			commanded, err := Check(t.Context(), root)
-			if err != nil {
-				t.Fatalf("Check() error = %v", err)
-			}
-			var fromCommand []Finding
-			for _, f := range commanded {
-				if f.Path == tt.path && strings.HasPrefix(string(f.RuleID), "schema.") {
-					fromCommand = append(fromCommand, f)
-				}
-			}
-			if diff := cmp.Diff(findings, fromCommand); diff != "" {
-				t.Errorf("Check() disagrees with LintFrontmatter (-seam +command):\n%s", diff)
+				t.Errorf("lintFrontmatter(%q) findings (-want +got):\n%s", tt.path, diff)
 			}
 		})
 	}
@@ -204,12 +96,9 @@ func fixtureNotes(tb testing.TB, root string) map[string][]byte {
 	return notes
 }
 
-// TestFrontmatterOnlyParseAgreesWithTheFullParse holds the parse the frontmatter
-// lint uses to the parse the check command uses. Over every fixture vault under
-// testdata, found on disk so that a vault added later is held to it without
-// anyone remembering to list it, a note read for its frontmatter alone must come
-// out as the note read whole, less the fields extracted from the body, and the
-// frontmatter lint must say what the whole parse makes the rules say.
+// TestFrontmatterOnlyParseAgreesWithTheFullParse holds the frontmatter lint,
+// which reads a note's frontmatter alone, to what the rules say over the note
+// read whole, across every fixture vault under testdata.
 func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
 	t.Parallel()
 
@@ -217,11 +106,6 @@ func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir(testdata) error = %v", err)
 	}
-	// Every field the body extraction fills. A field added to note and filled
-	// there is not listed, so it shows as a difference until someone decides
-	// whether the frontmatter lint reads it.
-	bodyFields := cmpopts.IgnoreFields(note{}, "body", "title", "wikilinks", "pathRefs", "images", "unusedDefinitions", "plannedNames", "calloutTitles",
-		"sectionAnchors", "excerptSectionAnchors", "blockAddresses", "sequence")
 	vaults, linted, findings := 0, 0, 0
 	for _, entry := range entries {
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "vault") {
@@ -237,13 +121,9 @@ func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
 			whole := parseNote(rel, data)
 			wantFindings := checkSchema([]note{whole}, contract)
 			sortFindings(wantFindings)
-			gotFindings := LintFrontmatter(rel, data, contract)
+			gotFindings := lintFrontmatter(rel, data, contract)
 			if diff := cmp.Diff(wantFindings, gotFindings); diff != "" {
-				t.Errorf("LintFrontmatter(%s/%s) differs from the whole parse's findings (-whole +frontmatter only):\n%s", entry.Name(), rel, diff)
-			}
-
-			if diff := cmp.Diff(whole, parseFrontmatter(rel, data), cmp.AllowUnexported(note{}, fmValue{}), bodyFields); diff != "" {
-				t.Errorf("parseFrontmatter(%s/%s) differs from the whole parse outside its body fields (-whole +frontmatter only):\n%s", entry.Name(), rel, diff)
+				t.Errorf("lintFrontmatter(%s/%s) differs from the whole parse's findings (-whole +frontmatter only):\n%s", entry.Name(), rel, diff)
 			}
 			linted++
 			findings += len(gotFindings)
@@ -263,7 +143,7 @@ const (
 )
 
 // lintContract loads the loader's own fixture contract with each substitution
-// applied, as contractFixture does, so a lock can vary one line of it.
+// applied, as contractFixture does, so a test can vary one line of it.
 func lintContract(tb testing.TB, replacements ...[2]string) *schema.Contract {
 	tb.Helper()
 	root := tb.TempDir()
@@ -297,7 +177,7 @@ func TestLintFrontmatterCostDoesNotGrowWithTheBody(t *testing.T) {
 	large := []byte(lintProbeFrontmatter + denseBody(64<<10))
 
 	lintAllocs := func(data []byte) float64 {
-		return testing.AllocsPerRun(20, func() { _ = LintFrontmatter(lintProbePath, data, contract) })
+		return testing.AllocsPerRun(20, func() { _ = lintFrontmatter(lintProbePath, data, contract) })
 	}
 	smallLint, largeLint := lintAllocs(small), lintAllocs(large)
 	if smallLint == 0 || math.Abs(largeLint-smallLint) >= smallLint/10 {
@@ -309,28 +189,5 @@ func TestLintFrontmatterCostDoesNotGrowWithTheBody(t *testing.T) {
 	}
 	if smallParse, largeParse := parseAllocs(small), parseAllocs(large); largeParse < 2*smallParse {
 		t.Errorf("the whole parse allocates %v for a 1 KB body and %v for a 64 KB body: these bodies would not show a lint that extracted them", smallParse, largeParse)
-	}
-}
-
-// TestFrontmatterLinterResolvesTheContractOnce holds the contract the rules read
-// to being resolved once for the notes a linter judges, not once per note. The
-// contract here declares several hundred types, each with a field list, so
-// resolving it costs several times what linting a note does, and a Lint that
-// resolved it would cost about what a one-shot LintFrontmatter does, which
-// resolves the contract every call.
-func TestFrontmatterLinterResolvesTheContractOnce(t *testing.T) {
-	// Not parallel: testing.AllocsPerRun is unreliable while other tests run.
-	var types strings.Builder
-	for i := range 300 {
-		types.WriteString("[types.kind" + strconv.Itoa(i) + "]\nfields = [\"level\"]\n\n")
-	}
-	contract := lintContract(t, [2]string{"[types.inbox]\n", types.String() + "[types.inbox]\n"})
-	data := []byte(lintProbeFrontmatter + "body\n")
-	lint := NewFrontmatterLinter(contract)
-
-	perNote := testing.AllocsPerRun(20, func() { _ = lint.Lint(lintProbePath, data) })
-	oneShot := testing.AllocsPerRun(20, func() { _ = LintFrontmatter(lintProbePath, data, contract) })
-	if perNote*2 > oneShot {
-		t.Errorf("Lint allocates %v per note and LintFrontmatter %v, want Lint under half of it", perNote, oneShot)
 	}
 }

@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -12,39 +11,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-// Check scans the vault rooted at root for corpus-level findings and returns
-// them in the deterministic wire order. The graph is always built from the
-// whole vault; findings touching a contract-declared private path are dropped
-// in every scope, and the default scope also drops findings that touch
-// nothing inside the declared knowledge layer. A missing or privacy-incomplete
-// contract is an error, because agent-facing output has no authority without
-// one. A cancelled ctx stops the scan at the contract load, the walk, or any
-// note read.
-func Check(ctx context.Context, root string) ([]Finding, error) {
-	return runCheckAction(ctx, root, nil, false)
-}
-
-// runCheckAction is the whole-engine scan, with the two knobs a command line
-// can turn on top of what Check describes: a scope filter keeping only findings
-// that touch one of the given paths, and all, which keeps the findings
-// touching nothing inside the declared knowledge layer. Neither widens what
-// is read — the graph is built from the whole vault either way — and neither
-// reaches a path the contract withholds, which is dropped ahead of both.
-func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
-	a, err := openAction(ctx, root, actionHooks{})
-	if err != nil {
-		return nil, err
-	}
-	findings, err := checkAction(a, paths, all)
-	if err != nil {
-		return nil, a.abort(err)
-	}
-	if err := a.finish(); err != nil {
-		return nil, err
-	}
-	return findings, nil
-}
 
 func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	idx := buildIndex(a.notes, a.unreadable, a.resources)
