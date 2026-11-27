@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -100,7 +99,7 @@ func calloutTitleMarkupFinding(n *note, title calloutTitle) Finding {
 		SuggestedAction: "move the markup into the callout body, or write the title as plain text",
 		SourceRule:      sourceYomihon,
 		Target:          new(title.title),
-		Fingerprint:     fingerprint(calloutTitleMarkupRule, n.path, strconv.Itoa(title.line)+"\x1f"+title.title),
+		Fingerprint:     fingerprint(calloutTitleMarkupRule, n.path, title.title),
 	}
 }
 

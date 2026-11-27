@@ -117,3 +117,19 @@ func deref(s *string) string {
 	}
 	return *s
 }
+
+// TestACalloutTitleFindingKeepsItsIdentityWhenALineMovesIt asserts the
+// fingerprint names the title, not the line, so a baseline still recognizes the
+// finding after a line is written above it.
+func TestACalloutTitleFindingKeepsItsIdentityWhenALineMovesIt(t *testing.T) {
+	t.Parallel()
+	const body = "> [!note] **Bold** title\n> text\n"
+	before := calloutTitleFindings([]note{parseNote("Notes/a.md", []byte(body))})
+	after := calloutTitleFindings([]note{parseNote("Notes/a.md", []byte("A new first line.\n\n"+body))})
+	if len(before) != 1 || len(after) != 1 {
+		t.Fatalf("calloutTitleFindings = %d and %d findings, want one each", len(before), len(after))
+	}
+	if before[0].Fingerprint != after[0].Fingerprint {
+		t.Errorf("fingerprint moved with the line: %s before, %s after", before[0].Fingerprint, after[0].Fingerprint)
+	}
+}
