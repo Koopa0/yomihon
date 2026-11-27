@@ -36,11 +36,8 @@ func TestLandingContextInsideChangedBlocks(t *testing.T) {
 			t.Parallel()
 			doc := DocumentFromNote(vault.Parse("Notes/context.md", []byte(tt.body)))
 			idx := NewIndex([]Document{doc}, validArtifactPolicy(t))
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %v, want one result", tt.query, got)
-			}
-			if diff := cmp.Diff(tt.suffix, got[0].LandingSuffix); diff != "" {
+			got := soleResult(t, idx, tt.query)
+			if diff := cmp.Diff(tt.suffix, got.LandingSuffix); diff != "" {
 				t.Errorf("Search(%q).LandingSuffix (-want +got):\n%s", tt.query, diff)
 			}
 		})
@@ -77,11 +74,8 @@ func TestHeadingHitNamesTheSectionOpening(t *testing.T) {
 			t.Parallel()
 			doc := DocumentFromNote(vault.Parse("Notes/heading.md", []byte(tt.body)))
 			idx := NewIndex([]Document{doc}, validArtifactPolicy(t))
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %v, want one result", tt.query, got)
-			}
-			if diff := cmp.Diff(tt.want, landing{got[0].LandingPrefix, got[0].Landing, got[0].LandingBare, got[0].LandingSuffix}); diff != "" {
+			got := soleResult(t, idx, tt.query)
+			if diff := cmp.Diff(tt.want, landing{got.LandingPrefix, got.Landing, got.LandingBare, got.LandingSuffix}); diff != "" {
 				t.Errorf("Search(%q) heading landing (-want +got):\n%s", tt.query, diff)
 			}
 		})

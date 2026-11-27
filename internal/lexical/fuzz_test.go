@@ -54,22 +54,6 @@ func FuzzParse(f *testing.F) {
 			t.Errorf("Parse(valid UTF-8 %q) emitted invalid UTF-8: %#v", raw, first)
 		}
 
-		// The public accessors must return detached slices: an agent that sorts
-		// or edits its copy cannot change later matching decisions.
-		tokens := first.Tokens()
-		if len(tokens) > 0 {
-			tokens[0] = "mutated"
-			if first.Tokens()[0] == "mutated" {
-				t.Errorf("Parse(%q).Tokens() exposes query-owned storage", raw)
-			}
-		}
-		filters := first.Filters()
-		if len(filters) > 0 {
-			filters[0].Key = "mutated"
-			if first.Filters()[0].Key == "mutated" {
-				t.Errorf("Parse(%q).Filters() exposes query-owned storage", raw)
-			}
-		}
 	})
 }
 

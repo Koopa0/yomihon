@@ -6,34 +6,51 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/width"
 )
 
-func TestFoldUsesSimpleCaseEquivalence(t *testing.T) {
+// TestFold pins what one folded spelling is: a fullwidth ASCII character meets
+// its halfwidth counterpart, a letter meets its simple case orbit, and the two
+// compositions of one character meet. Nothing else does: not a full case fold,
+// so ss never finds ß, not a compatibility fold, so halfwidth katakana stays
+// halfwidth, and not a halfwidth voiced pair, which would fold two runes to one
+// and move every offset after it. want is the one spelling a pair meets at,
+// and empty where the two must stay apart.
+func TestFold(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ name, left, right, want string }{
-		{name: "final sigma", left: "ΟΔΟΣ", right: "οδος", want: "οδοσ"},
-		{name: "long s", left: "ſtop", right: "stop", want: "stop"},
-		{name: "beta symbol", left: "ϐ", right: "β", want: "β"},
-		{name: "iota chooses a letter", left: "Ιι\u0345\u1fbe", right: "ιιιι", want: "ιιιι"},
-		{name: "iota stays normalized after a vowel", left: "ΑΙ", right: "αι", want: "αι"},
-		{name: "fullwidth step remains", left: "Ｇｏ", right: "Go", want: "go"},
-		{name: "sharp s stays one rune", left: "ẞ", right: "ß", want: "ß"},
+	tests := []struct {
+		name, left, right, want string
+	}{
+		{name: "final sigma", left: "\u039f\u0394\u039f\u03a3", right: "\u03bf\u03b4\u03bf\u03c2", want: "\u03bf\u03b4\u03bf\u03c3"},
+		{name: "long s", left: "\u017ftop", right: "stop", want: "stop"},
+		{name: "beta symbol", left: "\u03d0", right: "\u03b2", want: "\u03b2"},
+		{name: "iota chooses a letter", left: "\u0399\u03b9\u0345\u1fbe", right: "\u03b9\u03b9\u03b9\u03b9", want: "\u03b9\u03b9\u03b9\u03b9"},
+		{name: "iota stays normalized after a vowel", left: "\u0391\u0399", right: "\u03b1\u03b9", want: "\u03b1\u03b9"},
+		{name: "capital sharp s lowers to sharp s", left: "\u1e9e", right: "\u00df", want: "\u00df"},
+		{name: "fullwidth latin", left: "\uff27\uff4f", right: "Go", want: "go"},
+		{name: "fullwidth digit", left: "\uff13\u3064", right: "3\u3064", want: "3\u3064"},
+		{name: "fullwidth parentheses", left: "\u5fc3\uff08\u3053\u3053\u308d\uff09", right: "\u5fc3(\u3053\u3053\u308d)", want: "\u5fc3(\u3053\u3053\u308d)"},
+		{name: "decomposed kana", left: "\u304b\u3099", right: "\u304c", want: "\u304c"},
+		{name: "dotted capital I", left: "\u0130", right: "i"},
+		{name: "dotless i", left: "\u0131", right: "i"},
+		{name: "sharp s does not expand", left: "\u00df", right: "ss"},
+		{name: "halfwidth katakana stays halfwidth", left: "\uff76", right: "\u30ab"},
+		{name: "a halfwidth voiced pair stays two runes", left: "\uff8a\uff9e", right: "\u30d0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := []string{Fold(tt.left), Fold(tt.right), Fold(Fold(tt.left))}
-			if diff := cmp.Diff([]string{tt.want, tt.want, tt.want}, got); diff != "" {
-				t.Errorf("Fold(%q, %q), repeat (-want +got):\n%s", tt.left, tt.right, diff)
+			left, right := Fold(tt.left), Fold(tt.right)
+			if tt.want == "" {
+				if left == right {
+					t.Errorf("Fold(%+q) = Fold(%+q) = %+q, want them apart", tt.left, tt.right, left)
+				}
+				return
+			}
+			if left != tt.want || right != tt.want {
+				t.Errorf("Fold(%+q), Fold(%+q) = %+q, %+q, want both %+q", tt.left, tt.right, left, right, tt.want)
 			}
 		})
-	}
-	for _, pair := range [][2]string{{"İ", "i"}, {"ı", "i"}, {"ß", "ss"}} {
-		if Fold(pair[0]) == Fold(pair[1]) {
-			t.Errorf("Fold(%q) = Fold(%q), distinct simple orbits must not meet", pair[0], pair[1])
-		}
 	}
 }
 

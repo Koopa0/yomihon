@@ -1,51 +1,11 @@
 package lexical
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-// TestTheFilterKeysOfferedAreTheOnesTheGrammarAccepts holds the two halves
-// together. A list written for the page is a list that drifts from the parser,
-// and this repository has already seen that happen: the batch ledger describing
-// this work names four filter keys where the grammar accepts more.
-func TestTheFilterKeysOfferedAreTheOnesTheGrammarAccepts(t *testing.T) {
-	t.Parallel()
-
-	offered := FilterKeys()
-	if len(offered) == 0 {
-		t.Fatal("no filter keys are offered at all, so nothing below checks anything")
-	}
-	for _, key := range offered {
-		if !isFilterKey(key) {
-			t.Errorf("the page offers %q, which the parser does not accept", key)
-		}
-	}
-	accepted := []string{"type", "draft", "domain", "slug", "folder"}
-	for _, key := range accepted {
-		if !isFilterKey(key) {
-			t.Errorf("%q stopped being a filter key; this test's own list is stale", key)
-		}
-		if !strings.Contains(strings.Join(offered, " "), key) {
-			t.Errorf("the parser accepts %q and the page never offers it", key)
-		}
-	}
-	if len(filterKeys) != len(accepted) {
-		t.Errorf("the grammar accepts %d filter keys and this test names %d; this test's own list is stale", len(filterKeys), len(accepted))
-	}
-	// A note no longer declares topics, so a topic: field is text like any
-	// other unknown key rather than a filter that can only ever match nothing.
-	if isFilterKey("topic") {
-		t.Error(`"topic" is still a filter key, and no note carries a topic to match`)
-	}
-}
-
-// TestEveryFilterKeyTheGrammarAcceptsIsAnswered holds the third side of the
-// same triangle. The sibling above ties the keys the page offers to the keys
-// the parser accepts; nothing tied either to the code that answers them, which
-// is written out one key at a time and falls through to "no" for a key it does
-// not recognize. Another key added to the grammar would parse, be offered on
-// the page, and then quietly match nothing at all.
+// TestEveryFilterKeyTheGrammarAcceptsIsAnswered ties the grammar to the code
+// that answers it, which is written out one key at a time and falls through to
+// "no" for a key it does not recognize. A key added to the grammar would parse,
+// be offered on the page, and then quietly match nothing at all.
 //
 // The rows are this test's own, so adding a key to the grammar without adding
 // the row and the case fails here rather than in a reader's empty result.

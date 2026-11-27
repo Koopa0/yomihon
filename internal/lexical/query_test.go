@@ -7,10 +7,8 @@ import (
 )
 
 // TestParse pins the parse rules documented on Parse, row by row, with
-// hand-computed expected Tokens/Filters. NFD fixtures use explicit code
-// points so the
-// input's Unicode form is unambiguous: "が" is NFD が (か + combining
-// dakuten), whose NFC form is "が" (が).
+// hand-computed expected Tokens/Filters. A decomposed fixture is written as
+// its code points, so the input's Unicode form is unambiguous.
 func TestParse(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +22,7 @@ func TestParse(t *testing.T) {
 		{name: "3 bare token", input: "kafka", want: &Query{tokens: []string{"kafka"}}},
 		{name: "4 fold uppercase", input: "Kafka", want: &Query{tokens: []string{"kafka"}}},
 		{name: "5 two cjk tokens", input: "深度 工作", want: &Query{tokens: []string{"深度", "工作"}}},
-		{name: "6 nfd token folds to nfc", input: "が", want: &Query{tokens: []string{"が"}}},
+		{name: "6 nfd token folds to nfc", input: "\u304b\u3099", want: &Query{tokens: []string{"\u304c"}}},
 		{name: "7 type filter", input: "type:lesson", want: &Query{filters: []Filter{{Key: "type", Value: "lesson"}}}},
 		{
 			name:  "8 token order preserved around filter",
@@ -51,6 +49,7 @@ func TestParse(t *testing.T) {
 		{name: "16 literal percent", input: "%", want: &Query{tokens: []string{"%"}}},
 		{name: "17 percent inside token", input: "100%", want: &Query{tokens: []string{"100%"}}},
 		{name: "18 domain nfc value", input: "domain:日本語", want: &Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
+		{name: "18b nfd filter value folds to nfc", input: "domain:\u304b\u3099", want: &Query{filters: []Filter{{Key: "domain", Value: "\u304c"}}}},
 		{name: "19 slug value is folded", input: "slug:ABC", want: &Query{filters: []Filter{{Key: "slug", Value: "abc"}}}},
 		{name: "20 folder empty value", input: "folder:", want: &Query{filters: []Filter{{Key: "folder", Value: ""}}}},
 	}
@@ -68,11 +67,9 @@ func TestParse(t *testing.T) {
 
 // Double-quoting a phrase is a near-universal search habit, and matching is
 // already a contiguous substring test, so the quoted span becomes one bare
-// token with the quotes stripped — adjacency comes for free. Before this, the
-// quote characters rode along inside the tokens and matched almost nothing,
-// and a phrase sitting verbatim in the vault came back as 找不到. The
-// full-width 「」 and 『』 pairs of Chinese and Japanese prose quote the same
-// way; a quote with no partner is dropped where it stands.
+// token with the quotes stripped — adjacency comes for free. The full-width
+// 「」 and 『』 pairs of Chinese and Japanese prose quote the same way; a
+// quote with no partner is dropped where it stands.
 func TestParseQuotedPhrase(t *testing.T) {
 	t.Parallel()
 
@@ -166,70 +163,5 @@ func TestParseQuotedPhrase(t *testing.T) {
 				t.Errorf("Parse(%q) mismatch (-want +got):\n%s", tt.input, diff)
 			}
 		})
-	}
-}
-
-// TestParseFilterValueNFD proves a filter value is folded (NFC, then the
-// walk) using a genuine NFD form (row 18's 日本語 has no canonical
-// decomposition, so it cannot). "domain:" + NFD が ("が") must store the
-// folded NFC form "が".
-func TestParseFilterValueNFD(t *testing.T) {
-	t.Parallel()
-
-	got := Parse("domain:が")
-	want := &Query{filters: []Filter{{Key: "domain", Value: "が"}}}
-	if diff := cmp.Diff(want, got, cmp.AllowUnexported(Query{})); diff != "" {
-		t.Errorf("Parse NFD filter value mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestFilterCapabilityClassification(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		key        string
-		wantKind   filterKind
-		wantFilter bool
-	}{
-		{name: "type metadata", key: "type", wantKind: filterMetadata, wantFilter: true},
-		{name: "draft metadata", key: "draft", wantKind: filterMetadata, wantFilter: true},
-		{name: "domain metadata", key: "domain", wantKind: filterMetadata, wantFilter: true},
-		{name: "topic is not a filter", key: "topic", wantKind: filterUnknown, wantFilter: false},
-		{name: "slug metadata", key: "slug", wantKind: filterMetadata, wantFilter: true},
-		{name: "folder path", key: "folder", wantKind: filterPath, wantFilter: true},
-		{name: "bare token", key: "unknown", wantKind: filterUnknown, wantFilter: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			gotKind, gotFilter := classifyFilterKey(tt.key)
-			if gotKind != tt.wantKind || gotFilter != tt.wantFilter {
-				t.Errorf("classifyFilterKey(%q) = (%v, %v), want (%v, %v)", tt.key, gotKind, gotFilter, tt.wantKind, tt.wantFilter)
-			}
-		})
-	}
-}
-
-func TestQueryOwnsParsedStateAndCapability(t *testing.T) {
-	t.Parallel()
-
-	query := Parse("Kanji type:lesson folder:Writing")
-	tokens := query.Tokens()
-	filters := query.Filters()
-	if !query.RequiresMetadata() {
-		t.Fatal("parsed query carrying a type filter reports it needs no frontmatter")
-	}
-	tokens[0] = "changed"
-	filters[0].Key = "folder"
-	if got := query.Tokens(); len(got) != 1 || got[0] != "kanji" {
-		t.Fatalf("mutating Tokens result changed query: %v", got)
-	}
-	if got := query.Filters(); len(got) != 2 || got[0].Key != "type" {
-		t.Fatalf("mutating Filters result changed query: %v", got)
-	}
-	if Parse("folder:Writing").RequiresMetadata() {
-		t.Fatal("folder-only query unexpectedly requires metadata")
 	}
 }

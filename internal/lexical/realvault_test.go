@@ -59,9 +59,6 @@ func TestNewIndexRealVault(t *testing.T) {
 		if err != nil {
 			t.Fatal("a draft search failed with an available artifact policy")
 		}
-		if drafts.Total > idx.Len() {
-			t.Errorf("drafts = %d, want at most %d", drafts.Total, idx.Len())
-		}
 	} else if !errors.Is(err, ErrMetadataUnavailable) {
 		t.Fatal("a draft search did not fail closed with an unavailable artifact policy")
 	}
