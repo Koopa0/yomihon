@@ -83,7 +83,7 @@ func TestAHeadingOfOnlyTheTokenKeepsItAsItsWords(t *testing.T) {
 			t.Errorf("%s: WithoutBlockAddresses(%q) = %q, want %q", tt.name, tt.text, got, tt.want)
 		}
 	}
-	if got := PlainHeadingWords("^0"); got != "^0" {
-		t.Errorf("PlainHeadingWords(%q) = %q, want the token", "^0", got)
+	if got := headingWords("^0", ""); got != "^0" {
+		t.Errorf("headingWords(%q) = %q, want the token", "^0", got)
 	}
 }

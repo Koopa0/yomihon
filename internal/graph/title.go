@@ -32,11 +32,15 @@ func FirstTitleHeading(body string) (TitleHeading, bool) {
 
 func titleHeadingIn(shown string) (TitleHeading, bool) {
 	lines := strings.Split(shown, "\n")
+	definitions, read := "", false
 	for _, heading := range Headings(shown, LineSkipZones(shown)) {
 		if heading.Level != 1 {
 			continue
 		}
-		words := PlainHeadingWords(heading.Text)
+		if !read && strings.Contains(heading.Text, "[^") {
+			definitions, read = footnoteDefinitions(shown), true
+		}
+		words := headingWords(heading.Text, definitions)
 		if words == "" {
 			continue
 		}
