@@ -168,7 +168,8 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 
 // TestTheTwoFoldMappingsAgree holds the two shapes of one rule to the same
 // answer. foldWithSourceOffsets tabulates every byte position; the landing
-// walks to the positions it needs instead, because it measures a whole note.
+// walks to the positions it needs instead, one cursor resuming where it
+// stopped, because it measures a whole note.
 func TestTheTwoFoldMappingsAgree(t *testing.T) {
 	t.Parallel()
 
@@ -199,9 +200,13 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 		t.Run(strconv.Quote(s), func(t *testing.T) {
 			t.Parallel()
 			fold, src := foldWithSourceOffsets(s)
+			cursor := foldCursor{s: s}
 			for k := range len(fold) + 1 {
 				if got, want := sourceOffsetOfFold(s, k), src[k]; got != want {
 					t.Fatalf("sourceOffsetOfFold(%q, %d) = %d, want %d (the tabulated answer)", s, k, got, want)
+				}
+				if got, want := cursor.source(k), src[k]; got != want {
+					t.Fatalf("one cursor walked to %d over %q = %d, want %d (the tabulated answer)", k, s, got, want)
 				}
 				if k == 0 {
 					continue
