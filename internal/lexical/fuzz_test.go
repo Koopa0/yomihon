@@ -15,7 +15,7 @@ func FuzzParse(f *testing.F) {
 	f.Add("")
 	f.Add("深度 type:lesson 工作 folder:Writing/")
 	f.Add("Type:lesson slug:a:b")
-	f.Add("domain:が topic:日本語")
+	f.Add("domain:\u304b\u3099 topic:\u65e5\u672c\u8a9e")
 	f.Add("status: foo:bar")
 	f.Add(`"semantic retrieval" type:lesson`)
 	f.Add("「深度 工作」 『読本』")
@@ -47,8 +47,8 @@ func FuzzParse(f *testing.F) {
 			}
 			metadata = metadata || kind == filterMetadata
 		}
-		if first.RequiresMetadata() != metadata {
-			t.Errorf("Parse(%q).RequiresMetadata() = %v, want %v", raw, first.RequiresMetadata(), metadata)
+		if first.requiresMetadata() != metadata {
+			t.Errorf("Parse(%q).requiresMetadata() = %v, want %v", raw, first.requiresMetadata(), metadata)
 		}
 		if utf8.ValidString(raw) && (!allValidStrings(first.tokens) || !validFilters(first.filters)) {
 			t.Errorf("Parse(valid UTF-8 %q) emitted invalid UTF-8: %#v", raw, first)

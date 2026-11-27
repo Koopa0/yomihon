@@ -159,7 +159,7 @@ func BenchmarkShownExcerptCentre(b *testing.B) {
 				index := NewIndex([]Document{doc}, validArtifactPolicy(b))
 				entry := index.entries[0]
 				centre := entry.shownExcerptCentre([]string{"claim"})
-				if !centre.found || entry.PlainText[centre.start:centre.end] != "claim" {
+				if !centre.found || entry.plainText[centre.start:centre.end] != "claim" {
 					b.Fatal("benchmark must select the shown claim within the source ceiling")
 				}
 				b.ReportAllocs()

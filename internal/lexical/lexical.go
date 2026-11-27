@@ -1,11 +1,12 @@
 // Package lexical is the vault's in-memory search index and query engine. It
 // holds one entry per note and answers a deterministic, folded substring
-// query plus six structured filters. There is no database: the truth is the
+// query plus structured filters. There is no database: the truth is the
 // vault files and the index only accelerates. It stays reachable without the
 // reading interface, so the search page depends on it and never the reverse.
 package lexical
 
 import (
+	"cmp"
 	"errors"
 	"iter"
 	"slices"
@@ -25,10 +26,6 @@ import (
 // below, applied identically to stored text and to a query token. Case and
 // width folding live only here; vault.NormalizeNFC supplies the shared NFC step.
 func Fold(s string) string {
-	return fold(s)
-}
-
-func fold(s string) string {
 	var out strings.Builder
 	out.Grow(len(s))
 	for _, r := range foldRunes(vault.NormalizeNFC(s)) {
@@ -135,9 +132,8 @@ type Document struct {
 	Slug  string
 	// Tags are frontmatter retrieval words, not a schema vocabulary.
 	Tags []string
-	// Aliases are the other names the note declared. They are the names a
-	// wikilink resolves by, so leaving them out made this program findable by
-	// fewer names than it follows.
+	// Aliases are the other names the note declared: the names a wikilink
+	// resolves by, so a note is found by every name it is followed by.
 	Aliases   []string
 	PlainText string
 
@@ -177,28 +173,28 @@ type Document struct {
 // *Fold copies are what a filter compares, so a reader who types a value the
 // way they type a word still reaches it.
 type entry struct {
-	RelPath string
-	// PathFold is the note's own location, folded the way the text is: a reader
+	relPath string
+	// pathFold is the note's own location, folded the way the text is: a reader
 	// wrote their folder names and expects to find notes by them.
-	PathFold  string
-	Title     string
-	TitleFold string
-	// Aliases are the note's other declared names, held as written and folded for
+	pathFold  string
+	title     string
+	titleFold string
+	// aliases are the note's other declared names, held as written and folded for
 	// matching. A link resolves by these and not by the title, so a hit on one
 	// ranks with a title hit rather than below a mention in prose.
-	Aliases           []string
-	AliasFolds        []string
-	NoteType          string
-	NoteTypeFold      string
-	Domain            string
-	DomainFold        string
-	Draft             bool
-	Slug              string
-	SlugFold          string
-	Tags              []string
-	TagFolds          []string
-	PlainText         string
-	PlainFold         string
+	aliases           []string
+	aliasFolds        []string
+	noteType          string
+	noteTypeFold      string
+	domain            string
+	domainFold        string
+	draft             bool
+	slug              string
+	slugFold          string
+	tags              []string
+	tagFolds          []string
+	plainText         string
+	plainFold         string
 	blocks            []render.Block
 	fenceRanges       [][2]int
 	fenceFoldRanges   [][2]int
@@ -267,7 +263,7 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 		entries = append(entries, &e)
 	}
 	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return vault.ComparePaths(a.RelPath, b.RelPath)
+		return vault.ComparePaths(a.relPath, b.relPath)
 	})
 	return &Index{entries: entries, policy: policy}
 }
@@ -285,16 +281,15 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 }
 
 // entryFromDocument derives one entry from a Document, applying the storage rules:
-// Title/PlainText stored NFC (display), the *Fold copies fold()ed, the
+// Title/PlainText stored NFC (display), the *Fold copies Fold()ed, the
 // structured field values stored NFC (case-preserving) with a folded copy
 // beside each so a filter compares the way text does.
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
-	// Block ends and fence bounds share one NFC walk: the two remaps used
-	// to normalise the same slices twice, and a save rebuilds the index.
-	// Fold-space spans are recorded on the same foldRunes walk that
-	// builds PlainFold, so a query can classify a hit without walking
+	// Block ends and fence bounds share one NFC walk, since a save rebuilds
+	// the index. Fold-space spans are recorded on the same foldRunes walk
+	// that builds PlainFold, so a query can classify a hit without walking
 	// the note once per fence occurrence.
 	blocks, fenceRanges := remapPlainOffsets(d.PlainText, d.Blocks, d.FenceRanges)
 	insertions, barriers := remapInsertions(d.PlainText, d.Insertions)
@@ -306,32 +301,32 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	tagFolds := make([]string, len(d.Tags))
 	for i, tag := range d.Tags {
 		tags[i] = vault.NormalizeNFC(tag)
-		tagFolds[i] = fold(tags[i])
+		tagFolds[i] = Fold(tags[i])
 	}
 	aliases := make([]string, len(d.Aliases))
 	aliasFolds := make([]string, len(d.Aliases))
 	for i, a := range d.Aliases {
 		aliases[i] = vault.NormalizeNFC(a)
-		aliasFolds[i] = fold(aliases[i])
+		aliasFolds[i] = Fold(aliases[i])
 	}
 	return entry{
-		RelPath:           d.RelPath,
-		PathFold:          fold(vault.NormalizeNFC(d.RelPath)),
-		Title:             title,
-		TitleFold:         fold(title),
-		Aliases:           aliases,
-		AliasFolds:        aliasFolds,
-		NoteType:          noteType,
-		NoteTypeFold:      fold(noteType),
-		Domain:            domain,
-		DomainFold:        fold(domain),
-		Draft:             d.Draft,
-		Slug:              slug,
-		SlugFold:          fold(slug),
-		Tags:              tags,
-		TagFolds:          tagFolds,
-		PlainText:         plain,
-		PlainFold:         plainFold,
+		relPath:           d.RelPath,
+		pathFold:          Fold(vault.NormalizeNFC(d.RelPath)),
+		title:             title,
+		titleFold:         Fold(title),
+		aliases:           aliases,
+		aliasFolds:        aliasFolds,
+		noteType:          noteType,
+		noteTypeFold:      Fold(noteType),
+		domain:            domain,
+		domainFold:        Fold(domain),
+		draft:             d.Draft,
+		slug:              slug,
+		slugFold:          Fold(slug),
+		tags:              tags,
+		tagFolds:          tagFolds,
+		plainText:         plain,
+		plainFold:         plainFold,
 		blocks:            blocks,
 		insertions:        insertions,
 		insertionBarriers: barriers,
@@ -425,15 +420,7 @@ func sortedFenceBounds(raw string, fences [][2]int) []rawBound {
 			rawBound{off: clampOff(r[1], len(raw)), i: len(bounds) + 1},
 		)
 	}
-	slices.SortStableFunc(bounds, func(a, b rawBound) int {
-		if a.off < b.off {
-			return -1
-		}
-		if a.off > b.off {
-			return 1
-		}
-		return 0
-	})
+	slices.SortStableFunc(bounds, func(a, b rawBound) int { return cmp.Compare(a.off, b.off) })
 	return bounds
 }
 
@@ -512,9 +499,8 @@ func clampOff(off, n int) int {
 	return off
 }
 
-// foldPlain folds already-NFC plain and maps fence spans onto that
-// folded copy in the same walk. A second foldRunes pass used to walk
-// the note again just for the bounds, and kept walking past the last one.
+// foldPlain folds already-NFC plain and maps fence spans onto that folded
+// copy in the same walk.
 func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]int) {
 	var out strings.Builder
 	out.Grow(len(plain))
@@ -535,15 +521,7 @@ func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]in
 			bound{src: r[1], i: len(bounds) + 1},
 		)
 	}
-	slices.SortStableFunc(bounds, func(a, b bound) int {
-		if a.src < b.src {
-			return -1
-		}
-		if a.src > b.src {
-			return 1
-		}
-		return 0
-	})
+	slices.SortStableFunc(bounds, func(a, b bound) int { return cmp.Compare(a.src, b.src) })
 	mapped := make([]int, len(bounds))
 	next, foldPos := 0, 0
 	for at, r := range foldRunes(plain) {

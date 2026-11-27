@@ -36,52 +36,29 @@ type Result struct {
 	// nothing locatable in its first block.
 	Landing string
 
-	// LandingBare is the stretch to name where the directive carries no words
-	// ahead of it: Landing grown out to the edges of the words it lies
-	// inside. A browser looks for a run introduced by nothing only where a
-	// word begins and where one ends, so a match opening or closing inside a
-	// word is asked for at a place the page has nowhere, and the note stays
-	// at the top. It equals Landing wherever the match already lies on those
-	// edges, which is most matches. Each edge is decided on its own, and one
-	// resting inside a script that parts no words with spaces stays where the
-	// match left it: the edges there are a segmentation nothing here can
-	// find, and the sentence around the match is not them.
+	// LandingBare is Landing grown out to the edges of the words it lies
+	// inside, for a directive that names nothing ahead of it: a browser finds
+	// such a term only where a word begins and ends. An edge in a script that
+	// parts no words with spaces stays where the match left it.
 	LandingBare string
 
-	// LandingEnd is the last-block stretch of a crossing match, grown to the
-	// edges of the words it lies inside the way LandingBare is. A directive
-	// that names both ends can span blocks; a bare first-block term would
-	// land on an earlier copy of the same word.
-	//
-	// A browser holds this stretch to both edges whichever of its two places
-	// it takes — closing a range, or travelling alone because the first block
-	// had nothing locatable — so a match stopping inside a word is asked for
-	// at a place the page has nowhere, and the whole directive is abandoned.
-	// The stretch opens where its block does, which is already such an edge,
-	// so only the far end can move. An end resting inside a script that parts
-	// no words with spaces stays where the match left it, as in LandingBare.
+	// LandingEnd is the last-block stretch of a crossing match, grown the way
+	// LandingBare is, since a browser holds it to both edges whether it
+	// closes a range or travels alone. A bare first-block term would land on
+	// an earlier copy of the same word.
 	LandingEnd string
 
-	// LandingPrefix is the run of words the match follows inside the block
-	// its first stretch opens, with whitespace collapsed and cut to a
-	// few words. A browser looks for the term it is given by walking the
-	// whole page in order, so a start stretch of one common word is answered
-	// by the first copy anywhere on it — the reader's own navigation is drawn
-	// before the article and spells some of those words too. Naming what the
-	// match follows tells the two apart. Empty where the match opens its
-	// block, which is where there is nothing to say.
+	// LandingPrefix is a few words the match follows inside its first block,
+	// whitespace collapsed, so a browser that walks the whole page in order
+	// does not answer a common word with an earlier copy, such as one in the
+	// navigation. Empty where the match opens its block.
 	LandingPrefix string
 
-	// LandingSuffix is the run of characters after the last term a directive
-	// names, up to the nearest certain boundary: white space, a line break,
-	// punctuation, or the end of the block. A browser holds a term with nothing
-	// behind it to end where a word does, and in a script that parts no words with spaces
-	// that is a dictionary boundary this index has no model of. A term the
-	// directive follows with a run that itself ends at a certain boundary is
-	// released from the requirement, so the match can end anywhere. Empty where
-	// the term already stands against such a boundary, and where neither the
-	// whole block nor a local context range vouches for the term, the run and
-	// its ending boundary staying adjacent on the page.
+	// LandingSuffix is the run after the last term a directive names, up to
+	// the nearest certain boundary, which releases that term from ending
+	// where a word does: in a script that parts no words with spaces that
+	// boundary is a dictionary's. Empty where the term already stands against
+	// one, or where nothing vouches that the page keeps the run beside it.
 	LandingSuffix string
 
 	// BlockCrossing reports that the match continues past that first block,
@@ -132,7 +109,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 		return Answer{}, nil
 	}
 	metadataAvailable := idx.policy.Trustworthy()
-	requiresMetadata := q.RequiresMetadata()
+	requiresMetadata := q.requiresMetadata()
 	if requiresMetadata && !metadataAvailable {
 		return Answer{}, idx.metadataUnavailableError()
 	}
@@ -196,20 +173,27 @@ type resultBuckets struct {
 // entry that passed every filter and whose words answer none of the terms is not
 // a hit, and is filed nowhere.
 func (b *resultBuckets) place(e *entry, tokens []string) {
-	switch {
-	case allContain(e.TitleFold, tokens):
-		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
+	if allContain(e.titleFold, tokens) {
+		bodyEvidence := len(tokens) != 0 && allContain(e.plainFold, tokens)
 		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence})
-	case aliasAnswering(e, tokens) != "":
+		return
+	}
+	if alias := aliasAnswering(e, tokens); alias != "" {
 		// An alias stands with the title: a link written to one resolves and a
 		// link written to a title does not.
-		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
-	case allContain(e.PlainFold, tokens):
+		bodyEvidence := len(tokens) != 0 && allContain(e.plainFold, tokens)
+		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence, alias: alias})
+		return
+	}
+	if allContain(e.plainFold, tokens) {
 		b.groups[bucketBody] = append(b.groups[bucketBody], hit{entry: e, bodyEvidence: true})
-	case tagAnswering(e, tokens) != "":
-		b.groups[bucketTag] = append(b.groups[bucketTag], hit{entry: e, tag: tagAnswering(e, tokens)})
-	case allContain(e.PathFold, tokens):
+		return
+	}
+	if tag := tagAnswering(e, tokens); tag != "" {
+		b.groups[bucketTag] = append(b.groups[bucketTag], hit{entry: e, tag: tag})
+		return
+	}
+	if allContain(e.pathFold, tokens) {
 		b.groups[bucketPath] = append(b.groups[bucketPath], hit{entry: e})
 	}
 }
@@ -225,7 +209,7 @@ func (b *resultBuckets) raiseExactTitles(tokens []string) {
 	}
 	needle := strings.Join(tokens, " ")
 	slices.SortStableFunc(b.groups[bucketTitle], func(left, right hit) int {
-		return cmp.Compare(exactTitleRank(right.entry.TitleFold, needle), exactTitleRank(left.entry.TitleFold, needle))
+		return cmp.Compare(exactTitleRank(right.entry.titleFold, needle), exactTitleRank(left.entry.titleFold, needle))
 	})
 }
 
@@ -277,16 +261,16 @@ func tagTokens(tokens []string) []string {
 }
 
 func tagAnswering(e *entry, tokens []string) string {
-	if len(e.TagFolds) == 0 {
+	if len(e.tagFolds) == 0 {
 		return ""
 	}
 	terms := tagTokens(tokens)
 	if len(terms) == 0 {
 		return ""
 	}
-	for i, folded := range e.TagFolds {
+	for i, folded := range e.tagFolds {
 		if allContain(folded, terms) {
-			return e.Tags[i]
+			return e.tags[i]
 		}
 	}
 	return ""
@@ -308,9 +292,9 @@ func aliasAnswering(e *entry, tokens []string) string {
 	if len(tokens) == 0 {
 		return ""
 	}
-	for i, folded := range e.AliasFolds {
+	for i, folded := range e.aliasFolds {
 		if allContain(folded, tokens) {
-			return e.Aliases[i]
+			return e.aliases[i]
 		}
 	}
 	return ""
@@ -432,16 +416,16 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 // "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
 	switch f.Key {
-	case "type":
-		return e.NoteTypeFold == f.Value
-	case DraftFilterKey:
-		return e.Draft == (f.Value == "true")
-	case "domain":
-		return e.DomainFold == f.Value
-	case "slug":
-		return e.SlugFold == f.Value
-	case "folder":
-		return withinFolder(e.RelPath, f.Value)
+	case filterType:
+		return e.noteTypeFold == f.Value
+	case filterDraft:
+		return e.draft == (f.Value == "true")
+	case filterDomain:
+		return e.domainFold == f.Value
+	case filterSlug:
+		return e.slugFold == f.Value
+	case filterFolder:
+		return withinFolder(e.relPath, f.Value)
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps
@@ -467,7 +451,7 @@ func withinFolder(relPath, folder string) bool {
 		return false
 	}
 	for i, name := range want {
-		if fold(name) != fold(names[i]) {
+		if Fold(name) != Fold(names[i]) {
 			return false
 		}
 	}
@@ -477,7 +461,7 @@ func withinFolder(relPath, folder string) bool {
 // result builds a Result for e. Only a hit with body evidence has a lead and
 // a landing.
 func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, tag string) Result {
-	draft := e.Draft && metadataAvailable && e.metadataCapable
+	draft := e.draft && metadataAvailable && e.metadataCapable
 	var terms landingTerms
 	var fromFence bool
 	var lead Lead
@@ -487,11 +471,11 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	}
 	noteType := ""
 	if metadataAvailable && e.metadataCapable {
-		noteType = e.NoteType
+		noteType = e.noteType
 	}
 	return Result{
-		RelPath:       e.RelPath,
-		Title:         e.Title,
+		RelPath:       e.relPath,
+		Title:         e.title,
 		NoteType:      noteType,
 		Lead:          lead,
 		Draft:         draft,
@@ -521,17 +505,17 @@ func (e *entry) landing(tokens []string) (terms landingTerms, fromFence bool) {
 		}
 		return e.landingAtSource(centre.start, centre.end), centre.fromFence
 	}
-	foldStart, foldEnd, fromFence := earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
+	foldStart, foldEnd, fromFence := earliestOffset(e.plainFold, tokens, e.fenceFoldRanges)
 	if foldStart < 0 {
 		return landingTerms{}, false
 	}
 	terms = e.landingAt(foldStart, foldEnd)
 	if !terms.crossing {
-		foldEnd = mergedMatchEnd(e.PlainFold, tokens, foldStart, foldEnd)
-		start, end := sourceOffsetOfFold(e.PlainText, foldStart), sourceEndOfFold(e.PlainText, foldEnd)
+		foldEnd = mergedMatchEnd(e.plainFold, tokens, foldStart, foldEnd)
+		start, end := sourceOffsetOfFold(e.plainText, foldStart), sourceEndOfFold(e.plainText, foldEnd)
 		// A phrase quoted with white space at its ends matches that white
 		// space too, and the page marks the words, not the space around them.
-		matched := e.PlainText[start:end]
+		matched := e.plainText[start:end]
 		start += len(matched) - len(strings.TrimLeftFunc(matched, unicode.IsSpace))
 		end -= len(matched) - len(strings.TrimRightFunc(matched, unicode.IsSpace))
 		terms = e.landingAtSource(start, end)
@@ -583,36 +567,18 @@ type landingTerms struct {
 // recorded block ends there is nothing to tell a wrap from a paragraph, so it
 // offers nothing and does not claim a crossing.
 //
-// The preceding run is cut at the start of the match's own block, because a
-// directive may only name one where it sits beside the term it introduces. A
-// match that opens its block is preceded by nothing and says so.
-//
-// So is a match in a block the page does not reproduce as written. Naming what
-// a match follows asks a browser to find the two side by side in what it is
-// showing, and on those blocks they are not: a ruby reading is written here
-// after the sentence it is spoken inside, and a footnote's mark is on the page
-// and not in this text at all. Such a run would match nothing and the note
-// would open at the top, which is worse than the bare term it replaced.
-//
-// Those are the blocks whose stretch has to stand on its own, which is why the
-// grown form is measured for every match rather than only for some: a block
-// that offers no run of words ahead of the match has nothing else to offer.
-// The growth stays inside the block, so a word cannot be assembled out of two
-// paragraphs the page draws apart.
-//
-// A match that crossed has a second stretch in its last block, and that one is
-// grown whatever the first block offered: a run of words is read as one only
-// beside a term from its own block, and the run belongs to the block the match
-// opened in, so this stretch has only ever stood on its own. Its own edges are
-// still asked the same question, and one in a script that parts no words with
-// spaces is left where the match put it.
+// The run of words ahead of the match is cut at the start of its own block, and
+// is not named at all in a block the page does not reproduce as written (a ruby
+// reading, a footnote mark), where it would match nothing. Every stretch is
+// also grown to whole words, inside its own block, for the directives that
+// have no run to name.
 func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
 		return landingTerms{}
 	}
-	start := sourceOffsetOfFold(e.PlainText, foldStart)
-	end := sourceEndOfFold(e.PlainText, foldEnd)
-	if start >= end || end > len(e.PlainText) {
+	start := sourceOffsetOfFold(e.plainText, foldStart)
+	end := sourceEndOfFold(e.plainText, foldEnd)
+	if start >= end || end > len(e.plainText) {
 		return landingTerms{}
 	}
 	return e.landingAtSource(start, end)
@@ -632,7 +598,7 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	blockStart, verbatim := e.blockAt(start)
 	blockStart, firstLimit := e.insertionBounds(start, blockStart, e.blockEndAfter(start))
 	if verbatim {
-		terms.prefix = landingPrefix(e.PlainText[blockStart:start])
+		terms.prefix = landingPrefix(e.plainText[blockStart:start])
 	}
 	firstEnd := e.blockEndAfter(start)
 	terms.crossing = end > firstEnd
@@ -640,16 +606,16 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	if terms.crossing {
 		firstStop = firstEnd
 	}
-	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstLimit)
-	terms.first = collapseFields(e.PlainText[start:bareEnd])
-	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
+	bareStart, bareEnd := wordEdges(e.plainText, start, firstStop, blockStart, firstLimit)
+	terms.first = collapseFields(e.plainText[start:bareEnd])
+	terms.bare = collapseFields(e.plainText[bareStart:bareEnd])
 	if !terms.crossing {
 		if headingStart, before, after := e.sectionContext(firstEnd); firstLimit == firstEnd && terms.first != "" && after != "" {
 			// The stretch runs on to the heading's end so the run after it
 			// is the section's own opening, which the contents list's copy
 			// of the heading is not followed by.
-			terms.first = collapseFields(e.PlainText[start:firstEnd])
-			terms.bare = collapseFields(e.PlainText[bareStart:firstEnd])
+			terms.first = collapseFields(e.plainText[start:firstEnd])
+			terms.bare = collapseFields(e.plainText[bareStart:firstEnd])
 			terms.suffix = after
 			return terms
 		} else if terms.first != "" && before != "" && blockStart <= headingStart {
@@ -657,12 +623,12 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 			// at the term, so the stretch is the whole heading, from the
 			// edge the previous block's words stand against to its end.
 			terms.prefix = before
-			terms.first = collapseFields(e.PlainText[headingStart:firstEnd])
+			terms.first = collapseFields(e.plainText[headingStart:firstEnd])
 			terms.bare = terms.first
 			return terms
 		}
 		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstLimit)) {
-			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstLimit)
+			terms.suffix = landingSuffix(e.plainText, bareEnd, firstLimit)
 		}
 		return terms
 	}
@@ -681,10 +647,10 @@ func (e *entry) finishCrossingLanding(end, firstEnd int, terms *landingTerms) la
 	// be assembled out of two blocks the page draws apart. This stretch opens
 	// where that block opens, which is a word's edge already, so that same
 	// offset serves as the floor and the only growth is outward.
-	_, lastStop := wordEdges(e.PlainText, from, end, from, lastEnd)
-	terms.last = collapseFields(e.PlainText[from:lastStop])
+	_, lastStop := wordEdges(e.plainText, from, end, from, lastEnd)
+	terms.last = collapseFields(e.plainText[from:lastStop])
 	if lastVerbatim && terms.last != "" {
-		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
+		terms.suffix = landingSuffix(e.plainText, lastStop, lastEnd)
 	}
 	return *terms
 }
@@ -713,14 +679,14 @@ func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after 
 		}
 		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
 			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
-			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
+			opening := landingOpening(e.plainText[headingEnd:openingEnd])
 			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
 				return headingStart, "", opening
 			}
 		}
 		if i > 0 && e.shownAsWritten(i-1) {
 			closingStart, _ := e.insertionBounds(headingStart, e.blockStart(i-1), headingStart)
-			closing := landingPrefix(e.PlainText[closingStart:headingStart])
+			closing := landingPrefix(e.plainText[closingStart:headingStart])
 			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
 				return headingStart, closing, ""
 			}
@@ -754,7 +720,7 @@ func (e *entry) blockStart(i int) int {
 func (e *entry) opensAnotherBlock(opening string, own int) bool {
 	words := strings.Fields(opening)
 	for i := range e.blocks {
-		if i != own && readsAs(e.PlainText[e.blockStart(i):], words) {
+		if i != own && readsAs(e.plainText[e.blockStart(i):], words) {
 			return true
 		}
 	}
@@ -792,7 +758,7 @@ func (e *entry) closingFollowsAnEntry(closing string, prev int) bool {
 	for i := prev - 1; i >= 0; i-- {
 		b := e.blocks[i]
 		if b.Heading {
-			name := strings.ToLower(collapseFields(e.PlainText[e.blockStart(i):b.End]))
+			name := strings.ToLower(collapseFields(e.plainText[e.blockStart(i):b.End]))
 			lower := strings.ToLower(closing)
 			return !strings.HasSuffix(lower, name) && !strings.HasSuffix(name, lower)
 		}
@@ -829,13 +795,13 @@ func landingOpening(block string) string {
 // range. A removed delimiter is not a word boundary, so the boundary after
 // the run must also be reproduced, unless it is the actual block end.
 func (e *entry) contextSuffixAt(start, from, blockEnd int) bool {
-	suffix := landingSuffix(e.PlainText, from, blockEnd)
+	suffix := landingSuffix(e.plainText, from, blockEnd)
 	if suffix == "" {
 		return false
 	}
 	stop := from + len(suffix)
 	if stop < blockEnd {
-		_, size := utf8.DecodeRuneInString(e.PlainText[stop:blockEnd])
+		_, size := utf8.DecodeRuneInString(e.plainText[stop:blockEnd])
 		stop += size
 	}
 	for _, b := range e.blocks {
@@ -885,17 +851,8 @@ func wordEdges(s string, start, end, low, high int) (grownStart, grownEnd int) {
 
 // joinsAWord reports whether r is joined to the character beside it into one
 // word, the way Unicode text segmentation (UAX #29) joins them: a letter or a
-// digit, in a script that parts its words with spaces. Every other character
-// carries a boundary on both sides, so a stretch that begins or ends against
-// one begins or ends where a word does.
-//
-// It is neither of the two runs already measured in this file. wordRun is
-// bounded by white space alone, so in "今日は晴れ、cobaltine" it answers the
-// whole sentence, and a browser handed that sentence as one term finds nothing
-// — twice over, because the page draws a ruby reading in among the characters
-// it is spoken over, so a stretch reaching across one is not text the page
-// carries in one piece at all. isWordByte keeps a date or an identifier whole
-// for a reader and so holds on to the hyphen, which a browser breaks at.
+// digit, in a script that parts its words with spaces. Neither wordRun, which
+// only white space ends, nor isWordByte, which keeps a hyphen, answers that.
 func joinsAWord(r rune) bool {
 	return (unicode.IsLetter(r) || unicode.IsDigit(r)) && !writesWithoutSpaces(r)
 }
@@ -1034,7 +991,7 @@ func (e *entry) blockEndAfter(off int) int {
 			return b.End
 		}
 	}
-	return len(e.PlainText)
+	return len(e.plainText)
 }
 
 // blockAt is where the block holding off begins, and whether the reading page
@@ -1200,7 +1157,7 @@ func wholeWordEnd(s string, i int) int {
 // Hyphen and underscore are in it because the runs that arrive mangled are dates
 // and identifiers, which splitting at the punctuation would cut to their tail.
 func isWordByte(b byte) bool {
-	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
+	return isASCIIAlnum(b) || b == '-' || b == '_'
 }
 
 // foldWithSourceOffsets folds s and maps every byte position of the folded

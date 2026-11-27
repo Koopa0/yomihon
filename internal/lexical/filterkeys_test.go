@@ -13,15 +13,15 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 	t.Parallel()
 
 	e := &entry{
-		RelPath:      "Writing/lessons/one.md",
-		PathFold:     fold("Writing/lessons/one.md"),
-		NoteType:     "lesson",
-		NoteTypeFold: fold("lesson"),
-		Draft:        true,
-		Domain:       "japanese",
-		DomainFold:   fold("japanese"),
-		Slug:         "one",
-		SlugFold:     fold("one"),
+		relPath:      "Writing/lessons/one.md",
+		pathFold:     Fold("Writing/lessons/one.md"),
+		noteType:     "lesson",
+		noteTypeFold: Fold("lesson"),
+		draft:        true,
+		domain:       "japanese",
+		domainFold:   Fold("japanese"),
+		slug:         "one",
+		slugFold:     Fold("one"),
 	}
 	satisfied := map[string]string{
 		"type":   "lesson",
@@ -39,10 +39,10 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 			t.Errorf("the grammar accepts %q and nothing here satisfies it; a key needs a case in matchesFilter and a row here", key)
 			continue
 		}
-		if !e.matchesFilter(Filter{Key: key, Value: fold(value)}) {
+		if !e.matchesFilter(Filter{Key: key, Value: Fold(value)}) {
 			t.Errorf("matchesFilter(%q:%q) = false on an entry that carries it; the key parses and nothing answers it", key, value)
 		}
-		if e.matchesFilter(Filter{Key: key, Value: fold(value + "-not-this")}) {
+		if e.matchesFilter(Filter{Key: key, Value: Fold(value + "-not-this")}) {
 			t.Errorf("matchesFilter(%q) answered true for a value this entry does not carry", key)
 		}
 	}
