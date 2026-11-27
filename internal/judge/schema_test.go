@@ -555,12 +555,11 @@ func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
 	}
 }
 
-// TestTypeRequiredFieldsFoldTheSpelling holds the fields a type adds to the
-// required set to the type word, not its bytes. A type spelled one way in the
-// contract and another in the note would otherwise lose its own requirement and
-// the note would pass without the field its type asks for. A type that does not
-// require the field is the control.
-func TestTypeRequiredFieldsFoldTheSpelling(t *testing.T) {
+// TestATypeWrittenDecomposedIsTheDeclaredType asserts a note that writes its
+// type in decomposed form, as a Mac keyboard hands it over, is judged as the
+// type the contract declares: it takes that type's required fields, and a unit
+// type's slug requirement.
+func TestATypeWrittenDecomposedIsTheDeclaredType(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -570,34 +569,35 @@ func TestTypeRequiredFieldsFoldTheSpelling(t *testing.T) {
 	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
 		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
 	}
-
+	type fieldFinding struct{ Rule, Field string }
 	tests := []struct {
 		name     string
-		declared string
-		noteType string
-		want     []string
+		contract string
+		want     []fieldFinding
 	}{
-		{name: "composed contract, composed note", declared: composed, noteType: composed, want: []string{"schema.required level is required"}},
-		{name: "composed contract, decomposed note", declared: composed, noteType: decomposed, want: []string{"schema.required level is required"}},
-		{name: "decomposed contract, composed note", declared: decomposed, noteType: composed, want: []string{"schema.required level is required"}},
-		{name: "decomposed contract, decomposed note", declared: decomposed, noteType: decomposed, want: []string{"schema.required level is required"}},
-		{name: "a type that does not require it", declared: composed, noteType: "memo"},
+		{name: "a type's required field", contract: typeRequiredContract(composed), want: []fieldFinding{{"schema.required", "level"}}},
+		{name: "a unit type's slug", contract: unitTypeContract(composed), want: []fieldFinding{{"schema.required", "slug"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, typeRequiredContract(tt.declared))
-			data := []byte("---\ntype: " + tt.noteType + "\n---\nBody.\n")
-			write(t, root, "Notes/Probe.md", string(data))
+			write(t, root, schema.ContractRelPath, tt.contract)
 			contract, err := schema.Load(root)
 			if err != nil {
 				t.Fatalf("schema.Load() error = %v", err)
 			}
-			findings := LintFrontmatter("Notes/Probe.md", data, contract)
-			if diff := cmp.Diff(tt.want, describeFindings(findings)); diff != "" {
-				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+			data := []byte("---\ntype: " + decomposed + "\n---\nBody.\n")
+			var got []fieldFinding
+			for _, f := range NewFrontmatterLinter(contract).Lint("Notes/Probe.md", data) {
+				field := ""
+				if f.Field != nil {
+					field = *f.Field
+				}
+				got = append(got, fieldFinding{string(f.RuleID), field})
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Lint(type %q) findings mismatch (-want +got):\n%s", decomposed, diff)
 			}
 		})
 	}
@@ -642,6 +642,27 @@ never_egress_dirs = []
 
 // typeRequiredContract declares a type that requires level, naming the type
 // the way the caller asks, beside a memo that does not.
+// unitTypeContract declares declared as the type holding the unit role.
+func unitTypeContract(declared string) string {
+	return `[folders]
+checked = ["Notes"]
+templates = []
+
+[enums]
+
+[fields]
+common = ["type"]
+required = ["type"]
+
+[types."` + declared + `"]
+role = "lesson"
+fields = ["slug"]
+
+[privacy]
+never_egress_dirs = []
+`
+}
+
 func typeRequiredContract(declared string) string {
 	return `[folders]
 checked = ["Notes"]

@@ -150,7 +150,7 @@ func (r *lintRun) note(n *note) []Finding {
 		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
 	}
 
-	isLesson := hasType && ty == r.lessonType
+	isLesson := hasType && n.noteType == r.lessonType
 	out = append(out, r.unknownKeys(n, ty)...)
 	out = append(out, r.articleLanguage(n)...)
 	out = append(out, r.draft(n)...)
@@ -311,7 +311,7 @@ func (r *lintRun) structural(n *note) []Finding {
 	// Which type holds the corpus of distilled ideas, and whether this vault
 	// keeps one at all, is the contract's to say; a vault declaring none has
 	// nothing for this rule to be about.
-	if ty, ok := fmScalar(n.frontmatter, "type"); ok && r.conceptDeclared && ty == r.conceptType &&
+	if r.conceptDeclared && n.noteType == r.conceptType &&
 		!hasProvenance(n.frontmatter, r.provenance) {
 		return []Finding{schemaFinding(n, "schema.provenance", "", "", "concept has neither based_on nor source_locator")}
 	}

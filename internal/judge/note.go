@@ -37,8 +37,11 @@ type note struct {
 	// title is the words of the body's first level-1 heading, which is the
 	// note's title; empty where the note has no such heading or its body was
 	// not read. A note writes no title in its frontmatter.
-	title    string
-	aliases  []string
+	title   string
+	aliases []string
+	// noteType is the type the frontmatter writes, composed the way the
+	// contract's own type names are, so a type typed in decomposed form is
+	// still the type the contract declares.
 	noteType string
 	// domain is the first folder below a root the contract derives domains
 	// from. The parse cannot know it, so the run fills it in.
@@ -176,7 +179,7 @@ func readTypedFields(n *note, doc *yaml.Node) {
 		return
 	}
 	n.aliases = listField(root, "aliases")
-	n.noteType = strField(root, "type")
+	n.noteType = schema.NormalizeWord(strField(root, "type"))
 	n.slug = strField(root, "slug")
 	n.draft = boolTrue(root, schema.DraftField)
 	n.basedOn = listField(root, "based_on")
