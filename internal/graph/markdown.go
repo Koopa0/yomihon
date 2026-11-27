@@ -9,19 +9,33 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// MarkdownResolution is a once-decoded path relative to the authoring note.
-// Checkable names the Markdown-note domain shared by the page and judge.
-// Suffix keeps the authored query and fragment without decoding either.
+// MarkdownResolution is a Markdown link's destination read once as a path
+// relative to the note that wrote it. Each fact is asked only when the ones
+// before it allow: a destination that is not Local is nothing else, and an
+// Invalid one has no Relative.
 type MarkdownResolution struct {
+	// Resolution is the file Relative names, when the vault holds one.
 	Resolution
 
-	Local     bool
-	Invalid   bool
+	// Local is whether the destination is a path into the vault at all: not
+	// empty, not rooted, with no URI scheme and no leading "~".
+	Local bool
+	// Invalid is whether a local destination fails to decode to a path a file
+	// could have: a bad escape, a control character or a backslash.
+	Invalid bool
+	// Checkable is whether the decoded path names a Markdown note and holds
+	// no glob or angle bracket: the domain the page and the check both judge.
 	Checkable bool
-	Outside   bool
-	Withheld  bool
-	Relative  string
-	Suffix    string
+	// Outside is whether Relative climbs out of the vault's root.
+	Outside bool
+	// Withheld is whether Relative lies where the scan does not look or where
+	// allowed refuses, so whether a file is there was never asked.
+	Withheld bool
+	// Relative is the decoded path joined to the writing note's folder,
+	// cleaned and composed to NFC.
+	Relative string
+	// Suffix keeps the authored query and fragment without decoding either.
+	Suffix string
 }
 
 // ResolveMarkdown resolves only the note-relative path using exact captured

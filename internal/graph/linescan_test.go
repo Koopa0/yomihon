@@ -182,9 +182,9 @@ func TestLineSkipZones(t *testing.T) {
 	}
 }
 
-// TestHeadingsReadsBothFormsTheWayThePageDoes freezes the one heading grammar
-// the reading page, the check and the map rail each used to answer on its own.
-// Every row is a shape at least one of the three had to get right: the indents
+// TestHeadingsReadsBothFormsTheWayThePageDoes holds the one heading grammar
+// the reading page, the check and the sidebar all read. Every row is a shape
+// a reader of a note has to get right: the indents
 // that make a marked heading and the two that do not, a closing run balanced
 // and glued, a run of seven marks, a heading-shaped line inside each kind of
 // block that reaches the reader as written, and every line kind that ends a run
