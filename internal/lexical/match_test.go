@@ -161,7 +161,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	}
 	metadataQueries := []string{
 		"type:concept",
-		"draft:",
+		"draft:true",
 		"domain:meta",
 		"slug:note",
 		"needle type:concept",

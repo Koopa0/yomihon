@@ -404,7 +404,7 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 				delete(gotAttrs, "msg")
 				wantAttrs := map[string]any{
 					"error_type":  "*errors.errorString",
-					"filter_keys": []any{"type", "draft", "domain", "slug", "folder"},
+					"filter_keys": []any{"type", "domain", "slug", "folder"},
 					"query_bytes": float64(len(sentinel)),
 				}
 				if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {

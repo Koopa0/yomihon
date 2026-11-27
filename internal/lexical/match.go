@@ -436,7 +436,8 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/domain/slug
-// compare the folded copies; draft asks the flag, true or false; folder is
+// compare the folded copies; draft asks the flag, which Parse reads only as
+// true or false; folder is
 // a rel_path prefix taken one directory name at a time, so "folder:Writing"
 // matches "Writing" and "Writing/x.md" and "writing/x.md", but never
 // "Writing-old/x.md".
@@ -445,7 +446,7 @@ func (e *entry) matchesFilter(f Filter) bool {
 	case "type":
 		return e.NoteTypeFold == f.Value
 	case DraftFilterKey:
-		return (f.Value == "true" && e.Draft) || (f.Value == "false" && !e.Draft)
+		return e.Draft == (f.Value == "true")
 	case "domain":
 		return e.DomainFold == f.Value
 	case "slug":

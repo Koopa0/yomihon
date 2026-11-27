@@ -26,8 +26,10 @@ type Query struct {
 	tokens  []string
 	filters []Filter
 	// unknownKeys are the words written before a colon that this grammar does not
-	// accept, in input order and without repeats. The term is still searched for
-	// as text; this is what lets a page say the constraint was not one it knows.
+	// accept, and the whole of a term whose key it accepts and whose value it
+	// does not, in input order and without repeats. The term is still searched
+	// for as text; this is what lets a page say the constraint was not one it
+	// knows.
 	unknownKeys      []string
 	literalOperators []string
 }
@@ -43,8 +45,9 @@ func (q *Query) Filters() []Filter {
 }
 
 // UnknownFilterKeys returns the keys of terms shaped like filters that this
-// grammar does not accept, in input order. An empty result is the ordinary
-// case: nothing in the query looked like a constraint that was not one.
+// grammar does not accept, and the whole term where only the value is not
+// accepted, in input order. An empty result is the ordinary case: nothing in
+// the query looked like a constraint that was not one.
 func (q *Query) UnknownFilterKeys() []string {
 	return slices.Clone(q.unknownKeys)
 }
@@ -275,9 +278,11 @@ func groupCloser(rest string, closer rune) int {
 }
 
 // splitFilter classifies one raw token: it splits key/value on the first colon
-// and returns a filter only when the key is one of the six and was written outside
-// quotes, quotedFrom being where quoting began or -1. The value is NFC-normalized;
-// a non-filter token returns ok=false so the caller folds it as a bare token.
+// and reads a filter only when the key is one the grammar accepts, was written
+// outside quotes, quotedFrom being where quoting began or -1, and carries a
+// value that key can take. The value is NFC-normalized. A term shaped like a
+// filter and not one reports what to say about it in key: the key where the
+// grammar does not accept it, and the whole term where only the value is wrong.
 func splitFilter(raw string, quotedFrom int) (key, value string, reading filterReading) {
 	key, rest, found := strings.Cut(raw, ":")
 	if !found {
@@ -294,8 +299,15 @@ func splitFilter(raw string, quotedFrom int) (key, value string, reading filterR
 		return key, "", readAsUnknownFilter
 	}
 	value = vault.NormalizeNFC(rest)
-	if key == "folder" {
+	switch key {
+	case "folder":
 		value = strings.TrimSuffix(value, "/")
+	case DraftFilterKey:
+		if folded := fold(value); folded != "true" && folded != "false" {
+			// A draft is declared true or false and nothing else, so any other
+			// value is a constraint that would quietly match nothing.
+			return raw, "", readAsUnknownFilter
+		}
 	}
 	return key, value, readAsFilter
 }
