@@ -9,11 +9,10 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// TestCommentZonesHoldsObsidianPairing is the lock over the shared comment-zone
-// reading. Sequence and the judge used to drop an unpaired trailing mark and
-// keep reading; the page hid everything after it. One table here is the
-// pairing both faces now consume: a closed pair, an unclosed run to the end,
-// and a percent sign that is only code.
+// TestCommentZonesHoldsObsidianPairing pins the pairing the page hides by, so
+// the judge and the sequence reader skip the same text: a closed pair, an
+// unclosed mark that hides the rest of the note, and a mark inside code that
+// hides nothing.
 func TestCommentZonesHoldsObsidianPairing(t *testing.T) {
 	t.Parallel()
 

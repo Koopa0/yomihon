@@ -75,14 +75,10 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 	}
 }
 
-// TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD guards the property
-// normalize()'s own doc comment claims but earlier only held for lookup
-// keys, not the stored path value: a note whose filename arrived on disk
-// as raw NFD bytes (macOS filesystems can hold either form regardless of
-// how it was typed) must still resolve to an NFC Resolution.RelPath.
-// normalize() alone cannot fix this because it only normalizes at lookup time;
-// this test exercises the rooted reader capture where path bytes enter the
-// generation.
+// TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD reads a note
+// whose filename is NFD on disk, as a macOS folder can hold it however it was
+// typed. Folding the lookup key is not enough: the path a resolution hands
+// back is the one the capture stored, so the capture has to fold it too.
 func TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
