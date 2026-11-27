@@ -53,7 +53,6 @@ func FuzzParse(f *testing.F) {
 		if utf8.ValidString(raw) && (!allValidStrings(first.tokens) || !validFilters(first.filters)) {
 			t.Errorf("Parse(valid UTF-8 %q) emitted invalid UTF-8: %#v", raw, first)
 		}
-
 	})
 }
 

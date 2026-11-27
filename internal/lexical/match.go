@@ -561,18 +561,9 @@ func tokenWindows(fold, token string, foldFences [][2]int) (proseStart, proseEnd
 	return proseStart, proseEnd, fenceStart, fenceEnd
 }
 
+// inFenceRange reports whether off lies inside one of the half-open fences.
 func inFenceRange(off int, fences [][2]int) bool {
-	found, _ := fenceAt(off, fences)
-	return found
-}
-
-func fenceAt(off int, fences [][2]int) (found bool, span [2]int) {
-	for _, f := range fences {
-		if off >= f[0] && off < f[1] {
-			return true, f
-		}
-	}
-	return false, [2]int{}
+	return slices.ContainsFunc(fences, func(f [2]int) bool { return off >= f[0] && off < f[1] })
 }
 
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A

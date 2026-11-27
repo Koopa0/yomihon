@@ -73,7 +73,6 @@ func TestSkipsBasenameMatchesTheDeclaredFilenameOnly(t *testing.T) {
 			t.Errorf("SkipsBasename(%q) = %v, want %v", tt.path, got, tt.want)
 		}
 	}
-
 }
 
 // The testdata contract is a loader fixture, not a second schema: runtime

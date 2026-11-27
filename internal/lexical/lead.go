@@ -78,7 +78,7 @@ func (e *entry) lead(tokens []string) Lead {
 		if hitStart < 0 {
 			continue
 		}
-		if fenced, _ := fenceAt(start+hitStart, e.fenceRanges); fenced {
+		if inFenceRange(start+hitStart, e.fenceRanges) {
 			if !foundCode {
 				code, foundCode = [2]int{start, end}, true
 			}
