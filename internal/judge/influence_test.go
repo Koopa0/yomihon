@@ -221,13 +221,13 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 
 // coverageOf runs the coverage report over root and parses it back into the
 // Coverage value the assertions read.
-func coverageOf(t *testing.T, root string) Coverage {
+func coverageOf(t *testing.T, root string) coverageReport {
 	t.Helper()
 	out, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage(%q): %v", root, err)
 	}
-	var cov Coverage
+	var cov coverageReport
 	if err := json.Unmarshal(out, &cov); err != nil {
 		t.Fatalf("parse coverage %q: %v", out, err)
 	}

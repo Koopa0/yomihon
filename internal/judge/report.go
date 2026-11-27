@@ -28,13 +28,17 @@ import (
 // checker separately selects which notes require validation.
 type domainRoots []string
 
+// noDomain is what the reports call a path with no domain folder under a
+// declared root.
+const noDomain = "(none)"
+
 // of infers a finding's knowledge domain from its vault path, and reports
-// "(other)" when the path carries no domain folder under a declared root.
+// noDomain when the path carries no domain folder under a declared root.
 func (r domainRoots) of(path string) string {
 	if folder, ok := schema.DomainFolder(r, path); ok {
 		return folder
 	}
-	return "(other)"
+	return noDomain
 }
 
 // packedItem is one folded group of identical findings — same rule and target

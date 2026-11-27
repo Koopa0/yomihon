@@ -308,7 +308,7 @@ func TestRunCoveragePathSuffix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"total_concepts":3,"domains":[{"domain":"(none)","concepts":3,"mounted":3,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}` + "\n"
+	want := `{"total_concepts":3,"domains":[{"domain":"(none)","concepts":3,"mounted":3,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[]}` + "\n"
 	t.Log("invoked: actual suffix resolution contract")
 	if exit != 0 || string(got) != want {
 		t.Errorf("caught: suffix coverage mount missing: (%q,%d)", got, exit)

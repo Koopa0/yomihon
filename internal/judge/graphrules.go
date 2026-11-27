@@ -406,12 +406,7 @@ func noteReferenceFields(n *note) []referenceField {
 // the same way a body link is. A value that strips to nothing counts as
 // resolved, so a bare anchor never invents a finding.
 func provenanceResolves(idx *graph.Index, slugs map[string]string, value string) bool {
-	v := strings.TrimSpace(value)
-	inner := v
-	if len(v) >= 4 && strings.HasPrefix(v, "[[") && strings.HasSuffix(v, "]]") {
-		inner = v[2 : len(v)-2]
-	}
-	target, ok := stripTarget(inner)
+	target, ok := referenceTarget(value)
 	if !ok {
 		return true
 	}
@@ -459,7 +454,7 @@ func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthorit
 			continue
 		}
 		for _, value := range n.basedOn {
-			target, ok := basedOnTarget(value)
+			target, ok := referenceTarget(value)
 			if !ok {
 				continue
 			}
@@ -471,10 +466,11 @@ func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthorit
 	return out
 }
 
-// basedOnTarget is the name a based_on value cites: the words inside its
-// wikilink brackets, or the bare value, with any |display, #heading or ^block
-// taken off the way a body link is read.
-func basedOnTarget(value string) (string, bool) {
+// referenceTarget is the name a frontmatter reference cites: the words inside
+// its wikilink brackets, or the bare value, with any |display, #heading or
+// ^block taken off the way a body link is read. ok is false for a value that
+// strips to nothing.
+func referenceTarget(value string) (string, bool) {
 	v := strings.TrimSpace(value)
 	inner := v
 	if len(v) >= 4 && strings.HasPrefix(v, "[[") && strings.HasSuffix(v, "]]") {

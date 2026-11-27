@@ -128,7 +128,7 @@ func TestCoverageFollowsDeclaredKnowledgeScope(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":2,"orphan":0}],"pending_mount":["Notes/Kept.md","System/notes/Idea.md"],"orphans":[],"unrouted":[]}` + "\n"
+	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":2,"orphan":0}],"pending_mount":["Notes/Kept.md","System/notes/Idea.md"],"orphans":[]}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
@@ -170,54 +170,7 @@ never_egress_dirs = []
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
-	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Idea.md"],"unrouted":[]}` + "\n"
-	if string(got) != want {
-		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
-}
-
-// TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope is the unroutedNotes
-// half of the Lock: coverageRoutes only fires when research-brief is declared,
-// so a vault without that type never reaches the knowledge cut at all. With
-// System declared, the System brief is unrouted; an Away brief is not. A
-// HasPrefix(path, "System/") skip would hide the System brief and keep the Away
-// one, and this test would go red.
-func TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `[folders]
-checked = ["Notes", "System"]
-templates = []
-
-[enums]
-
-[fields]
-common = ["type", "based_on"]
-required = ["type"]
-
-[types.concept]
-
-[types.research-brief]
-
-[rules]
-concept_requires_provenance = ["based_on"]
-
-[privacy]
-never_egress_dirs = []
-`)
-	write(t, root, "Notes/Kept.md", "---\ntype: concept\nbased_on:\n  - \"[[Brief]]\"\n---\n# Kept\nBody.\n")
-	write(t, root, "System/notes/Brief.md", "---\ntype: research-brief\n---\n# Brief\nBody.\n")
-	write(t, root, "Away/Loose.md", "---\ntype: research-brief\n---\n# Loose\nBody.\n")
-
-	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if exit != 0 {
-		t.Errorf("RunCoverage() exit = %d, want 0", exit)
-	}
-	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Kept.md"],"unrouted":[{"path":"System/notes/Brief.md","note_type":"research-brief","expected_route":"Maps/研究 Brief 索引"}]}` + "\n"
+	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Idea.md"]}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}

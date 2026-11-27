@@ -741,7 +741,7 @@ func TestRunOnEmptyVault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunCoverage: %v", err)
 	}
-	if want := "{\"total_concepts\":0,\"domains\":[],\"pending_mount\":[],\"orphans\":[],\"unrouted\":[]}\n"; string(cov) != want {
+	if want := "{\"total_concepts\":0,\"domains\":[],\"pending_mount\":[],\"orphans\":[]}\n"; string(cov) != want {
 		t.Errorf("empty coverage = %q, want %q", cov, want)
 	}
 	if exit != 0 {

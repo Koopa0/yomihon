@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -73,7 +72,7 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}` + "\n"
+	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[]}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
@@ -99,33 +98,9 @@ func TestCoveragePendingMountIsANonMapReference(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":1,"orphan":1}],"pending_mount":["Concepts/Idea.md"],"orphans":["Concepts/Seed.md"],"unrouted":[]}` + "\n"
+	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":1,"orphan":1}],"pending_mount":["Concepts/Idea.md"],"orphans":["Concepts/Seed.md"]}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
-	}
-}
-
-// TestCoverageWithholdsTheRouteFromAnUndeclaredType asserts a vault whose
-// contract never names the research brief is not told to file one under the
-// index note of the vault this route was written for. The route cannot be
-// derived from a contract, so it is offered only where the contract declares
-// the type it is about.
-func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Brief.md", "---\ntype: research-brief\n---\n# Brief\n\nBody.\n")
-
-	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCoverage() error = %v", err)
-	}
-	if !bytes.Contains(got, []byte(`"unrouted":[]`)) {
-		t.Errorf("a vault that never declared the type was given a route:\n%s", got)
-	}
-	if bytes.Contains(got, []byte("Brief")) {
-		t.Errorf("coverage named a note of a type the contract does not declare:\n%s", got)
 	}
 }
 
@@ -147,7 +122,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	want := `{"total_concepts":0,"domains":[],"pending_mount":[],"orphans":[],"unrouted":[],` +
+	want := `{"total_concepts":0,"domains":[],"pending_mount":[],"orphans":[],` +
 		`"not_applicable":"the rules file declares no \"concept\" type, so there is no concept corpus to judge"}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)

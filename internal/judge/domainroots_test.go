@@ -41,7 +41,7 @@ func TestTheReportGroupsByTheFoldersTheContractDeclares(t *testing.T) {
 	if !strings.Contains(report, "golang") {
 		t.Fatalf("the report names no domain at all, so it proves nothing about grouping:\n%s", report)
 	}
-	if strings.Contains(report, "(other)") {
+	if strings.Contains(report, "(none)") {
 		t.Errorf("a note under the folder the contract declares is filed with no domain:\n%s", report)
 	}
 }
@@ -60,11 +60,11 @@ func TestRunCheckDomainHeadings(t *testing.T) {
 		{"declared nested", `["Writing/lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
 		{"renamed nested", `["Archive/studies"]`, "Archive", "Archive/studies/rust/L1.md", "rust"},
 		{"deep directory", `["Writing/lessons"]`, "Writing", "Writing/lessons/japanese/drills/D1.md", "japanese"},
-		{"undeclared nested", `["Sources"]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
-		{"empty roots", `[]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
-		{"nested direct child", `["Writing/lessons"]`, "Writing", "Writing/lessons/Overview.md", "(other)"},
-		{"top level direct child", `["Writing"]`, "Writing", "Writing/Overview.md", "(other)"},
-		{"sibling prefix", `["Writing/lessons"]`, "Writing", "Writing/lessons-extra/golang/L1.md", "(other)"},
+		{"undeclared nested", `["Sources"]`, "Writing", "Writing/lessons/golang/L1.md", "(none)"},
+		{"empty roots", `[]`, "Writing", "Writing/lessons/golang/L1.md", "(none)"},
+		{"nested direct child", `["Writing/lessons"]`, "Writing", "Writing/lessons/Overview.md", "(none)"},
+		{"top level direct child", `["Writing"]`, "Writing", "Writing/Overview.md", "(none)"},
+		{"sibling prefix", `["Writing/lessons"]`, "Writing", "Writing/lessons-extra/golang/L1.md", "(none)"},
 		{"case folded", `["Writing/Lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
 		{"decomposed root", `["Writing/Cafe\u0301"]`, "Writing", "Writing/Caf\u00e9/golang/L1.md", "golang"},
 	} {
