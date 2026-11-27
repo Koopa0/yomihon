@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand/v2"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/childtest"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/sealedline"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -54,8 +54,8 @@ const (
 	killBody  = 8 << 10
 )
 
-// open is a Marks over a vault and a configuration directory, as a process of
-// its own opens one.
+// openMarks is a Marks over a vault and a configuration directory, as a process
+// of its own opens one.
 func openMarks(root, conf string) (*Marks, func(), error) {
 	r, err := vault.Open(root)
 	if err != nil {
@@ -170,12 +170,7 @@ func together(m *Marks, who string) error {
 	return nil
 }
 
-type child struct {
-	cmd   *exec.Cmd
-	lines chan string
-}
-
-func startChild(t *testing.T, mode, root, conf, who string) *child {
+func startChild(t *testing.T, mode, root, conf, who string) *childtest.Child {
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // #nosec G204 G702 -- this test binary, run again as the writer
 	cmd.Env = append(os.Environ(), childModeVar+"="+mode, childRootVar+"="+root, childConfigVar+"="+conf, childWhoVar+"="+who)
@@ -187,21 +182,15 @@ func startChild(t *testing.T, mode, root, conf, who string) *child {
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	c := &child{cmd: cmd, lines: make(chan string, 64)}
-	go func() {
-		defer close(c.lines)
-		scanner := bufio.NewScanner(out)
-		for scanner.Scan() {
-			c.lines <- scanner.Text()
-		}
-		_, _ = io.Copy(io.Discard, out) //nolint:errcheck // what is left after a kill says nothing
-	}()
-	return c
+	return childtest.Watch(out, func() error {
+		err := cmd.Process.Kill()
+		_ = cmd.Wait() //nolint:errcheck // a killed process answers that it was killed
+		return err
+	})
 }
 
 // Two processes of one machine, as the server and a command are, write marks of
-// their own and edit one they share, again and again, with compactions of the
-// ledger among them: not one write is lost, no one is told to be another
+// their own and edit one they share, again and again: not one write is lost, no one is told to be another
 // machine, and the shared mark has one value.
 func TestTwoProcessesWriteAtOnceAndLoseNothing(t *testing.T) {
 	t.Parallel()
@@ -294,49 +283,17 @@ func TestGoroutinesWriteAtOnce(t *testing.T) {
 	}
 }
 
-// answered is what the child said a Put answered for.
-func (c *child) killAfter(t *testing.T, begins int, until func() bool, wait time.Duration) []int {
+// killAfter is childtest's KillAfter, read as the numbers of the writes the
+// child said a Put answered for.
+func killAfter(t *testing.T, c *childtest.Child, begins int, until func() bool, wait time.Duration) []int {
 	t.Helper()
 	var answered []int
-	read := func(line string) {
-		if rest, ok := strings.CutPrefix(line, "done "); ok {
-			n, err := strconv.Atoi(rest)
-			if err != nil {
-				t.Fatalf("the child said %q", line)
-			}
-			answered = append(answered, n)
+	for _, words := range c.KillAfter(t, begins, until, wait) {
+		n, err := strconv.Atoi(words)
+		if err != nil {
+			t.Fatalf("the child said done %q", words)
 		}
-	}
-	for begun := 0; begun < begins; {
-		line, ok := <-c.lines
-		if !ok {
-			t.Fatal("the child stopped before it was killed")
-		}
-		if strings.HasPrefix(line, "begin ") {
-			begun++
-		}
-		read(line)
-	}
-	for deadline := time.Now().Add(time.Minute); until != nil && !until(); {
-		if time.Now().After(deadline) {
-			t.Fatal("what the kill waits for did not happen in a minute")
-		}
-		select {
-		case line, ok := <-c.lines:
-			if !ok {
-				t.Fatal("the child stopped before it was killed")
-			}
-			read(line)
-		case <-time.After(50 * time.Microsecond):
-		}
-	}
-	time.Sleep(wait)
-	if err := c.cmd.Process.Kill(); err != nil {
-		t.Fatal(err)
-	}
-	_ = c.cmd.Wait() //nolint:errcheck // a killed process answers that it was killed
-	for line := range c.lines {
-		read(line)
+		answered = append(answered, n)
 	}
 	return answered
 }
@@ -371,7 +328,7 @@ func TestAWriterKilledAtAnyMomentLosesNothingItAnsweredFor(t *testing.T) {
 		// Each child begins at a token of its own, above every earlier one, and
 		// a multiple of the number of marks so that token i is of mark i mod it.
 		c := startChild(t, "kill", a.root, a.conf, strconv.Itoa(kills*killMarks*1000))
-		answered := c.killAfter(t, 1+rand.IntN(3), grown, wait) // #nosec G404 -- the moment of a kill, not a secret
+		answered := killAfter(t, c, 1+rand.IntN(3), grown, wait) // #nosec G404 -- the moment of a kill, not a secret
 		for _, i := range answered {
 			highest[mid(100+i%killMarks)] = max(highest[mid(100+i%killMarks)], i)
 		}
@@ -424,7 +381,7 @@ func TestAWriterKilledDuringItsFirstWritesLeavesAVaultThatWrites(t *testing.T) {
 		kills++
 		a := newClone(t, "A")
 		c := startChild(t, "kill", a.root, a.conf, strconv.Itoa(kill*killMarks*1000))
-		answered := c.killAfter(t, 1, nil, time.Duration(rand.IntN(12000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
+		answered := killAfter(t, c, 1, nil, time.Duration(rand.IntN(12000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
 		_, noFile := os.Stat(a.marksDir())
 		if noFile != nil && strings.Contains(string(a.ledgerBytes()), `"kind":"header"`) {
 			caught++
