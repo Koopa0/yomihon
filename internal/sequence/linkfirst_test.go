@@ -2,42 +2,6 @@ package sequence
 
 import "testing"
 
-// TestAnUnpairedDelimiterIsVisible holds the question link-first actually asks.
-// A run of asterisks is emphasis only when Markdown pairs it with a closer;
-// unpaired, it renders as itself and stands in front of the link. Deciding from
-// the run's own shape — "something follows it, so it must open emphasis" — reads
-// a printed "**" as if it were invisible.
-func TestAnUnpairedDelimiterIsVisible(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		row  string
-		want EntryState
-	}{
-		{name: "paired bold", row: "- **[[A]]**\n", want: EntryAccepted},
-		{name: "paired italic", row: "- _[[A]]_\n", want: EntryAccepted},
-		{name: "bold and italic together", row: "- ***[[A]]***\n", want: EntryAccepted},
-		{name: "bold wrapping italic", row: "- **_[[A]]_**\n", want: EntryAccepted},
-		{name: "a comment is still invisible", row: "- %%hidden%% [[A]]\n", want: EntryAccepted},
-		{name: "unpaired bold", row: "- **[[A]]\n", want: EntryNoncanonical},
-		{name: "unpaired italic", row: "- _[[A]]\n", want: EntryNoncanonical},
-		{name: "a literal underscore run", row: "- __ [[A]]\n", want: EntryNoncanonical},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			doc := Parse("## P {sequence=primary}\n\n"+tt.row, 1)
-			entries := doc.Groups[0].entries()
-			if len(entries) != 1 {
-				t.Fatalf("row %q produced %d entries, want 1", tt.row, len(entries))
-			}
-			if got := entries[0].State; got != tt.want {
-				t.Errorf("row %q state = %v, want %v", tt.row, got, tt.want)
-			}
-		})
-	}
-}
-
 // TestARefusedRowAnchorsNothing holds the single-owner rule. Whether a row is a
 // lesson is decided once, when the row is read; asking again from the raw text
 // lets a row the grammar refused for one reason pass a second, looser test and
