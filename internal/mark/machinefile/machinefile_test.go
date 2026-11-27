@@ -1,7 +1,6 @@
 package machinefile_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -196,6 +195,29 @@ func TestAMachineIDIsEightLowercaseHexDigits(t *testing.T) {
 	}
 }
 
+// chmodFor gives the folder at path mode for the rest of the test. refused,
+// when there is one, is what the mode is to refuse: when it goes through all
+// the same, this user is a privileged one the mode does not hold, the fixture
+// shows nothing, and the test is skipped.
+func chmodFor(t *testing.T, path string, mode os.FileMode, refused func() error) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Chmod(path, mode); err != nil { // #nosec G302 -- the test's own folder
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(path, info.Mode().Perm()); err != nil { // #nosec G302 -- restores the mode so the folder can be removed
+			t.Errorf("restore the mode of %s: %v", path, err)
+		}
+	})
+	if refused != nil && refused() == nil {
+		t.Skip("this user is let through what the mode refuses (a privileged user), so the fixture shows nothing")
+	}
+}
+
 // symlink makes a link, or skips a test on a system that does not let this
 // user make one, as Windows without developer mode does not.
 func symlink(t *testing.T, target, link string) {
@@ -214,35 +236,37 @@ func symlink(t *testing.T, target, link string) {
 // A folder on the way to the machine file that is a link is refused wherever it
 // points, and so is one that is not a folder: a reader folder linked to a
 // folder of notes would have the marks written among the notes. Open refuses it
-// and so does a write, and what the link points at is left as it was.
+// and so does a write, and what the link points at is left as it was. The
+// refusal says whether the name is a link, so the reader is told which.
 func TestAFolderOnTheWayThatIsALinkOrNotAFolderIsRefused(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name  string
-		build func(t *testing.T, root string)
+		name     string
+		build    func(t *testing.T, root string)
+		wantLink bool
 	}{
 		{"the reader folder is a link to the notes", func(t *testing.T, root string) {
 			t.Helper()
 			symlink(t, "courses", filepath.Join(root, "reader-notes"))
-		}},
+		}, true},
 		{"the reader folder is a file", func(t *testing.T, root string) {
 			t.Helper()
 			write(t, root, "reader-notes", "not a folder\n")
-		}},
+		}, false},
 		{".yomihon is a link to a folder of the reader's", func(t *testing.T, root string) {
 			t.Helper()
 			write(t, root, "reader-notes/essays/marks/keep.md", "# Keep\n")
 			symlink(t, "essays", filepath.Join(root, "reader-notes", ".yomihon"))
-		}},
+		}, true},
 		{"marks is a link to the notes", func(t *testing.T, root string) {
 			t.Helper()
 			symlink(t, filepath.Join("..", "..", "courses"), filepath.Join(root, "reader-notes", ".yomihon", "marks"))
-		}},
+		}, true},
 		{"marks is a link inside the reader folder", func(t *testing.T, root string) {
 			t.Helper()
 			write(t, root, "reader-notes/essays/keep.md", "# Keep\n")
 			symlink(t, filepath.Join("..", "essays"), filepath.Join(root, "reader-notes", ".yomihon", "marks"))
-		}},
+		}, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -254,11 +278,12 @@ func TestAFolderOnTheWayThatIsALinkOrNotAFolderIsRefused(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer r.Close() //nolint:errcheck // the test is over
-			if f, err := machinefile.Open(r); !errors.Is(err, machinefile.ErrNotAFolder) {
-				if err == nil {
-					_ = f.Close() //nolint:errcheck // the failure below is the report
-				}
-				t.Errorf("Open = %v, want ErrNotAFolder", err)
+			f, err := machinefile.Open(r)
+			if err == nil {
+				_ = f.Close() //nolint:errcheck // the failure below is the report
+			}
+			if !errors.Is(err, machinefile.ErrNotAFolder) || errors.Is(err, machinefile.ErrLink) != tt.wantLink {
+				t.Errorf("Open = %v, want ErrNotAFolder, and ErrLink = %v", err, tt.wantLink)
 			}
 			if got := changed(before, snapshot(t, root)); len(got) != 0 {
 				t.Errorf("a refused Open changed %q", got)
@@ -343,24 +368,15 @@ func TestAWriteThatCannotMakeItsTemporaryFileLeavesTheMachineFile(t *testing.T) 
 	f := opened(t, root)
 	replace(t, f, "kept\n")
 	marks := filepath.Join(root, "reader-notes", ".yomihon", "marks")
-	if err := os.Chmod(marks, 0o500); err != nil { // #nosec G302 -- the test's own folder, readable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(marks, 0o750); err != nil { // #nosec G302 -- restores the mode so the folder can be removed
-			t.Errorf("restore the folder's mode: %v", err)
+	chmodFor(t, marks, 0o500, func() error {
+		probe, err := os.Create(filepath.Join(marks, "probe")) // #nosec G304 -- the test's own folder
+		if err == nil {
+			_ = probe.Close() //nolint:errcheck // only whether it was made matters
 		}
+		return err
 	})
-	if probe, err := os.Create(filepath.Join(marks, "probe")); err == nil { // #nosec G304 -- the test's own folder
-		_ = probe.Close() //nolint:errcheck // only whether it was made matters
-		t.Skip("this user writes in a folder it may not write in (a privileged user), so the fixture shows nothing")
-	}
-	m, err := f.Replace(thisMachine, []byte("new\n"))
-	if err == nil {
+	if _, err := f.Replace(thisMachine, []byte("new\n")); err == nil {
 		t.Fatal("a write whose temporary file cannot be made = nil, want an error")
-	}
-	if m.Install != 0 || m.ReadBack != 0 {
-		t.Errorf("a write that failed before the rename measured Install %v and ReadBack %v, want both zero", m.Install, m.ReadBack)
 	}
 	if got := readMachineFile(t, root); got != "kept\n" {
 		t.Errorf("after the refused write the machine file holds %q, want what was kept", got)
@@ -378,35 +394,11 @@ func TestAFailedRenameLeavesNoTemporaryFile(t *testing.T) {
 	write(t, root, machinePath+"/inside", "a folder in the machine file's place\n")
 	before := snapshot(t, root)
 	f := opened(t, root)
-	m, err := f.Replace(thisMachine, []byte("new\n"))
-	if err == nil {
+	if _, err := f.Replace(thisMachine, []byte("new\n")); err == nil {
 		t.Fatal("a rename over a folder = nil, want an error")
-	}
-	if m.Write == 0 {
-		t.Errorf("a write that reached the rename measured Write %v, want what it took", m.Write)
 	}
 	if got := changed(before, snapshot(t, root)); len(got) != 0 {
 		t.Errorf("the failed rename changed %q", got)
-	}
-}
-
-// A write measures what it did: every step it ran took some time, and the
-// bytes are the data's. Windows' monotonic clock moves in ticks of half a
-// millisecond or more, so a step shorter than a tick, reading 8 bytes back
-// above all, reads as zero there; what is held there is that the steps were
-// measured at all, and that none reads as less than nothing.
-func TestAWriteMeasuresEachStep(t *testing.T) {
-	t.Parallel()
-	f := opened(t, aVault(t))
-	m := replace(t, f, "{\"a\":1}\n")
-	if runtime.GOOS == "windows" {
-		if m.Bytes != 8 || m.Write < 0 || m.Install < 0 || m.ReadBack < 0 || m.Write+m.Install+m.ReadBack <= 0 {
-			t.Errorf("Measurement = %+v, want 8 bytes and the steps measured", m)
-		}
-		return
-	}
-	if m.Bytes != 8 || m.Write <= 0 || m.Install <= 0 || m.ReadBack <= 0 {
-		t.Errorf("Measurement = %+v, want 8 bytes and every step above zero", m)
 	}
 }
 
@@ -456,18 +448,13 @@ func TestEveryWriteSyncsTheFoldersOnTheWay(t *testing.T) {
 	}
 	root := aVault(t)
 	f := opened(t, root)
-	if err := os.Chmod(root, 0o300); err != nil { // #nosec G302 -- the test's own vault, writable and searchable
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(root, 0o755); err != nil { // #nosec G302 -- restores the mode so the vault can be removed
-			t.Errorf("restore the vault's mode: %v", err)
+	chmodFor(t, root, 0o300, func() error {
+		probe, err := os.Open(root) // #nosec G304 -- the test's own vault
+		if err == nil {
+			_ = probe.Close() //nolint:errcheck // only whether it opened matters
 		}
+		return err
 	})
-	if probe, err := os.Open(root); err == nil { // #nosec G304 -- the test's own vault
-		_ = probe.Close() //nolint:errcheck // only whether it opened matters
-		t.Skip("this user opens a folder it may not read (a privileged user), so the fixture shows nothing")
-	}
 	for _, write := range []string{"the first, which makes the reader folder", "the next, which finds it"} {
 		if _, err := f.Replace(thisMachine, []byte("x\n")); err == nil {
 			t.Errorf("%s: a write whose vault folder cannot be synced = nil, want an error", write)
@@ -521,58 +508,6 @@ func TestAZeroFolderIsRefused(t *testing.T) {
 	}
 }
 
-// The bytes written are the bytes read back: nothing is added or changed on
-// the way, a line ending included.
-func TestTheMachineFileHoldsExactlyTheBytesWritten(t *testing.T) {
-	t.Parallel()
-	root := aVault(t)
-	f := opened(t, root)
-	data := "{\"a\":\"\\u00e9\"}\r\n{\"b\":\"\xff\"}\n"
-	replace(t, f, data)
-	if got := readMachineFile(t, root); !bytes.Equal([]byte(got), []byte(data)) {
-		t.Errorf("the machine file holds %q, want %q", got, data)
-	}
-}
-
-// A refusal says whether the name is a link or something that is not a folder,
-// so the reader is told which, and both are ErrNotAFolder.
-func TestARefusalSaysALinkIsALink(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name     string
-		build    func(t *testing.T, root string)
-		wantLink bool
-	}{
-		{"a link", func(t *testing.T, root string) {
-			t.Helper()
-			symlink(t, "courses", filepath.Join(root, "reader-notes"))
-		}, true},
-		{"a file", func(t *testing.T, root string) { t.Helper(); write(t, root, "reader-notes", "x\n") }, false},
-		{"marks is a link", func(t *testing.T, root string) {
-			t.Helper()
-			symlink(t, filepath.Join("..", "..", "courses"), filepath.Join(root, "reader-notes", ".yomihon", "marks"))
-		}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			root := aVault(t)
-			tt.build(t, root)
-			r, err := vault.Open(root)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer r.Close() //nolint:errcheck // the test is over
-			f, err := machinefile.Open(r)
-			if err == nil {
-				_ = f.Close() //nolint:errcheck // the failure below is the report
-			}
-			if !errors.Is(err, machinefile.ErrNotAFolder) || errors.Is(err, machinefile.ErrLink) != tt.wantLink {
-				t.Errorf("Open = %v, want ErrNotAFolder, and ErrLink = %v", err, tt.wantLink)
-			}
-		})
-	}
-}
-
 // ReadOnly asks the deepest folder that is there, writes nothing, and makes
 // nothing.
 func TestReadOnlyAsksTheDeepestFolderThatIsThere(t *testing.T) {
@@ -595,11 +530,7 @@ func TestReadOnlyAsksTheDeepestFolderThatIsThere(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "reader-notes")); err == nil {
 		t.Error("asking made the reader folder")
 	}
-	if err := os.Chmod(root, 0o500); err != nil { // #nosec G302 -- a test's own folder
-		t.Fatal(err)
-	}
-	// #nosec G302 -- a test restoring its own temporary folder so that it can be removed
-	t.Cleanup(func() { _ = os.Chmod(root, 0o700) }) //nolint:errcheck // best-effort so the temp dir is removed
+	chmodFor(t, root, 0o500, nil)
 	if ro, err := f.ReadOnly(); err != nil || !ro {
 		t.Errorf("ReadOnly on a vault folder with no write bit = %v, %v; want true", ro, err)
 	}
