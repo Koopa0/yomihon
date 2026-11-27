@@ -122,6 +122,11 @@ func TestInlinePlannedMarksHarvestTheLineTargets(t *testing.T) {
 			body: "```\n[[一致性雜湊]] 待整理\n```\n",
 			want: nil,
 		},
+		{
+			name: "an escaped link beside a mark contributes nothing",
+			body: "待建 \\[[Ghost]]\n",
+			want: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -184,18 +189,30 @@ func TestGapListItemGrammar(t *testing.T) {
 	}
 }
 
-// TestGapCheckboxItemKeepsItsMarker pins what the code does with a task-form
-// gap row today: the checkbox marker stays part of the harvested name, so
-// "- [ ] 甲" declares the literal name "[ ] 甲" — which no wikilink target
-// ever normalizes to, meaning a checkbox row softens no broken link. Whether
-// such a row should declare 甲 instead is an open product question; the pin
-// makes any future answer a visible change rather than a silent drift.
-func TestGapCheckboxItemKeepsItsMarker(t *testing.T) {
+// TestGapRowNamesALinkOrATaskByItsName asserts a gap row written as a
+// wikilink or a task declares the name it carries, not its markup.
+func TestGapRowNamesALinkOrATaskByItsName(t *testing.T) {
 	t.Parallel()
-
-	got := extractPlannedNames("## 缺口\n- [ ] 甲\n")
-	if diff := cmp.Diff([]string{"[ ] 甲"}, got); diff != "" {
-		t.Errorf("extractPlannedNames checkbox row mismatch (-want +got):\n%s", diff)
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{name: "a wikilink row", body: "## 缺口\n- [[Ghost]]\n", want: []string{"Ghost"}},
+		{name: "a wikilink row with a display alias", body: "## 缺口\n- [[Ghost|鬼]]\n", want: []string{"Ghost"}},
+		{name: "two wikilinks on one row", body: "## 缺口\n- [[甲]]、[[乙]]\n", want: []string{"甲", "乙"}},
+		{name: "an open task", body: "## 缺口\n- [ ] 甲\n", want: []string{"甲"}},
+		{name: "a done task", body: "## 缺口\n- [x] 甲\n", want: []string{"甲"}},
+		{name: "a task naming a wikilink", body: "## 缺口\n- [ ] [[Ghost]]\n", want: []string{"Ghost"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractPlannedNames(tt.body)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("extractPlannedNames(%q) mismatch (-want +got):\n%s", tt.body, diff)
+			}
+		})
 	}
 }
 

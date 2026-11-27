@@ -346,7 +346,7 @@ func advancePlannedItem(item *string, names []string, line string, inGap bool) (
 		if item != nil {
 			names = pushPlannedNames(*item, names)
 		}
-		started := strings.TrimSpace(trimmed[2:])
+		started := withoutTaskMarker(strings.TrimSpace(trimmed[2:]))
 		return &started, names
 	case inGap && isContinuation:
 		joined := *item + " " + trimmed
@@ -358,13 +358,33 @@ func advancePlannedItem(item *string, names []string, line string, inGap bool) (
 	}
 }
 
+// withoutTaskMarker drops the checkbox a task row opens with, "[ ] ", "[x] " or
+// "[X] ", which marks the row's state rather than naming anything.
+func withoutTaskMarker(item string) string {
+	for _, box := range []string{"[ ]", "[x]", "[X]"} {
+		if rest, ok := strings.CutPrefix(item, box); ok && (rest == "" || rest[0] == ' ' || rest[0] == '\t') {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return item
+}
+
 // inlinePlannedTargets appends the [[X]] targets on a line beside an inline
 // planned marker.
 func inlinePlannedTargets(line string, names, inlineMarks []string) []string {
 	if !containsAnySubstring(line, inlineMarks) {
 		return names
 	}
-	for _, r := range rawWikilinks(line) {
+	return appendLinkTargets(names, line)
+}
+
+// appendLinkTargets appends the target of every wikilink in text the author
+// did not escape to show rather than to follow.
+func appendLinkTargets(names []string, text string) []string {
+	for _, r := range rawWikilinks(text) {
+		if graph.EscapedWikilinkAt(text, r.offset) {
+			continue
+		}
 		if target, ok := stripTarget(r.inner); ok {
 			names = append(names, target)
 		}
@@ -501,10 +521,14 @@ func inGapSection(headings []heading, offset int) bool {
 	return gapLevel >= 0
 }
 
-// pushPlannedNames splits one gap-list entry into concept names — dropping
-// (...) / （...） annotations, then splitting on the enumeration comma 、 and
-// " / " — and appends the non-empty ones.
+// pushPlannedNames appends the concept names one gap-list entry declares. An
+// entry written with wikilinks declares the names it links. Any other entry is
+// split into names — dropping (...) / （...） annotations, then splitting on
+// the enumeration comma 、 and " / " — and the non-empty ones are appended.
 func pushPlannedNames(entry string, out []string) []string {
+	if linked := appendLinkTargets(nil, entry); len(linked) > 0 {
+		return append(out, linked...)
+	}
 	for part := range strings.SplitSeq(stripParens(entry), "、") {
 		for piece := range strings.SplitSeq(part, " / ") {
 			if name := strings.TrimSpace(piece); name != "" {
