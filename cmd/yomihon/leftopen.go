@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -672,6 +671,6 @@ func escapeTerminal(text string) string {
 }
 
 func actsOnTerminal(r rune) bool {
-	return origin.EndsALine(r) || r == 0x200e || r == 0x200f || r == 0x061c ||
+	return vault.EndsALine(r) || r == 0x200e || r == 0x200f || r == 0x061c ||
 		(r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069)
 }

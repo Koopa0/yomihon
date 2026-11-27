@@ -35,13 +35,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io/fs"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -226,24 +224,8 @@ func validateWords(m *Mark) error {
 
 // validatePath reports whether p is a note path these files may hold.
 func validatePath(p string) error {
-	switch {
-	case !utf8.ValidString(p):
-		return fmt.Errorf("%w: the note path is not valid UTF-8", ErrInvalid)
-	case p == "" || len(p) > maxRelPathBytes:
-		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
-	case !fs.ValidPath(p) || p == ".":
-		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, p)
-	case strings.ContainsFunc(p, origin.EndsALine):
-		// fs.ValidPath lets a NUL or a line break through, and a path that
-		// holds a control character is not one line of text to put on the
-		// desk. Almost no note carries one in its name. A file whose own name
-		// does (a tab or a line break, which Linux and macOS allow) is still
-		// offered the control on its page, and pressing it is refused here
-		// with the rest; the cost is accepted because such names are very
-		// rare.
-		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, p)
-	case p != vault.NormalizeNFC(p):
-		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, p)
+	if err := vault.CheckStoredPath(p, maxRelPathBytes); err != nil {
+		return fmt.Errorf("%w: the note path: %w", ErrInvalid, err)
 	}
 	return nil
 }

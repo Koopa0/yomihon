@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -218,8 +216,8 @@ func (m *Mark) shape() error {
 	case m.Identity != "" && !isHex(m.Identity, identityLength):
 		return errors.New("the identity is not a content identity")
 	}
-	if err := checkPath(m.Path); err != nil {
-		return err
+	if err := vault.CheckStoredPath(m.Path, maxPathBytes); err != nil {
+		return fmt.Errorf("the note path: %w", err)
 	}
 	if err := checkAnchor(m.Anchor); err != nil {
 		return err
@@ -245,24 +243,6 @@ func (m *Mark) checkWords() error {
 		case len(f.value) > f.limit:
 			return fmt.Errorf("%s is too long", f.name)
 		}
-	}
-	return nil
-}
-
-// checkPath says p is a note path a mark may hold: local to the vault, in NFC,
-// and one line of text.
-func checkPath(p string) error {
-	switch {
-	case !utf8.ValidString(p):
-		return errors.New("the note path is not valid UTF-8")
-	case p == "" || len(p) > maxPathBytes:
-		return errors.New("the note path is empty or too long")
-	case !fs.ValidPath(p) || p == ".":
-		return fmt.Errorf("%q is not a local vault-relative path", p)
-	case strings.ContainsFunc(p, origin.EndsALine):
-		return fmt.Errorf("%q carries a control character", p)
-	case p != vault.NormalizeNFC(p):
-		return fmt.Errorf("%q is not written in NFC", p)
 	}
 	return nil
 }

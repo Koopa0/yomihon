@@ -15,15 +15,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -232,21 +229,13 @@ func (s *Store) write(approvals []Approval) error {
 	return confdir.Replace(s.dir, fileName, data)
 }
 
-// validate holds one approval to the shape this file writes: a vault-relative
-// path in NFC that is one line of text, and a lowercase hex SHA-256.
+// validate holds one approval to the shape this file writes: a path the
+// reader's own files may hold, and a lowercase hex SHA-256.
 func validate(approval *Approval) error {
-	relPath := approval.RelPath
+	if err := vault.CheckStoredPath(approval.RelPath, maxPathBytes); err != nil {
+		return fmt.Errorf("%w: the figure path: %w", ErrInvalid, err)
+	}
 	switch {
-	case !utf8.ValidString(relPath):
-		return fmt.Errorf("%w: the figure path is not valid UTF-8", ErrInvalid)
-	case relPath == "" || len(relPath) > maxPathBytes:
-		return fmt.Errorf("%w: the figure path is empty or too long", ErrInvalid)
-	case !fs.ValidPath(relPath) || relPath == ".":
-		return fmt.Errorf("%w: the figure path is not vault-relative", ErrInvalid)
-	case relPath != vault.NormalizeNFC(relPath):
-		return fmt.Errorf("%w: the figure path is not written in NFC", ErrInvalid)
-	case strings.ContainsFunc(relPath, origin.EndsALine):
-		return fmt.Errorf("%w: the figure path holds a control character", ErrInvalid)
 	case len(approval.SHA256) != digestLength || approval.SHA256 != strings.ToLower(approval.SHA256):
 		return fmt.Errorf("%w: the digest is not 64 lowercase hex digits", ErrInvalid)
 	case approval.At.IsZero():
