@@ -35,11 +35,11 @@ func TestRootObservationCauseStaysInWarning(t *testing.T) {
 		"selected_path": root, "opened_root_name": reader.Name(), "error": observeErr.Error(),
 	}}}
 	if diff := cmp.Diff(want, linesWith(logged(), logRootUnconfirmed)); diff != "" {
-		t.Fatalf("caught: scanner root WARN cause (-want +got):\n%s", diff)
+		t.Fatalf("scanner root WARN cause (-want +got):\n%s", diff)
 	}
 	public := &RootNotice{SelectedPath: root, OpenedName: reader.Name(), Unconfirmed: true}
 	if diff := cmp.Diff(public, store.Current().Freshness().Root); diff != "" {
-		t.Fatalf("caught: unconfirmed root state (-want +got):\n%s", diff)
+		t.Fatalf("unconfirmed root state (-want +got):\n%s", diff)
 	}
 }
 

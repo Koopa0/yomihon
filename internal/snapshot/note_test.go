@@ -180,9 +180,9 @@ func TestTitlesAreKeyedByTheWrittenTitle(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "A/headed.md", "# Shared Name\n\nbody\n"),
-		parse(t, "B/Shared Name.md", "body\n"),
-		parse(t, "C/written.md", "---\ntitle: Shared Name\n---\nbody\n"),
+		parse("A/headed.md", "# Shared Name\n\nbody\n"),
+		parse("B/Shared Name.md", "body\n"),
+		parse("C/written.md", "---\ntitle: Shared Name\n---\nbody\n"),
 	}
 	got := titlesByName(readingsOf(notes))
 	want := []nav.NoteRef{

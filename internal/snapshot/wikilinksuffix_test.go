@@ -25,13 +25,12 @@ func TestCapturedSnapshotPathSuffix(t *testing.T) {
 	}
 	store, _ := newTestStore(t, root, writeContract(t, root, replacing(t, "[rules]\n", "[rules]\nplanned_gap_marks = [\"Gaps\"]\n")))
 	g := store.Current()
-	t.Log("invoked: actual suffix resolution contract")
 	if diff := cmp.Diff([]nav.NoteRef{{Name: "Citer", RelPath: "Concepts/Citer.md"}}, g.CitedBy("Concepts/Atlas/Page.md")); diff != "" {
-		t.Errorf("caught: suffix backlink missing: %s", diff)
+		t.Errorf("suffix backlink missing: %s", diff)
 	}
 	for _, rel := range []string{"Concepts/A/Shared/Twin.md", "Concepts/B/Shared/Twin.md"} {
 		if refs := g.CitedBy(rel); len(refs) != 0 {
-			t.Errorf("caught: ambiguous suffix became a backlink: %+v", refs)
+			t.Errorf("ambiguous suffix became a backlink: %+v", refs)
 		}
 	}
 	// Several paths ending with a link is no collision the health page lists,
@@ -39,22 +38,22 @@ func TestCapturedSnapshotPathSuffix(t *testing.T) {
 	citer := nav.NoteRef{Name: "Citer", RelPath: "Concepts/Citer.md"}
 	wantHealth := []HealthLink{{From: citer, Target: "Nope/Page"}, {From: citer, Target: "Shared/Twin"}}
 	if diff := cmp.Diff(wantHealth, g.Health().Unwritten); diff != "" {
-		t.Errorf("caught: suffix health missing-link set changed: %s", diff)
+		t.Errorf("suffix health missing-link set changed: %s", diff)
 	}
 	if g.TrackedForwardReference("Atlas/Page") || !g.TrackedForwardReference("Nope/Owed") {
-		t.Errorf("caught: suffix planned-gap classification changed")
+		t.Errorf("suffix planned-gap classification changed")
 	}
 	wantBased := []nav.NoteRef{{Name: "Page", RelPath: "Concepts/Atlas/Page.md"}, {Name: "[[Shared/Twin]]"}}
 	if diff := cmp.Diff(wantBased, g.BasedOn("Concepts/Claim.md")); diff != "" {
-		t.Errorf("caught: suffix source projection missing: %s", diff)
+		t.Errorf("suffix source projection missing: %s", diff)
 	}
 	if diff := cmp.Diff([]nav.NoteRef{{Name: "Claim", RelPath: "Concepts/Claim.md"}}, g.BasedOnBy("Concepts/Atlas/Page.md")); diff != "" {
-		t.Errorf("caught: suffix reverse source projection missing: %s", diff)
+		t.Errorf("suffix reverse source projection missing: %s", diff)
 	}
 	sources, diags := g.DeclaredSources("Concepts/Claim.md", wording.En)
 	wantSources := []DeclaredSource{{Name: "Page", RelPath: "Concepts/Atlas/Page.md", Locations: []render.SourceLocation{{Label: "Part", Fragment: "part"}, {Label: "^piece", Fragment: "^piece"}}}, {Name: "[[Shared/Twin]]"}}
 	if diff := cmp.Diff(wantSources, sources); diff != "" {
-		t.Errorf("caught: suffix source locations missing: %s", diff)
+		t.Errorf("suffix source locations missing: %s", diff)
 	}
 	if len(diags) != 0 {
 		t.Errorf("source diagnostics = %+v", diags)

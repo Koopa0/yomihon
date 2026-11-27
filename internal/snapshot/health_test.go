@@ -66,17 +66,17 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Concepts/written.md", "# A Written Note\n\nI exist\n"),
-		parse(t, "Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
-		parse(t, "Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
-		parse(t, "Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
-		parse(t, "Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
+		parse("Concepts/written.md", "# A Written Note\n\nI exist\n"),
+		parse("Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
+		parse("Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
+		parse("Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
+		parse("Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
 		// Two notes declaring one title: naming either of them would be the
 		// guess the resolver refuses to make, so this citation stays unwritten
 		// rather than being pointed at one of them.
-		parse(t, "A/twin.md", "# Shared Title\n\none\n"),
-		parse(t, "B/twin.md", "# Shared Title\n\ntwo\n"),
-		parse(t, "Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
+		parse("A/twin.md", "# Shared Title\n\none\n"),
+		parse("B/twin.md", "# Shared Title\n\ntwo\n"),
+		parse("Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
 	}
 	h := healthOf(notes, nil)
 
@@ -106,11 +106,11 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Sources/course/one.md", "a\n"),
-		parse(t, "Sources/course/two.md", "b\n"),
-		parse(t, "Sources/course/three.md", "c\n"),
-		parse(t, "Writing/essay.md", "d\n"),
-		parse(t, "root.md", "e\n"),
+		parse("Sources/course/one.md", "a\n"),
+		parse("Sources/course/two.md", "b\n"),
+		parse("Sources/course/three.md", "c\n"),
+		parse("Writing/essay.md", "d\n"),
+		parse("root.md", "e\n"),
 	}
 	h := healthOf(notes, nil)
 
@@ -128,12 +128,9 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	}
 }
 
-// A note reached only by its title is spared the island list, and the order the
-// folder happened to be scanned in is no part of that. The answer used to be
-// read out of a table the same pass was still filling, so a note escaped only
-// when the note writing its name down sorted ahead of it: rename either file
-// and the same vault reported a note as reaching nothing, sending its reader
-// to write a link that is already written.
+// A note reached only by its title is spared the island list whichever order
+// the folder is scanned in, so renaming either file cannot send its reader to
+// write a link that is already written.
 func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -151,8 +148,8 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			target := parse(t, tt.targetPath, "# Target Note\n\nbody\n")
-			citer := parse(t, tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
+			target := parse(tt.targetPath, "# Target Note\n\nbody\n")
+			citer := parse(tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
 			notes := []*vault.Note{citer, target}
 			if tt.targetFirst {
 				notes = []*vault.Note{target, citer}
@@ -212,15 +209,15 @@ func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 
 	notes := []*vault.Note{
 		// Nothing anywhere cites "quiet", so nothing is broken by the pair.
-		parse(t, "A/quiet.md", "# Quiet A\n\none\n"),
-		parse(t, "B/quiet.md", "# Quiet B\n\ntwo\n"),
+		parse("A/quiet.md", "# Quiet A\n\none\n"),
+		parse("B/quiet.md", "# Quiet B\n\ntwo\n"),
 		// The control: a shared name a real note does cite. An empty answer
 		// cannot pass this test.
-		parse(t, "A/cited.md", "# Cited A\n\nthree\n"),
-		parse(t, "B/cited.md", "# Cited B\n\nfour\n"),
+		parse("A/cited.md", "# Cited A\n\nthree\n"),
+		parse("B/cited.md", "# Cited B\n\nfour\n"),
 		// A shared resource name is cited by an embed, and its twin by path
 		// only, which resolves by path and breaks nothing.
-		parse(t, "Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
+		parse("Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
 	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
 	h := healthOf(notes, resources)

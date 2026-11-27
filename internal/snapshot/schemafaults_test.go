@@ -8,14 +8,9 @@ import (
 )
 
 // TestSchemaFaultsArriveInVaultPathOrder holds the order the whole-folder view
-// hands the schema's complaints over in. They used to be gathered by walking
-// the generation's file list on the request that showed them, and they are now
-// gathered while the folder is read, because every page's rail states how many
-// findings stand against the folder and a walk over every note is not a thing
-// to do on every page. The two walks are over the same notes in the same order
-// — the folder's own path order — and the page that lists them relies on that:
-// its rows appear in the order the reading produced them, and a list that
-// arrived shuffled would reorder the table on every rebuild.
+// hands the schema's complaints over in: the folder's own path order. The page
+// that lists them shows its rows in that order, so a list that arrived
+// shuffled would reorder the table on every rebuild.
 func TestSchemaFaultsArriveInVaultPathOrder(t *testing.T) {
 	t.Parallel()
 

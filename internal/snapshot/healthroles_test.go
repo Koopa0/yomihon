@@ -37,7 +37,7 @@ func TestHealthExcludesEveryDeclaredNavigationEntryFromIslands(t *testing.T) {
 			}
 			store, _ := newTestStore(t, root, contract)
 			if diff := cmp.Diff(want, store.Current().Health().Islands); diff != "" {
-				t.Errorf("caught: declared entry island rows (-want +got):\n%s", diff)
+				t.Errorf("declared entry island rows (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -84,11 +84,11 @@ func TestHealthEntryExemptionUsesTheContractAndKeepsCitationFaults(t *testing.T)
 			health := store.Current().Health()
 			want := []HealthIslandGroup{{Dir: "Maps", Notes: tt.islands}}
 			if diff := cmp.Diff(want, health.Islands); diff != "" {
-				t.Errorf("caught: contract-selected islands (-want +got):\n%s", diff)
+				t.Errorf("contract-selected islands (-want +got):\n%s", diff)
 			}
 			links := []HealthLink{{From: nav.NoteRef{Name: "Map", RelPath: "Maps/Map.md"}, Target: "Missing"}}
 			if diff := cmp.Diff(links, health.Unwritten); diff != "" {
-				t.Errorf("caught: entry citations lost (-want +got):\n%s", diff)
+				t.Errorf("entry citations lost (-want +got):\n%s", diff)
 			}
 		})
 	}

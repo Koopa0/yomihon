@@ -82,14 +82,14 @@ func TestFragmentNormalizationDeclaredSources(t *testing.T) {
 	store, _ := newTestStore(t, root, testContract(t, root))
 	got, diagnostics := store.Current().DeclaredSources("Claim.md", wording.En)
 	if len(diagnostics) != 0 {
-		t.Fatalf("caught: fragment-normalization declared diagnostics = %+v, want none", diagnostics)
+		t.Fatalf("fragment-normalization declared diagnostics = %+v, want none", diagnostics)
 	}
 	want := []DeclaredSource{{Name: "Source", RelPath: "Source.md", Locations: []render.SourceLocation{
 		{Label: "First heading", Fragment: "\u1e99"},
 		{Label: "First block", Fragment: "^quote-1"},
 	}}}
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("caught: fragment-normalization declared sources (-want +got):\n%s", diff)
+		t.Errorf("fragment-normalization declared sources (-want +got):\n%s", diff)
 	}
 }
 

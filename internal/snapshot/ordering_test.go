@@ -22,8 +22,8 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes inside one island group", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Sources/course/第10課.md", "a\n"),
-			parse(t, "Sources/course/第9課.md", "b\n"),
+			parse("Sources/course/第10課.md", "a\n"),
+			parse("Sources/course/第9課.md", "b\n"),
 		}
 		h := healthOf(notes, nil)
 
@@ -42,9 +42,9 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes citing one note", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Concepts/target.md", "the cited note\n"),
-			parse(t, "Writing/第10課.md", "see [[target]]\n"),
-			parse(t, "Writing/第9課.md", "see [[target]]\n"),
+			parse("Concepts/target.md", "the cited note\n"),
+			parse("Writing/第10課.md", "see [[target]]\n"),
+			parse("Writing/第9課.md", "see [[target]]\n"),
 		}
 		idx := graph.New(notes, nil)
 
@@ -60,8 +60,8 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the citations that land nowhere", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "see [[no such name]]\n"),
-			parse(t, "Writing/第9課.md", "see [[no such name]]\n"),
+			parse("Writing/第10課.md", "see [[no such name]]\n"),
+			parse("Writing/第9課.md", "see [[no such name]]\n"),
 		}
 		h := healthOf(notes, nil)
 
@@ -78,8 +78,8 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes sharing one title", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "# 課\n\na\n"),
-			parse(t, "Writing/第9課.md", "# 課\n\nb\n"),
+			parse("Writing/第10課.md", "# 課\n\na\n"),
+			parse("Writing/第9課.md", "# 課\n\nb\n"),
 		}
 
 		want := []nav.NoteRef{

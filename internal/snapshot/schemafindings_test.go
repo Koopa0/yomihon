@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -33,12 +32,6 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatal("the fixture note draws no schema findings, so this test would pass on any implementation")
 	}
-	var ruleIDs []string
-	for _, f := range want {
-		ruleIDs = append(ruleIDs, string(f.RuleID))
-	}
-	t.Logf("the fixture draws: %s", strings.Join(ruleIDs, ", "))
-
 	if diff := cmp.Diff(want, gen.SchemaFindings(faulty)); diff != "" {
 		t.Errorf("Generation.SchemaFindings(%q) differs from the seam (-seam +generation):\n%s", faulty, diff)
 	}
