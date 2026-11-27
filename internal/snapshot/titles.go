@@ -55,3 +55,28 @@ func (g *Generation) TitledBy(name string) []string {
 	}
 	return names
 }
+
+// ReadmeRelPath is the folder's own introduction, whose title is what the
+// folder is called to a reader. It is the one place the name is written.
+const ReadmeRelPath = "README.md"
+
+// VaultTitle is what the folder is called to a reader: the title its README
+// wrote, and when there is none, folder, the name of the directory itself. A
+// README the rules list under folders.skipped_files is a file here, not a note,
+// and nothing of it is read, so such a folder is called by its directory.
+func (g *Generation) VaultTitle(folder string) string {
+	if title := g.DeclaredTitle(ReadmeRelPath); title != "" {
+		return title
+	}
+	return folder
+}
+
+// DeclaredTitle is the title rel's author wrote, a first heading or else a
+// frontmatter title, empty when it has neither. A reading's Title falls back to
+// the file name, which is a path rather than a title.
+func (g *Generation) DeclaredTitle(rel string) string {
+	if !g.notes[rel].Titled {
+		return ""
+	}
+	return g.notes[rel].Title
+}

@@ -252,3 +252,38 @@ func declaredSourceKey(ref nav.NoteRef) string {
 	}
 	return "\x00" + ref.Name
 }
+
+// NameWithin reports whether every note or file the wikilink target name
+// could reach in this generation is a path allowed accepts: the one it
+// resolves to, every candidate when it is ambiguous, and the name itself,
+// read as a path with and without the note extension, when it resolves to
+// nothing. A name a reader cannot tell apart from forbidden ground is not
+// within, so a caller can withhold words that would describe that ground.
+func (g *Generation) NameWithin(target string, allowed func(string) bool) bool {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return true
+	}
+	resolved := g.graph.Resolve(target)
+	switch resolved.Kind {
+	case graph.KindUnique:
+		return allowed(resolved.RelPath)
+	case graph.KindAmbiguous:
+		return !slices.ContainsFunc(resolved.Candidates, func(candidate string) bool { return !allowed(candidate) })
+	default:
+		name := vault.NormalizeNFC(target)
+		return allowed(name) && allowed(name+".md")
+	}
+}
+
+// BasedOnWithin reports whether every source rel declares in based_on names
+// only ground allowed accepts, as NameWithin reads a name. A declaration that
+// carries no name at all names no ground.
+func (g *Generation) BasedOnWithin(rel string, allowed func(string) bool) bool {
+	for _, value := range basedOnValues(g.parsed[rel]) {
+		if target, ok := basedOnTarget(strings.TrimSpace(value)); ok && !g.NameWithin(target, allowed) {
+			return false
+		}
+	}
+	return true
+}

@@ -62,7 +62,7 @@ func openOrderChoices(current pages.OpenOrder, lang wording.Lang) pages.ShelfOrd
 // ordered by.
 type openThoughtCandidate struct {
 	note   *snapshot.Reading
-	kept   *snapshot.OpenMark
+	kept   *snapshot.MarkedQuestion
 	at     time.Time
 	source string
 }
@@ -102,19 +102,19 @@ func (h *Handler) openThoughtShelf(snap *snapshot.Generation, governed bool, lan
 func OpenCount(snap *snapshot.Generation, questions func() ([]mark.Mark, error)) int {
 	marks, err := openMarksOf(questions)
 	if err != nil {
-		return len(snap.OpenItems(nil))
+		return len(snap.MarkItems(nil))
 	}
-	return len(snap.OpenItems(marks))
+	return len(snap.MarkItems(marks))
 }
 
 // openMarksOf reads the reader's stored marks as the open items the snapshot
 // selects among. A nil source is a process with nowhere to keep any.
-func openMarksOf(questions func() ([]mark.Mark, error)) (marks []snapshot.OpenMark, err error) {
+func openMarksOf(questions func() ([]mark.Mark, error)) (marks []snapshot.MarkedQuestion, err error) {
 	if questions == nil {
 		return nil, nil
 	}
 	kept, err := questions()
-	return OpenMarks(kept), err
+	return MarkedQuestions(kept), err
 }
 
 // openCandidates reads every stored mark and asks the snapshot for the one
@@ -126,9 +126,9 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (
 	if err != nil {
 		fault = wording.QuestionUnavailable.In(lang)
 	}
-	for _, item := range snap.OpenItems(marks) {
-		if item.Mark != nil {
-			candidates = append(candidates, openThoughtCandidate{kept: item.Mark, at: item.At, source: item.Mark.RelPath})
+	for _, item := range snap.MarkItems(marks) {
+		if item.Question != nil {
+			candidates = append(candidates, openThoughtCandidate{kept: item.Question, at: item.At, source: item.Question.RelPath})
 			continue
 		}
 		candidates = append(candidates, openThoughtCandidate{note: item.Note, at: item.At, source: openSourceKey(snap, item.Note.RelPath)})
@@ -174,11 +174,12 @@ func boolWeight(b bool) int {
 	return 0
 }
 
-// OpenMarks is the copy of the reader's stored marks the open selection reads.
-func OpenMarks(kept []mark.Mark) []snapshot.OpenMark {
-	marks := make([]snapshot.OpenMark, 0, len(kept))
+// MarkedQuestions is the copy of the reader's stored questions the list of
+// marks reads.
+func MarkedQuestions(kept []mark.Mark) []snapshot.MarkedQuestion {
+	marks := make([]snapshot.MarkedQuestion, 0, len(kept))
 	for i := range kept {
-		marks = append(marks, snapshot.OpenMark{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
+		marks = append(marks, snapshot.MarkedQuestion{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
 	}
 	return marks
 }
@@ -250,7 +251,7 @@ func openSources(snap *snapshot.Generation, rel string, lang wording.Lang) []pag
 }
 
 // openMarkRow projects a stored identity without moving or deleting it.
-func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.Lang, removable bool) pages.Row {
+func openMarkRow(kept *snapshot.MarkedQuestion, places *placeResolver, lang wording.Lang, removable bool) pages.Row {
 	resolved := places.note(kept.RelPath)
 	row := pages.Row{Text: kept.RelPath, When: kept.At.Format(time.DateOnly)}
 	if resolved.readable {

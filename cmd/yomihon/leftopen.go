@@ -496,7 +496,7 @@ type openEntry struct {
 // in withheld ground and then hiding the heading would still have said it.
 func openEntries(snap *snapshot.Generation, gate *egress.Gate, kept []mark.Mark, allowed func(string) bool) []openEntry {
 	var entries []openEntry
-	for _, item := range snap.OpenItems(note.OpenMarks(kept)) {
+	for _, item := range snap.MarkItems(note.MarkedQuestions(kept)) {
 		if !allowed(item.Path()) {
 			continue
 		}
@@ -506,7 +506,7 @@ func openEntries(snap *snapshot.Generation, gate *egress.Gate, kept []mark.Mark,
 			}
 			continue
 		}
-		if location, ok := openLocationEntry(snap, gate, item.Mark); ok {
+		if location, ok := openLocationEntry(snap, gate, item.Question); ok {
 			entries = append(entries, openEntry{location: &location})
 		}
 	}
@@ -531,7 +531,7 @@ func openThoughtEntry(snap *snapshot.Generation, gate *egress.Gate, reading *sna
 	return entry, true
 }
 
-func openLocationEntry(snap *snapshot.Generation, gate *egress.Gate, kept *snapshot.OpenMark) (openLocation, bool) {
+func openLocationEntry(snap *snapshot.Generation, gate *egress.Gate, kept *snapshot.MarkedQuestion) (openLocation, bool) {
 	// The command speaks English, so a card with no pattern of its own is named
 	// in the English the page would use.
 	located := note.LocateMark(snap, kept.RelPath, kept.Anchor, wording.En)
