@@ -14,9 +14,9 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Format is the one line format this version reads and writes. A line that
+// lineFormat is the one line format this version reads and writes. A line that
 // says a larger one is kept where it is and is not read.
-const Format = 1
+const lineFormat = 1
 
 // The kinds a mark is in. They are one mark in three states: the reader turns a
 // highlight into a thought or a question, and back, and the mark keeps its id.
@@ -76,8 +76,8 @@ type Edit struct {
 // of.
 type Seen map[string]uint64
 
-// Line is one line of a machine file.
-type Line struct {
+// markLine is one line of a machine file.
+type markLine struct {
 	Fmt int `json:"fmt"`
 	// M is the machine that wrote the line, and S the process of that machine.
 	M string `json:"m"`
@@ -97,10 +97,10 @@ type Line struct {
 // lines of one writer are in the order of their revs; lines of two writers,
 // even of one machine, are in an order only when the later says it had read the
 // earlier.
-func (l *Line) Writer() string { return l.M + "/" + l.S }
+func (l *markLine) Writer() string { return l.M + "/" + l.S }
 
 // encode is l as one line without its newline, sealed (internal/mark/sealedline).
-func (l *Line) encode() ([]byte, error) {
+func (l *markLine) encode() ([]byte, error) {
 	return sealedline.Seal(l)
 }
 
@@ -122,9 +122,9 @@ const (
 )
 
 // decode reads one line, without its newline.
-func decode(raw []byte) (Line, verdict) {
+func decode(raw []byte) (markLine, verdict) {
 	if conflictMarker(raw) {
-		return Line{}, marker
+		return markLine{}, marker
 	}
 	// A line of a later format is judged first, since the way a later format is
 	// checked is that format's own: it is kept as it is and not read.
@@ -132,24 +132,24 @@ func decode(raw []byte) (Line, verdict) {
 		Fmt int `json:"fmt"`
 	}
 	if json.Unmarshal(raw, &head) != nil {
-		return Line{}, damaged
+		return markLine{}, damaged
 	}
-	if head.Fmt > Format {
-		return Line{}, newer
+	if head.Fmt > lineFormat {
+		return markLine{}, newer
 	}
 	if sealedline.Check(raw) != sealedline.Whole {
-		return Line{}, damaged
+		return markLine{}, damaged
 	}
-	var l Line
-	if json.Unmarshal(raw, &l) != nil || l.Fmt != Format || !l.wellFormed() {
-		return Line{}, damaged
+	var l markLine
+	if json.Unmarshal(raw, &l) != nil || l.Fmt != lineFormat || !l.wellFormed() {
+		return markLine{}, damaged
 	}
 	return l, readable
 }
 
 // wellFormed says a line is one every writer here makes: ids and codes in
 // their shapes, a rev, and a mark that holds its shape.
-func (l *Line) wellFormed() bool {
+func (l *markLine) wellFormed() bool {
 	if !isMachine(l.M) || (l.S != "" && !isMachine(l.S)) || l.Rev == 0 {
 		return false
 	}

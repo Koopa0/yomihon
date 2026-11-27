@@ -371,7 +371,7 @@ func TestAMarkOutOfShapeIsRefusedOnTheWayInAndOut(t *testing.T) {
 	if _, err := os.Stat(a.marksDir()); err == nil {
 		t.Fatal("a refused write made the folders")
 	}
-	raw, err := (&Line{Fmt: Format, M: "22222222", Rev: 1, T: 1, Mark: m}).encode()
+	raw, err := (&markLine{Fmt: lineFormat, M: "22222222", Rev: 1, T: 1, Mark: m}).encode()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -249,7 +249,7 @@ func TestRandomVaultsReadTheSameWithoutYomihon(t *testing.T) {
 		files := map[string][]byte{}
 		for range 4 + rng.IntN(20) {
 			m := machines[rng.IntN(len(machines))]
-			l := Line{Fmt: Format, M: m, Rev: 1 + rng.Uint64N(6), T: int64(rng.IntN(5)), S: processes[rng.IntN(len(processes))]}
+			l := markLine{Fmt: lineFormat, M: m, Rev: 1 + rng.Uint64N(6), T: int64(rng.IntN(5)), S: processes[rng.IntN(len(processes))]}
 			l.Mark = thought(1+rng.IntN(3), fmt.Sprintf("body %d", rng.IntN(100)))
 			l.Mark.Deleted = rng.IntN(4) == 0
 			if rng.IntN(3) == 0 {

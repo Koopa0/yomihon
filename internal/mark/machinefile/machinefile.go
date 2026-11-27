@@ -187,20 +187,6 @@ func (f *Folder) ReadOnly() (readOnly bool, err error) {
 	return runtime.GOOS != "windows" && info.Mode().Perm()&ownerWrite == 0, nil
 }
 
-// Measurement is what one replacement took, for the write log. It holds no
-// path and no content.
-type Measurement struct {
-	// Bytes is the length of the data written.
-	Bytes int
-	// Write is the folders made and entered, and the temporary file written and
-	// synced.
-	Write time.Duration
-	// Install is the rename and the sync of each folder it changed.
-	Install time.Duration
-	// ReadBack is the file read back and compared.
-	ReadBack time.Duration
-}
-
 // Replace installs data as the machine file of machineID, making the
 // folders on the way on the first write.
 //
@@ -219,26 +205,22 @@ type Measurement struct {
 // the marks folder or the read back, means the new file is installed and
 // whether it is on stable storage is not known. A temporary file older than ten
 // minutes, which only a crash leaves, is removed first.
-//
-// The measurement says what each step that ran took, whether or not it failed.
-func (f *Folder) Replace(machineID string, data []byte) (Measurement, error) {
-	m := Measurement{Bytes: len(data)}
+func (f *Folder) Replace(machineID string, data []byte) error {
 	if f == nil || f.vault == nil {
-		return m, errors.New("replace the machine file: no folder")
+		return errors.New("replace the machine file: no folder")
 	}
 	name, err := machineFile(machineID)
 	if err != nil {
-		return m, err
+		return err
 	}
 	if len(data) > MaxFileBytes {
-		return m, fmt.Errorf("%w: %d bytes", ErrTooLarge, len(data))
+		return fmt.Errorf("%w: %d bytes", ErrTooLarge, len(data))
 	}
-	start := time.Now()
 	d, err := f.prepare()
 	if err == nil {
-		err = d.replace(name, data, &m, start)
+		err = d.replace(name, data, time.Now())
 	}
-	return m, errors.Join(err, d.close())
+	return errors.Join(err, d.close())
 }
 
 // File is one machine file as ReadAll found it.
@@ -325,8 +307,8 @@ type folders struct {
 }
 
 // replace is Replace inside the marks folder.
-func (d *folders) replace(name machineFileName, data []byte, m *Measurement, start time.Time) error {
-	removeStale(d.marks, start)
+func (d *folders) replace(name machineFileName, data []byte, now time.Time) error {
+	removeStale(d.marks, now)
 	// Opened before anything is installed, so that a folder that cannot be synced
 	// refuses the write while the machine file still holds what it held.
 	marks, err := openDirectory(d.marks)
@@ -335,11 +317,9 @@ func (d *folders) replace(name machineFileName, data []byte, m *Measurement, sta
 	}
 	defer marks.close() //nolint:errcheck // closing a directory opened to sync it reports nothing about the write
 	t, err := newTemp(d.marks, data)
-	m.Write = time.Since(start)
 	if err != nil {
 		return err
 	}
-	installed := time.Now()
 	for attempt := 1; ; attempt++ {
 		err = d.marks.Rename(t.temp, name.file)
 		if err == nil || attempt == renameAttempts || !transient(err) {
@@ -354,11 +334,7 @@ func (d *folders) replace(name machineFileName, data []byte, m *Measurement, sta
 	if err = marks.sync(); err != nil {
 		return fmt.Errorf("sync the marks folder: %w", err)
 	}
-	m.Install = time.Since(installed)
-	read := time.Now()
-	err = readBack(d.marks, name, data)
-	m.ReadBack = time.Since(read)
-	return err
+	return readBack(d.marks, name, data)
 }
 
 // machineIDShape is what a machine id is: eight lowercase hexadecimal digits,

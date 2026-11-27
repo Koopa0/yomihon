@@ -94,13 +94,11 @@ func opened(t *testing.T, root string) *machinefile.Folder {
 	return f
 }
 
-func replace(t *testing.T, f *machinefile.Folder, data string) machinefile.Measurement {
+func replace(t *testing.T, f *machinefile.Folder, data string) {
 	t.Helper()
-	m, err := f.Replace(thisMachine, []byte(data))
-	if err != nil {
+	if err := f.Replace(thisMachine, []byte(data)); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
-	return m
 }
 
 func readMachineFile(t *testing.T, root string) string {
@@ -142,13 +140,10 @@ func TestTheFirstWriteMakesTheFoldersAndTheMachineFileAndNothingElse(t *testing.
 		t.Fatalf("Open changed the vault: %v", changed(before, after))
 	}
 
-	m := replace(t, f, "first\n")
+	replace(t, f, "first\n")
 	want := []string{"reader-notes", "reader-notes/.yomihon", "reader-notes/.yomihon/marks", machinePath}
 	if got := changed(before, snapshot(t, root)); !slices.Equal(got, want) {
 		t.Fatalf("the first write changed %q, want %q", got, want)
-	}
-	if m.Bytes != len("first\n") {
-		t.Errorf("Measurement.Bytes = %d, want %d", m.Bytes, len("first\n"))
 	}
 
 	replace(t, f, "second\n")
@@ -186,7 +181,7 @@ func TestAMachineIDIsEightLowercaseHexDigits(t *testing.T) {
 	f := opened(t, root)
 	before := snapshot(t, root)
 	for _, id := range []string{"", "1f3a9c0", "1f3a9c070", "1F3A9C07", "../../xx", "1f3a9c07.jsonl", "c2e4b81/", "notes.md"} {
-		if _, err := f.Replace(id, []byte("x\n")); !errors.Is(err, machinefile.ErrMachineID) {
+		if err := f.Replace(id, []byte("x\n")); !errors.Is(err, machinefile.ErrMachineID) {
 			t.Errorf("Replace(%q) = %v, want ErrMachineID", id, err)
 		}
 	}
@@ -304,7 +299,7 @@ func TestALinkPutInPlaceAfterOpenIsRefusedAtTheWrite(t *testing.T) {
 	}
 	symlink(t, "courses", filepath.Join(root, "reader-notes"))
 	before := snapshot(t, root)
-	if _, err := f.Replace(thisMachine, []byte("new\n")); !errors.Is(err, machinefile.ErrNotAFolder) {
+	if err := f.Replace(thisMachine, []byte("new\n")); !errors.Is(err, machinefile.ErrNotAFolder) {
 		t.Errorf("a write through a reader folder that became a link = %v, want ErrNotAFolder", err)
 	}
 	if got := changed(before, snapshot(t, root)); len(got) != 0 {
@@ -346,13 +341,13 @@ func TestAMachineFileLongerThanItsLimitIsRefused(t *testing.T) {
 	root := aVault(t)
 	f := opened(t, root)
 	before := snapshot(t, root)
-	if _, err := f.Replace(thisMachine, make([]byte, machinefile.MaxFileBytes+1)); !errors.Is(err, machinefile.ErrTooLarge) {
+	if err := f.Replace(thisMachine, make([]byte, machinefile.MaxFileBytes+1)); !errors.Is(err, machinefile.ErrTooLarge) {
 		t.Errorf("Replace of %d bytes = %v, want ErrTooLarge", machinefile.MaxFileBytes+1, err)
 	}
 	if got := changed(before, snapshot(t, root)); len(got) != 0 {
 		t.Errorf("the refused write changed %q", got)
 	}
-	if _, err := f.Replace(thisMachine, make([]byte, machinefile.MaxFileBytes)); err != nil {
+	if err := f.Replace(thisMachine, make([]byte, machinefile.MaxFileBytes)); err != nil {
 		t.Errorf("Replace of exactly the limit = %v, want nil", err)
 	}
 }
@@ -375,7 +370,7 @@ func TestAWriteThatCannotMakeItsTemporaryFileLeavesTheMachineFile(t *testing.T) 
 		}
 		return err
 	})
-	if _, err := f.Replace(thisMachine, []byte("new\n")); err == nil {
+	if err := f.Replace(thisMachine, []byte("new\n")); err == nil {
 		t.Fatal("a write whose temporary file cannot be made = nil, want an error")
 	}
 	if got := readMachineFile(t, root); got != "kept\n" {
@@ -394,7 +389,7 @@ func TestAFailedRenameLeavesNoTemporaryFile(t *testing.T) {
 	write(t, root, machinePath+"/inside", "a folder in the machine file's place\n")
 	before := snapshot(t, root)
 	f := opened(t, root)
-	if _, err := f.Replace(thisMachine, []byte("new\n")); err == nil {
+	if err := f.Replace(thisMachine, []byte("new\n")); err == nil {
 		t.Fatal("a rename over a folder = nil, want an error")
 	}
 	if got := changed(before, snapshot(t, root)); len(got) != 0 {
@@ -456,7 +451,7 @@ func TestEveryWriteSyncsTheFoldersOnTheWay(t *testing.T) {
 		return err
 	})
 	for _, write := range []string{"the first, which makes the reader folder", "the next, which finds it"} {
-		if _, err := f.Replace(thisMachine, []byte("x\n")); err == nil {
+		if err := f.Replace(thisMachine, []byte("x\n")); err == nil {
 			t.Errorf("%s: a write whose vault folder cannot be synced = nil, want an error", write)
 		}
 	}
@@ -477,7 +472,7 @@ func TestWritersAtOnceLeaveOneWholeFile(t *testing.T) {
 	errs := make([]error, writers)
 	var wg sync.WaitGroup
 	for i := range writers {
-		wg.Go(func() { _, errs[i] = f.Replace(thisMachine, []byte(datas[i])) })
+		wg.Go(func() { errs[i] = f.Replace(thisMachine, []byte(datas[i])) })
 	}
 	wg.Wait()
 	// A write another one replaced before it was read back says so, and on
@@ -499,7 +494,7 @@ func TestWritersAtOnceLeaveOneWholeFile(t *testing.T) {
 func TestAZeroFolderIsRefused(t *testing.T) {
 	t.Parallel()
 	for _, f := range []*machinefile.Folder{nil, {}} {
-		if _, err := f.Replace(thisMachine, []byte("x")); err == nil {
+		if err := f.Replace(thisMachine, []byte("x")); err == nil {
 			t.Errorf("Replace on %#v = nil, want an error", f)
 		}
 		if err := f.Close(); err != nil {

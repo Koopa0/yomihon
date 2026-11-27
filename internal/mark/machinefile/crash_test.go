@@ -52,7 +52,7 @@ func writeUntilKilled(root string) {
 		return
 	}
 	for turn := 0; ; turn++ {
-		if _, err = f.Replace(thisMachine, crashData[turn%2]); err != nil {
+		if err = f.Replace(thisMachine, crashData[turn%2]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
 		}

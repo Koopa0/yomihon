@@ -12,7 +12,7 @@ import (
 // back: a line that is kept is kept byte for byte, so its checksum still fits
 // and a field this version does not know is not lost.
 type rawLine struct {
-	Line
+	markLine
 
 	raw []byte
 }

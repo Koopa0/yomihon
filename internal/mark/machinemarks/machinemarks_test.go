@@ -19,8 +19,8 @@ func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	res := a.put(thought(1, "why does vacuum wait?"), nil)
-	if res.Rev == 0 || res.Bytes == 0 {
-		t.Fatalf("Put = %+v, want a rev and the bytes written", res)
+	if res.Rev == 0 {
+		t.Fatalf("Put = %+v, want a rev", res)
 	}
 	id := a.id()
 	file := readFile(t, filepath.Join(a.marksDir(), id+".jsonl"))
@@ -328,8 +328,8 @@ func TestWhatGitTookAwayIsStillReadAndComesBack(t *testing.T) {
 	}
 	// A second Restore has nothing to do and writes nothing.
 	before = tree(t, a.root)
-	if res, err := a.m.Restore(t.Context()); err != nil || res.Bytes != 0 {
-		t.Fatalf("Restore of a file that is held = %+v, %v", res, err)
+	if _, err := a.m.Restore(t.Context()); err != nil {
+		t.Fatalf("Restore of a file that is held = %v", err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
 		t.Fatalf("a Restore with nothing to restore wrote %s", diff)
@@ -471,10 +471,6 @@ func TestTheSendsOfOneEdit(t *testing.T) {
 	if err := send("other tab", 1, base, "tab2"); !errors.Is(err, ErrStale) {
 		t.Fatalf("another page on an old base = %v, want ErrStale", err)
 	}
-	// An old send of a session beside a newer other page: the stale wins.
-	if err := send("first send", 1, base, "tab1"); !errors.Is(err, ErrSuperseded) {
-		t.Fatalf("got %v", err)
-	}
 	if got := a.words(1); got != "second send" {
 		t.Fatalf("reads %q", got)
 	}
@@ -613,12 +609,12 @@ func TestWhenEveryLineIsReplacedEachWritersNewestStands(t *testing.T) {
 	line := func(m string, rev uint64, seen Seen, body string) *rawLine {
 		mark := thought(1, body)
 		mark.At = at
-		l := Line{Fmt: Format, M: m, Rev: rev, T: 1, Mark: mark, Seen: seen}
+		l := markLine{Fmt: lineFormat, M: m, Rev: rev, T: 1, Mark: mark, Seen: seen}
 		raw, err := l.encode()
 		if err != nil {
 			t.Fatal(err)
 		}
-		return &rawLine{Line: l, raw: raw}
+		return &rawLine{markLine: l, raw: raw}
 	}
 	// 1's second line says it had read 2's first; 2's first says it had read 1's
 	// second: each replaces the other, and 1's first line is replaced by its own

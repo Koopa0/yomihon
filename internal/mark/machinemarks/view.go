@@ -193,7 +193,7 @@ func (m *Marks) scan(v *view, f *machinefile.File) []*rawLine {
 				v.ownNewer = append(v.ownNewer, raw)
 			}
 		case readable:
-			line := &rawLine{Line: l, raw: raw}
+			line := &rawLine{markLine: l, raw: raw}
 			v.note(m, line)
 			out = append(out, line)
 		}
@@ -254,7 +254,7 @@ func ledgerLines(events []ledger.Event, st *machine) []*rawLine {
 	var out []*rawLine
 	add := func(raw []byte) {
 		if l, verdict := decode(raw); verdict == readable && st.owns(l.M) {
-			out = append(out, &rawLine{Line: l, raw: bytes.Clone(raw)})
+			out = append(out, &rawLine{markLine: l, raw: bytes.Clone(raw)})
 		}
 	}
 	for _, id := range st.ids() {

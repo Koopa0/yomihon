@@ -13,7 +13,7 @@ import (
 // holds the shapes every writer makes. That a strict prefix or a changed byte
 // is not read is sealedline's to hold.
 func FuzzDecode(f *testing.F) {
-	good, err := (&Line{Fmt: Format, M: "1f3a9c07", Rev: 3, T: 5, S: "7a1f03d2", Mark: thought(1, "words \"quoted\" and 字"), Seen: Seen{"c2e4b815/5d01aa3e": 9}, Edit: &Edit{ID: "e", Seq: 2}}).encode()
+	good, err := (&markLine{Fmt: lineFormat, M: "1f3a9c07", Rev: 3, T: 5, S: "7a1f03d2", Mark: thought(1, "words \"quoted\" and 字"), Seen: Seen{"c2e4b815/5d01aa3e": 9}, Edit: &Edit{ID: "e", Seq: 2}}).encode()
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func FuzzDecode(f *testing.F) {
 		if v != readable {
 			return
 		}
-		if l.Fmt != Format || !isMachine(l.M) || !ValidID(l.Mark.ID) || l.Rev == 0 {
+		if l.Fmt != lineFormat || !isMachine(l.M) || !ValidID(l.Mark.ID) || l.Rev == 0 {
 			t.Fatalf("a line read has %+v", l)
 		}
 	})
@@ -46,8 +46,8 @@ func linesFrom(data []byte) []*rawLine {
 	}
 	made := map[key]bool{}
 	for ; len(data) >= 6; data = data[6:] {
-		l := Line{
-			Fmt: Format, M: machines[int(data[0])%3], S: processes[int(data[0]>>2)%2],
+		l := markLine{
+			Fmt: lineFormat, M: machines[int(data[0])%3], S: processes[int(data[0]>>2)%2],
 			Rev: uint64(data[1]%8) + 1, T: int64(data[2] % 5),
 			Mark: thought(int(data[3]%3)+1, fmt.Sprintf("v%d", data[3])),
 		}
@@ -68,7 +68,7 @@ func linesFrom(data []byte) []*rawLine {
 		if err != nil {
 			panic(err)
 		}
-		out = append(out, &rawLine{Line: l, raw: raw})
+		out = append(out, &rawLine{markLine: l, raw: raw})
 	}
 	return out
 }
@@ -124,7 +124,7 @@ func FuzzMerge(f *testing.F) {
 				replaced := false
 				for _, a := range r.heads {
 					for _, b := range r.heads {
-						replaced = replaced || (a != b && replaces(&a.Line, &b.Line))
+						replaced = replaced || (a != b && replaces(&a.markLine, &b.markLine))
 					}
 				}
 				// Lines that say they read each other are all kept, and are the
@@ -135,7 +135,7 @@ func FuzzMerge(f *testing.F) {
 			}
 			// A line that has read every writer, and is of a new writer with a
 			// higher rev, is the one value.
-			top := &rawLine{Fmt: Format, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
+			top := &rawLine{Fmt: lineFormat, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
 			for w, n := range r.newest {
 				top.Seen[w] = n.Rev
 			}
