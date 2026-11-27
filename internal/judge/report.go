@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -15,13 +16,13 @@ import (
 // actionable findings grouped by domain and folded by identity, and the
 // retained informational occurrences. Both renderers share one packing, so
 // their counts agree; the human listing also names each occurrence's line
-// when available. Existing output bytes remain frozen.
+// when available.
 
 // domainRoots are the folders under which a note's own folder names its
 // knowledge domain. The contract declares them, under the same key the
 // frontmatter rule reads, so the report groups a vault the way that vault says
 // it is arranged rather than the way this repository's own vault happens to be.
-// A vault that files its lessons flat has no domain in those paths, and they
+// A vault that files its units flat has no domain in those paths, and they
 // land under the no-domain heading — which is the truth about the path, not a
 // gap in the report.
 // Grouping applies to the findings supplied to the report; the frontmatter
@@ -178,7 +179,7 @@ func leverage(findings []Finding, roots domainRoots) []leverageEntry {
 		if f.Target == nil {
 			continue
 		}
-		key := normalizeKey(*f.Target)
+		key := graph.NormalizeKey(*f.Target)
 		a := byTarget[key]
 		if a == nil {
 			a = &agg{target: *f.Target, planned: true}
@@ -377,10 +378,8 @@ func leverageTag(planned bool) string {
 // humanWhere and markdownWhere are the trailing "where" a line carries, and
 // nothing at all when the finding has no path to give. A finding is normally
 // about a file, and the one that is not says a file under a withheld directory
-// could not be read — naming which would describe the ground the contract
-// closed. Written unconditionally, that line ended in an empty bracket or a
-// dangling dash, which reads as a path the report lost rather than one it is
-// declining to give.
+// could not be read — naming which would describe the ground the rules file
+// closed — and that line ends at its message rather than at an empty bracket.
 func humanWhere(path string) string {
 	if path == "" {
 		return ""

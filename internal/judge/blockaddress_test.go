@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -227,7 +228,7 @@ func TestTheThreeBlockAddressFacesAgreeOverAStrippedBody(t *testing.T) {
 			t.Parallel()
 
 			_, _, blockAddresses := anchorSurface(tt.body)
-			if got := blockAddressed(blockAddresses, "^probe"); got != tt.addressed {
+			if got := slices.Contains(blockAddresses, "^probe"); got != tt.addressed {
 				t.Errorf("the check finds the address = %v, want %v", got, tt.addressed)
 			}
 			if _, got := render.Excerpt(tt.body, "^probe"); got != tt.addressed {

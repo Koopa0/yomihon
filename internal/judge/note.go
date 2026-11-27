@@ -194,8 +194,8 @@ func boolTrue(m *yaml.Node, key string) bool {
 		return false
 	}
 	value, _ := decodeScalar(v)
-	b, _ := value.(bool)
-	return b
+	b, isBool := value.(bool)
+	return isBool && b
 }
 
 // mappingValue returns the value node for a top-level key, or false when the

@@ -36,8 +36,8 @@ func TestMarkdownCheckSerializesTheWrittenPath(t *testing.T) {
 		}
 	}
 	var buf bytes.Buffer
-	if err := WriteJSONL(&buf, paths); err != nil {
-		t.Fatalf("WriteJSONL: %v", err)
+	if err := writeJSONL(&buf, paths); err != nil {
+		t.Fatalf("writeJSONL: %v", err)
 	}
 	want := `{"rule_id":"link.broken.path","severity":"warn","path":"Concepts/golang/Source.md","line":3,"message":"link to Nothing%20here.md resolves to no file","evidence":"Concepts/golang/Nothing here.md does not exist in the vault","suggested_action":"fix the path, restore the file, or remove the reference","source_rule":"yomihon","target":"Nothing%20here.md","fingerprint":"v1:d506cf9915df6962"}` + "\n"
 	if diff := cmp.Diff(want, buf.String()); diff != "" {
@@ -165,7 +165,7 @@ func TestMarkdownOutsideFindingKeepsItsWireIdentity(t *testing.T) {
 		}
 	}
 	var wire bytes.Buffer
-	if err := WriteJSONL(&wire, paths); err != nil {
+	if err := writeJSONL(&wire, paths); err != nil {
 		t.Fatal(err)
 	}
 	want := `{"rule_id":"link.broken.path","severity":"info","path":"Concepts/golang/Source.md","line":1,"message":"link to ../../../Outside.md points outside the vault root","evidence":"external path, not stat'd (existence varies by environment)","suggested_action":"if it should be in the vault, fix the path; otherwise informational","source_rule":"yomihon","target":"../../../Outside.md","fingerprint":"v1:8bf4a52083ad6a90"}` + "\n"
@@ -232,7 +232,7 @@ func TestMarkdownPrivateSourcesStayOutOfPublicCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	var wire bytes.Buffer
-	if err := WriteJSONL(&wire, findings); err != nil {
+	if err := writeJSONL(&wire, findings); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(wire.String(), "Restricted") || strings.Contains(wire.String(), "Secret") || !strings.Contains(wire.String(), "Public%20missing.md") {

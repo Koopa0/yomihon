@@ -50,7 +50,6 @@ func FuzzParseNote(f *testing.F) {
 		if parsed != (n.frontmatter != nil) {
 			t.Errorf("parseNote(%q) parsed = %v but frontmatter != nil = %v; they must agree", data, parsed, n.frontmatter != nil)
 		}
-
 	})
 }
 
@@ -96,7 +95,6 @@ func FuzzExtractLinks(f *testing.F) {
 				t.Errorf("extractPathRefs(%q, %d) target %q line = %d, want within [%d, %d]", body, bodyLine, pr.target, pr.line, bodyLine, maxLine)
 			}
 		}
-
 	})
 }
 
@@ -159,23 +157,23 @@ func FuzzWriteJSONL(f *testing.F) {
 		}
 
 		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			t.Fatalf("WriteJSONL(%d findings) = %v", len(findings), err)
+		if err := writeJSONL(&buf, findings); err != nil {
+			t.Fatalf("writeJSONL(%d findings) = %v", len(findings), err)
 		}
 		out := buf.Bytes()
 
 		// Every control character, including a newline in any field, is escaped
 		// inside the JSON, so the only raw newlines are the line terminators.
 		if got := bytes.Count(out, []byte("\n")); got != len(findings) {
-			t.Errorf("WriteJSONL wrote %d newlines for %d findings:\n%q", got, len(findings), out)
+			t.Errorf("writeJSONL wrote %d newlines for %d findings:\n%q", got, len(findings), out)
 		}
 		if len(out) > 0 && !bytes.HasSuffix(out, []byte("\n")) {
-			t.Errorf("WriteJSONL output does not end in a newline:\n%q", out)
+			t.Errorf("writeJSONL output does not end in a newline:\n%q", out)
 		}
 
 		lines := bytes.Split(out, []byte("\n"))
 		if len(lines) != len(findings)+1 || len(lines[len(lines)-1]) != 0 {
-			t.Fatalf("WriteJSONL(%d findings) did not split into one line each:\n%q", len(findings), out)
+			t.Fatalf("writeJSONL(%d findings) did not split into one line each:\n%q", len(findings), out)
 		}
 		for i := range findings {
 			assertLineRoundTrips(t, &findings[i], lines[i])
@@ -196,7 +194,7 @@ func FuzzWriteJSONL(f *testing.F) {
 func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 	t.Helper()
 	if !json.Valid(line) {
-		t.Fatalf("WriteJSONL produced invalid JSON:\n%q", line)
+		t.Fatalf("writeJSONL produced invalid JSON:\n%q", line)
 	}
 	// The encoder coerces invalid UTF-8 to the replacement rune, so an exact
 	// round-trip is only defined for input that is already valid UTF-8.
@@ -223,7 +221,7 @@ func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 		Fingerprint:      want.Fingerprint,
 	}
 	if diff := cmp.Diff(expected, got, cmpopts.EquateEmpty()); diff != "" {
-		t.Errorf("WriteJSONL round-trip mismatch (-want +got):\n%s", diff)
+		t.Errorf("writeJSONL round-trip mismatch (-want +got):\n%s", diff)
 	}
 }
 

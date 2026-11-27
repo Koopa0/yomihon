@@ -112,7 +112,7 @@ func TestRunExistsPathSuffixSelectionIncludesUnprojectableIdentities(t *testing.
 				return
 			}
 			if err != nil {
-				t.Fatalf("prepareExists() error = %v", err)
+				t.Fatalf("prepareExistsWithHooks() error = %v", err)
 			}
 			if _, err := prepared.seal(); err != nil {
 				t.Fatal(err)

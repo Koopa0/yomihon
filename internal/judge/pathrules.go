@@ -5,7 +5,7 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// The study-path rules carry the authoring contract's own diagnostics to the
+// The course rules carry the course grammar's own diagnostics to the
 // author. They are the judge's face on one interpretation: the same grammar
 // navigation reads decides what a course lists, so a course page and a check
 // run can never disagree about it.
@@ -34,7 +34,7 @@ var pathRuleAction = map[sequence.Rule]string{
 	sequence.RuleEntryNoncanonical:  "start the row with the unit's link",
 }
 
-// pathFindings reports every study path's structural diagnostics. A note whose
+// pathFindings reports every course's structural diagnostics. A note whose
 // type the contract does not list for path behaviour is prose here: the same
 // marker in it means nothing, so nothing about it is reported.
 func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
@@ -77,12 +77,12 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	}
 }
 
-// courseLessonLinks are the exact wikilinks a course lists as its lessons: the
+// courseUnitLinks are the exact wikilinks a course lists as its units: the
 // body offset of each accepted row's target, as the grammar read it, so the
 // link's own context travels with it. The identity is the occurrence, not the
 // name and not the line: a name can be written on two rows, and a row can hold
-// an embed or a mention beside the lesson it names.
-func courseLessonLinks(n *note) map[int]bool {
+// an embed or a mention beside the unit it names.
+func courseUnitLinks(n *note) map[int]bool {
 	offsets := make(map[int]bool)
 	var walk func(g *sequence.Group)
 	walk = func(g *sequence.Group) {

@@ -13,14 +13,12 @@ import (
 // is written forward: a note lists the concepts it still owes under a heading
 // marked as a gap, and then links those names from wherever they belong long
 // before the target file exists. Those links are tracked, not broken, and the
-// distinction is what separates a diagnostic worth reading from noise — across
-// this vault only two of fifty-eight unresolved links are genuine faults.
+// distinction is what separates a diagnostic worth reading from noise.
 //
-// Both faces have to reach the same verdict. The adjudicator writes it into a
-// frozen wire format; the reading page paints it beside the prose. When the two
-// derive it separately they drift, and the reader learns to distrust whichever
-// one cries wolf. So the vocabulary, the harvesting, and the predicate live
-// here, and the reading page consults them rather than reproducing them.
+// Both faces have to reach the same verdict: the check writes it into its
+// findings, the reading page paints it beside the prose, and the health page
+// lists it. So the vocabulary, the harvesting and the verdict live here, and
+// the pages consult them rather than reproducing them.
 
 // Planned is the set of concept names a corpus has declared it intends to
 // write. Membership is stored under the resolver's own normalization, so a name

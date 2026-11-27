@@ -26,14 +26,6 @@ import (
 // and a name that scan cannot find is reported as an excerpt the page could
 // not cut.
 
-// headingWords reduces a heading's source text to the words the page stamps
-// an id from. It is the reading page's fold, not a second copy: a heading
-// that names a generic type must answer here the same way the contents list
-// names it, or this face refuses a link the page follows.
-func headingWords(raw string) string {
-	return render.HeadingWords(raw)
-}
-
 func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockAddresses []string) {
 	stripped := withoutCommentZones(body, comments)
 	sections = make(map[string]bool)
@@ -84,7 +76,7 @@ func collectParsedHeadings(body string, into map[string]bool) {
 		if r, ok := linesRange(h); ok {
 			raw = body[r.Start:r.Stop]
 		}
-		into[graph.SectionID(headingWords(sequence.HeadingName(raw, h.Level)))] = true
+		into[graph.SectionID(render.HeadingWords(sequence.HeadingName(raw, h.Level)))] = true
 	})
 }
 
@@ -98,13 +90,13 @@ func collectGenerousHeadings(body string, into map[string]bool) {
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarks(line)
 		if m := graph.ATXHeading.FindStringSubmatch(candidate); m != nil {
-			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
+			into[graph.SectionID(render.HeadingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = nil
 			continue
 		}
 		if len(paragraph) > 0 && graph.SetextUnderline.MatchString(candidate) {
 			name := sequence.HeadingName(strings.Join(paragraph, "\n"), graph.SetextLevel(candidate))
-			into[graph.SectionID(headingWords(name))] = true
+			into[graph.SectionID(render.HeadingWords(name))] = true
 			paragraph = nil
 			continue
 		}
@@ -138,7 +130,7 @@ func withoutQuoteAndListMarks(line string) string {
 // a list item is not cut to, because the grammar strips neither marker.
 func collectExcerptHeadings(body string, into map[string]bool) {
 	for _, h := range graph.Headings(body, graph.LineSkipZones(body)) {
-		into[graph.SectionID(headingWords(sequence.HeadingName(h.Text, h.Level)))] = true
+		into[graph.SectionID(render.HeadingWords(sequence.HeadingName(h.Text, h.Level)))] = true
 	}
 }
 
@@ -156,20 +148,11 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // than there.
 func collectBlockAddresses(body string, address []string) []string {
 	var out []string
-	inFence, fenceByte, fenceLen := false, byte(0), 0
-	lines := strings.Split(body, "\n")
+	var fence fenceTracker
 	owned := render.CodeSpanOwnedAddresses(address)
 	unanchorable := render.UnanchorableLines(body)
-	for i, line := range lines {
-		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
-		if inFence {
-			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
-				inFence = false
-			}
-			continue
-		}
-		if marker, n, ok := graph.FenceOpens(unquoted); ok {
-			inFence, fenceByte, fenceLen = true, marker, n
+	for i, line := range strings.Split(body, "\n") {
+		if fence.fenced(line) {
 			continue
 		}
 		// The shared extractor skips lines without carets before asking its
@@ -186,19 +169,19 @@ func collectBlockAddresses(body string, address []string) []string {
 	return out
 }
 
-// blockAddressed compares the extracted, folded addresses with the requested
-// folded name. Whole-line suffixes do not declare an address.
-func blockAddressed(addresses []string, want string) bool {
-	return slices.Contains(addresses, want)
+// fragmentPaths is what the fragment rules read a destination with: the
+// resolver, the notes this run holds by path, the files it could not read, and
+// the reading page's own renderer over them, built the first time a link asks
+// it something.
+type fragmentPaths struct {
+	idx    *graph.Index
+	notes  fragmentNotes
+	unread map[string]bool
+	reader *render.Pipeline
 }
 
-// fragmentFindings judges the fragment half of every link and transclusion
-// whose name resolved to exactly one markdown note. A name that resolved to
-// nothing or to several files already carries its own finding, and a non-note
-// has no sections or blocks to address. A bare same-file fragment never
-// reaches here.
-func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Index) []Finding {
-	byPath := make(map[string]*note, len(notes))
+func newFragmentPaths(notes []note, unreadable []unreadableEntry, idx *graph.Index) *fragmentPaths {
+	byPath := make(fragmentNotes, len(notes))
 	for i := range notes {
 		byPath[notes[i].path] = &notes[i]
 	}
@@ -206,24 +189,70 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 	for _, entry := range unreadable {
 		unread[entry.path] = true
 	}
+	return &fragmentPaths{idx: idx, notes: byPath, unread: unread}
+}
+
+// pipeline is the reading page's renderer over this run's captured notes.
+func (p *fragmentPaths) pipeline() *render.Pipeline {
+	if p.reader == nil {
+		p.reader = render.New(p.idx, p.notes, p.notes, p.notes)
+	}
+	return p.reader
+}
+
+// fragmentFindings judges the fragment half of every link and transclusion
+// whose name resolved to exactly one markdown note. A name that resolved to
+// nothing or to several files already carries its own finding, and a non-note
+// has no sections or blocks to address. A bare same-file fragment never
+// reaches here.
+func (p *fragmentPaths) fragmentFindings(notes []note) []Finding {
 	var out []Finding
-	paths := fragmentPaths{idx: idx, notes: byPath, unread: unread}
 	for i := range notes {
 		n := &notes[i]
 		for l := range n.wikilinks {
 			link := &n.wikilinks[l]
+			read := p.fragmentFinding
 			if link.block == "" && render.IsHeadingPath(link.heading) {
-				if f, reported := paths.finding(n, link); reported {
-					out = append(out, f)
-				}
-				continue
+				read = p.headingPathFinding
 			}
-			if f, reported := fragmentFinding(n, link, idx, byPath, unread, &paths); reported {
+			if f, reported := read(n, link); reported {
 				out = append(out, f)
 			}
 		}
 	}
 	return out
+}
+
+// headingPathFinding judges a multi-part heading address by asking the reading
+// page's renderer where it lands.
+func (p *fragmentPaths) headingPathFinding(n *note, link *wikiLink) (Finding, bool) {
+	res := p.idx.Resolve(link.target)
+	if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
+		return Finding{}, false
+	}
+	target := p.notes[res.RelPath]
+	if target == nil {
+		return Finding{}, false
+	}
+	if link.embed {
+		if _, found := render.Excerpt(target.body, link.heading); found {
+			return Finding{}, false
+		}
+		return sectionMissing(n, link, res.RelPath), true
+	}
+	if _, found := p.pipeline().HeadingPath(res.RelPath, link.heading); found {
+		return Finding{}, false
+	}
+	for _, embedded := range target.wikilinks {
+		if !embedded.embed {
+			continue
+		}
+		place := p.idx.Resolve(embedded.target)
+		if place.Kind == graph.KindUnique && vault.IsMarkdown(place.RelPath) && p.unread[place.RelPath] {
+			return Finding{}, false
+		}
+	}
+	return sectionMissing(n, link, res.RelPath), true
 }
 
 // fragmentFinding judges one occurrence, reporting false when its fragment
@@ -236,27 +265,20 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 // it only has to land somewhere on, then an id the page stamps or the GitHub
 // spelling of an anchor, asked of the page's own outline so the two cannot
 // count a repeat differently.
-func fragmentFinding(
-	n *note,
-	link *wikiLink,
-	idx *graph.Index,
-	byPath map[string]*note,
-	unread map[string]bool,
-	paths *fragmentPaths,
-) (Finding, bool) {
+func (p *fragmentPaths) fragmentFinding(n *note, link *wikiLink) (Finding, bool) {
 	if link.heading == "" && link.block == "" {
 		return Finding{}, false
 	}
-	res := idx.Resolve(link.target)
+	res := p.idx.Resolve(link.target)
 	if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 		return Finding{}, false
 	}
-	target := byPath[res.RelPath]
+	target := p.notes[res.RelPath]
 	if target == nil {
 		return Finding{}, false
 	}
 	if link.block != "" {
-		if blockAddressed(target.blockAddresses, graph.FoldFragment("^"+link.block)) {
+		if slices.Contains(target.blockAddresses, graph.FoldFragment("^"+link.block)) {
 			return Finding{}, false
 		}
 		return blockMissing(n, link, res.RelPath), true
@@ -268,10 +290,10 @@ func fragmentFinding(
 		}
 		return sectionMissing(n, link, res.RelPath), true
 	}
-	if target.sectionAnchors[want] || transclusionMayBringSection(target, idx, byPath, unread, want) {
+	if target.sectionAnchors[want] || p.transclusionMayBringSection(target, want) {
 		return Finding{}, false
 	}
-	if paths.anchoredHeading(res.RelPath, link.heading) {
+	if _, found := p.pipeline().AnchoredHeading(res.RelPath, link.heading); found {
 		return Finding{}, false
 	}
 	return sectionMissing(n, link, res.RelPath), true
@@ -289,25 +311,19 @@ func fragmentFinding(
 // silent over a run conclude that something is nowhere in the vault, which no
 // single link can be asked about, whereas here exactly one address has exactly
 // one place left to look and that place could not be opened.
-func transclusionMayBringSection(
-	target *note,
-	idx *graph.Index,
-	byPath map[string]*note,
-	unread map[string]bool,
-	want string,
-) bool {
+func (p *fragmentPaths) transclusionMayBringSection(target *note, want string) bool {
 	for _, link := range target.wikilinks {
 		if !link.embed {
 			continue
 		}
-		res := idx.Resolve(link.target)
+		res := p.idx.Resolve(link.target)
 		if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 			continue
 		}
-		if unread[res.RelPath] {
+		if p.unread[res.RelPath] {
 			return true
 		}
-		if embedded := byPath[res.RelPath]; embedded != nil && embedded.sectionAnchors[want] {
+		if embedded := p.notes[res.RelPath]; embedded != nil && embedded.sectionAnchors[want] {
 			return true
 		}
 	}
@@ -321,7 +337,7 @@ func transclusionMayBringSection(
 // so a baseline that has accepted one cannot swallow the other, and the
 // fingerprint keys on the rule with the address for the same reason.
 func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := RuleID(RuleLinkSectionMissing), "[["
+	rule, written := RuleLinkSectionMissing, "[["
 	evidence := "the note exists and none of its headings answers the section name"
 	action := "fix the section name after #, or add the heading to the target note"
 	if link.embed {
@@ -350,7 +366,7 @@ func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
 // and says so where the words would have been. The two rules are kept apart
 // the way the section rules are.
 func blockMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := RuleID(RuleLinkBlockMissing), "[["
+	rule, written := RuleLinkBlockMissing, "[["
 	evidence := "the note exists and no line in it ends with the block address"
 	action := "fix the block name after ^, or write the address at the end of the intended line"
 	if link.embed {
@@ -382,16 +398,7 @@ func blockMissing(n *note, link *wikiLink, resolved string) Finding {
 // names no note and a source that is itself withheld are not judged: the first
 // two are not this rule's to say, the next has its own finding, and the last
 // is not written about at all.
-func markdownFragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Index, scan vault.Scan, authority scanAuthority) []Finding {
-	byPath := make(map[string]*note, len(notes))
-	for i := range notes {
-		byPath[notes[i].path] = &notes[i]
-	}
-	unread := make(map[string]bool, len(unreadable))
-	for _, entry := range unreadable {
-		unread[entry.path] = true
-	}
-	paths := fragmentPaths{idx: idx, notes: byPath, unread: unread}
+func (p *fragmentPaths) markdownFragmentFindings(notes []note, scan vault.Scan, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -400,10 +407,10 @@ func markdownFragmentFindings(notes []note, unreadable []unreadableEntry, idx *g
 		}
 		for _, ref := range n.pathRefs {
 			rel, ok := markdownFragmentTarget(n.path, &ref, scan, authority)
-			if !ok || byPath[rel] == nil || unread[rel] || embedsUnseenGround(rel, idx, byPath, unread, authority) {
+			if !ok || p.notes[rel] == nil || p.unread[rel] || p.embedsUnseenGround(rel, authority) {
 				continue
 			}
-			if gap := paths.pipeline().FragmentGap(rel, ref.fragment); gap != nil {
+			if gap := p.pipeline().FragmentGap(rel, ref.fragment); gap != nil {
 				out = append(out, markdownFragmentMissing(n, &ref, rel, gap))
 			}
 		}
@@ -435,18 +442,18 @@ func markdownFragmentTarget(source string, ref *pathRef, scan vault.Scan, author
 // the note's own body lacks may be one of theirs, and calling it missing would
 // say something about words that were never read or are withheld. The walk
 // keeps a note it has been to, so a ring of embeds ends.
-func embedsUnseenGround(rel string, idx *graph.Index, byPath map[string]*note, unread map[string]bool, authority scanAuthority) bool {
+func (p *fragmentPaths) embedsUnseenGround(rel string, authority scanAuthority) bool {
 	seen := map[string]bool{rel: true}
 	for queue := []string{rel}; len(queue) > 0; queue = queue[1:] {
-		for _, link := range byPath[queue[0]].wikilinks {
+		for _, link := range p.notes[queue[0]].wikilinks {
 			if !link.embed {
 				continue
 			}
-			res := idx.Resolve(link.target)
+			res := p.idx.Resolve(link.target)
 			if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) || seen[res.RelPath] {
 				continue
 			}
-			if unread[res.RelPath] || byPath[res.RelPath] == nil || !authority.readable(res.RelPath) {
+			if p.unread[res.RelPath] || p.notes[res.RelPath] == nil || !authority.readable(res.RelPath) {
 				return true
 			}
 			seen[res.RelPath] = true
@@ -462,7 +469,7 @@ func embedsUnseenGround(rel string, idx *graph.Index, byPath map[string]*note, u
 // what tells two links to different places in one note apart.
 func markdownFragmentMissing(n *note, ref *pathRef, resolved string, gap *render.Diagnostic) Finding {
 	address := ref.target + "#" + ref.fragment
-	rule := RuleID(RuleLinkSectionMissing)
+	rule := RuleLinkSectionMissing
 	message := "link to " + address + " resolves, but no heading matches \"" + gap.Section + "\""
 	evidence := "the note exists and none of its headings answers the fragment"
 	action := "fix the fragment after #, or add the heading to the target note"
@@ -486,3 +493,23 @@ func markdownFragmentMissing(n *note, ref *pathRef, resolved string, gap *render
 		Fingerprint:     fingerprint(rule, n.path, address),
 	}
 }
+
+// fragmentNotes supplies only captured bodies to the outline render. Asset
+// diagnostics and title-only repairs do not participate in heading identity;
+// the render's diagnostics are not imported into the judge's finding stream.
+type fragmentNotes map[string]*note
+
+func (n fragmentNotes) Transclusion(path string) (string, bool) {
+	if body := n[path]; body != nil {
+		return body.body, true
+	}
+	return "", false
+}
+
+func (fragmentNotes) TitledBy(string) []string { return nil }
+
+func (fragmentNotes) MissingFile(string) bool { return false }
+
+func (fragmentNotes) OutsideScan(string) bool { return false }
+
+func (fragmentNotes) IsDirectory(string) bool { return false }

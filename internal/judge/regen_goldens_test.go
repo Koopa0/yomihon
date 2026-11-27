@@ -103,8 +103,8 @@ func TestRegenerateGoldens(t *testing.T) {
 			t.Fatalf("Check(%q): %v", tt.fixture, err)
 		}
 		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			t.Fatalf("WriteJSONL(%q): %v", tt.fixture, err)
+		if err := writeJSONL(&buf, findings); err != nil {
+			t.Fatalf("writeJSONL(%q): %v", tt.fixture, err)
 		}
 		if err := os.WriteFile(tt.golden, buf.Bytes(), 0o600); err != nil {
 			t.Fatalf("write %s: %v", tt.golden, err)
@@ -121,8 +121,8 @@ func TestRegenerateGoldens(t *testing.T) {
 		t.Fatalf("Check(%q): %v", unreadableFixture, sealedErr)
 	}
 	var sealedBuf bytes.Buffer
-	if err := WriteJSONL(&sealedBuf, sealedFindings); err != nil {
-		t.Fatalf("WriteJSONL(%q): %v", unreadableFixture, err)
+	if err := writeJSONL(&sealedBuf, sealedFindings); err != nil {
+		t.Fatalf("writeJSONL(%q): %v", unreadableFixture, err)
 	}
 	if err := os.WriteFile(unreadableGolden, sealedBuf.Bytes(), 0o600); err != nil {
 		t.Fatalf("write %s: %v", unreadableGolden, err)
@@ -141,8 +141,8 @@ func TestRegenerateGoldens(t *testing.T) {
 		findings := checkSchema(notes, s)
 		sortFindings(findings)
 		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			t.Fatalf("WriteJSONL(%q): %v", tt.fixture, err)
+		if err := writeJSONL(&buf, findings); err != nil {
+			t.Fatalf("writeJSONL(%q): %v", tt.fixture, err)
 		}
 		if err := os.WriteFile(tt.golden, buf.Bytes(), 0o600); err != nil {
 			t.Fatalf("write %s: %v", tt.golden, err)

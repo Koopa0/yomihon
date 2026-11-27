@@ -82,7 +82,7 @@ type lintRun struct {
 	requiresFrontmatter bool
 	conceptType         string
 	conceptDeclared     bool
-	lessonType          string
+	unitType            string
 	provenance          []string
 	enums               []schema.EnumDefinition
 	domains             schema.Domains
@@ -101,7 +101,7 @@ func newLintRun(contract *schema.Contract) *lintRun {
 		domains:             contract.Domains(),
 	}
 	run.conceptType, run.conceptDeclared = contract.ConceptType()
-	run.lessonType, _ = contract.LessonType()
+	run.unitType, _ = contract.LessonType()
 	return run
 }
 
@@ -123,7 +123,7 @@ func (r *lintRun) check(notes []note) []Finding {
 
 // note returns the frontmatter findings for one in-scope note, in the
 // contract's reading order: the type enum, unknown keys, the article language,
-// the draft flag, the lesson slug, reference shapes, then the required fields,
+// the draft flag, the unit slug, reference shapes, then the required fields,
 // the value enums and the structural rules. That order is the tiebreak the
 // stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
@@ -150,15 +150,15 @@ func (r *lintRun) note(n *note) []Finding {
 		out = append(out, schemaFinding(n, RuleSchemaEnum, "type", ty, "is not an allowed type"))
 	}
 
-	isLesson := hasType && n.noteType == r.lessonType
+	isUnit := hasType && n.noteType == r.unitType
 	out = append(out, r.unknownKeys(n, ty)...)
 	out = append(out, r.articleLanguage(n)...)
 	out = append(out, r.draft(n)...)
-	if isLesson {
-		out = append(out, r.lessonSlug(n, ty)...)
+	if isUnit {
+		out = append(out, r.unitSlug(n, ty)...)
 	}
 	out = append(out, r.referenceNestedSequences(n)...)
-	out = append(out, r.required(n, ty, isLesson)...)
+	out = append(out, r.required(n, ty, isUnit)...)
 	out = append(out, r.enumFields(n)...)
 	out = append(out, r.structural(n)...)
 	return out
@@ -249,27 +249,25 @@ func (r *lintRun) draft(n *note) []Finding {
 	return []Finding{schemaFinding(n, RuleSchemaDraft, schema.DraftField, v.scalar, "must be true or false")}
 }
 
-// lessonSlug reports the slug faults of a note holding the lesson role.
-func (r *lintRun) lessonSlug(n *note, noteType string) []Finding {
-	var out []Finding
-	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
-	case !ok:
-		out = append(out, schemaFinding(n, RuleSchemaRequired, "slug", "", "is required for a unit"))
-	default:
-		if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
-			out = append(out, schemaFinding(n, RuleSchemaSlug, "slug", sl, "is not a valid slug"))
-		}
+// unitSlug reports the slug faults of a note holding the unit role.
+func (r *lintRun) unitSlug(n *note, noteType string) []Finding {
+	sl, ok := fmScalar(n.frontmatter, "slug")
+	if !ok {
+		return []Finding{schemaFinding(n, RuleSchemaRequired, "slug", "", "is required for a unit")}
 	}
-	return out
+	if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
+		return []Finding{schemaFinding(n, RuleSchemaSlug, "slug", sl, "is not a valid slug")}
+	}
+	return nil
 }
 
 // required reports each required field that is absent or blank: the fields
-// every note must carry, then those its type adds. A lesson's slug has its own
+// every note must carry, then those its type adds. A unit's slug has its own
 // finding and is not asked twice.
-func (r *lintRun) required(n *note, noteType string, isLesson bool) []Finding {
+func (r *lintRun) required(n *note, noteType string, isUnit bool) []Finding {
 	var out []Finding
 	for _, key := range r.contract.RequiredFields(noteType) {
-		if isLesson && key == schema.FieldSlug {
+		if isUnit && key == schema.FieldSlug {
 			continue
 		}
 		if v, ok := n.frontmatter[key]; !ok || !v.present() {

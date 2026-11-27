@@ -17,9 +17,8 @@ import (
 // a process opens the selected vault once, captures its complete file domain,
 // prints, and exits. Each runner takes already-parsed options and returns the
 // bytes to print and the process exit code, so the binary's main only wires
-// arguments in and the exit code out. Those codes are the frozen contract the
-// pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
-// error, which a runner reports as a non-nil error.
+// arguments in and the exit code out: 0 clean, 1 a gate hit or a "does not
+// exist", 2 a tool error, which a runner reports as a non-nil error.
 
 // Format is the shape a command's answer is printed in.
 type Format int
@@ -69,24 +68,25 @@ func (p *preparedCommand) seal() (egress.Payload, error) {
 	return a.seal(p.stdout)
 }
 
+// sealPrepared seals what a command prepared, or passes on why it could not
+// prepare it.
+func sealPrepared(p preparedCommand, err error) (egress.Payload, int, error) {
+	if err != nil {
+		return egress.Payload{}, 0, err
+	}
+	payload, err := p.seal()
+	if err != nil {
+		return egress.Payload{}, 0, err
+	}
+	return payload, p.exit, nil
+}
+
 // RunCheck scans the vault and renders the findings. It returns the bytes to
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
 func RunCheck(ctx context.Context, o *CheckOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareCheck(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
-	return prepareCheckWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareCheckWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
@@ -104,42 +104,48 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 		return preparedCommand{}, a.abort(err)
 	}
 	if o.Baseline != "" {
-		data, err := os.ReadFile(o.Baseline) // #nosec G304 -- the baseline path is an operator-supplied CLI argument, not untrusted input
-		if err != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("read baseline %s: %w", o.Baseline, err))
+		if findings, err = subtractBaseline(findings, o.Baseline); err != nil {
+			return preparedCommand{}, a.abort(err)
 		}
-		baseline, parseErr := parseBaseline(string(data))
-		if parseErr != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("baseline %s: %w", o.Baseline, parseErr))
-		}
-		findings = retainNew(findings, baseline)
 	}
-	var stdout []byte
-	switch o.Format {
-	case FormatJSON:
-		var buf bytes.Buffer
-		if err := WriteJSONL(&buf, findings); err != nil {
-			return preparedCommand{}, a.abort(fmt.Errorf("serialize findings: %w", err))
-		}
-		stdout = buf.Bytes()
-	case FormatHuman:
-		stdout = []byte(humanReport(findings, a.authority.domainRoots()))
-		if a.authority.noRules() {
-			stdout = append([]byte(noRulesChecks+"\n"), stdout...)
-		}
-	case FormatMarkdown:
-		stdout = []byte(markdownReport(findings, a.authority.domainRoots()))
-		if a.authority.noRules() {
-			stdout = append([]byte(noRulesChecks+"\n\n"), stdout...)
-		}
-	default:
-		panic(fmt.Sprintf("judge: unknown Format: %d", o.Format))
+	stdout, err := renderCheck(findings, a.authority, o.Format)
+	if err != nil {
+		return preparedCommand{}, a.abort(err)
 	}
 	exit := 0
 	if gated(findings, o.Deny) {
 		exit = 1
 	}
 	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
+}
+
+// renderCheck prints the findings in the format asked for. A person is told
+// first when the folder has no rules file, since the frontmatter rules did not
+// run.
+func renderCheck(findings []Finding, authority scanAuthority, format Format) ([]byte, error) {
+	var out []byte
+	switch format {
+	case FormatJSON:
+		var buf bytes.Buffer
+		if err := writeJSONL(&buf, findings); err != nil {
+			return nil, fmt.Errorf("serialize findings: %w", err)
+		}
+		return buf.Bytes(), nil
+	case FormatHuman:
+		out = []byte(humanReport(findings, authority.domainRoots()))
+	case FormatMarkdown:
+		out = []byte(markdownReport(findings, authority.domainRoots()))
+	default:
+		panic(fmt.Sprintf("judge: unknown Format: %d", format))
+	}
+	if authority.noRules() {
+		lead := noRulesChecks + "\n"
+		if format == FormatMarkdown {
+			lead += "\n"
+		}
+		out = append([]byte(lead), out...)
+	}
+	return out, nil
 }
 
 // CoverageOptions is the parsed coverage command.
@@ -152,19 +158,7 @@ type CoverageOptions struct {
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
 func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareCoverage(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
-	return prepareCoverageWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareCoverageWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
@@ -209,19 +203,7 @@ type ExistsOptions struct {
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
 func RunExists(ctx context.Context, o *ExistsOptions) (stdout egress.Payload, exit int, err error) {
-	prepared, err := prepareExists(ctx, o)
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	payload, err := prepared.seal()
-	if err != nil {
-		return egress.Payload{}, 0, err
-	}
-	return payload, prepared.exit, nil
-}
-
-func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {
-	return prepareExistsWithHooks(ctx, o, actionHooks{})
+	return sealPrepared(prepareExistsWithHooks(ctx, o, actionHooks{}))
 }
 
 func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
@@ -354,6 +336,20 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 		set[fp] = true
 	}
 	return set, nil
+}
+
+// subtractBaseline drops the findings a prior run's JSONL at path already
+// carried.
+func subtractBaseline(findings []Finding, path string) ([]Finding, error) {
+	data, err := os.ReadFile(path) // #nosec G304 -- the baseline path is an operator-supplied CLI argument, not untrusted input
+	if err != nil {
+		return nil, fmt.Errorf("read baseline %s: %w", path, err)
+	}
+	baseline, err := parseBaseline(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("baseline %s: %w", path, err)
+	}
+	return retainNew(findings, baseline), nil
 }
 
 // retainNew drops findings whose fingerprint is already in the baseline,

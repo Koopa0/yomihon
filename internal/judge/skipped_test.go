@@ -37,8 +37,8 @@ func TestSkippedFindingBytesAreFrozenForEveryKind(t *testing.T) {
 		t.Run(tt.kind.String(), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := WriteJSONL(&buf, []Finding{skippedFinding("Writing/Linked lesson.md", tt.kind)}); err != nil {
-				t.Fatalf("WriteJSONL: %v", err)
+			if err := writeJSONL(&buf, []Finding{skippedFinding("Writing/Linked lesson.md", tt.kind)}); err != nil {
+				t.Fatalf("writeJSONL: %v", err)
 			}
 			if buf.String() != tt.want {
 				t.Errorf("finding bytes moved:\n got %s\nwant %s", buf.String(), tt.want)

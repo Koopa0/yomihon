@@ -79,7 +79,7 @@ not own the study-path grammar.
 
 When a rule, authority, or source file changes, reconcile this table with the
 finding's construction path, the registry in
-[`internal/judge/command.go`](../internal/judge/command.go), and the
+[`internal/judge/rules.go`](../internal/judge/rules.go), and the
 [`JSONL goldens`](../internal/judge/testdata/golden).
 Keep one row per distinct `(RuleID, SourceRule)` pair.
 A new rule needs a fixture under `internal/judge/testdata/` that emits it

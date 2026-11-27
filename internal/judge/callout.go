@@ -17,25 +17,20 @@ type calloutTitle struct {
 	line  int
 }
 
-func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) []calloutTitle {
+// extractCalloutTitlesFrom reads the title of every recognised callout in
+// body whose opening line starts outside the comment zones, a fence and an
+// indented code block, each with its file line.
+func extractCalloutTitlesFrom(body string, bodyStartLine int, comments []byteRange) []calloutTitle {
 	var out []calloutTitle
-	inFence, fenceByte, fenceLen := false, byte(0), 0
+	var fence fenceTracker
 	offset := 0
 	for i, line := range strings.Split(body, "\n") {
 		lineStart := offset
 		offset += len(line) + 1
-		if graph.In(skip, lineStart) {
+		if graph.In(comments, lineStart) {
 			continue
 		}
-		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
-		if inFence {
-			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
-				inFence = false
-			}
-			continue
-		}
-		if marker, n, ok := graph.FenceOpens(unquoted); ok {
-			inFence, fenceByte, fenceLen = true, marker, n
+		if fence.fenced(line) {
 			continue
 		}
 		if graph.IndentedCodeLine.MatchString(line) {
@@ -107,21 +102,13 @@ func titleCarriesMarkup(title string) bool {
 	if titleCarriesWikilink(title) {
 		return true
 	}
-	doc := mdParser.Parse(text.NewReader([]byte(title)))
 	found := false
-	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
+	walkNodes(mdParser.Parse(text.NewReader([]byte(title))), func(n ast.Node) {
 		switch n.(type) {
 		case *ast.Emphasis, *ast.CodeSpan, *ast.RawHTML, *ast.HTMLBlock, *ast.Link, *ast.AutoLink, *ast.Image:
 			found = true
-			return ast.WalkStop, nil
 		}
-		return ast.WalkContinue, nil
-	}); err != nil {
-		return false
-	}
+	})
 	return found
 }
 

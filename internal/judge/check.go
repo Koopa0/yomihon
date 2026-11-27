@@ -48,10 +48,11 @@ func runCheckAction(ctx context.Context, root string, paths []string, all bool) 
 
 func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	idx := buildIndex(a.notes, a.unreadable, a.resources)
+	fragments := newFragmentPaths(a.notes, a.unreadable, idx)
 
-	findings := runGraphRules(a, idx)
+	findings := runGraphRules(a, idx, fragments)
 	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
-	findings = append(findings, markdownFragmentFindings(a.notes, a.unreadable, idx, a.scan, a.authority)...)
+	findings = append(findings, fragments.markdownFragmentFindings(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkImages(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkUnusedDefinitions(a.notes, a.authority)...)
 	findings = append(findings, checkSchema(a.notes, a.authority.contract)...)
@@ -77,10 +78,10 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	// wants judged; it does not make the hole in the judgement somebody else's
 	// business, and a filter that kept the missing rules while removing the
 	// sentence explaining them would leave a report that reads complete. The
-	// navigation finding is a hole of the same kind: the course and map rules
+	// navigation finding is a hole of the same kind: the course and index rules
 	// that went silent did so for every scope.
 	findings = append(findings, checkUnreadable(a.unreadable, a.authority)...)
-	findings = append(findings, checkNavigation(a.authority.roles())...)
+	findings = append(findings, checkNavigation(a.authority.contract.NavigationRoles())...)
 	sortFindings(findings)
 	return findings, nil
 }
@@ -112,15 +113,8 @@ func buildIndex(notes []note, unreadable []unreadableEntry, resources []string) 
 // every finding the privacy cut left standing.
 func dropOutsideKnowledgeScope(findings []Finding, scope schema.KnowledgeScope) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return !touchesInsideKnowledgeScope(&f, scope)
+		return !anyTouchedPath(&f, scope.Includes)
 	})
-}
-
-// touchesInsideKnowledgeScope reports whether a finding touches any path
-// inside the declared knowledge layer, counting its citing path and every
-// collision member.
-func touchesInsideKnowledgeScope(f *Finding, scope schema.KnowledgeScope) bool {
-	return anyTouchedPath(f, scope.Includes)
 }
 
 // dropEgressDenied removes every finding whose resolution touches a path the

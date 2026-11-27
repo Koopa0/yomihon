@@ -198,8 +198,8 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 	case parsed.export && parsed.format != nil:
 		return openRequest{}, errors.New("--export writes Markdown and does not accept --format")
 	}
-	if err := refuseMarkdown(openCommand, parsed.format); err != nil {
-		return openRequest{}, err
+	if refusal := refuseMarkdown(openCommand, parsed.format); refusal != nil {
+		return openRequest{}, refusal
 	}
 	if parsed.root == "" {
 		if parsed.root, err = os.Getwd(); err != nil {

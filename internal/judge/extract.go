@@ -29,8 +29,9 @@ import (
 //
 // address, heading and block carry the fragment half, read the way the reading
 // page reads it — heading after "#", block after "^" or "#^", address the whole
-// addressing text without a display alias. target keeps the frozen stripping;
-// the fragment split is the resolver's, so the two faces cannot disagree.
+// addressing text without a display alias. target is the name stripTarget
+// leaves; the fragment split is the resolver's, so the two faces cannot
+// disagree.
 type wikiLink struct {
 	target          string
 	address         string
@@ -378,11 +379,11 @@ func inlinePlannedTargets(line string, names, inlineMarks []string) []string {
 	return appendLinkTargets(names, line)
 }
 
-// appendLinkTargets appends the target of every wikilink in text the author
-// did not escape to show rather than to follow.
-func appendLinkTargets(names []string, text string) []string {
-	for _, r := range rawWikilinks(text) {
-		if graph.EscapedWikilinkAt(text, r.offset) {
+// appendLinkTargets appends the target of every wikilink in s the author did
+// not escape to show rather than to follow.
+func appendLinkTargets(names []string, s string) []string {
+	for _, r := range rawWikilinks(s) {
+		if graph.EscapedWikilinkAt(s, r.offset) {
 			continue
 		}
 		if target, ok := stripTarget(r.inner); ok {
@@ -444,6 +445,30 @@ func structure(body string, headingMarks []string) ([]byteRange, []heading) {
 		}
 	})
 	return codeZones, headings
+}
+
+// fenceTracker follows fenced code down a body line by line, with a quote's
+// markers taken off first, the way the page's line rules read a fence.
+type fenceTracker struct {
+	open   bool
+	marker byte
+	length int
+}
+
+// fenced reports whether line opens a fence, closes one, or lies inside one.
+func (f *fenceTracker) fenced(line string) bool {
+	unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
+	if f.open {
+		if graph.FenceCloses(unquoted, f.marker, f.length) {
+			f.open = false
+		}
+		return true
+	}
+	if marker, n, ok := graph.FenceOpens(unquoted); ok {
+		f.open, f.marker, f.length = true, marker, n
+		return true
+	}
+	return false
 }
 
 // walkNodes visits every node of doc in document order, calling visit as each
@@ -726,18 +751,13 @@ func quotesCommandLine(t string) bool {
 }
 
 // isRelativeMdRef reports whether path is a plain relative .md file reference
-// checked as a code token: it names a Markdown note by the vault's extension test
-// and is not a URL, a site-absolute or home path, a glob or placeholder, or
-// percent-encoded. An uppercase spelling such as "Note.MD" names a resource
-// here as it does to every other reader; a private fold on this one path made
-// the judge count references no other face called notes.
+// checked as a code token: it names a Markdown note by the vault's extension
+// test and is not a URL, a site-absolute or home path, a glob or placeholder,
+// or percent-encoded.
 func isRelativeMdRef(path string) bool {
-	return !strings.Contains(path, "%") && isMarkdownPathRef(path)
-}
-
-func isMarkdownPathRef(path string) bool {
 	return path != "" &&
 		vault.IsMarkdown(path) &&
+		!strings.Contains(path, "%") &&
 		!strings.HasPrefix(path, "/") &&
 		!strings.HasPrefix(path, "~") &&
 		!strings.Contains(path, "://") &&

@@ -10,10 +10,9 @@ package judge
 // judged as one, because the parser answers every reference from the first.
 //
 // The finding is info, not warn: an unused definition breaks nothing the reader
-// sees, so it is a tidy-up signal. At warn it outnumbered the broken links on a
-// large vault and buried the findings check exists to surface. Because a rule
-// id gates only at warn or above, "--deny link.unused.definition" does not fail
-// on it; "--deny info" does.
+// sees, so it is a tidy-up signal that must not bury the broken links. Because
+// a rule id gates only at warn or above, "--deny link.unused.definition" does
+// not fail on it; "--deny info" does.
 
 // checkUnusedDefinitions reports each note's unused link reference definitions.
 func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {

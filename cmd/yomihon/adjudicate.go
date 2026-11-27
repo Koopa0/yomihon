@@ -113,34 +113,16 @@ func validateCommandArgs(command string, args *commandArgs) error {
 	case "check":
 		return scopeIsNotTheVaultItself(args.positionals)
 	case "coverage":
-		if err := refuseMarkdown(command, args.format); err != nil {
+		if err := refuseCheckFlags(command, args); err != nil {
 			return err
-		}
-		if args.all {
-			return errors.New("coverage does not accept --all")
-		}
-		if len(args.deny) > 0 {
-			return errors.New("coverage does not accept --deny")
-		}
-		if args.baseline != "" {
-			return errors.New("coverage does not accept --baseline")
 		}
 		if len(args.positionals) > 0 {
 			return errors.New("coverage takes no positional arguments")
 		}
 		return nil
 	case "exists":
-		if err := refuseMarkdown(command, args.format); err != nil {
+		if err := refuseCheckFlags(command, args); err != nil {
 			return err
-		}
-		if args.all {
-			return errors.New("exists does not accept --all")
-		}
-		if len(args.deny) > 0 {
-			return errors.New("exists does not accept --deny")
-		}
-		if args.baseline != "" {
-			return errors.New("exists does not accept --baseline")
 		}
 		if len(args.positionals) != 1 {
 			return errors.New("exists takes exactly one name argument")
@@ -149,6 +131,19 @@ func validateCommandArgs(command string, args *commandArgs) error {
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
+}
+
+// refuseCheckFlags refuses on coverage and exists the flags only check takes.
+func refuseCheckFlags(command string, args *commandArgs) error {
+	switch {
+	case args.all:
+		return fmt.Errorf("%s does not accept --all", command)
+	case len(args.deny) > 0:
+		return fmt.Errorf("%s does not accept --deny", command)
+	case args.baseline != "":
+		return fmt.Errorf("%s does not accept --baseline", command)
+	}
+	return refuseMarkdown(command, args.format)
 }
 
 // scopeIsNotTheVaultItself refuses a scope written as an absolute path, before

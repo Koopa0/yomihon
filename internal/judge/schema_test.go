@@ -352,8 +352,8 @@ func runSchema(t *testing.T, root string) []byte {
 	findings := checkSchema(notes, s)
 	sortFindings(findings)
 	var buf bytes.Buffer
-	if err := WriteJSONL(&buf, findings); err != nil {
-		t.Fatalf("WriteJSONL: %v", err)
+	if err := writeJSONL(&buf, findings); err != nil {
+		t.Fatalf("writeJSONL: %v", err)
 	}
 	return buf.Bytes()
 }

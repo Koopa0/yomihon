@@ -228,12 +228,6 @@ func refuse(ctx context.Context, tb testing.TB, command, root string) error {
 	return err
 }
 
-// extractCalloutTitles reads one body's callout titles the way parseNote does.
-func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
-	facts := inspectBody(body, nil)
-	return extractCalloutTitlesFrom(body, bodyStartLine, facts.comments)
-}
-
 // extractPathRefs reads one body's file references the way parseNote does.
 func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	facts := inspectBody(body, nil)

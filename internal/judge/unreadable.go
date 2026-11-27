@@ -4,13 +4,12 @@ import "slices"
 
 // A file the scan listed and the read could not open is reported here, at the
 // weight of the gravest thing this face has, and the judgement goes on over
-// everything it did read. The reading room has always shown such a file as a
-// row of its own; before this the command answered the same fact by ending the
-// run, so two faces gave two answers about one file.
+// everything it did read, as the reading room shows such a file as a row of its
+// own.
 //
 // Going on is only honest about part of what the rules conclude. A finding
 // about one note is still true when another note could not be read. A finding
-// about something being *absent* — a name no file answers to, a lesson no
+// about something being *absent* — a name no file answers to, a unit no
 // course lists — is not: the file nobody could read may hold the name or the
 // list. Those rules therefore say nothing at all over such a run, and the file
 // that cost them says so in its own sentence, so a reader meets the reason
@@ -25,10 +24,10 @@ import "slices"
 //     gave it — but its aliases and its title are not, and neither is whether it
 //     lists the name as a planned one, which decides the finding's weight.
 //   - provenance.unresolved concludes the same about a reference, which may
-//     also answer to the unread file's lesson slug.
+//     also answer to the unread file's unit slug.
 //   - course.disk_mismatch concludes that a course entry names no note, which is
 //     the broken link above under the course's own rule.
-//   - course.disk_unlisted concludes that no course of a domain lists a lesson,
+//   - course.disk_unlisted concludes that no course of a domain lists a unit,
 //     and the unread file may be the course that lists it.
 //
 // Every other rule concludes only from material this run holds: a note it read
@@ -37,7 +36,7 @@ import "slices"
 // notes sharing an alias go unnoticed when one of them did not open — but never
 // with a wrong verdict, and an under-report is what an unread file is. The
 // rules that ask what another note says answer for no note they could not read:
-// a live course linking an archived lesson, and a fragment addressing a section
+// a live course linking an archived unit, and a fragment addressing a section
 // or a block, each decline that one target rather than guess at it.
 var withheldOnPartialCorpus = []RuleID{
 	RuleLinkBroken,

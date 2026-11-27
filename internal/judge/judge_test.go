@@ -9,7 +9,7 @@ import (
 
 // TestWriteJSONLGolden pins the serializer's escape surface in isolation from
 // the engine: every Finding below is a hand transcription, so the bytes come
-// only from WriteJSONL, not from extraction. The full-engine conformance —
+// only from writeJSONL, not from extraction. The full-engine conformance —
 // which fixture produces which finding — lives in TestCheckGolden. Keeping a
 // hand-authored escape case guards the serializer even if extraction is later
 // reworked, since the custom serializer exists precisely to keep the two
@@ -139,8 +139,8 @@ func TestWriteJSONLGolden(t *testing.T) {
 				t.Fatalf("read golden: %v", err)
 			}
 			var buf bytes.Buffer
-			if err := WriteJSONL(&buf, tt.findings); err != nil {
-				t.Fatalf("WriteJSONL: %v", err)
+			if err := writeJSONL(&buf, tt.findings); err != nil {
+				t.Fatalf("writeJSONL: %v", err)
 			}
 			if got := buf.Bytes(); !bytes.Equal(got, want) {
 				t.Errorf("output differs from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
@@ -182,8 +182,8 @@ func TestWriteJSONLShape(t *testing.T) {
 	want := `{"rule_id":"x.rule","severity":"error","path":"p/a.md","line":7,"field":"f","message":"m <&> -> ok","evidence":"e","suggested_action":"s","source_rule":"r","target":"t","resolved_to":"q/b.md","collision_members":["p/a.md","q/b.md"],"fingerprint":"0000000000000000"}` + "\n" +
 		`{"rule_id":"","severity":"info","path":"","message":"","evidence":"","suggested_action":"","source_rule":"","fingerprint":""}` + "\n"
 	var buf bytes.Buffer
-	if err := WriteJSONL(&buf, findings); err != nil {
-		t.Fatalf("WriteJSONL: %v", err)
+	if err := writeJSONL(&buf, findings); err != nil {
+		t.Fatalf("writeJSONL: %v", err)
 	}
 	if got := buf.String(); got != want {
 		t.Errorf("shape bytes differ\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",

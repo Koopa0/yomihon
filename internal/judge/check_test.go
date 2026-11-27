@@ -329,8 +329,8 @@ func runCheck(t *testing.T, root string) []byte {
 		t.Fatalf("Check(%q): %v", root, err)
 	}
 	var buf bytes.Buffer
-	if err := WriteJSONL(&buf, findings); err != nil {
-		t.Fatalf("WriteJSONL: %v", err)
+	if err := writeJSONL(&buf, findings); err != nil {
+		t.Fatalf("writeJSONL: %v", err)
 	}
 	return buf.Bytes()
 }

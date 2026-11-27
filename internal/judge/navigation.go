@@ -38,13 +38,12 @@ func navigationUnavailableFinding() Finding {
 }
 
 // silencedWithoutNavigation reports whether a rule reads the navigation roles
-// and so reports nothing when they are unavailable: the study-path grammar's
+// and so reports nothing when they are unavailable: the course grammar's
 // rules and the two that reconcile a course against disk. A gate on any of them
 // cannot be answered by their silence, so it is answered by the finding that
 // says they did not run.
 func silencedWithoutNavigation(rule string) bool {
-	switch RuleID(rule) {
-	case RuleCourseDiskMismatch, RuleCourseDiskUnlisted:
+	if id := RuleID(rule); id == RuleCourseDiskMismatch || id == RuleCourseDiskUnlisted {
 		return true
 	}
 	return slices.Contains(sequence.Rules(), sequence.Rule(rule))
