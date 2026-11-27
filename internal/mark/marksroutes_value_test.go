@@ -12,16 +12,16 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 )
 
-// mkMarksFolder is where the machine files of a computer are.
-func (r *mkRig) mkMarksFolder() string {
+// marksFolder is where the machine files of a computer are.
+func (r *rig) marksFolder() string {
 	return filepath.Join(r.root, "reader-notes", ".yomihon", "marks")
 }
 
-// mkFiles is the machine files of the vault by name.
-func (r *mkRig) mkFiles() map[string]string {
+// files is the machine files of the vault by name.
+func (r *rig) files() map[string]string {
 	r.t.Helper()
 	out := map[string]string{}
-	files, err := filepath.Glob(filepath.Join(r.mkMarksFolder(), "*.jsonl"))
+	files, err := filepath.Glob(filepath.Join(r.marksFolder(), "*.jsonl"))
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -35,28 +35,28 @@ func (r *mkRig) mkFiles() map[string]string {
 	return out
 }
 
-// mkBring stands for git bringing in what another computer wrote: its file, and
+// bring stands for git bringing in what another computer wrote: its file, and
 // not the copies of files that the receiving computer wrote itself, which git
 // never replaces with an older copy of its own.
-func mkBring(t *testing.T, from, to *mkRig, except ...string) {
+func bring(t *testing.T, from, to *rig, except ...string) {
 	t.Helper()
-	if err := os.MkdirAll(to.mkMarksFolder(), 0o750); err != nil {
+	if err := os.MkdirAll(to.marksFolder(), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	for name, data := range from.mkFiles() {
+	for name, data := range from.files() {
 		if slices.Contains(except, name) {
 			continue
 		}
-		if err := os.WriteFile(filepath.Join(to.mkMarksFolder(), name), []byte(data), 0o600); err != nil { // #nosec G703 -- a test's own path
+		if err := os.WriteFile(filepath.Join(to.marksFolder(), name), []byte(data), 0o600); err != nil { // #nosec G703 -- a test's own path
 			t.Fatal(err)
 		}
 	}
 }
 
-// mkOnlyFile is the name of the one machine file a computer has.
-func (r *mkRig) mkOnlyFile() string {
+// onlyFile is the name of the one machine file a computer has.
+func (r *rig) onlyFile() string {
 	r.t.Helper()
-	files := r.mkFiles()
+	files := r.files()
 	if len(files) != 1 {
 		r.t.Fatalf("the vault holds %d machine files, want 1", len(files))
 	}
@@ -66,9 +66,9 @@ func (r *mkRig) mkOnlyFile() string {
 	return ""
 }
 
-// mkHolds says some machine file of the vault has a line with all these words.
-func (r *mkRig) mkHolds(words ...string) bool {
-	for _, data := range r.mkFiles() {
+// holds says some machine file of the vault has a line with all these words.
+func (r *rig) holds(words ...string) bool {
+	for _, data := range r.files() {
 		for line := range strings.SplitSeq(data, "\n") {
 			if line != "" && !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(line, w) }) {
 				return true
@@ -78,27 +78,27 @@ func (r *mkRig) mkHolds(words ...string) bool {
 	return false
 }
 
-// mkDiverged is two computers that changed one question differently, and A's
+// diverged is two computers that changed one question differently, and A's
 // tab, which has not read B's change: A's file holds "X2 from A", B's holds
 // "Y from B", the newer of the two on the clock but not one A's page covers.
 // seen is what A's tab has read.
-func mkDiverged(t *testing.T) (a *mkRig, id, seen string) {
+func diverged(t *testing.T) (a *rig, id, seen string) {
 	t.Helper()
-	a, b := newMkRig(t), newMkRig(t)
-	first := a.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+mkNote+`","anchor":"section-one","body":"X from A"}`)
-	mkStatus(t, first, http.StatusCreated)
-	kept := mkDecode[mkAnswer](t, first)
-	aFile := a.mkOnlyFile()
-	mkBring(t, a, b)
+	a, b := newRig(t), newRig(t)
+	first := a.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+aNote+`","anchor":"section-one","body":"X from A"}`)
+	wantStatus(t, first, http.StatusCreated)
+	kept := decoded[answer](t, first)
+	aFile := a.onlyFile()
+	bring(t, a, b)
 
-	second := a.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+mkSeenJSON(t, kept.Seen)+`,"body":"X2 from A"}`)
-	mkStatus(t, second, http.StatusOK)
-	seenByA := mkDecode[mkAnswer](t, second).Seen
+	second := a.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+seenJSON(t, kept.Seen)+`,"body":"X2 from A"}`)
+	wantStatus(t, second, http.StatusOK)
+	seenByA := decoded[answer](t, second).Seen
 
-	read := mkDecode[mkAnswer](t, b.do(http.MethodGet, "/mark/"+kept.ID, ""))
-	mkStatus(t, b.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+mkSeenJSON(t, read.Seen)+`,"body":"Y from B"}`), http.StatusOK)
-	mkBring(t, b, a, aFile)
-	return a, kept.ID, mkSeenJSON(t, seenByA)
+	read := decoded[answer](t, b.do(http.MethodGet, "/mark/"+kept.ID, ""))
+	wantStatus(t, b.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+seenJSON(t, read.Seen)+`,"body":"Y from B"}`), http.StatusOK)
+	bring(t, b, a, aFile)
+	return a, kept.ID, seenJSON(t, seenByA)
 }
 
 // A change that is sent without words is made on the value the page read, not on
@@ -106,20 +106,20 @@ func mkDiverged(t *testing.T) (a *mkRig, id, seen string) {
 // "X2 from A" would write B's words, which the page never showed, over it, and
 // "X2 from A" would be in no file. The reader sees the newest live value; B's
 // line is still a value of the mark; nothing is lost.
-func TestMkAResolveBuildsOnWhatThePageReadAndLosesNoValue(t *testing.T) {
+func TestAResolveBuildsOnWhatThePageReadAndLosesNoValue(t *testing.T) {
 	t.Parallel()
-	a, id, seen := mkDiverged(t)
+	a, id, seen := diverged(t)
 
 	response := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+seen+`,"resolved":true}`)
-	mkStatus(t, response, http.StatusOK)
+	wantStatus(t, response, http.StatusOK)
 
-	if !a.mkHolds("X2 from A", `"resolved"`) {
-		t.Errorf("no machine file holds the page's own words, resolved, as the reader asked:\n%v", a.mkFiles())
+	if !a.holds("X2 from A", `"resolved"`) {
+		t.Errorf("no machine file holds the page's own words, resolved, as the reader asked:\n%v", a.files())
 	}
-	if !a.mkHolds("Y from B") {
-		t.Errorf("no machine file holds B's words any more:\n%v", a.mkFiles())
+	if !a.holds("Y from B") {
+		t.Errorf("no machine file holds B's words any more:\n%v", a.files())
 	}
-	view, err := a.kept.View()
+	view, err := a.vaultMarks.View()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestMkAResolveBuildsOnWhatThePageReadAndLosesNoValue(t *testing.T) {
 		t.Fatalf("the mark holds %+v, want both values kept in the data", entry)
 	}
 	// The answer is what the reader will now see: the merged newest live value.
-	got := mkDecode[mkAnswer](t, response)
+	got := decoded[answer](t, response)
 	if want := entry.Mark(); got.Body != want.Body || got.Resolved.IsZero() != want.Resolved.IsZero() {
 		t.Errorf("the answer is %q resolved=%v, want what the reader will see: %q resolved=%v", got.Body, !got.Resolved.IsZero(), want.Body, !want.Resolved.IsZero())
 	}
@@ -139,25 +139,25 @@ func TestMkAResolveBuildsOnWhatThePageReadAndLosesNoValue(t *testing.T) {
 
 // The same for a deletion: it deletes the value the page showed, and B's value,
 // which the page never read, is still there and is what the reader sees now.
-func TestMkADeleteRemovesWhatThePageReadAndLosesNoValue(t *testing.T) {
+func TestADeleteRemovesWhatThePageReadAndLosesNoValue(t *testing.T) {
 	t.Parallel()
-	a, id, seen := mkDiverged(t)
+	a, id, seen := diverged(t)
 
 	response := a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+seen+`}`)
-	mkStatus(t, response, http.StatusOK)
+	wantStatus(t, response, http.StatusOK)
 
-	if !a.mkHolds("X2 from A", `"deleted":true`) {
-		t.Errorf("no machine file holds the words of the mark the page deleted, in the line that deletes it:\n%v", a.mkFiles())
+	if !a.holds("X2 from A", `"deleted":true`) {
+		t.Errorf("no machine file holds the words of the mark the page deleted, in the line that deletes it:\n%v", a.files())
 	}
-	if !a.mkHolds("Y from B") {
-		t.Errorf("no machine file holds B's words any more:\n%v", a.mkFiles())
+	if !a.holds("Y from B") {
+		t.Errorf("no machine file holds B's words any more:\n%v", a.files())
 	}
 	// B's words are live: the answer is the mark the reader still has.
-	got := mkDecode[mkAnswer](t, response)
+	got := decoded[answer](t, response)
 	if got.Deleted || got.Body != "Y from B" {
 		t.Errorf("the answer is %q deleted=%v, want the live value the reader still has: %q", got.Body, got.Deleted, "Y from B")
 	}
-	read := mkDecode[mkAnswer](t, a.do(http.MethodGet, "/mark/"+id, ""))
+	read := decoded[answer](t, a.do(http.MethodGet, "/mark/"+id, ""))
 	if read.Deleted || read.Body != "Y from B" {
 		t.Errorf("GET reads %q deleted=%v after the delete, want B's live value", read.Body, read.Deleted)
 	}
@@ -166,28 +166,28 @@ func TestMkADeleteRemovesWhatThePageReadAndLosesNoValue(t *testing.T) {
 // Putting back puts back what the page showed deleted, even when another value
 // of the mark is live: otherwise the put-back would answer the other value and
 // write nothing, and the reader's own words would stay deleted.
-func TestMkPutBackRestoresWhatThePageReadDeleted(t *testing.T) {
+func TestPutBackRestoresWhatThePageReadDeleted(t *testing.T) {
 	t.Parallel()
-	a, b := newMkRig(t), newMkRig(t)
-	first := a.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+mkNote+`","anchor":"section-one","body":"X from A"}`)
-	mkStatus(t, first, http.StatusCreated)
-	kept := mkDecode[mkAnswer](t, first)
-	aFile := a.mkOnlyFile()
-	mkBring(t, a, b)
+	a, b := newRig(t), newRig(t)
+	first := a.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+aNote+`","anchor":"section-one","body":"X from A"}`)
+	wantStatus(t, first, http.StatusCreated)
+	kept := decoded[answer](t, first)
+	aFile := a.onlyFile()
+	bring(t, a, b)
 
 	// A deletes it; the tab has read the deletion.
-	deleted := a.do(http.MethodDelete, "/mark/"+kept.ID, `{"seen":`+mkSeenJSON(t, kept.Seen)+`}`)
-	mkStatus(t, deleted, http.StatusOK)
-	seen := mkDecode[mkAnswer](t, deleted).Seen
+	deleted := a.do(http.MethodDelete, "/mark/"+kept.ID, `{"seen":`+seenJSON(t, kept.Seen)+`}`)
+	wantStatus(t, deleted, http.StatusOK)
+	seen := decoded[answer](t, deleted).Seen
 
 	// B, which had not read the deletion, changes the words: they are live.
-	read := mkDecode[mkAnswer](t, b.do(http.MethodGet, "/mark/"+kept.ID, ""))
-	mkStatus(t, b.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+mkSeenJSON(t, read.Seen)+`,"body":"Y from B"}`), http.StatusOK)
-	mkBring(t, b, a, aFile)
+	read := decoded[answer](t, b.do(http.MethodGet, "/mark/"+kept.ID, ""))
+	wantStatus(t, b.do(http.MethodPatch, "/mark/"+kept.ID, `{"seen":`+seenJSON(t, read.Seen)+`,"body":"Y from B"}`), http.StatusOK)
+	bring(t, b, a, aFile)
 
-	response := a.do(http.MethodPut, "/mark/"+kept.ID, `{"seen":`+mkSeenJSON(t, seen)+`}`)
-	mkStatus(t, response, http.StatusOK)
-	view, err := a.kept.View()
+	response := a.do(http.MethodPut, "/mark/"+kept.ID, `{"seen":`+seenJSON(t, seen)+`}`)
+	wantStatus(t, response, http.StatusOK)
+	view, err := a.vaultMarks.View()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,27 +210,27 @@ func TestMkPutBackRestoresWhatThePageReadDeleted(t *testing.T) {
 // Two highlights of the same words at two places in a note are two marks: the
 // words around them tell the places apart, and the second is not answered with
 // the first's id and nothing written.
-func TestMkTheSameWordsAtTwoPlacesAreTwoMarks(t *testing.T) {
+func TestTheSameWordsAtTwoPlacesAreTwoMarks(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"highlight", "question"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
-			r := newMkRig(t)
+			r := newRig(t)
 			at := func(before, after string) string {
-				return `{"kind":"` + kind + `","path":"` + mkNote + `","anchor":"section-one","quote":"topic particle","before":` + mkQuote(before) + `,"after":` + mkQuote(after) + `}`
+				return `{"kind":"` + kind + `","path":"` + aNote + `","anchor":"section-one","quote":"topic particle","before":` + quoted(before) + `,"after":` + quoted(after) + `}`
 			}
 			first := r.do(http.MethodPost, "/mark", at("In Japanese, the ", " marks what the sentence"))
-			mkStatus(t, first, http.StatusCreated)
+			wantStatus(t, first, http.StatusCreated)
 			second := r.do(http.MethodPost, "/mark", at("follows. The ", " again."))
-			mkStatus(t, second, http.StatusCreated)
-			one, two := mkDecode[mkAnswer](t, first), mkDecode[mkAnswer](t, second)
+			wantStatus(t, second, http.StatusCreated)
+			one, two := decoded[answer](t, first), decoded[answer](t, second)
 			if one.ID == two.ID {
 				t.Fatalf("the same words at two places were answered with one mark, %s", one.ID)
 			}
-			if again := r.do(http.MethodPost, "/mark", at("follows. The ", " again.")); again.Code != http.StatusOK || mkDecode[mkAnswer](t, again).ID != two.ID {
+			if again := r.do(http.MethodPost, "/mark", at("follows. The ", " again.")); again.Code != http.StatusOK || decoded[answer](t, again).ID != two.ID {
 				t.Errorf("the second place pressed again = %d %s, want 200 and the second mark", again.Code, again.Body.String())
 			}
-			if n := len(r.mkLines()); n != 2 {
+			if n := len(r.lines()); n != 2 {
 				t.Errorf("the vault holds %d lines, want 2", n)
 			}
 		})
@@ -241,52 +241,52 @@ func TestMkTheSameWordsAtTwoPlacesAreTwoMarks(t *testing.T) {
 // is kept: the ledger is the commit point, so the answer is a success and the
 // mark is not offered again to be kept twice. The next page that reads the marks
 // puts it in the vault.
-func TestMkAWriteTheVaultCannotTakeAfterTheLedgerLineIsKept(t *testing.T) {
+func TestAWriteTheVaultCannotTakeAfterTheLedgerLineIsKept(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a folder's mode does not stop the owner on this system")
 	}
 	t.Parallel()
-	r := newMkRig(t)
-	r.mkThought("the first")
+	r := newRig(t)
+	r.thought("the first")
 	// #nosec G302 -- a test restores its own temporary folder so that it can be removed
-	t.Cleanup(func() { _ = os.Chmod(r.mkMarksFolder(), 0o700) }) //nolint:errcheck // so the folder can be removed
+	t.Cleanup(func() { _ = os.Chmod(r.marksFolder(), 0o700) }) //nolint:errcheck // so the folder can be removed
 	// The folder is open to a write when the request starts, and refuses the
 	// file once the write has read what is there: a disk that fills, a share that
 	// goes away.
 	r.mu.Lock()
 	r.onReading = func() {
-		if err := os.Chmod(r.mkMarksFolder(), 0o500); err != nil { // #nosec G302 -- a test makes its own folder unwritable
+		if err := os.Chmod(r.marksFolder(), 0o500); err != nil { // #nosec G302 -- a test makes its own folder unwritable
 			t.Error(err)
 		}
 	}
 	r.mu.Unlock()
 
-	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkNote+`","anchor":"section-one","body":"the second"}`)
+	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+aNote+`","anchor":"section-one","body":"the second"}`)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("POST = %d %s, want 201: the ledger has the line, so it is kept", response.Code, response.Body.String())
 	}
-	if r.mkHolds("the second") {
+	if r.holds("the second") {
 		t.Fatal("the vault took the file: the test did not make the write fail after the ledger line")
 	}
-	kept := mkDecode[mkAnswer](t, response)
+	kept := decoded[answer](t, response)
 	if len(kept.Seen) == 0 {
 		t.Errorf("the answer has no seen: %s", response.Body.String())
 	}
 	if read := r.do(http.MethodGet, "/mark/"+kept.ID, ""); read.Code != http.StatusOK {
 		t.Errorf("GET of the kept mark = %d, want 200", read.Code)
 	}
-	if err := os.Chmod(r.mkMarksFolder(), 0o700); err != nil { // #nosec G302 -- a test restores its own folder
+	if err := os.Chmod(r.marksFolder(), 0o700); err != nil { // #nosec G302 -- a test restores its own folder
 		t.Fatal(err)
 	}
-	r.kept.Mend()
-	if !r.mkHolds("the second") {
-		t.Errorf("after the folder can be written to, the next page does not put the mark in the vault:\n%v", r.mkFiles())
+	r.vaultMarks.Mend()
+	if !r.holds("the second") {
+		t.Errorf("after the folder can be written to, the next page does not put the mark in the vault:\n%v", r.files())
 	}
 }
 
 // Where the reader folder cannot be used the reader still sees the marks they
 // have: the earlier file's, read and never written.
-func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) {
+func TestAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) {
 	t.Parallel()
 	for name, spoil := range map[string]func(*testing.T, string){
 		"a link": func(t *testing.T, root string) {
@@ -304,22 +304,22 @@ func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) 
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			r := newMkRig(t)
-			r.writeEarlier(`{"version":1,"vault":"/somewhere","marks":[{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"` + mkNote + `","anchor":"section-one","at":"2026-09-22T10:00:00Z"}]}`)
+			r := newRig(t)
+			r.writeEarlier(`{"version":1,"vault":"/somewhere","marks":[{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"` + aNote + `","anchor":"section-one","at":"2026-09-22T10:00:00Z"}]}`)
 			spoil(t, r.root)
 			list := r.do(http.MethodGet, "/questions", "")
-			mkStatus(t, list, http.StatusOK)
-			if !strings.Contains(list.Body.String(), mkNote) {
+			wantStatus(t, list, http.StatusOK)
+			if !strings.Contains(list.Body.String(), aNote) {
 				t.Errorf("GET /questions = %s, want the earlier question", list.Body.String())
 			}
 		})
 	}
 }
 
-// mkSetAside is the words of the values this computer's ledger holds aside.
-func (r *mkRig) mkSetAside() []string {
+// setAside is the words of the values this computer's ledger holds aside.
+func (r *rig) setAside() []string {
 	r.t.Helper()
-	view, err := r.kept.View()
+	view, err := r.vaultMarks.View()
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -332,13 +332,13 @@ func (r *mkRig) mkSetAside() []string {
 	return words
 }
 
-// mkRead is a GET of a mark: what a page that reads it has read, which is the
+// read is a GET of a mark: what a page that reads it has read, which is the
 // newest line of every writer.
-func (r *mkRig) mkRead(id string) mkAnswer {
+func (r *rig) read(id string) answer {
 	r.t.Helper()
 	response := r.do(http.MethodGet, "/mark/"+id, "")
-	mkStatus(r.t, response, http.StatusOK)
-	return mkDecode[mkAnswer](r.t, response)
+	wantStatus(r.t, response, http.StatusOK)
+	return decoded[answer](r.t, response)
 }
 
 // A mark is in conflict: this computer's own "X2 from A" and B's newer "Y from
@@ -347,56 +347,56 @@ func (r *mkRig) mkRead(id string) mkAnswer {
 // computer replaces its older one by the rule that a writer's newer line always
 // does, and "X2 from A" would then be in no file: it is set aside in the ledger
 // first, durably, so it is recoverable, and the answer is still 200.
-func TestMkAResolveFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
+func TestAResolveFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
 	t.Parallel()
-	a, id, _ := mkDiverged(t)
-	page := a.mkRead(id)
+	a, id, _ := diverged(t)
+	page := a.read(id)
 	if page.Body != "Y from B" {
 		t.Fatalf("the page is shown %q, want B's newer value", page.Body)
 	}
 
-	response := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, page.Seen)+`,"resolved":true}`)
-	mkStatus(t, response, http.StatusOK)
+	response := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+seenJSON(t, page.Seen)+`,"resolved":true}`)
+	wantStatus(t, response, http.StatusOK)
 
-	if a.mkHolds("X2 from A") {
+	if a.holds("X2 from A") {
 		t.Fatal("the test did not reach the case: this computer's file still holds the hidden value")
 	}
-	if got := a.mkSetAside(); !slices.Contains(got, "X2 from A") {
+	if got := a.setAside(); !slices.Contains(got, "X2 from A") {
 		t.Errorf("the values set aside are %q, want this computer's hidden value among them", got)
 	}
-	if got := mkDecode[mkAnswer](t, response); got.Body != "Y from B" {
+	if got := decoded[answer](t, response); got.Body != "Y from B" {
 		t.Errorf("the answer shows %q, want what the reader is shown: %q", got.Body, "Y from B")
 	}
 }
 
 // The same for a delete from a page that read the conflict.
-func TestMkADeleteFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
+func TestADeleteFromAPageThatReadTheConflictSetsThisComputersHiddenValueAside(t *testing.T) {
 	t.Parallel()
-	a, id, _ := mkDiverged(t)
-	page := a.mkRead(id)
+	a, id, _ := diverged(t)
+	page := a.read(id)
 
-	mkStatus(t, a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+mkSeenJSON(t, page.Seen)+`}`), http.StatusOK)
+	wantStatus(t, a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+seenJSON(t, page.Seen)+`}`), http.StatusOK)
 
-	if a.mkHolds("X2 from A", `"deleted":false`) || a.mkHolds("X2 from A", `"rev":2`) {
+	if a.holds("X2 from A", `"deleted":false`) || a.holds("X2 from A", `"rev":2`) {
 		t.Fatal("the test did not reach the case: this computer's file still holds the hidden value")
 	}
-	if got := a.mkSetAside(); !slices.Contains(got, "X2 from A") {
+	if got := a.setAside(); !slices.Contains(got, "X2 from A") {
 		t.Errorf("the values set aside are %q, want this computer's hidden value among them", got)
 	}
 }
 
 // An ordinary change of a mark that is not in conflict sets nothing aside: the
 // value replaced is the one the page was built on.
-func TestMkAnOrdinaryChangeSetsNothingAside(t *testing.T) {
+func TestAnOrdinaryChangeSetsNothingAside(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
-	first := r.mkThought("first")
-	second := r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, first.Seen)+`,"body":"second"}`)
-	mkStatus(t, second, http.StatusOK)
-	next := mkDecode[mkAnswer](t, second)
-	mkStatus(t, r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, next.Seen)+`,"body":"third"}`), http.StatusOK)
-	mkStatus(t, r.do(http.MethodDelete, "/mark/"+first.ID, `{"seen":`+mkSeenJSON(t, r.mkRead(first.ID).Seen)+`}`), http.StatusOK)
-	if got := r.mkSetAside(); len(got) != 0 {
+	r := newRig(t)
+	first := r.thought("first")
+	second := r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+seenJSON(t, first.Seen)+`,"body":"second"}`)
+	wantStatus(t, second, http.StatusOK)
+	next := decoded[answer](t, second)
+	wantStatus(t, r.do(http.MethodPatch, "/mark/"+first.ID, `{"seen":`+seenJSON(t, next.Seen)+`,"body":"third"}`), http.StatusOK)
+	wantStatus(t, r.do(http.MethodDelete, "/mark/"+first.ID, `{"seen":`+seenJSON(t, r.read(first.ID).Seen)+`}`), http.StatusOK)
+	if got := r.setAside(); len(got) != 0 {
 		t.Errorf("the values set aside are %q, want none", got)
 	}
 }
@@ -405,18 +405,18 @@ func TestMkAnOrdinaryChangeSetsNothingAside(t *testing.T) {
 // next change of the page is built on what the page is shown: after a delete
 // that leaves B's value as the one the reader has, a change of those words is
 // made on them, and not refused as a change of a deleted mark.
-func TestMkTheAnswerToAChangeCarriesTheSeenOfTheValueItShows(t *testing.T) {
+func TestTheAnswerToAChangeCarriesTheSeenOfTheValueItShows(t *testing.T) {
 	t.Parallel()
-	a, id, seen := mkDiverged(t)
+	a, id, seen := diverged(t)
 	deleted := a.do(http.MethodDelete, "/mark/"+id, `{"seen":`+seen+`}`)
-	mkStatus(t, deleted, http.StatusOK)
-	shown := mkDecode[mkAnswer](t, deleted)
+	wantStatus(t, deleted, http.StatusOK)
+	shown := decoded[answer](t, deleted)
 	if shown.Body != "Y from B" || shown.Deleted {
 		t.Fatalf("the answer shows %q deleted=%v, want B's live value", shown.Body, shown.Deleted)
 	}
-	next := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, shown.Seen)+`,"body":"Y, changed by the reader"}`)
-	mkStatus(t, next, http.StatusOK)
-	if got := a.mkRead(id); got.Body != "Y, changed by the reader" || got.Deleted {
+	next := a.do(http.MethodPatch, "/mark/"+id, `{"seen":`+seenJSON(t, shown.Seen)+`,"body":"Y, changed by the reader"}`)
+	wantStatus(t, next, http.StatusOK)
+	if got := a.read(id); got.Body != "Y, changed by the reader" || got.Deleted {
 		t.Errorf("the mark reads %q deleted=%v, want the words the reader changed", got.Body, got.Deleted)
 	}
 }

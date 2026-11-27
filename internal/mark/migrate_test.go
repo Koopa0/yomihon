@@ -44,16 +44,6 @@ func oldQuestionsPath(store *mark.Store) string {
 	return filepath.Join(store.Dir(), "uncertainty.json")
 }
 
-// bytesOf reads a file for comparing before and after.
-func bytesOf(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path) // #nosec G304 -- a file a test wrote under its own temporary directory
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
-
 // wantOldQuestions is the questions of oldQuestions as a machine file takes
 // them in, which is how they are read now. Their ids are derived from the place
 // each marked and are not written here.
@@ -92,7 +82,7 @@ func TestOldQuestionsAreReadAsQuestionsWithoutWritingAnything(t *testing.T) {
 	if err != nil || len(entries) != 1 || entries[0].Name() != "uncertainty.json" {
 		t.Errorf("reading wrote beside the old file: %v, %v", entries, err)
 	}
-	if bytesOf(t, oldQuestionsPath(store)) != oldQuestions {
+	if contents(t, oldQuestionsPath(store)) != oldQuestions {
 		t.Error("reading changed the old file")
 	}
 }
@@ -141,7 +131,7 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 		t.Fatal(err)
 	}
 	var held []machinemarks.Mark
-	for _, e := range v.Entries(allowed) {
+	for _, e := range v.Entries(mark.AllMarks) {
 		held = append(held, e.Mark())
 	}
 	slices.SortFunc(held, func(a, b machinemarks.Mark) int { return a.At.Compare(b.At) })
@@ -154,7 +144,7 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 	if got, found, bookmarkErr := store.Bookmark("Courses/go.md"); bookmarkErr != nil || !found || got.RelPath != course.RelPath {
 		t.Errorf("the new bookmark = %v, %v, %v", got, found, bookmarkErr)
 	}
-	if bytesOf(t, oldQuestionsPath(store)) != oldQuestions || bytesOf(t, oldBookmarkPath(store)) != oldBookmark {
+	if contents(t, oldQuestionsPath(store)) != oldQuestions || contents(t, oldBookmarkPath(store)) != oldBookmark {
 		t.Error("a write changed an old file")
 	}
 }
@@ -174,7 +164,7 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	same := func(m *machinemarks.Mark) bool {
 		return m.Kind == cleared.Kind && m.Path == cleared.Path && m.Anchor == cleared.Anchor
 	}
-	out, err := machineMarksOver(t, first, root, config).Toggle(t.Context(), &cleared, same, allowedPlace)
+	out, err := machineMarksOver(t, first, root, config).Toggle(t.Context(), &cleared, same, mark.AllMarks)
 	if err != nil || !out.Mark.Deleted {
 		t.Fatalf("clearing an old question = %+v, %v; want it removed", out, err)
 	}
@@ -194,7 +184,7 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	if got := liveQuestions(v); !slices.Equal(got, []string{"Notes/other.md#"}) {
 		t.Errorf("after a second start the questions are %v, want only the one that was not cleared", got)
 	}
-	if got, _ := heldBookmark(t, second); got.Offset != 7 {
+	if got, _ := bookmarkFor(t, second, mark.NoCourse); got.Offset != 7 {
 		t.Errorf("a second start read the old bookmark (offset %d), not the one kept after it", got.Offset)
 	}
 	// Writing again does not convert again either.
@@ -210,14 +200,11 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	}
 }
 
-// allowedPlace admits any place for a mark that is new.
-func allowedPlace(*machinemarks.Mark) bool { return true }
-
 // liveQuestions is where each question that is not deleted is, as the note and
 // the anchor, in the order they were made.
 func liveQuestions(v *machinemarks.View) []string {
 	var held []machinemarks.Mark
-	for _, e := range v.Entries(allowed) {
+	for _, e := range v.Entries(mark.AllMarks) {
 		if m := e.Mark(); !e.Deleted() && m.Kind == machinemarks.Question {
 			held = append(held, m)
 		}
@@ -301,7 +288,7 @@ func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 			if err := tt.write(t, store, root, config); err == nil || errors.Is(err, mark.ErrInvalid) {
 				t.Errorf("writing over %s = %v, want a refusal that is not ErrInvalid", tt.name, err)
 			}
-			if bytesOf(t, path) != tt.body {
+			if contents(t, path) != tt.body {
 				t.Errorf("%s was changed", tt.file)
 			}
 			for _, written := range []string{"marks.json", "progress.json"} {

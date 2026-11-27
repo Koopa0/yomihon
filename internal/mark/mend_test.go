@@ -23,7 +23,10 @@ import (
 // marks of it, and what its log says.
 func aMendedVault(t *testing.T) (root string, kept *mark.VaultMarks, logged *bytes.Buffer) {
 	t.Helper()
-	root = resolvedRoot(t)
+	_, root, err := vault.ResolveRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	config := t.TempDir()
 	marktest.Leave(t, root, confdir.At(config), machinemarks.Mark{Kind: machinemarks.Thought, Path: "Notes/source.md", Body: "mine", At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)})
 	reader, err := vault.Open(root)

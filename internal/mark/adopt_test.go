@@ -146,17 +146,6 @@ func directoryBytes(t *testing.T, dir string) map[string]string {
 	return held
 }
 
-// bookmarkFor is the bookmark kept for course and whether there is one, failing
-// the test when the file cannot be read.
-func bookmarkFor(t *testing.T, store *mark.Store, course string) (mark.Bookmark, bool) {
-	t.Helper()
-	held, found, err := store.Bookmark(course)
-	if err != nil {
-		t.Fatalf("Bookmark(%q): %v", course, err)
-	}
-	return held, found
-}
-
 // finishedFor is every finished note, failing the test when the file cannot be
 // read.
 func finishedFor(t *testing.T, store *mark.Store) []mark.Finished {
@@ -567,15 +556,6 @@ func ledgerOf(t *testing.T, config, root string) (l *ledger.Ledger, file string)
 	return ledger.Open(dir, slog.New(slog.DiscardHandler)), dir.Join("ledger.jsonl")
 }
 
-func readOrEmpty(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path) // #nosec G304 -- a file of this test's own temporary directory
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
-	}
-	return string(data)
-}
-
 // A vault that moved carries the ledger of what this machine wrote at the
 // earlier path, byte for byte, so this machine goes on under the machine id it
 // had there. A ledger is something kept: an earlier path that has only a
@@ -593,20 +573,20 @@ func TestAdoptCarriesTheLedgerOfTheEarlierPath(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	before := readOrEmpty(t, earlierFile)
+	before := contents(t, earlierFile)
 	now, nowFile := ledgerOf(t, v.config, v.newRoot)
 	for i := range 2 {
 		if _, err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
 			t.Fatalf("Adopt %d of an earlier path with only a ledger: %v", i+1, err)
 		}
-		if got := readOrEmpty(t, nowFile); got != before {
+		if got := contents(t, nowFile); got != before {
 			t.Fatalf("after Adopt %d this vault's ledger is %q, want the earlier one byte for byte", i+1, got)
 		}
 	}
 	if carried, _, err := now.Events(); err != nil || len(carried) != 2 || carried[1].Mark != "m1" {
 		t.Errorf("the carried ledger reads %v, %v; want its two lines", carried, err)
 	}
-	if got := readOrEmpty(t, earlierFile); got != before {
+	if got := contents(t, earlierFile); got != before {
 		t.Error("Adopt changed the earlier ledger")
 	}
 }
@@ -625,12 +605,12 @@ func TestAdoptKeepsTheLedgerThisVaultHas(t *testing.T) {
 	if _, err := now.Record(t.Context(), &ledger.Event{Kind: "header", ID: "2b4d6f80"}); err != nil {
 		t.Fatal(err)
 	}
-	mine := readOrEmpty(t, nowFile)
+	mine := contents(t, nowFile)
 	marks, err := v.now.Adopt(v.oldRoot, admitEverything)
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	if got := readOrEmpty(t, nowFile); got != mine {
+	if got := contents(t, nowFile); got != mine {
 		t.Errorf("Adopt changed the ledger this vault has to %q, want %q", got, mine)
 	}
 	if len(marks) != 3 {

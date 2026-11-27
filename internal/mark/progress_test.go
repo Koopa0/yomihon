@@ -310,7 +310,7 @@ func TestAClearedConvertedBookmarkStaysCleared(t *testing.T) {
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
 		t.Errorf("after clearing, the old bookmark came back: %v, %v", found, err)
 	}
-	if bytesOf(t, oldBookmarkPath(store)) != oldBookmark {
+	if contents(t, oldBookmarkPath(store)) != oldBookmark {
 		t.Error("clearing changed the old file")
 	}
 }

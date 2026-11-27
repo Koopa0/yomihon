@@ -11,9 +11,9 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
-// mkNoteAnswer is an answer with the margin note the page drew for it.
-type mkNoteAnswer struct {
-	mkAnswer
+// drawnAnswer is an answer with the margin note the page drew for it.
+type drawnAnswer struct {
+	answer
 
 	Note string `json:"note"`
 }
@@ -21,16 +21,16 @@ type mkNoteAnswer struct {
 // A mark is one thing in three states: turned from one into another it keeps its
 // id, its words and the time it was made, and a resolution it had survives a
 // stay in another state.
-func TestMkPatchTurnsOneMarkIntoEachStateAndKeepsItsID(t *testing.T) {
+func TestPatchTurnsOneMarkIntoEachStateAndKeepsItsID(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
-	made := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkNote+`","anchor":"section-one","quote":"the topic particle marks"}`))
+	r := newRig(t)
+	made := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+aNote+`","anchor":"section-one","quote":"the topic particle marks"}`))
 
-	patch := func(prev mkAnswer, body string) mkAnswer {
+	patch := func(prev answer, body string) answer {
 		t.Helper()
-		response := r.do(http.MethodPatch, "/mark/"+made.ID, `{"seen":`+mkSeenJSON(t, prev.Seen)+","+body+`}`)
-		mkStatus(t, response, http.StatusOK)
-		return mkDecode[mkAnswer](t, response)
+		response := r.do(http.MethodPatch, "/mark/"+made.ID, `{"seen":`+seenJSON(t, prev.Seen)+","+body+`}`)
+		wantStatus(t, response, http.StatusOK)
+		return decoded[answer](t, response)
 	}
 
 	thought := patch(made, `"kind":"thought","body":"it marks the topic"`)
@@ -46,7 +46,7 @@ func TestMkPatchTurnsOneMarkIntoEachStateAndKeepsItsID(t *testing.T) {
 		Resolved bool
 	}
 	for i, tt := range []struct {
-		got  mkAnswer
+		got  answer
 		want shape
 	}{
 		{thought, shape{machinemarks.Thought, "it marks the topic", false}},
@@ -67,7 +67,7 @@ func TestMkPatchTurnsOneMarkIntoEachStateAndKeepsItsID(t *testing.T) {
 	if !again.Resolved.Equal(resolved.Resolved) {
 		t.Errorf("a resolution moved from %v to %v across two changes of state", resolved.Resolved, again.Resolved)
 	}
-	if got := len(r.mkLines()); got != 1 {
+	if got := len(r.lines()); got != 1 {
 		t.Errorf("the vault holds %d lines, want the one a change replaces in place", got)
 	}
 }
@@ -75,16 +75,16 @@ func TestMkPatchTurnsOneMarkIntoEachStateAndKeepsItsID(t *testing.T) {
 // What a state does not hold is refused, and nothing is written: a highlight is
 // a passage and says nothing of its own, a thought says something, and a whole
 // section is never a highlight.
-func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
+func TestPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
-	highlight := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkNote+`","quote":"the topic particle marks"}`))
-	section := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkNote+`","anchor":"section-one","body":"about all of it"}`))
-	question := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+mkNote+`","quote":"the topic particle marks","body":"why?"}`))
+	r := newRig(t)
+	highlight := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+aNote+`","quote":"the topic particle marks"}`))
+	section := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+aNote+`","anchor":"section-one","body":"about all of it"}`))
+	question := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+aNote+`","quote":"the topic particle marks","body":"why?"}`))
 
 	for _, tt := range []struct {
 		name string
-		from mkAnswer
+		from answer
 		body string
 	}{
 		{"a highlight made a thought with no words", highlight, `"kind":"thought"`},
@@ -96,8 +96,8 @@ func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			before := tree(t, r.root)
-			response := r.do(http.MethodPatch, "/mark/"+tt.from.ID, `{"seen":`+mkSeenJSON(t, tt.from.Seen)+","+tt.body+`}`)
-			mkStatus(t, response, http.StatusUnprocessableEntity)
+			response := r.do(http.MethodPatch, "/mark/"+tt.from.ID, `{"seen":`+seenJSON(t, tt.from.Seen)+","+tt.body+`}`)
+			wantStatus(t, response, http.StatusUnprocessableEntity)
 			if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 				t.Errorf("a refused change wrote:\n%s", diff)
 			}
@@ -107,21 +107,21 @@ func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 
 // A request sent again after the mark was changed is answered with the mark as it
 // is now, and never writes the words it carried over the newer ones.
-func TestMkAMarkSentAgainAfterItChangedIsAnsweredAsItIsNow(t *testing.T) {
+func TestAMarkSentAgainAfterItChangedIsAnsweredAsItIsNow(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
+	r := newRig(t)
 	const id = "00112233445566778899aabbccddeeff"
-	thought := `{"id":"` + id + `","kind":"thought","path":"` + mkNote + `","anchor":"section-one","body":"first words"}`
-	created := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", thought))
-	mkStatus(t, r.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, created.Seen)+`,"kind":"thought","body":"newer words"}`), http.StatusOK)
-	before := len(r.mkLines())
+	thought := `{"id":"` + id + `","kind":"thought","path":"` + aNote + `","anchor":"section-one","body":"first words"}`
+	created := decoded[answer](t, r.do(http.MethodPost, "/mark", thought))
+	wantStatus(t, r.do(http.MethodPatch, "/mark/"+id, `{"seen":`+seenJSON(t, created.Seen)+`,"kind":"thought","body":"newer words"}`), http.StatusOK)
+	before := len(r.lines())
 
 	again := r.do(http.MethodPost, "/mark", thought)
-	mkStatus(t, again, http.StatusOK)
-	if got := mkDecode[mkAnswer](t, again); got.Body != "newer words" {
+	wantStatus(t, again, http.StatusOK)
+	if got := decoded[answer](t, again); got.Body != "newer words" {
 		t.Errorf("the request sent again was answered with %q, want the words the mark has now, %q", got.Body, "newer words")
 	}
-	if got := len(r.mkLines()); got != before {
+	if got := len(r.lines()); got != before {
 		t.Errorf("sending it again wrote %d lines, want none", got-before)
 	}
 }
@@ -129,25 +129,25 @@ func TestMkAMarkSentAgainAfterItChangedIsAnsweredAsItIsNow(t *testing.T) {
 // A page that makes the id of a mark can send the same request again, when no
 // answer reached it, and never keeps the mark twice: not for a thought, which
 // is always new, and not for requests that arrive together.
-func TestMkAMarkSentAgainWithItsIDIsKeptOnce(t *testing.T) {
+func TestAMarkSentAgainWithItsIDIsKeptOnce(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
+	r := newRig(t)
 	const id = "0123456789abcdef0123456789abcdef"
-	thought := `{"id":"` + id + `","kind":"thought","path":"` + mkNote + `","anchor":"section-one","body":"once"}`
+	thought := `{"id":"` + id + `","kind":"thought","path":"` + aNote + `","anchor":"section-one","body":"once"}`
 
 	first := r.do(http.MethodPost, "/mark", thought)
-	mkStatus(t, first, http.StatusCreated)
+	wantStatus(t, first, http.StatusCreated)
 	again := r.do(http.MethodPost, "/mark", thought)
-	mkStatus(t, again, http.StatusOK)
-	if got := mkDecode[mkAnswer](t, again); got.ID != id || got.Body != "once" {
+	wantStatus(t, again, http.StatusOK)
+	if got := decoded[answer](t, again); got.ID != id || got.Body != "once" {
 		t.Fatalf("the same thought sent again was answered %+v, want the one kept", got.Mark)
 	}
-	if got := len(r.mkLines()); got != 1 {
+	if got := len(r.lines()); got != 1 {
 		t.Fatalf("a thought sent twice wrote %d lines, want 1", got)
 	}
 
 	const other = "fedcba9876543210fedcba9876543210"
-	crowd := `{"id":"` + other + `","kind":"thought","path":"` + mkNote + `","anchor":"section-one","body":"together"}`
+	crowd := `{"id":"` + other + `","kind":"thought","path":"` + aNote + `","anchor":"section-one","body":"together"}`
 	var wg sync.WaitGroup
 	codes := make([]int, 8)
 	for i := range codes {
@@ -167,28 +167,28 @@ func TestMkAMarkSentAgainWithItsIDIsKeptOnce(t *testing.T) {
 	if created != 1 {
 		t.Errorf("%d of the requests created the mark, want 1", created)
 	}
-	if got := len(r.mkLines()); got != 2 {
+	if got := len(r.lines()); got != 2 {
 		t.Errorf("the vault holds %d lines, want 2: one for each mark", got)
 	}
 
 	for _, bad := range []string{"short", strings.ToUpper(id), id + "0"} {
-		mkStatus(t, r.do(http.MethodPost, "/mark", `{"id":"`+bad+`","kind":"thought","path":"`+mkNote+`","body":"x"}`), http.StatusUnprocessableEntity)
+		wantStatus(t, r.do(http.MethodPost, "/mark", `{"id":"`+bad+`","kind":"thought","path":"`+aNote+`","body":"x"}`), http.StatusUnprocessableEntity)
 	}
 }
 
 // The answer to a change carries the note the page draws for the mark, in the
 // language asked for, so a page that has just made a mark draws what a page
 // that arrives with it draws; a deleted mark has none.
-func TestMkAnswersCarryTheNoteThePageDraws(t *testing.T) {
+func TestAnswersCarryTheNoteThePageDraws(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
-	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkNote+`","anchor":"section-one","body":"x"}`, "en")
-	mkStatus(t, response, http.StatusCreated)
-	made := mkDecode[mkNoteAnswer](t, response)
+	r := newRig(t)
+	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+aNote+`","anchor":"section-one","body":"x"}`, "en")
+	wantStatus(t, response, http.StatusCreated)
+	made := decoded[drawnAnswer](t, response)
 	if want := `<aside data-kind="thought" data-placement="section" lang="en"></aside>`; made.Note != want {
 		t.Errorf("note = %q, want %q", made.Note, want)
 	}
-	deleted := mkDecode[mkNoteAnswer](t, r.do(http.MethodDelete, "/mark/"+made.ID, `{"seen":`+mkSeenJSON(t, made.Seen)+`}`))
+	deleted := decoded[drawnAnswer](t, r.do(http.MethodDelete, "/mark/"+made.ID, `{"seen":`+seenJSON(t, made.Seen)+`}`))
 	if deleted.Note != "" || !deleted.Deleted {
 		t.Errorf("a deleted mark was answered %+v, want it deleted and with no note", deleted)
 	}
@@ -198,15 +198,15 @@ func TestMkAnswersCarryTheNoteThePageDraws(t *testing.T) {
 // in the order they were made.
 func TestKeptLiveListsTheMarksOfOneNoteThatAreNotDeleted(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
-	first := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkNote+`","quote":"the topic particle marks"}`))
-	second := r.mkThought("words")
-	gone := r.mkThought("deleted")
-	mkStatus(t, r.do(http.MethodDelete, "/mark/"+gone.ID, `{"seen":`+mkSeenJSON(t, gone.Seen)+`}`), http.StatusOK)
-	mkStatus(t, r.do(http.MethodPatch, "/mark/"+second.ID, `{"seen":`+mkSeenJSON(t, second.Seen)+`,"body":"newer"}`), http.StatusOK)
-	elsewhere := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+mkSecret+`","quote":"the topic particle marks"}`))
+	r := newRig(t)
+	first := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+aNote+`","quote":"the topic particle marks"}`))
+	second := r.thought("words")
+	gone := r.thought("deleted")
+	wantStatus(t, r.do(http.MethodDelete, "/mark/"+gone.ID, `{"seen":`+seenJSON(t, gone.Seen)+`}`), http.StatusOK)
+	wantStatus(t, r.do(http.MethodPatch, "/mark/"+second.ID, `{"seen":`+seenJSON(t, second.Seen)+`,"body":"newer"}`), http.StatusOK)
+	elsewhere := decoded[answer](t, r.do(http.MethodPost, "/mark", `{"kind":"highlight","path":"`+otherNote+`","quote":"the topic particle marks"}`))
 
-	live, err := r.kept.Live(mkNote)
+	live, err := r.vaultMarks.Live(aNote)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,13 +228,13 @@ func TestKeptLiveListsTheMarksOfOneNoteThatAreNotDeleted(t *testing.T) {
 // deleted, before the first write takes them in.
 func TestKeptLiveListsTheEarlierMarksOfThatNoteToo(t *testing.T) {
 	t.Parallel()
-	r := newMkRig(t)
+	r := newRig(t)
 	writeFile(t, marksPath(r.store), aMarksFile(
-		`{"id":"`+markID(1)+`","kind":"thought","path":"`+mkNote+`","body":"earlier thought","at":"2026-09-22T11:00:00Z"}`,
-		`{"id":"`+markID(3)+`","kind":"highlight","path":"`+mkSecret+`","quote":"a passage elsewhere","at":"2026-09-22T12:00:00Z"}`,
+		`{"id":"`+markID(1)+`","kind":"thought","path":"`+aNote+`","body":"earlier thought","at":"2026-09-22T11:00:00Z"}`,
+		`{"id":"`+markID(3)+`","kind":"highlight","path":"`+otherNote+`","quote":"a passage elsewhere","at":"2026-09-22T12:00:00Z"}`,
 	))
 
-	live, err := r.kept.Live(mkNote)
+	live, err := r.vaultMarks.Live(aNote)
 	if err != nil {
 		t.Fatal(err)
 	}

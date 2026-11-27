@@ -26,22 +26,6 @@ import (
 // to write in advance.
 var withoutIDs = cmpopts.IgnoreFields(machinemarks.Mark{}, "ID")
 
-func marksPath(store *mark.Store) string { return filepath.Join(store.Dir(), "marks.json") }
-
-func progressPath(store *mark.Store) string { return filepath.Join(store.Dir(), "progress.json") }
-
-// writeFile puts bytes where a store looks, as a reader or an earlier version
-// would have left them.
-func writeFile(t *testing.T, path, data string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil { // #nosec G703 -- a test's own path under t.TempDir
-		t.Fatal(err)
-	}
-}
-
 // aMarksFile is a marks.json holding the given marks, written by hand so that
 // a test of reading does not lean on the code that writes.
 func aMarksFile(marks ...string) string {
@@ -76,16 +60,6 @@ func marksJSON(t *testing.T, vaultRoot string, marks ...machinemarks.Mark) strin
 		entries[i] = string(data)
 	}
 	return `{"version":1,"vault":` + strconv.Quote(vaultRoot) + `,"marks":[` + strings.Join(entries, ",") + `]}`
-}
-
-// contents is what a file holds, failing the test when it cannot be read.
-func contents(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path) // #nosec G304 -- a file under a directory this test made
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
 }
 
 // aStoredQuestion is one question as marks.json holds it, with a distinct id.
@@ -213,7 +187,7 @@ func TestProgressSurvivesARestartAndDeletingTheFileClearsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	reopened := newStoreFor(t, config, "/vaults/one")
-	held, found := heldBookmark(t, reopened)
+	held, found := bookmarkFor(t, reopened, mark.NoCourse)
 	if !found {
 		t.Fatal("a reopened store has no bookmark")
 	}
@@ -223,7 +197,7 @@ func TestProgressSurvivesARestartAndDeletingTheFileClearsIt(t *testing.T) {
 	if err := os.Remove(progressPath(store)); err != nil {
 		t.Fatal(err)
 	}
-	if held, found = heldBookmark(t, reopened); found {
+	if held, found = bookmarkFor(t, reopened, mark.NoCourse); found {
 		t.Fatalf("a deleted file still reports %v", held)
 	}
 }

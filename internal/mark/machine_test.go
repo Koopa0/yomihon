@@ -2,7 +2,6 @@ package mark_test
 
 import (
 	"bytes"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,10 +16,6 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-func allowed(*machinemarks.Mark) bool { return true }
-
-func markID(n int) string { return fmt.Sprintf("%032x", n) }
 
 // machineMarksOver is the machine file's marks of a real vault, taking in what
 // the store holds on the first write.
@@ -74,7 +69,7 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]machinemarks.Mark{}
-	for _, e := range v.Entries(allowed) {
+	for _, e := range v.Entries(mark.AllMarks) {
 		got[e.Mark().ID] = e.Mark()
 	}
 	want := map[string]machinemarks.Mark{
@@ -110,11 +105,11 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	if v, err = m.View(); err != nil {
 		t.Fatal(err)
 	}
-	if e, ok := v.Entry(markID(2), allowed); !ok || e.Mark().Body != "a thought" {
+	if e, ok := v.Entry(markID(2), mark.AllMarks); !ok || e.Mark().Body != "a thought" {
 		t.Fatalf("mark 2 reads %+v, %v after the file was written again: marks.json was taken in a second time", e, ok)
 	}
-	if len(v.Entries(allowed)) != 5 {
-		t.Fatalf("%d marks after a second write, want 5", len(v.Entries(allowed)))
+	if len(v.Entries(mark.AllMarks)) != 5 {
+		t.Fatalf("%d marks after a second write, want 5", len(v.Entries(mark.AllMarks)))
 	}
 	after, err := os.ReadFile(marksPath(store))
 	if err != nil || !bytes.Equal(after, before) {
@@ -152,10 +147,10 @@ func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := v.Entry(markID(1), allowed); ok || v.LegacySkipped() != 1 {
+	if _, ok := v.Entry(markID(1), mark.AllMarks); ok || v.LegacySkipped() != 1 {
 		t.Fatalf("the mark that does not fit is read=%v and %d are counted skipped, want it left out and 1 counted", ok, v.LegacySkipped())
 	}
-	if e, ok := v.Entry(markID(2), allowed); !ok || e.Mark().Body != "fine" {
+	if e, ok := v.Entry(markID(2), mark.AllMarks); !ok || e.Mark().Body != "fine" {
 		t.Fatalf("the other mark of marks.json reads %+v, %v", e, ok)
 	}
 	after, err := os.ReadFile(marksPath(store))
