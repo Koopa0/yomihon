@@ -52,13 +52,7 @@ func declaredPlaces(note *vault.Note, index *graph.Index, source string) []Decla
 		if !ok || ref.RelPath != source {
 			continue
 		}
-		inner := strings.TrimSpace(value)
-		if rest, wrapped := strings.CutPrefix(inner, "[["); wrapped {
-			if stripped, closed := strings.CutSuffix(rest, "]]"); closed {
-				inner = stripped
-			}
-		}
-		link, _ := graph.ParseWikilink(inner)
+		link, _ := graph.ParseWikilink(basedOnInner(strings.TrimSpace(value)))
 		place := DeclaredPlace{Heading: link.Heading, Block: link.Block}
 		if !seen[place] {
 			seen[place] = true
