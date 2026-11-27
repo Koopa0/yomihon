@@ -30,3 +30,20 @@ func normalizeDeclaredDir(declared string) (string, bool) {
 	}
 	return cleaned, true
 }
+
+// inDeclaredDir reports whether rel, a vault-relative path, is one of dirs or
+// below one, read the one way every declared directory list is matched: the
+// path composed and cleaned, so a dotted spelling is judged by where it lands,
+// then compared a whole component at a time with [SameDirName]. valid is false,
+// and in with it, for a path that is empty, carries a backslash, or leaves the
+// vault.
+func inDeclaredDir(rel string, dirs []string) (in, valid bool) {
+	if rel == "" || strings.Contains(rel, `\`) {
+		return false, false
+	}
+	cleaned := path.Clean(vault.NormalizeNFC(rel))
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || path.IsAbs(cleaned) {
+		return false, false
+	}
+	return slices.ContainsFunc(dirs, func(dir string) bool { return pathHasFoldedPrefix(cleaned, dir) }), true
+}

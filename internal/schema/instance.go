@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"sync/atomic"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 const staleArtifactDiagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
@@ -56,20 +54,15 @@ func (p ArtifactPolicy) Diagnostic() string {
 }
 
 // IsNonInstance reports whether rel is equal to or below a declared artifact
-// directory, comparing whole components through the folded identity every vault
-// directory scope shares. An unclaimed policy excludes nothing; an unresolved
-// one also answers false, so callers gate on Trustworthy first.
+// directory, read the way every declared directory list is read. An unclaimed
+// policy excludes nothing; an unresolved one also answers false, so callers
+// gate on Trustworthy first.
 func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 	if !p.Trustworthy() || p.state == nil {
 		return false
 	}
-	rel = vault.NormalizeNFC(rel)
-	for _, dir := range p.state.nonInstanceDirs {
-		if pathHasFoldedPrefix(rel, dir) {
-			return true
-		}
-	}
-	return false
+	in, _ := inDeclaredDir(rel, p.state.nonInstanceDirs)
+	return in
 }
 
 // ValidateSource returns p only while the contract source it was derived from

@@ -898,79 +898,42 @@ func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
 	}
 }
 
-// TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot is a
-// characterization of a live asymmetry, not an endorsement of it. The privacy
-// policy cleans a path before matching, so a dotted spelling is judged by
-// where it lands, and an escaping spelling is refused outright. Artifact
-// membership normalizes only the Unicode form and compares the spelling it
-// was given, so a dotted route into a declared artifact directory is not
-// classified as non-instance. Whether both ends should share one fail-closed
-// identity is an open design question; until it is ruled, this keeps the
-// asymmetry from drifting unnoticed.
-func TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot(t *testing.T) {
+// TestEveryDeclaredDirectoryReadsAPathOneWay holds the privacy policy, the
+// artifact policy and the journal to one reading of a path: cleaned first, so a
+// dotted spelling is judged by where it lands, composed, and refused outright
+// where it leaves the vault.
+func TestEveryDeclaredDirectoryReadsAPathOneWay(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, `templates = ["System/templates", "だ体"]`, `
+	s := loadContractTextWithPrivacy(t, `templates = ["\u3060\u4f53"]`+"\n"+`journal = "\u3060\u4f53"`, `
 [privacy]
-never_egress_dirs = ["Private", "だ体"]
+never_egress_dirs = ["\u3060\u4f53"]
 `)
-	artifact := s.ArtifactPolicy()
-	if !artifact.Available() {
-		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", artifact.Diagnostic())
+	privacy, artifact, journal := s.PrivacyPolicy(), s.ArtifactPolicy(), s.JournalDir()
+	if !privacy.Available() || !artifact.Available() || !journal.Available() {
+		t.Fatal("a declared directory list was not read")
 	}
-	privacy := s.PrivacyPolicy()
-	if !privacy.Available() {
-		t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", privacy.Diagnostic())
-	}
-
-	privacyTests := []struct {
+	for _, tt := range []struct {
 		path string
-		want bool
+		// in is whether every list holds the path; leaves is a path outside
+		// the vault, which none holds and none lets go out.
+		in, leaves bool
 	}{
-		// Cleaned first: the dotted spelling lands inside the protected
-		// directory and is refused.
-		{path: "Writing/../Private/x.md", want: false},
-		// Cleaned to a public spelling: allowed.
-		{path: "Writing/../Writing/x.md", want: true},
-		// An escaping spelling is refused outright, wherever it points.
-		{path: "../Private/x.md", want: false},
-		// A trailing slash cleans away.
-		{path: "Private/", want: false},
-		// The decomposed spelling is normalized before matching.
-		{path: "た\u3099体/x.md", want: false},
-	}
-	for _, tt := range privacyTests {
-		t.Run("privacy/"+tt.path, func(t *testing.T) {
-			t.Parallel()
-			if got := privacy.EgressAllowed(tt.path); got != tt.want {
-				t.Errorf("PrivacyPolicy().EgressAllowed(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
-	}
-
-	artifactTests := []struct {
-		path string
-		want bool
-	}{
-		{path: "System/templates/card.md", want: true},
-		// The asymmetric cell: the dotted spelling resolves under a declared
-		// directory, but membership never resolves it, so the classification
-		// fails open toward instance.
-		{path: "Writing/../System/templates/card.md", want: false},
-		// A trailing slash still matches: the empty last component is beyond
-		// the compared prefix.
-		{path: "System/templates/", want: true},
-		// The decomposed spelling is normalized before matching, same as the
-		// privacy side.
-		{path: "た\u3099体/x.md", want: true},
-	}
-	for _, tt := range artifactTests {
-		t.Run("artifact/"+tt.path, func(t *testing.T) {
-			t.Parallel()
-			if got := artifact.IsNonInstance(tt.path); got != tt.want {
-				t.Errorf("ArtifactPolicy().IsNonInstance(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
+		{path: "\u3060\u4f53/x.md", in: true},
+		{path: "Writing/../\u3060\u4f53/x.md", in: true},
+		{path: "\u3060\u4f53/../Writing/x.md"},
+		{path: "\u3060\u4f53/", in: true},
+		{path: "\u305f\u3099\u4f53/x.md", in: true},
+		{path: "../\u3060\u4f53/x.md", leaves: true},
+	} {
+		egress := privacy.EgressAllowed(tt.path)
+		got := [3]bool{!egress, artifact.IsNonInstance(tt.path), journal.Contains(tt.path)}
+		if tt.leaves {
+			got[0] = egress
+		}
+		if want := [3]bool{tt.in, tt.in, tt.in}; got != want {
+			t.Errorf("%+q: (withheld, artifact, journal) = %v, want %v", tt.path, got, want)
+		}
 	}
 }
 

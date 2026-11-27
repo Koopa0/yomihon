@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -102,19 +101,11 @@ func (p PrivacyPolicy) Diagnostic() string {
 // deliberately false: permission is positive authority, never the absence of
 // a deny match.
 func (p PrivacyPolicy) EgressAllowed(rel string) bool {
-	if !p.Available() || rel == "" || strings.Contains(rel, `\`) {
+	if !p.Available() {
 		return false
 	}
-	cleaned := path.Clean(vault.NormalizeNFC(rel))
-	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || path.IsAbs(cleaned) {
-		return false
-	}
-	for _, dir := range p.state.neverEgressDirs {
-		if pathHasFoldedPrefix(cleaned, dir) {
-			return false
-		}
-	}
-	return true
+	withheld, valid := inDeclaredDir(rel, p.state.neverEgressDirs)
+	return valid && !withheld
 }
 
 // WithheldDirs is the declared never_egress_dirs, normalized as EgressAllowed
