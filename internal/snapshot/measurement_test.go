@@ -21,14 +21,14 @@ const visibleTimeout = 10 * time.Second
 // synchronous reconciliation scan succeeded. Retaining Current alone cannot
 // distinguish an unchanged vault from a refused scan.
 type measuredSource struct {
-	ObservedSource
+	Source
 
 	completed bool
 	scanErr   error
 }
 
 func (s *measuredSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
-	scan, err := s.ObservedSource.ScanAvailable(ctx)
+	scan, err := s.Source.ScanAvailable(ctx)
 	s.completed = true
 	s.scanErr = err
 	return scan, err
@@ -203,9 +203,8 @@ func benchmarkLifecycle(b *testing.B, f *representativeFixture, store *Store, na
 	longer := false
 	b.ReportAllocs()
 	if name == "idle" {
-		source := &measuredSource{ObservedSource: f.reader}
+		source := &measuredSource{Source: f.reader}
 		store.source = source
-		store.rootObserver = source
 		for b.Loop() {
 			b.StopTimer()
 			before := store.Current()

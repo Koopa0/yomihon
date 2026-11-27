@@ -224,7 +224,7 @@ func TestRootNoticeSurvivesScanRefusalBackoffAndDegradedPublication(t *testing.T
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { closeReader(t, reader) })
-			source := &recordingSource{ObservedSource: reader, reads: make(map[string]int), fail: make(map[string]int)}
+			source := &recordingSource{Source: reader, reads: make(map[string]int), fail: make(map[string]int)}
 			store, err := New(t.Context(), source, discardLogger(), nil, schema.Governance{})
 			if err != nil {
 				t.Fatal(err)
@@ -243,9 +243,9 @@ func TestRootNoticeSurvivesScanRefusalBackoffAndDegradedPublication(t *testing.T
 			writeNote(t, root, "Replacement.md", "replacement\n")
 			switch outcome {
 			case "collision":
-				store.source = &refusingSource{ObservedSource: reader, refusal: refusedForTheCollision()}
+				store.source = &refusingSource{Source: reader, refusal: refusedForTheCollision()}
 			case "scan error":
-				store.source = &refusingSource{ObservedSource: reader, refusal: errors.New("refused scan")}
+				store.source = &refusingSource{Source: reader, refusal: errors.New("refused scan")}
 			}
 			want := &RootNotice{SelectedPath: root, OpenedName: reader.Name()}
 			store.rescan(t.Context())

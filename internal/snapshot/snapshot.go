@@ -50,22 +50,14 @@ const degradeAfter = 3
 // for about an hour; a quiescent folder pays one full re-read per period.
 const reconcilePeriod = time.Hour
 
-// Source is the rooted read capability required to construct a generation. It is
-// defined by its only consumer so a test can count scans and reads.
+// Source is the rooted vault a Store reads: the scan and the file reads a
+// generation is built from, and the look at the selected path that tells
+// whether it is still the folder that was opened. It is defined by its only
+// consumer so a test can count scans and reads.
 type Source interface {
 	ScanAvailable(context.Context) (vault.Scan, error)
 	ReadFile(context.Context, vault.Entry) ([]byte, error)
-}
-
-// RootObserver observes the selected path without changing the read capability.
-type RootObserver interface {
 	ObserveRoot() (vault.RootIdentity, error)
-}
-
-// ObservedSource supplies both generation reads and live root reconciliation.
-type ObservedSource interface {
-	Source
-	RootObserver
 }
 
 // RootNotice reports a divergent or unconfirmed selected root identity.
@@ -614,7 +606,6 @@ type Store struct {
 	figureApprovals atomic.Pointer[FigureApprovals]
 
 	source       Source
-	rootObserver RootObserver
 	log          *slog.Logger
 	now          func() time.Time
 	capabilities schema.Capabilities
@@ -681,7 +672,7 @@ func (s *Store) ApproveFiguresBy(approved FigureApprovals) {
 // arrive with none, and only the second is a fault.
 func New(
 	ctx context.Context,
-	source ObservedSource,
+	source Source,
 	log *slog.Logger,
 	contract *schema.Contract,
 	governance schema.Governance,
@@ -713,7 +704,6 @@ func New(
 	}
 	store := &Store{
 		source:           source,
-		rootObserver:     source,
 		log:              log,
 		now:              time.Now,
 		capabilities:     capabilities,
@@ -894,7 +884,7 @@ func (s *Store) observeRoot(ctx context.Context) bool {
 	if ctx.Err() != nil {
 		return false
 	}
-	identity, err := s.rootObserver.ObserveRoot()
+	identity, err := s.source.ObserveRoot()
 	if ctx.Err() != nil {
 		return false
 	}

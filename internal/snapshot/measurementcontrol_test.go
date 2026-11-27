@@ -18,7 +18,7 @@ func TestMeasurementScanObservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &measuredSource{ObservedSource: reader}
+	source := &measuredSource{Source: reader}
 	_, scanErr := source.ScanAvailable(t.Context())
 	if err := idleObservation(t, nil, nil, source.completed, source.scanErr); err != nil || scanErr != nil {
 		closeReader(t, reader)

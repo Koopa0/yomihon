@@ -33,7 +33,7 @@ func TestSnapshotWarningsUnchanged(t *testing.T) {
 		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{ObservedSource: reader, reads: map[string]int{}, fail: map[string]int{}}
+	source := &recordingSource{Source: reader, reads: map[string]int{}, fail: map[string]int{}}
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	store, err := New(t.Context(), source, logger, contract, contract.Governance())
