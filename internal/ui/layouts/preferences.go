@@ -41,6 +41,11 @@ var (
 	// nothing beside its sections the reader did not reach for (D94).
 	sectionButtonsChoice = preference{cookie: "yomihon_sectionbuttons", values: []string{"always", "hover"}, fallback: "hover"}
 
+	// marksChoice is whether the reader's own marks are drawn in the text. They
+	// are shown unless the reader hid them: a page that drew nothing the reader
+	// left would read as a page that had lost it.
+	marksChoice = preference{cookie: "yomihon_marks", values: []string{"show", "hide"}, fallback: "show"}
+
 	// paperChoice is the paper the light theme is set on: stone, washi or
 	// white. It is a daytime choice: the night lamp is one paper, and the
 	// stylesheet answers dark the same whichever paper is stored.
@@ -56,7 +61,7 @@ var (
 // not among them: each row here resolves to a short value the root carries for
 // the stylesheet to answer, while the language decides which words the server
 // writes at all, so it is read beside the dictionary those words come from.
-var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice, paperChoice}
+var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice, paperChoice, marksChoice}
 
 // read answers one choice for this request: the stored value when the cookie
 // carries one the row honours, and the row's fallback otherwise. An unknown
@@ -86,7 +91,8 @@ type Preference struct {
 // one.
 func Preferences() []Preference {
 	out := make([]Preference, 0, len(preferences))
-	for _, p := range preferences {
+	for i := range preferences {
+		p := &preferences[i]
 		out = append(out, Preference{
 			Cookie:   p.cookie,
 			Values:   slices.Clone(p.values),

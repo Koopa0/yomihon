@@ -1,0 +1,71 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/wording"
+
+// markNote is one mark in the margin: what the reader wrote, or where a question
+// stands, and the day. It is the container a keyboard meets and the reader acts
+// on, and the name a screen reader reads begins with the state. The words are
+// the reader's own and are text, so they can be selected and read as any text;
+// the day and the labels are drawn from attributes, as the margin beside a
+// section draws its own, so that none of them is a word of the note's text.
+//
+// A mark of a whole section stands after its heading, where text would make a
+// browser's landing on the heading miss, so its words are drawn from an
+// attribute too and its name carries them in full.
+templ markNote(m *MarkNote) {
+	<aside
+		class="y-mnote"
+		id={ MarkNoteID(m.ID) }
+		role="note"
+		tabindex="0"
+		data-mnote={ m.ID }
+		data-kind={ m.Kind }
+		data-state={ m.markState() }
+		data-section?={ m.Section }
+		data-changed?={ m.Changed }
+		aria-label={ m.Name() }
+	>
+		if m.Words != "" && m.Section {
+			<p class="y-mnote__words" data-text={ m.Words }></p>
+		} else if m.Words != "" {
+			<p class="y-mnote__words">{ m.Words }</p>
+		} else if m.Quote != "" {
+			<p class="y-mnote__words y-mnote__words--quote" data-text={ m.opening() }></p>
+		}
+		if m.Changed && m.Words != "" && m.Quote != "" {
+			<p class="y-mnote__words y-mnote__words--quote" data-text={ m.opening() }></p>
+		}
+		<p class="y-mnote__meta" lang={ m.Lang.Tag() }>
+			for _, lead := range m.leads() {
+				<span class="y-mnote__lead" data-text={ lead }></span>
+			}
+			if m.Changed {
+				<span class="y-mnote__lead" data-text={ wording.MarksChanged.In(m.Lang) }></span>
+			}
+			if !m.Day.IsZero() {
+				<time datetime={ dateOf(m.Day) }></time>
+			}
+		</p>
+	</aside>
+}
+
+// marksTools is the parts of the page that only a reader who can keep marks has:
+// the toolbar over a selection, and the line a change says what it did in. Both
+// start hidden and are shown by the script; nothing here is drawn for a page that
+// runs none. The copy button is the next slice's: it is drawn and not offered
+// until it can do what it says.
+templ marksTools(lang wording.Lang) {
+	<div class="y-mbar" role="toolbar" lang={ lang.Tag() } aria-label={ wording.MarksToolbar.In(lang) } data-marks-toolbar hidden>
+		<button type="button" class="y-mbar__act" data-mbar="highlight">{ wording.MarksHighlight.In(lang) } <kbd class="ui-kbd">h</kbd></button>
+		<button type="button" class="y-mbar__act" data-mbar="question">{ wording.MarksAskAbout.In(lang) } <kbd class="ui-kbd">q</kbd></button>
+		<button type="button" class="y-mbar__act" data-mbar="copy" hidden>{ wording.MarksCopy.In(lang) } <kbd class="ui-kbd">c</kbd></button>
+	</div>
+	<div class="y-mstatus" lang={ lang.Tag() } data-marks-status data-idle>
+		<p class="y-mstatus__said" role="status" data-mstatus-said></p>
+		<p class="y-mstatus__said" role="alert" data-mstatus-alert></p>
+		<button type="button" class="y-mstatus__act" data-mstatus-act hidden></button>
+		<button type="button" class="y-mstatus__close" data-mstatus-close hidden aria-label={ wording.CloseControl.In(lang) }>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+		</button>
+	</div>
+}

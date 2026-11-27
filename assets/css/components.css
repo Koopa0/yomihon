@@ -10813,3 +10813,606 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
     display: block;
   }
 }
+
+/* ============================================================
+   The reader's own marks
+   ============================================================ */
+/* A mark is one thing in one of three states: words highlighted, words with a
+   thought beside them, words with a question open. The colours say whose it is
+   and whether it is open and nothing else: indigo for what the reader left,
+   ochre for a question still open, crimson only where a write failed, ink for
+   everything else, a question that has been answered included. */
+.y-article > .y-prose {
+  position: relative;
+}
+
+/* The attribute, not the class, names the rule: the highlight wash is held to
+   the bare element, and this one lays the reader's own wash over it. */
+mark[data-mark] {
+  background: transparent;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  color: inherit;
+  transition: background-color var(--dur-base) linear;
+}
+
+:root:not([data-marks='hide']) .y-mark:is([data-state='highlight'], [data-state='thought']) {
+  background: var(--reader-wash);
+}
+
+:root:not([data-marks='hide']) .y-mark[data-state='question'] {
+  text-decoration: underline 2px solid var(--ochre);
+  text-underline-offset: 0.2em;
+}
+
+:root:not([data-marks='hide']) .y-mark.is-lit:is([data-state='highlight'], [data-state='thought']) {
+  background: var(--reader-wash-strong);
+  box-shadow: inset 0 -1.5px 0 var(--reader);
+}
+
+:root:not([data-marks='hide']) .y-mark.is-lit[data-state='question'] {
+  background: var(--ochre-wash);
+}
+
+:root:not([data-marks='hide']) .y-mark.is-lit[data-state='resolved'] {
+  background: var(--line);
+}
+
+.y-mark:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+:root[data-marks='hide'] .y-mnote,
+:root[data-marks='hide'] .y-mlayer {
+  display: none;
+}
+
+/* The note beside a mark: the reader's words in the sans at the margin's size,
+   a rule down its left edge in the colour of the state, and the day. In the
+   text it stands after its paragraph; in the margin it stands level with the
+   words it is about. */
+.y-mnote {
+  border-inline-start: 1.5px solid var(--reader);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  margin: var(--sp-2) 0 var(--sp-3);
+  padding: 2px 0 2px var(--sp-3);
+  position: relative;
+}
+
+.y-mnote[data-kind='question']:not([data-state='resolved']) {
+  border-inline-start-color: var(--ochre);
+}
+
+.y-mnote[data-state='resolved'] {
+  border-inline-start-color: var(--line-strong);
+}
+
+.y-mnote:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.y-mnote .y-mnote__words {
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.y-mnote:is(:focus, :focus-within) .y-mnote__words {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.y-mnote .y-mnote__words--quote {
+  color: var(--fg-muted);
+}
+
+.y-mnote [data-text]::before {
+  content: attr(data-text);
+}
+
+.y-mnote .y-mnote__meta {
+  color: var(--fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  gap: 0 var(--sp-1);
+  margin: 2px 0 0;
+}
+
+.y-mnote .y-mnote__meta:empty {
+  display: none;
+}
+
+.y-mnote__meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+.y-mnote__lead {
+  font-weight: var(--fw-medium);
+}
+
+.y-mnote__meta time::before {
+  content: attr(datetime);
+}
+
+/* The actions are there while the note has the keyboard, and the pointer does
+   not bring them up: pointing at a note only lights its words. */
+.y-mnote__acts {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-1);
+}
+
+.y-mnote:is(:focus, :focus-within) .y-mnote__acts {
+  display: flex;
+}
+
+.y-mnote__act {
+  background: none;
+  border: 0;
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  min-height: 24px;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.2em;
+}
+
+.y-mnote__act[hidden] {
+  display: none;
+}
+
+.y-mnote__act:is(:hover, :focus-visible) {
+  text-decoration-color: currentcolor;
+}
+
+.y-mnote__more {
+  position: relative;
+}
+
+.y-mnote__more > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 24px;
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.2em;
+}
+
+.y-mnote__more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.y-mnote__morelist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+/* A mark and its note light each other, and the others step back. */
+.has-lit .y-mnote:not(.is-lit) {
+  opacity: 0.6;
+}
+
+.y-mnote.is-lit {
+  border-inline-start-width: 3px;
+  padding-inline-start: calc(var(--sp-3) - 1.5px);
+}
+
+/* Where the margin is. Nothing is drawn in the layer: it is only the box the
+   notes are set to, shown only when the window has room for a margin. A note
+   stays in the text, after what it is about, and is set in the margin by its
+   position alone, so the keyboard meets it where its words are. */
+.y-mlayer {
+  display: none;
+}
+
+.y-prose :is(.y-mnote, .y-mfield)[data-lifted] {
+  margin: 0;
+  position: absolute;
+}
+
+/* A note pushed down from its words says so with a short rule at the height of
+   the words, drawn in the gutter beside it. */
+.y-mnote[data-lifted][data-displaced]::after {
+  background: var(--reader);
+  block-size: 2px;
+  content: '';
+  inline-size: 8px;
+  inset-block-start: calc(-1 * var(--shift));
+  inset-inline-start: -14px;
+  position: absolute;
+}
+
+.y-mnote[data-lifted][data-kind='question']:not([data-state='resolved'])[data-displaced]::after {
+  background: var(--ochre);
+}
+
+.y-mnote[data-lifted][data-state='resolved'][data-displaced]::after {
+  background: var(--line-strong);
+}
+
+.y-mnote[data-lifted].is-lit::before {
+  background: var(--reader);
+  block-size: 1px;
+  content: '';
+  inline-size: 18px;
+  inset-block-start: 0.8em;
+  inset-inline-start: -22px;
+  position: absolute;
+}
+
+.y-mnote[data-lifted][data-kind='question']:not([data-state='resolved']).is-lit::before {
+  background: var(--ochre);
+}
+
+.y-mnote[data-lifted][data-state='resolved'].is-lit::before {
+  background: var(--line-strong);
+}
+
+/* Until the script has set the notes in the margin they are kept out of the
+   flow and out of sight, so the text does not move when it does: where the
+   margin is, and only there. A page whose script never comes keeps them: after
+   a delay they stand where the server drew them, after their paragraphs. The
+   keyframes only flip position and visibility, and a page without scripting
+   was never hidden. */
+@media (min-width: 1321px) {
+  :root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+    animation: y-mnote-late 0s 3s forwards;
+  }
+}
+
+@keyframes y-mnote-late {
+  to {
+    position: static;
+    visibility: visible;
+  }
+}
+
+@media (min-width: 1321px) {
+  @container y-main (min-width: 80.25rem) {
+    :root[data-js='on']:not([data-marks-lifted], [data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-mlayer {
+      display: block;
+      inset-block: 0;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      pointer-events: none;
+      position: absolute;
+      width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-mlayer {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
+    }
+
+  }
+}
+@media (min-width: 1321px) {
+  @container y-main (min-width: 82.75rem) {
+    :root[data-js='on']:not([data-marks-lifted])[data-textsize='l'] .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
+    :root[data-textsize='l'] .y-main > .y-article .y-mlayer {
+      display: block;
+      inset-block: 0;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      pointer-events: none;
+      position: absolute;
+      width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root[data-textsize='l'] .y-main > .y-article .y-mlayer {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
+    }
+
+  }
+}
+@media (min-width: 1321px) {
+  @container y-main (min-width: 85.25rem) {
+    :root[data-js='on']:not([data-marks-lifted])[data-textsize='xl'] .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
+    :root[data-textsize='xl'] .y-main > .y-article .y-mlayer {
+      display: block;
+      inset-block: 0;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      pointer-events: none;
+      position: absolute;
+      width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root[data-textsize='xl'] .y-main > .y-article .y-mlayer {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
+    }
+
+  }
+}
+
+/* The field the words are written in, where the note will stand. */
+.y-mfield {
+  background: var(--elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  margin: var(--sp-2) 0 var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.y-mfield .y-mfield__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  margin: 0 0 var(--sp-1);
+}
+
+.y-mfield__text {
+  background: transparent;
+  border: 0;
+  box-sizing: border-box;
+  color: inherit;
+  display: block;
+  field-sizing: content;
+  font: inherit;
+  line-height: 24px;
+  min-block-size: calc(3 * 24px);
+  outline: 0;
+  padding: 0;
+  resize: none;
+  width: 100%;
+}
+
+.y-mfield:focus-within {
+  border-color: var(--focus);
+}
+
+.y-mfield__bar {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.y-mfield__done {
+  background: var(--fg);
+  border: 0;
+  border-radius: var(--r-lg);
+  color: var(--bg);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--fw-medium);
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+}
+
+.y-mfield__done .ui-kbd {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.y-mfield__cancel,
+.y-mfield__retry {
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  min-height: 32px;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.2em;
+}
+
+.y-mfield .y-mfield__said {
+  color: var(--crimson);
+  margin: var(--sp-2) 0 0;
+}
+
+.y-mfield .y-mfield__said[hidden] {
+  display: none;
+}
+
+/* The toolbar over a selection. It stands under the last line of what is
+   selected and never takes the selection from it. */
+.y-mbar {
+  background: var(--elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  gap: var(--sp-1);
+  inset-block-start: var(--bar-top, 0);
+  inset-inline-start: var(--bar-left, 0);
+  padding: var(--sp-1);
+  position: absolute;
+  z-index: 3;
+}
+
+.y-mbar[hidden],
+.y-mbar__act[hidden] {
+  display: none;
+}
+
+.y-mbar__act {
+  background: none;
+  border: 0;
+  border-radius: var(--sp-1);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  min-height: 32px;
+  padding: 0 var(--sp-2);
+  white-space: nowrap;
+}
+
+.y-mbar__act:is(:hover, :focus-visible) {
+  background: var(--wash);
+}
+
+.y-mbar__act:focus-visible {
+  outline: 2px solid var(--focus);
+}
+
+/* What a change to a mark says it did. It stays until the next thing is said or
+   it is dismissed, in the corner of the window the reader's eyes are not on. */
+.y-mstatus {
+  align-items: center;
+  background: var(--elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  color: var(--fg);
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  gap: var(--sp-3);
+  inset-block-end: var(--sp-4);
+  inset-inline: var(--sp-4);
+  margin-inline: auto;
+  max-inline-size: 34rem;
+  padding: var(--sp-2) var(--sp-3);
+  position: fixed;
+  z-index: 4;
+}
+
+/* With nothing to say it is drawn as nothing, and is not taken out of the page:
+   its two regions stay for a screen reader, empty, so that the words put in
+   them are announced. */
+.y-mstatus[data-idle] {
+  background: none;
+  block-size: 1px;
+  border: 0;
+  box-shadow: none;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  inset-inline: auto;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: none;
+}
+
+.y-mstatus__said {
+  flex: 1 1 auto;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.y-mstatus__said:empty {
+  position: absolute;
+}
+
+.y-mstatus__said[role='alert']:not(:empty) {
+  color: var(--crimson);
+}
+
+.y-mstatus__act {
+  background: none;
+  border: 0;
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  min-height: 32px;
+  padding: 0 var(--sp-1);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.2em;
+}
+
+.y-mstatus__act[hidden] {
+  display: none;
+}
+
+.y-mstatus__close[hidden] {
+  display: none;
+}
+
+.y-mstatus__close {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.y-mstatus__close svg {
+  height: 16px;
+  width: 16px;
+}
+
+.y-mstatus :is(button):focus-visible,
+.y-mfield :is(button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A touch screen has nothing to rest on a heading, so the section's controls
+   are drawn on the headings of the contents (the ##) and not on every level:
+   a note of many small headings would otherwise carry a button at each. */
+@media (pointer: coarse) {
+  .y-prose .y-sect:not(:has(> [data-level='2'])) .y-margin :is(.y-margin__act[data-section-mark], .y-margin__act[data-section-thought]) {
+    display: none;
+  }
+
+  .y-margin .y-margin__act {
+    min-height: 44px;
+  }
+
+  .y-mbar__act,
+  .y-mnote__act,
+  .y-mnote__more > summary,
+  .y-mfield__done,
+  .y-mfield__cancel,
+  .y-mstatus__act {
+    min-height: 44px;
+  }
+}
+
+/* Narrow and touch: the toolbar is a bar along the bottom, above the line. */
+@media (max-width: 720px) {
+  .y-mbar {
+    inset: auto var(--sp-4) calc(var(--sp-4) + 56px);
+    position: fixed;
+  }
+
+  .y-mbar[hidden] {
+    display: none;
+  }
+}

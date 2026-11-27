@@ -70,6 +70,12 @@ type Chrome struct {
 	// or "hover". The root carries it, so a stylesheet answering it needs no
 	// script and the first paint is already as the reader left it.
 	SectionButtons string
+	// MarkKeys is whether the keys of the reader's own marks are listed in the
+	// keyboard help: only a page that can keep a mark answers them.
+	MarkKeys bool
+	// Marks is whether the reader's own marks are drawn in the text: "show" or
+	// "hide". The root carries it so the first paint is already as they left it.
+	Marks string
 	// Position is whether a note opens where the reader last stopped in it:
 	// "on" or "off". The root carries it, so the head can tell before the first
 	// frame whether a note is held back for the place it will open at.
@@ -262,6 +268,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		Rail:                      read(r, railChoice),
 		SectionButtons:            read(r, sectionButtonsChoice),
 		Position:                  read(r, positionChoice),
+		Marks:                     read(r, marksChoice),
 		Paper:                     read(r, paperChoice),
 		SingleKeyShortcutsEnabled: read(r, shortcutsChoice) == "on",
 		// The request's own address, so a control the server answers can bring

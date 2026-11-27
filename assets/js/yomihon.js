@@ -11,6 +11,7 @@ import { initLangForm } from './langform.js';
 import { initLesson } from './lesson.js';
 import { initList } from './list.js';
 import { initMark } from './mark.js';
+import { initMarks } from './marks.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
 import { initRail } from './rail.js';
@@ -39,7 +40,10 @@ function init() {
   initFreshness();
   const rail = initRail(preferences);
   const search = initSearch();
-  initShortcuts({ drawer, rail, sidebar, search });
+  // The reader's marks are laid out before the reading position is put back, so
+  // what stands in the margin is where it will stand when the page is read.
+  const marks = initMarks();
+  initShortcuts({ drawer, rail, sidebar, search, marks });
   const enhanceCodeCopy = initCodeCopy();
   initLesson(enhanceCodeCopy);
   initList();

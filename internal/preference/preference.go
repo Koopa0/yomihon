@@ -288,6 +288,17 @@ var choices = []choice{
 		inForce: func(c *layouts.Chrome) string { return c.Position },
 	},
 	{
+		name:   "marks",
+		group:  wording.PrefGroupReading,
+		cookie: "yomihon_marks",
+		legend: wording.PrefMarks,
+		labels: map[string]wording.Phrase{
+			"show": wording.PrefMarksShow,
+			"hide": wording.PrefMarksHide,
+		},
+		inForce: func(c *layouts.Chrome) string { return c.Marks },
+	},
+	{
 		name:   "shortcuts",
 		group:  wording.PrefGroupReading,
 		cookie: "yomihon_shortcuts",

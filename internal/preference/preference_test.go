@@ -237,6 +237,7 @@ var storedChoices = map[string][]string{
 	"sectionbuttons": {"always", "hover"},
 	"position":       {"on", "off"},
 	"paper":          {"stone", "washi", "white"},
+	"marks":          {"show", "hide"},
 }
 
 // cookieFor is the cookie each field lands in, again spelled out rather than
@@ -255,6 +256,7 @@ var cookieFor = map[string]string{
 	"sectionbuttons": "yomihon_sectionbuttons",
 	"position":       "yomihon_position",
 	"paper":          "yomihon_paper",
+	"marks":          "yomihon_marks",
 }
 
 // TestApplyingAChoiceStoresItAndReturnsTheReader pins the whole no-script path
@@ -311,8 +313,8 @@ func TestApplyingAChoiceStoresItAndReturnsTheReader(t *testing.T) {
 			})
 		}
 	}
-	if stored != 23 {
-		t.Errorf("the table covers %d stored values, want the 23 the page offers", stored)
+	if stored != 25 {
+		t.Errorf("the table covers %d stored values, want the 25 the page offers", stored)
 	}
 }
 
@@ -337,6 +339,7 @@ func TestAValueNoChoiceOffersIsRefusedWithNothingStored(t *testing.T) {
 		"sectionbuttons": {"", "Hover", "on-hover", "never"},
 		"position":       {"", "OFF", "no"},
 		"paper":          {"", "Washi", "shiro"},
+		"marks":          {"", "Hide", "off"},
 	}
 	for field, offered := range storedChoices {
 		if len(refused[field]) < 3 {
@@ -406,6 +409,7 @@ func TestResetClearsEveryStoredChoice(t *testing.T) {
 	want := []string{
 		"yomihon_font",
 		"yomihon_lang",
+		"yomihon_marks",
 		"yomihon_paper",
 		"yomihon_position",
 		"yomihon_rail",
@@ -565,13 +569,13 @@ func TestOneSubmissionSavesEveryChoiceItCarries(t *testing.T) {
 			form: url.Values{
 				"lang": {"en"}, "theme": {"light"}, "textsize": {"l"},
 				"font": {"kai"}, "ruby": {"off"}, "shortcuts": {"off"},
-				"rail": {"collapsed"}, "sectionbuttons": {"hover"}, "position": {"off"}, "paper": {"washi"}, "next": {"/notes/A.md"},
+				"rail": {"collapsed"}, "sectionbuttons": {"hover"}, "position": {"off"}, "paper": {"washi"}, "marks": {"hide"}, "next": {"/notes/A.md"},
 			},
 			want: map[string]string{
 				"yomihon_lang": "en", "yomihon_theme": "light", "yomihon_textsize": "l",
 				"yomihon_font": "kai", "yomihon_ruby": "off", "yomihon_shortcuts": "off",
 				"yomihon_rail": "collapsed", "yomihon_sectionbuttons": "hover", "yomihon_position": "off",
-				"yomihon_paper": "washi",
+				"yomihon_paper": "washi", "yomihon_marks": "hide",
 			},
 		},
 		{
@@ -999,7 +1003,7 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
 				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "collapsed",
-				"sectionbuttons": "hover", "position": "on", "paper": "stone",
+				"sectionbuttons": "hover", "position": "on", "paper": "stone", "marks": "show",
 			},
 		},
 		{
@@ -1015,11 +1019,12 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 				"yomihon_sectionbuttons=hover",
 				"yomihon_position=off",
 				"yomihon_paper=white",
+				"yomihon_marks=hide",
 			},
 			want: map[string]string{
 				"lang": "en", "theme": "dark", "textsize": "xl",
 				"font": "kai", "ruby": "off", "shortcuts": "off", "rail": "collapsed",
-				"sectionbuttons": "hover", "position": "off", "paper": "white",
+				"sectionbuttons": "hover", "position": "off", "paper": "white", "marks": "hide",
 			},
 		},
 		{
@@ -1035,7 +1040,7 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
 				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "collapsed",
-				"sectionbuttons": "hover", "position": "on", "paper": "stone",
+				"sectionbuttons": "hover", "position": "on", "paper": "stone", "marks": "show",
 			},
 		},
 	}
@@ -1217,7 +1222,7 @@ func TestTheLanguageLeadsAndTheRestStandInTheirGroups(t *testing.T) {
 				fields              []string
 			}{
 				{paper, tt.paper, "pref-group-theme", []string{"font", "paper", "textsize", "theme"}},
-				{behavior, tt.behavior, "pref-group-ruby", []string{"position", "rail", "ruby", "sectionbuttons", "shortcuts"}},
+				{behavior, tt.behavior, "pref-group-ruby", []string{"marks", "position", "rail", "ruby", "sectionbuttons", "shortcuts"}},
 			} {
 				if want := ` aria-labelledby="` + g.id + `"><h2 id="` + g.id + `">` + g.heading + `</h2>`; !strings.HasPrefix(g.markup, want) {
 					t.Errorf("a group opens %q, want %q", g.markup[:min(len(g.markup), 120)], want)

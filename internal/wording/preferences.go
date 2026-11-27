@@ -90,6 +90,14 @@ var (
 // The buttons beside each section of a note: drawn all the time, quietly, or
 // only while the reader is at that section's heading. The row has no sentence
 // of its own; its two options say what each does.
+// Whether the reader's own marks are drawn in the text, which is one choice of
+// two, shown or hidden.
+var (
+	PrefMarks     = both("文中留下的", "Marks in the text")
+	PrefMarksShow = both("顯示", "Show")
+	PrefMarksHide = both("隱藏", "Hide")
+)
+
 var (
 	PrefSectionButtons       = both("小節旁的按鈕", "Buttons beside sections")
 	PrefSectionButtonsAlways = both("一直顯示", "Always show")
@@ -220,8 +228,8 @@ var (
 		"Settings are cookies on this address; where you stopped in each note and recent searches stay in this browser; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、主題、紙色、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記閱讀位置",
-		"Cookies: language, theme, paper, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, reading position",
+		"cookie 記著：介面語言、主題、紙色、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記閱讀位置、文中留下的",
+		"Cookies: language, theme, paper, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, reading position, marks in the text",
 	)
 	PrefStorageLocal = both(
 		"留在這個瀏覽器的：每篇的閱讀位置、最近的搜尋",

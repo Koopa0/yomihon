@@ -332,6 +332,7 @@ rail and one carries the diagram heights.
 | `yomihon_paper` | The light theme's paper, `stone`, `washi` or `white`; no value is stone, and dark ignores it | A year from the last write |
 | `yomihon_rail` | Whether the left column stands beside the text or is folded away on wide windows, `open` or `collapsed`; no value folds it. Where the column is a drawer, whether the drawer is open is never written here | A year from the last write |
 | `yomihon_sectionbuttons` | When the buttons beside each section are drawn, `always` or `hover`; no value shows them on hover | A year from the last write |
+| `yomihon_marks` | Whether the reader's own marks are drawn in the text and beside it, `show` or `hide`; no value shows them | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon_position` | Whether a note opens where the reader last stopped in it, `on` or `off`; no value leaves it on | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |

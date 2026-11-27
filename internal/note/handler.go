@@ -476,7 +476,18 @@ func (h *Handler) reading(
 	door := snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel)
 	questionAddress, writable := h.questionAddress()
 	var titleThoughts []pages.ThoughtLine
-	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere)
+	var sectionNotes map[string][]string
+	// A note that stands alone on its page draws the reader's marks, and keeps
+	// them where the reader folder can be written to.
+	markable := idPrefix == "" && h.sources.Kept != nil
+	markRoutes := ""
+	if markable && questionAddress != "" {
+		markRoutes = mark.Paths.Mark
+	}
+	if idPrefix == "" {
+		result.HTML, sectionNotes = h.markedBody(r.Context(), result.HTML, n, outlineIDs(&result), lang)
+	}
+	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere, sectionNotes)
 
 	// One resolved sidebar answers both the navigation and the article's own
 	// way onward, so the step under the prose and the list beside it can never
@@ -531,6 +542,8 @@ func (h *Handler) reading(
 		QuestionAddress:   questionAddress,
 		Writable:          writable,
 		ThoughtDoor:       door,
+		MarksOn:           markable,
+		MarkRoutes:        markRoutes,
 		TitleThoughts:     titleThoughts,
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to

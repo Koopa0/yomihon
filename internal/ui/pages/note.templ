@@ -146,6 +146,13 @@ type NoteView struct {
 	// empty the page offers no control that would write there.
 	Writable    string
 	ThoughtDoor bool
+	// MarksOn is whether the page draws the reader's own marks: a note that
+	// stands alone on its page, where the marks can be read.
+	MarksOn bool
+	// MarkRoutes is where the page keeps a mark, empty where it cannot: no marks
+	// to keep them in, or a reader folder that cannot be written to. The page
+	// then draws the marks and offers no way to make or change one.
+	MarkRoutes string
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch beside
@@ -176,6 +183,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// this is where it learns it may: only a reading page hands the chrome an
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
+	{{ c.MarkKeys = v.MarkRoutes != "" }}
 	{{ c.FilePath = v.FilePath }}
 	// The browser keeps where the reader stopped in this note, against this
 	// vault and this path, so the page says which note it is.
@@ -207,7 +215,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 // own page.
 // A nested title and body occupy one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
-	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { questionAttrs(&v, lang)... }>
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { questionAttrs(&v, lang)... } { markAttrs(&v, lang)... }>
 		@articleHead(v, lang)
 		@inlineAids(v, lang)
 		@layouts.CodeCopy(lang)
@@ -220,6 +228,9 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 				@templ.Raw(v.BodyHTML)
 			}
 		</div>
+		if v.MarkRoutes != "" {
+			@marksTools(lang)
+		}
 		@relatedAids(v, lang)
 		@colophon(v, lang)
 	</article>

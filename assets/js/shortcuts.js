@@ -1,6 +1,6 @@
 // Cross-feature keyboard policy. Feature modules own their mechanics; this
 // module alone decides shortcut priority, typing exclusions, and modifiers.
-export function initShortcuts({ drawer, rail, sidebar, search }) {
+export function initShortcuts({ drawer, rail, sidebar, search, marks }) {
   const root = document.documentElement;
   window.addEventListener('keydown', (event) => {
     // An input method mid-composition owns the keyboard, and the exclusion has
@@ -30,12 +30,37 @@ export function initShortcuts({ drawer, rail, sidebar, search }) {
         search.closeAndRestoreFocus();
         return;
       }
-      if (drawer.isOpen()) drawer.closeAndRestoreFocus();
+      if (drawer.isOpen()) {
+        drawer.closeAndRestoreFocus();
+        return;
+      }
+      // A field closes itself on Escape; anything else that is open on a note
+      // page is the reader's own marks.
+      if (!typing && marks?.escape()) event.preventDefault();
+      return;
+    }
+    // Taking back the last change to a mark. In a field the key is the text's own.
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === 'z' || event.key === 'Z')) {
+      if (!typing && !document.querySelector('dialog[open]') && marks?.undo()) event.preventDefault();
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (root.dataset.singleKeyShortcuts === 'off') return;
     if (typing || document.querySelector('dialog[open]')) return;
+    if (marks?.key(event)) {
+      event.preventDefault();
+      return;
+    }
+    // On a page with readings the reading is shown or hidden from the keyboard
+    // too, and a question that has focus took the key before this.
+    if (event.key === 'r' && !event.repeat) {
+      const readings = document.querySelector('[data-ruby-toggle]');
+      if (readings) {
+        event.preventDefault();
+        readings.click();
+      }
+      return;
+    }
     if (event.key === '/') {
       // A page that is a list has its own field, and it is the nearer one.
       const listFilter = document.querySelector('[data-list-filter]');

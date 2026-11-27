@@ -35,7 +35,11 @@ templ sectionMargin(id string, m *SectionMargin, p *SectionPlan) {
 			<button type="button" class="y-margin__act" data-section-mark data-section-anchor={ trimID(id, p.IDPrefix) } aria-pressed={ strconv.FormatBool(m.Marked) } aria-label={ wording.QuestionControl.In(p.Lang) } data-text={ wording.QuestionControl.In(p.Lang) } disabled></button>
 			<time class="y-margin__date" data-section-date hidden?={ !m.Marked } datetime={ dateOf(m.MarkedOn) }></time>
 		}
-		if p.Door {
+		if p.Own {
+			// A thought on this section is written here, in a field beside it, and the
+			// link that opened a draft for an editor is not offered beside it.
+			<button type="button" class="y-margin__act" data-section-thought data-section-anchor={ trimID(id, p.IDPrefix) } aria-label={ fmt.Sprintf(wording.MarksWriteThoughtFmt.In(p.Lang), m.Text) } data-text={ wording.MarksWriteThought.In(p.Lang) } disabled></button>
+		} else if p.Door {
 			<a class="y-margin__act" href={ templ.URL(thoughtHref(p.RelPath, trimID(id, p.IDPrefix))) } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(p.Lang), m.Text) } data-text={ wording.ThoughtDoor.In(p.Lang) }></a>
 		}
 		for i := range m.Thoughts {

@@ -197,6 +197,8 @@ var columnMotionAllowed = []struct{ sheet, selector, properties, why string }{
 		"the same wait inside the preview card, which sets its own tempo and names only the keyframes"},
 	{"components.css", "[data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)), [data-js] .y-prose .mermaid-diagram[data-mermaid-error]:not(:has(svg))", "animation",
 		"the same wait, stopped: a diagram that failed to draw does not go on pulsing"},
+	{"components.css", ":root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield)", "animation",
+		"the reader's notes are held out of the flow where the margin is, until the script has set them there, and set after their paragraphs on a timer if it never does; the keyframes only flip position and visibility, and a page without scripting was never hidden"},
 }
 
 // readSheet reads a stylesheet with its comments blanked, so a rule is compared

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -228,7 +229,7 @@ func TestASectionsMarkIsAnAnchorThePageRenders(t *testing.T) {
 
 	page := serve(t, mux, http.MethodGet, "/notes/Source.md", "").Body.String()
 	anchors := 0
-	for _, part := range strings.Split(page, `data-section-anchor="`)[1:] {
+	for _, part := range strings.Split(page, `data-section-mark data-section-anchor="`)[1:] {
 		anchor, _, _ := strings.Cut(part, `"`)
 		anchors++
 		got := serve(t, mux, http.MethodPost, "/questions", url.Values{"path": {"Source.md"}, "anchor": {anchor}}.Encode())
@@ -265,5 +266,33 @@ func TestAHeadingWithNoWordsHasNoMargin(t *testing.T) {
 	}
 	if got := strings.Count(article, `<div class="y-sect"`); got != 1 {
 		t.Errorf("%d headings are wrapped as sections, want only the one with a name", got)
+	}
+}
+
+// TestAReaderFolderThatCannotBeWrittenToDrawsNoButtonThatCannotAnswer holds the
+// section's thought where the folder the marks are kept in is read only: the
+// page has no route to write a mark to, so it draws no button that would be
+// enabled and answer nothing, and the link that opens the note written by hand
+// stays, as it is on a page that keeps no marks at all.
+func TestAReaderFolderThatCannotBeWrittenToDrawsNoButtonThatCannotAnswer(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("a folder's mode does not stop the owner on this system")
+	}
+	t.Parallel()
+	root, contract := sectionVault(t)
+	// #nosec G302 -- a test makes its own temporary vault unwritable, and restores it so it can be removed
+	if err := os.Chmod(root, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	// #nosec G302 -- a test restores its own temporary folder so that it can be removed
+	t.Cleanup(func() { _ = os.Chmod(root, 0o700) }) //nolint:errcheck // so the folder can be removed
+	mux, _ := readerSession(t, root, contract, t.TempDir(), nil)
+
+	page := serve(t, mux, http.MethodGet, "/notes/Source.md", "").Body.String()
+	if strings.Contains(page, "data-section-thought") {
+		t.Errorf("the page draws a button to write a thought in a section, and no route can keep it:\n%s", page)
+	}
+	if !strings.Contains(page, `<a class="y-margin__act" href="/thought/Source.md?section=first"`) {
+		t.Errorf("the page does not keep the link that opens a thought written by hand:\n%s", page)
 	}
 }
