@@ -72,8 +72,8 @@ func TestMendPutsBackWhatGitTookWithoutBeingAsked(t *testing.T) {
 	if diff := cmp.Diff(string(was), string(got)); diff != "" {
 		t.Errorf("the file put back is not the file taken (-was +got):\n%s", diff)
 	}
-	if line := logged.String(); !strings.Contains(line, "level=INFO") || !strings.Contains(line, "put back marks") {
-		t.Errorf("the log says %q, want an Info line that marks were put back", line)
+	if n := strings.Count(logged.String(), "level=INFO"); n != 1 {
+		t.Errorf("the log says %q, want one Info line that marks were put back", logged.String())
 	}
 }
 
@@ -187,7 +187,7 @@ func TestMendSaysThatItCannotPutBackOnce(t *testing.T) {
 		kept.Mend()
 		at = at.Add(time.Minute)
 	}
-	if n := strings.Count(logged.String(), "cannot be put back"); n != 1 {
+	if n := strings.Count(logged.String(), "level=WARN"); n != 1 {
 		t.Errorf("the log says %q, want it said once, not %d times", logged.String(), n)
 	}
 }

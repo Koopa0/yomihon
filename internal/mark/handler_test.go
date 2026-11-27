@@ -547,6 +547,19 @@ func listedQuestions(t *testing.T, handler http.Handler) []listedQuestion {
 	return held
 }
 
+// marked is what the question route answers a press with: whether the section
+// is marked now.
+func marked(t *testing.T, response *httptest.ResponseRecorder) bool {
+	t.Helper()
+	var got struct {
+		Marked bool `json:"marked"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &got) != nil {
+		t.Fatalf("a press = %d %q, want 200 and whether the section is marked", response.Code, response.Body.String())
+	}
+	return got.Marked
+}
+
 // anchorsOf is the anchors of held in the order they are listed.
 func anchorsOf(held []listedQuestion) []string {
 	anchors := make([]string, len(held))
@@ -560,8 +573,9 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, nil)
 	empty := questionRequest(t, srv.handler, http.MethodGet, "", "en")
-	if empty.Code != http.StatusOK || empty.Body.String() != "[]\n" {
-		t.Fatalf("empty GET = %d %s", empty.Code, empty.Body.String())
+	var none []listedQuestion
+	if empty.Code != http.StatusOK || json.Unmarshal(empty.Body.Bytes(), &none) != nil || none == nil || len(none) != 0 {
+		t.Fatalf("empty GET = %d %s, want an empty list and not null", empty.Code, empty.Body.String())
 	}
 	form := url.Values{
 		"path": {"Notes/source.md"}, "anchor": {"one"},
@@ -570,7 +584,7 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 	before := time.Now().Truncate(time.Millisecond)
 	added := questionRequest(t, srv.handler, http.MethodPost, form.Encode(), "en")
 	after := time.Now()
-	if added.Code != http.StatusOK || added.Body.String() != "{\"marked\":true}\n" {
+	if !marked(t, added) {
 		t.Fatalf("add = %d %s", added.Code, added.Body.String())
 	}
 	listed := questionRequest(t, srv.handler, http.MethodGet, "", "en")
@@ -594,14 +608,14 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 		}
 	}
 	removed := questionRequest(t, srv.handler, http.MethodPost, form.Encode(), "en")
-	if removed.Code != http.StatusOK || removed.Body.String() != "{\"marked\":false}\n" {
+	if marked(t, removed) {
 		t.Fatalf("remove = %d %s", removed.Code, removed.Body.String())
 	}
 	if marks, err := srv.kept.Questions(); err != nil || len(marks) != 0 {
 		t.Fatalf("removed mark still kept: %v, %v", marks, err)
 	}
-	if again := questionRequest(t, srv.handler, http.MethodGet, "", "en"); again.Body.String() != "[]\n" {
-		t.Fatalf("GET after the removal = %s, want an empty list", again.Body.String())
+	if again := listedQuestions(t, srv.handler); len(again) != 0 {
+		t.Fatalf("GET after the removal = %+v, want an empty list", again)
 	}
 }
 
@@ -626,7 +640,7 @@ func TestQuestionRouteListsOnlyQuestionsOfWholeSections(t *testing.T) {
 	}) {
 		t.Fatalf("GET = %+v, want the one question of a whole section, made at %s", held, at)
 	}
-	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=whole", "en"); got.Body.String() != "{\"marked\":false}\n" {
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=whole", "en"); marked(t, got) {
 		t.Fatalf("pressing the control of the kept section = %d %s, want it taken away", got.Code, got.Body.String())
 	}
 	if held = listedQuestions(t, srv.handler); len(held) != 0 {
@@ -653,10 +667,10 @@ func TestQuestionRouteListsTheEarlierFilesQuestionsUntilTheFirstWriteTakesThemIn
 	}
 	// Taking away a question the vault does not hold yet takes the earlier
 	// marks in first, then removes it.
-	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); got.Body.String() != "{\"marked\":false}\n" {
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); marked(t, got) {
 		t.Fatalf("taking away a question of the earlier file = %d %s", got.Code, got.Body.String())
 	}
-	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=three", "en"); got.Body.String() != "{\"marked\":true}\n" {
+	if got := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=three", "en"); !marked(t, got) {
 		t.Fatalf("marking a new question = %d %s", got.Code, got.Body.String())
 	}
 	if got := anchorsOf(listedQuestions(t, srv.handler)); !slices.Equal(got, []string{"two", "three"}) {
@@ -710,21 +724,15 @@ func TestQuestionRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 // language, and nothing is written or made.
 func TestQuestionRoutePreservesCorruptFileAndReportsFailureInBothLanguages(t *testing.T) {
 	t.Parallel()
-	for _, tt := range []struct {
-		lang string
-		want string
-	}{
-		{"en", "Marks cannot be read right now. The existing file was left unchanged.\n"},
-		{"zh-Hant", "目前無法讀取標記，原有檔案未更動。\n"},
-	} {
-		t.Run(tt.lang, func(t *testing.T) {
+	for _, lang := range []wording.Lang{wording.En, wording.ZhHant} {
+		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, nil)
 			const damaged = `[{"path":"private/secret.md"`
 			writeFile(t, marksPath(srv.store), damaged)
 			for _, method := range []string{http.MethodGet, http.MethodPost} {
-				response := questionRequest(t, srv.handler, method, "path=source.md&anchor=one", tt.lang)
-				if response.Code != http.StatusInternalServerError || response.Body.String() != tt.want {
+				response := questionRequest(t, srv.handler, method, "path=source.md&anchor=one", string(lang))
+				if response.Code != http.StatusInternalServerError || strings.TrimSpace(response.Body.String()) != wording.QuestionUnavailable.In(lang) {
 					t.Errorf("%s damaged file = %d %q; want localized 500", method, response.Code, response.Body.String())
 				}
 			}
@@ -762,7 +770,7 @@ func TestQuestionRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
 	}
 	// A place that has since disappeared can still be cleared.
 	delete(places, [2]string{"Notes/real.md", "one"})
-	if response := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/real.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":false}\n" {
+	if response := questionRequest(t, srv.handler, http.MethodPost, "path=Notes/real.md&anchor=one", "en"); marked(t, response) {
 		t.Fatalf("clearing a vanished place = %d %s", response.Code, response.Body.String())
 	}
 	if held, err = srv.kept.Questions(); err != nil || len(held) != 1 || held[0].Anchor != "" {
@@ -811,7 +819,7 @@ func TestQuestionRouteRefusesToWriteWhereTheReaderFolderCannotBeUsed(t *testing.
 			if err := os.Remove(folder); err != nil {
 				t.Fatal(err)
 			}
-			if response = questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":true}\n" {
+			if response = questionRequest(t, srv.handler, http.MethodPost, "path=Notes/source.md&anchor=one", "en"); !marked(t, response) {
 				t.Fatalf("POST after the folder was mended = %d %q, want it kept", response.Code, response.Body.String())
 			}
 		})
