@@ -27,13 +27,11 @@ func aSetAsideValue(t *testing.T) *clone {
 
 func (c *clone) setAside() []string {
 	c.t.Helper()
-	values, err := c.m.SetAside()
-	if err != nil {
-		c.t.Fatal(err)
-	}
 	var words []string
-	for i := range values {
-		words = append(words, values[i].Mark.Body)
+	for _, e := range c.view().Entries(open) {
+		for i := range e.Aside {
+			words = append(words, e.Aside[i].Mark.Body)
+		}
 	}
 	return words
 }
@@ -45,6 +43,10 @@ func TestAnOwnValueNobodyWasShownIsSetAsideInTheLedger(t *testing.T) {
 	a := aSetAsideValue(t)
 	if got := a.setAside(); !slices.Equal(got, []string{"A's words"}) {
 		t.Fatalf("set aside = %q, want A's words", got)
+	}
+	// The gate is asked of it as of any value: one it refuses hides the mark.
+	if _, ok := a.view().Entry(mid(1), func(m *Mark) bool { return m.Body != "A's words" }); ok {
+		t.Error("a mark whose value set aside the gate refuses was given")
 	}
 	if strings.Contains(string(readFile(t, a.marksDir()+"/"+a.id()+".jsonl")), "A's words") {
 		t.Error("the test did not reach the case: A's file still holds the value")

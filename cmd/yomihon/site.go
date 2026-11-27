@@ -178,7 +178,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		if approvalsErr != nil {
 			return nil, fmt.Errorf("name the figure approvals: %w", approvalsErr)
 		}
-		kept = mark.OpenKept(marks, source, log, mark.AllMarks)
+		kept = mark.OpenKept(marks, source, log)
 		keptPlace = bookmarkFrom(marks, log)
 		markAddress = mark.Paths.Bookmark
 		questionAddress = mark.Paths.Question

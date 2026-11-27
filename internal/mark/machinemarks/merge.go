@@ -42,6 +42,14 @@ type Entry struct {
 	// Seen is the newest line of each writer of this mark, which a change made
 	// from this entry says it read.
 	Seen Seen
+	// Aside are the values of this machine's own that a change replaced although
+	// they were live and the change was not made on them: the value that two
+	// computers each changed and the page was not shown, which the newer line of
+	// this machine replaces by the rule that a writer's newer line always
+	// replaces its older. They are kept whole in the ledger, in the order they
+	// were set aside, so that nothing is lost; a page shows only the value that
+	// counts.
+	Aside []Value
 }
 
 // Mark is the value that counts.

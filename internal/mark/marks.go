@@ -168,7 +168,7 @@ func (h *Handler) keepCandidate(ctx context.Context, candidate *machinemarks.Mar
 		return stored, res, status, err
 	}
 	same := func(other *machinemarks.Mark) bool { return sameAct(other, candidate) }
-	out, err := marks.Keep(ctx, candidate, same, admit, h.kept.gate)
+	out, err := marks.Keep(ctx, candidate, same, admit)
 	if err == nil && !out.Written {
 		status = http.StatusOK
 	}
@@ -195,7 +195,7 @@ func (h *Handler) answerKept(w http.ResponseWriter, r *http.Request, id string) 
 	if err != nil {
 		return false
 	}
-	entry, ok := view.Entry(id, h.kept.gate)
+	entry, ok := view.Entry(id, AllMarks)
 	if !ok {
 		return false
 	}
@@ -211,7 +211,7 @@ func (h *Handler) keepThought(ctx context.Context, marks *machinemarks.Marks, th
 	if !admit(thought) {
 		return machinemarks.Result{}, fmt.Errorf("%w: the place is not one this vault renders", machinemarks.ErrInvalidMark)
 	}
-	return marks.Put(ctx, thought, nil, nil, h.kept.gate)
+	return marks.Put(ctx, thought, nil, nil)
 }
 
 // askedForWhatKindHolds refuses what a kind does not carry: a highlight is a
@@ -259,7 +259,7 @@ func (h *Handler) standsIn(m *machinemarks.Mark, page *Page) bool {
 }
 
 // readable finds the mark a request names, and answers for one that is not
-// there. A request that is to change it is write. A mark the gate withholds is answered exactly as one that is not there.
+// there. A request that is to change it is write.
 func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (machinemarks.Entry, bool) {
 	id := r.PathValue("id")
 	if !isID(id) {
@@ -284,7 +284,7 @@ func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (
 			return machinemarks.Entry{}, false
 		}
 	}
-	entry, ok := view.Entry(id, h.kept.gate)
+	entry, ok := view.Entry(id, AllMarks)
 	if !ok {
 		h.absent(w, r)
 		return machinemarks.Entry{}, false
@@ -353,7 +353,7 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, err, "change a mark")
 		return
 	}
-	res, err := marks.Put(writeContext(r), &next, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &next, *request.Seen, request.Edit)
 	if err = h.landed(err, "change a mark"); err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
@@ -429,7 +429,7 @@ func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, err, "delete a mark")
 		return
 	}
-	res, err := marks.Delete(writeContext(r), entry.Mark().ID, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Delete(writeContext(r), entry.Mark().ID, *request.Seen, request.Edit)
 	if err = h.landed(err, "delete a mark"); err != nil {
 		h.refuse(w, r, err, "delete a mark")
 		return
@@ -479,7 +479,7 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current.Deleted = false
-	res, err := marks.Put(writeContext(r), &current, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &current, *request.Seen, request.Edit)
 	if err = h.landed(err, "put a mark back"); err != nil {
 		h.refuse(w, r, err, "put a mark back")
 		return
@@ -519,7 +519,7 @@ func pageValue(entry machinemarks.Entry, seen machinemarks.Seen) machinemarks.Va
 // back.
 func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fallback *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
 	if view, err := h.kept.View(); err == nil {
-		if entry, ok := view.Entry(fallback.ID, h.kept.gate); ok {
+		if entry, ok := view.Entry(fallback.ID, AllMarks); ok {
 			shown := entry.Mark()
 			// What the page has read is what it is shown: the value that counts is
 			// covered, so that the next change is built on it, and no value that is

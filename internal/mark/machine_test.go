@@ -67,7 +67,7 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 	m := machineMarksOver(t, store, root, config)
 	first := machinemarks.Mark{ID: markID(4), Kind: machinemarks.Thought, Path: "Notes/b.md", Body: "new", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
-	if _, err = m.Put(t.Context(), &first, nil, nil, allowed); err != nil {
+	if _, err = m.Put(t.Context(), &first, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	v, err := m.View()
@@ -105,7 +105,7 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 	second := first
 	second.ID = markID(5)
-	if _, err = m.Put(t.Context(), &second, nil, nil, allowed); err != nil {
+	if _, err = m.Put(t.Context(), &second, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if v, err = m.View(); err != nil {
@@ -146,7 +146,7 @@ func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
 	}
 	m := machineMarksOver(t, store, root, config)
 	first := machinemarks.Mark{ID: markID(3), Kind: machinemarks.Thought, Path: "Notes/b.md", Body: "new", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
-	if _, err = m.Put(t.Context(), &first, nil, nil, allowed); err != nil {
+	if _, err = m.Put(t.Context(), &first, nil, nil); err != nil {
 		t.Fatalf("Put = %v, want the write to go through", err)
 	}
 	v, err := m.View()
@@ -178,7 +178,7 @@ func TestAMarksFileThatCannotBeReadStopsTheFirstWrite(t *testing.T) {
 	writeFile(t, marksPath(store), `{"version":1,"marks":[`)
 	m := machineMarksOver(t, store, root, config)
 	mk := machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "a.md", Body: "x", At: time.Now()}
-	if _, err = m.Put(t.Context(), &mk, nil, nil, allowed); err == nil {
+	if _, err = m.Put(t.Context(), &mk, nil, nil); err == nil {
 		t.Fatal("a write went through over a marks.json that cannot be read")
 	}
 	if _, err = os.Stat(filepath.Join(root, "reader-notes")); err == nil {

@@ -197,61 +197,38 @@ type proposal struct {
 // Put writes mark as the whole new value of the mark of its ID: a new mark, or
 // a change of one the page had read, which base says how far. A change of state
 // is a Put of the same ID with another Kind. edit names the page's editing
-// session, nil when it has none. A mark that exists and the gate withholds is
-// ErrGone, which is what Delete answers for a mark that is not there;
-// Put of an id that is not there is a new mark, so for it the answer does tell
-// the two apart, and only a caller who already holds the id of a withheld mark
-// can ask. The gate is not optional and a nil one panics.
-func (m *Marks) Put(ctx context.Context, mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
-	needGate(gate)
+// session, nil when it has none.
+func (m *Marks) Put(ctx context.Context, mark *Mark, base Seen, edit *Edit) (Result, error) {
 	if err := validate(mark, edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(ctx, func(v *view) (*proposal, error) {
-		if withheld(v, mark.ID, gate) {
-			return nil, ErrGone
-		}
 		return &proposal{mark: *mark, base: base, edit: edit, grows: !live(v, mark.ID)}, nil
 	})
 }
 
 // Delete writes the mark as deleted, from the value that counts now. It is
 // ErrGone if there is no such mark or it is deleted already, which is what a
-// page that had not heard of another machine's deletion is told. A mark the
-// gate withholds is ErrGone too.
-func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit, gate Gate) (Result, error) {
-	needGate(gate)
+// page that had not heard of another machine's deletion is told.
+func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit) (Result, error) {
 	if err := validateEdit(edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(ctx, func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
-		if !ok || r.coveredHead(base).Mark.Deleted || withheld(v, id, gate) {
+		if !ok {
 			return nil, ErrGone
 		}
 		// What is deleted is the value the page read, which the base says: a
 		// value another computer wrote that the page never read is not the page's
 		// to delete, and is still a value of the mark after.
 		mark := r.coveredHead(base).Mark
+		if mark.Deleted {
+			return nil, ErrGone
+		}
 		mark.Deleted = true
 		return &proposal{mark: mark, base: base, edit: edit}, nil
 	})
-}
-
-// needGate refuses a write that names no gate: it would answer for a mark the
-// reader's rules hold back.
-func needGate(gate Gate) {
-	if gate == nil {
-		panic("machinemarks: a write with no gate")
-	}
-}
-
-// withheld says the gate refuses a value of the mark. A write to one is
-// answered as a write to a mark that is not there, so that nothing of it, not
-// that it exists, nor its writers and revs, is told by the answer.
-func withheld(v *view, id string, gate Gate) bool {
-	r, ok := v.byMark[id]
-	return ok && slices.ContainsFunc(r.heads, func(l *kept) bool { return !gate(&l.Mark) })
 }
 
 // Restore writes this machine's file as the ledger and the file together say it

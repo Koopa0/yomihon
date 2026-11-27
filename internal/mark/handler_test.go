@@ -68,7 +68,7 @@ func newKept(t *testing.T, store *mark.Store, root string) *mark.Kept {
 			t.Error(closeErr)
 		}
 	})
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	t.Cleanup(func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			t.Error(closeErr)

@@ -320,17 +320,15 @@ func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) 
 // mkSetAside is the words of the values this computer's ledger holds aside.
 func (r *mkRig) mkSetAside() []string {
 	r.t.Helper()
-	marks, err := r.kept.Marks()
-	if err != nil {
-		r.t.Fatal(err)
-	}
-	values, err := marks.SetAside()
+	view, err := r.kept.View()
 	if err != nil {
 		r.t.Fatal(err)
 	}
 	var words []string
-	for i := range values {
-		words = append(words, values[i].Mark.Body)
+	for _, e := range view.Entries(mark.AllMarks) {
+		for i := range e.Aside {
+			words = append(words, e.Aside[i].Mark.Body)
+		}
 	}
 	return words
 }

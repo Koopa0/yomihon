@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/mark"
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -135,7 +133,7 @@ func (r *openRequest) exportMarks(ctx context.Context) (payload egress.Payload, 
 		return egress.Payload{}, nil, errOpenMarksUnreadable
 	}
 	x := &exporter{snap: snap, gate: gate, allowed: opened.allowed, lang: wording.En, locate: note.MarkLocator(snap, wording.En)}
-	kept := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), x.admit)
+	kept := mark.OpenKept(store, source, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil && err == nil {
 			payload, notices, err = egress.Payload{}, nil, errOpenMarksUnreadable
@@ -224,39 +222,13 @@ func (x *exporter) gather(kept *mark.Kept) (marks []exportedMark, incomplete boo
 	if err != nil {
 		return nil, false, err
 	}
-	var aside []machinemarks.Value
-	hand, handErr := kept.Marks()
-	switch {
-	case handErr == nil:
-		if aside, err = hand.SetAside(); err != nil {
-			return nil, false, err
-		}
-	case errors.Is(handErr, machinefile.ErrLink) || errors.Is(handErr, machinefile.ErrNotAFolder):
-		// The reader folder cannot be entered, so the view holds only what the
-		// earlier file does, and nothing was set aside in it.
-	default:
-		return nil, false, handErr
-	}
-	asideOf := map[string][]machinemarks.Value{}
-	for i := range aside {
-		asideOf[aside[i].Mark.ID] = append(asideOf[aside[i].Mark.ID], aside[i])
-	}
 	for _, e := range view.Entries(x.admit) {
-		if e.Deleted() {
-			continue
+		if !e.Deleted() {
+			marks = append(marks, exportedMark{mark: e.Mark(), others: otherValues(e.Values, e.Aside)})
 		}
-		extra := asideOf[e.Mark().ID]
-		// A value set aside is a side of the mark like any other: one the gate
-		// withholds takes the whole mark with it.
-		if slices.ContainsFunc(extra, func(v machinemarks.Value) bool { return !x.admit(&v.Mark) }) {
-			continue
-		}
-		marks = append(marks, exportedMark{mark: e.Mark(), others: otherValues(e.Values, extra)})
 	}
 	for i := range pending {
-		// An earlier mark the vault already holds is shown as the vault holds
-		// it, or not at all when the gate withholds it there.
-		if _, held := view.Entry(pending[i].ID, mark.AllMarks); !held {
+		if x.admit(&pending[i]) {
 			marks = append(marks, exportedMark{mark: pending[i]})
 		}
 	}

@@ -27,21 +27,19 @@ type Outcome struct {
 // Keep writes mark as a new mark, unless a mark that is not deleted is the same
 // as it, as same says, in which case that one is the answer and nothing is
 // written. The look and the write are one step under the vault's lock, so two
-// Keeps of one highlight at once keep one. A mark the gate withholds is not
-// there to be the same.
+// Keeps of one highlight at once keep one.
 //
 // mark's ID has to be one no mark has: a Keep is a new mark and never a change
 // of one the reader had read, which has to say what it had read. admit is asked
 // of a mark that is new, under the lock, and says whether the place is one the
 // caller can stand behind.
-func (m *Marks) Keep(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
-	needGate(gate)
+func (m *Marks) Keep(ctx context.Context, mark *Mark, same, admit func(*Mark) bool) (Outcome, error) {
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
 	res, err := m.change(ctx, func(v *view) (*proposal, error) {
-		if there := sameMark(v, same, gate); len(there) > 0 {
+		if there := sameMark(v, same); len(there) > 0 {
 			out.Mark = there[0].heads[0].Mark
 			return &proposal{noWrite: true, base: entrySeen(v, out.Mark.ID)}, nil
 		}
@@ -80,14 +78,13 @@ func admitted(v *view, mark *Mark, admit func(*Mark) bool) error {
 // is read now. Marks that are the same place and were each made by a machine
 // that had not read the other leave Remaining to take away by asking again.
 // Taking away is always allowed; admit is asked of a mark that is new only.
-func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) bool, gate Gate) (Outcome, error) {
-	needGate(gate)
+func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) bool) (Outcome, error) {
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
 	res, err := m.change(ctx, func(v *view) (*proposal, error) {
-		there := sameMark(v, same, gate)
+		there := sameMark(v, same)
 		if len(there) == 0 {
 			if err := admitted(v, mark, admit); err != nil {
 				return nil, err
@@ -108,13 +105,13 @@ func (m *Marks) Toggle(ctx context.Context, mark *Mark, same, admit func(*Mark) 
 	return out, err
 }
 
-// sameMark is the marks that are not deleted, that the gate lets through, and
-// whose value that counts is the same as what same says, the oldest first.
-func sameMark(v *view, same func(*Mark) bool, gate Gate) []resolved {
+// sameMark is the marks that are not deleted and whose value that counts is the
+// same as what same says, the oldest first.
+func sameMark(v *view, same func(*Mark) bool) []resolved {
 	var there []resolved
-	for id, r := range v.byMark {
+	for _, r := range v.byMark {
 		head := &r.heads[0].Mark
-		if head.Deleted || withheld(v, id, gate) || !same(head) {
+		if head.Deleted || !same(head) {
 			continue
 		}
 		there = append(there, r)

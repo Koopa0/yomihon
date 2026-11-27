@@ -36,7 +36,7 @@ func aMendedVault(t *testing.T) (root string, kept *mark.Kept, logged *bytes.Buf
 		t.Fatal(err)
 	}
 	logged = &bytes.Buffer{}
-	kept = mark.OpenKept(store, reader, slog.New(slog.NewTextHandler(logged, nil)), mark.AllMarks)
+	kept = mark.OpenKept(store, reader, slog.New(slog.NewTextHandler(logged, nil)))
 	t.Cleanup(func() { _ = kept.Close() }) //nolint:errcheck // the test is over
 	return root, kept, logged
 }

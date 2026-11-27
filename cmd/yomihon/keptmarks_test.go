@@ -49,7 +49,7 @@ func (k keptMarks) forget(id string) {
 	if err != nil {
 		k.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			k.t.Error(closeErr)
@@ -67,7 +67,7 @@ func (k keptMarks) forget(id string) {
 	if !ok {
 		k.t.Fatalf("no mark %s to forget", id)
 	}
-	if _, err = hand.Delete(k.t.Context(), id, entry.Seen, nil, mark.AllMarks); err != nil {
+	if _, err = hand.Delete(k.t.Context(), id, entry.Seen, nil); err != nil {
 		k.t.Fatalf("forget mark %s: %v", id, err)
 	}
 }
@@ -154,7 +154,7 @@ func heldQuestions(t *testing.T, root, configDir string) []mark.Mark {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			t.Error(closeErr)

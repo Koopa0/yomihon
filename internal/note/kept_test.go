@@ -19,7 +19,7 @@ func openKept(tb testing.TB, source *vault.Reader, configDir string) (*mark.Stor
 	if err != nil {
 		tb.Fatal(err)
 	}
-	kept := mark.OpenKept(store, source, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, source, slog.New(slog.DiscardHandler))
 	tb.Cleanup(func() {
 		if err := kept.Close(); err != nil {
 			tb.Errorf("close the marks: %v", err)

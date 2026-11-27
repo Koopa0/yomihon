@@ -311,7 +311,7 @@ func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entries := []entry{}
-	for _, e := range view.Entries(h.kept.gate) {
+	for _, e := range view.Entries(AllMarks) {
 		if m := e.Mark(); !e.Deleted() && isSectionQuestion(&m) {
 			entries = append(entries, entry{Path: m.Path, Anchor: m.Anchor, Time: m.At})
 		}
@@ -359,7 +359,7 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 		return isSectionQuestion(m) && m.Path == candidate.Path && m.Anchor == candidate.Anchor
 	}
 	admit := func(m *machinemarks.Mark) bool { return h.places.HasPlace(m.Path, m.Anchor) }
-	out, err := marks.Toggle(writeContext(r), &candidate, same, admit, h.kept.gate)
+	out, err := marks.Toggle(writeContext(r), &candidate, same, admit)
 	err = h.landed(err, "mark a question")
 	switch {
 	case err == nil:

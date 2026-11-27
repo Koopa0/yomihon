@@ -65,7 +65,7 @@ func TestAReadIsNotHeldBehindAChangeThatWaitsForTheLedger(t *testing.T) {
 	base := a.entry(mid(1)).Seen
 	go func() {
 		next := thought(1, "second")
-		_, err := a.m.Put(t.Context(), &next, base, nil, open)
+		_, err := a.m.Put(t.Context(), &next, base, nil)
 		changed <- err
 	}()
 	for until := time.Now().Add(200 * time.Millisecond); time.Now().Before(until); {
@@ -118,7 +118,7 @@ func TestALedgerThatCannotBeReadFailsTheReadAndTheWrite(t *testing.T) {
 		t.Errorf("View with a ledger that cannot be read = %v, want ErrLedgerUnreadable", err)
 	}
 	next := thought(2, "second")
-	if _, err := a.m.Put(t.Context(), &next, nil, nil, open); !errors.Is(err, ErrLedgerUnreadable) {
+	if _, err := a.m.Put(t.Context(), &next, nil, nil); !errors.Is(err, ErrLedgerUnreadable) {
 		t.Errorf("Put with a ledger that cannot be read = %v, want ErrLedgerUnreadable", err)
 	}
 	if after := readFile(t, file); !bytes.Equal(after, before) {
@@ -202,7 +202,7 @@ func TestAWholeSectionMarkIsNeverAHighlight(t *testing.T) {
 	before, ledgerBefore := tree(t, a.root), string(a.ledgerBytes())
 	section := a.entry(mid(1)).Mark()
 	section.Kind, section.Body, section.Quote = Highlight, "", ""
-	_, err := a.m.Put(t.Context(), &section, a.entry(mid(1)).Seen, nil, open)
+	_, err := a.m.Put(t.Context(), &section, a.entry(mid(1)).Seen, nil)
 	if !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Put of a highlight with no quote = %v, want ErrInvalidMark", err)
 	}
@@ -371,7 +371,7 @@ func TestTheTripleFaultIsAConflict(t *testing.T) {
 		}
 		a.clock.tick()
 		e := a.entry(mid(1))
-		if _, err := a.m.Put(t.Context(), new(thought(1, "A after all that")), e.Seen, nil, open); err != nil {
+		if _, err := a.m.Put(t.Context(), new(thought(1, "A after all that")), e.Seen, nil); err != nil {
 			t.Fatalf("sameProcess=%v: %v", sameProcess, err)
 		}
 		pull(a, b)
@@ -419,11 +419,11 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	a.say(1, "two") // another page, or this one, wrote it since
 	m := thought(1, "from the old page")
 
-	_, err := a.m.Put(t.Context(), &m, nil, nil, open)
+	_, err := a.m.Put(t.Context(), &m, nil, nil)
 	if !errors.Is(err, ErrNoBase) {
 		t.Fatalf("Put of a mark that exists with no base = %v, want ErrNoBase", err)
 	}
-	_, err = a.m.Put(t.Context(), &m, first.Seen, nil, open)
+	_, err = a.m.Put(t.Context(), &m, first.Seen, nil)
 	stale, isStale := errors.AsType[*StaleError](err)
 	if !errors.Is(err, ErrStale) || !isStale {
 		t.Fatalf("Put on an old page = %v, want a StaleError", err)
@@ -434,7 +434,7 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	if got := a.words(1); got != "two" {
 		t.Fatalf("a refused change wrote: reads %q", got)
 	}
-	if _, err = a.m.Put(t.Context(), &m, stale.Seen, nil, open); err != nil {
+	if _, err = a.m.Put(t.Context(), &m, stale.Seen, nil); err != nil {
 		t.Fatalf("Put on what the StaleError said = %v", err)
 	}
 }
@@ -452,7 +452,7 @@ func TestTheSendsOfOneEdit(t *testing.T) {
 	send := func(body string, seq uint64, seen Seen, editID string) error {
 		m := thought(1, body)
 		a.clock.tick()
-		_, err := a.m.Put(t.Context(), &m, seen, &Edit{ID: editID, Seq: seq}, open)
+		_, err := a.m.Put(t.Context(), &m, seen, &Edit{ID: editID, Seq: seq})
 		return err
 	}
 	if err := send("first send", 1, base, "tab1"); err != nil {
@@ -492,7 +492,7 @@ func TestAPageCannotClaimToHaveReadALineThatIsNotThereYet(t *testing.T) {
 		forged[w] += 1000
 	}
 	b.clock.tick()
-	if _, err := b.m.Put(t.Context(), new(thought(1, "B's words")), forged, nil, open); err != nil {
+	if _, err := b.m.Put(t.Context(), new(thought(1, "B's words")), forged, nil); err != nil {
 		t.Fatal(err)
 	}
 	a.say(1, "A's later words, which B had not read")
@@ -651,12 +651,12 @@ func TestAnAnswerSaysOnlyWhatThePageHadRead(t *testing.T) {
 	b.say(1, "B's edit")
 	pull(b, a) // a git pull brings it in while the page is open
 	e := Edit{ID: "page-1", Seq: 1}
-	first, err := a.m.Put(t.Context(), new(thought(1, "A, typing")), page, &e, open)
+	first, err := a.m.Put(t.Context(), new(thought(1, "A, typing")), page, &e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.Seq = 2
-	if _, err = a.m.Put(t.Context(), new(thought(1, "A, typing on")), first.Seen, &e, open); err != nil {
+	if _, err = a.m.Put(t.Context(), new(thought(1, "A, typing on")), first.Seen, &e); err != nil {
 		t.Fatalf("the second send: %v", err)
 	}
 	got := a.entry(mid(1))

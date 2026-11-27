@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
@@ -49,6 +50,9 @@ type view struct {
 	// ids are the machine ids of the files in the vault, which a new id must not
 	// be.
 	ids map[string]bool
+	// aside are the values of this machine's own the ledger holds as set aside,
+	// by mark.
+	aside map[string][]Value
 
 	missing    int
 	damaged    int
@@ -85,7 +89,7 @@ func (m *Marks) load() (*view, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
 	}
-	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*kept{}}
+	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*kept{}, aside: asideOf(events)}
 	files, err := m.folder.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("read the machine files: %w", err)
@@ -130,6 +134,21 @@ func (m *Marks) load() (*view, error) {
 		v.own[id] = resolve(ls).heads
 	}
 	return v, nil
+}
+
+// asideOf is the values the ledger's set-aside lines hold, by mark, in the
+// order they were set aside.
+func asideOf(events []ledger.Event) map[string][]Value {
+	out := map[string][]Value{}
+	for i := range events {
+		if events[i].Kind != kindSetAside {
+			continue
+		}
+		if l, verdict := decode(events[i].Content); verdict == readable {
+			out[l.Mark.ID] = append(out[l.Mark.ID], Value{Mark: l.Mark, Writer: l.Writer(), Rev: l.Rev, Time: time.UnixMilli(l.T), Own: true})
+		}
+	}
+	return out
 }
 
 // scan reads the lines of one machine's file, counting what is not read.

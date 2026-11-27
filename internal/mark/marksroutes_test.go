@@ -74,18 +74,15 @@ func (n mkNotes) Units(string) (mainLine, branches []string, ok bool) { return n
 func (n mkNotes) Rows(string) (planned int, rows []string, ok bool) { return 0, nil, false }
 
 // mkRig is one computer: a vault folder, its own configuration directory, and the
-// routes over them. hidden is the path a gate that refuses it would hide, if any;
-// the reading server passes no such gate, and the tests that set one hold the
-// engine's.
+// routes over them.
 type mkRig struct {
-	t      *testing.T
-	root   string
-	conf   string
-	store  *mark.Store
-	kept   *mark.Kept
-	mux    *http.ServeMux
-	mu     sync.Mutex
-	hidden string
+	t     *testing.T
+	root  string
+	conf  string
+	store *mark.Store
+	kept  *mark.Kept
+	mux   *http.ServeMux
+	mu    sync.Mutex
 	// onReading, when set, is called once, the next time a note is read to place a
 	// mark: a write reads it after it has been let in and before it records
 	// anything, which is the moment a test makes the vault refuse the file.
@@ -114,23 +111,12 @@ func (r *mkRig) open() {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	gate := func(m *machinemarks.Mark) bool {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		return r.hidden == "" || m.Path != r.hidden
-	}
 	r.store = store
-	r.kept = mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), gate)
+	r.kept = mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	r.t.Cleanup(func() { _ = r.kept.Close() }) //nolint:errcheck // the test is over
 	r.mux = http.NewServeMux()
 	notes := &mkRigNotes{mkNotes: mkNotes{mkNote: mkText, mkSecret: mkText}, rig: r}
 	mark.NewHandler(store, r.kept, notes, slog.New(slog.DiscardHandler)).Register(r.mux)
-}
-
-func (r *mkRig) withhold(path string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.hidden = path
 }
 
 // do sends one JSON request, in the language asked for when there is one.
@@ -452,47 +438,6 @@ func TestMkGetAnswersTheMarkAndWhatThePageHasRead(t *testing.T) {
 	after := mkDecode[mkAnswer](t, r.do(http.MethodGet, "/mark/"+kept.ID, ""))
 	if !after.Deleted || after.Body != "first words" {
 		t.Fatalf("a deleted mark was answered %+v, want deleted, with its words", after)
-	}
-}
-
-// The reading server's own gate lets every mark through (the reader is the owner,
-// on the loopback, reading their own marks), so this holds the engine's gate as
-// a caller that is not the reader would set it: a mark the gate refuses is
-// answered exactly as one that was never there, by
-// every route that takes an id: the same status and the same bytes.
-func TestMkAMarkAGateRefusesAnswersExactlyLikeAMissingOne(t *testing.T) {
-	t.Parallel()
-	r := newMkRig(t)
-	response := r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkSecret+`","body":"a private thought"}`)
-	mkStatus(t, response, http.StatusCreated)
-	secret := mkDecode[mkAnswer](t, response)
-	r.withhold(mkSecret)
-
-	missing := strings.Repeat("e", 32)
-	body := `{"seen":` + mkSeenJSON(t, secret.Seen) + `,"body":"changed"}`
-	for _, request := range []struct{ method, body string }{
-		{http.MethodGet, ""},
-		{http.MethodPatch, body},
-		{http.MethodDelete, `{"seen":` + mkSeenJSON(t, secret.Seen) + `}`},
-		{http.MethodPut, `{"seen":` + mkSeenJSON(t, secret.Seen) + `}`},
-	} {
-		for _, lang := range []string{"zh-TW", "en"} {
-			held := r.do(request.method, "/mark/"+secret.ID, request.body, lang)
-			absent := r.do(request.method, "/mark/"+missing, request.body, lang)
-			if held.Code != http.StatusNotFound || held.Code != absent.Code || held.Body.String() != absent.Body.String() {
-				t.Errorf("%s of a withheld mark answered %d %q, of a missing one %d %q; want the same", request.method, held.Code, held.Body.String(), absent.Code, absent.Body.String())
-			}
-			if strings.Contains(held.Body.String(), "private") || strings.Contains(held.Body.String(), secret.ID) {
-				t.Errorf("%s of a withheld mark told something of it: %q", request.method, held.Body.String())
-			}
-		}
-	}
-	r.withhold("")
-	if got := mkDecode[mkAnswer](t, r.do(http.MethodGet, "/mark/"+secret.ID, "")); got.Body != "a private thought" {
-		t.Fatalf("a withheld mark was changed through the gate: it reads %q", got.Body)
-	}
-	if n := len(r.mkLines()); n != 1 {
-		t.Fatalf("the vault holds %d lines, want the one thought and nothing written for the refused requests", n)
 	}
 }
 
@@ -883,7 +828,7 @@ func TestMkAQuestionOfANoteThatIsGoneCanStillBeTakenAway(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	defer kept.Close() //nolint:errcheck // the test is over
 	mux := http.NewServeMux()
 	mark.NewHandler(store, kept, mkNotes{}, slog.New(slog.DiscardHandler)).Register(mux)

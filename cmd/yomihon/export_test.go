@@ -70,7 +70,7 @@ func (c computer) hand() *machinemarks.Marks {
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	c.t.Cleanup(func() { _ = kept.Close() }) //nolint:errcheck // the test is over
 	hand, err := kept.Marks()
 	if err != nil {
@@ -92,7 +92,7 @@ func (c computer) say(m machinemarks.Mark) machinemarks.Result { //nolint:gocrit
 		base = e.Seen
 	}
 	time.Sleep(3 * time.Millisecond) // a line's time is to the millisecond, and decides which value is shown
-	res, err := hand.Put(c.t.Context(), &m, base, nil, mark.AllMarks)
+	res, err := hand.Put(c.t.Context(), &m, base, nil)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func (c computer) pull(from computer) {
 func (c computer) tryPut(m *machinemarks.Mark) bool {
 	c.t.Helper()
 	time.Sleep(3 * time.Millisecond)
-	_, err := c.hand().Put(c.t.Context(), m, machinemarks.Seen{}, nil, mark.AllMarks)
+	_, err := c.hand().Put(c.t.Context(), m, machinemarks.Seen{}, nil)
 	return err == nil
 }
 
@@ -433,7 +433,7 @@ func deleteOn(t *testing.T, c computer, id string) {
 		t.Fatalf("no mark %s to delete", id)
 	}
 	time.Sleep(3 * time.Millisecond)
-	if _, err = hand.Delete(t.Context(), id, entry.Seen, nil, mark.AllMarks); err != nil {
+	if _, err = hand.Delete(t.Context(), id, entry.Seen, nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -34,7 +34,7 @@ func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...mach
 	if err != nil {
 		tb.Fatalf("name the marks: %v", err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler), mark.AllMarks)
+	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			tb.Errorf("close the marks: %v", closeErr)
@@ -52,7 +52,7 @@ func Keep(tb testing.TB, root string, configDir confdir.ConfigDir, marks ...mach
 		if m.At.IsZero() {
 			m.At = time.Now()
 		}
-		if _, err = hand.Put(tb.Context(), &m, nil, nil, mark.AllMarks); err != nil {
+		if _, err = hand.Put(tb.Context(), &m, nil, nil); err != nil {
 			tb.Fatalf("leave a mark: %v", err)
 		}
 	}

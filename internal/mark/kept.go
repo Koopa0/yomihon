@@ -28,11 +28,11 @@ const (
 	WritableReadOnly = "read_only"
 )
 
-// AllMarks is the gate of the reading server: every mark. The server answers the
-// reader at their own browser, on the loopback, about marks they made, so it
-// holds none back; the privacy rules the vault declares keep an agent's notes out
-// of what leaves the process, which is the gate the commands that print put on,
-// not this one.
+// AllMarks is the gate every read of these marks is made under: every mark. The
+// reader is the owner of them, and the server answers them at their own
+// browser, on the loopback, about marks they made; the privacy rules the vault
+// declares keep an agent's notes out of what a command prints, which is the
+// gate the export puts on its own reads.
 func AllMarks(*machinemarks.Mark) bool { return true }
 
 // Kept is the reader's highlights, thoughts and questions as the vault keeps
@@ -45,7 +45,6 @@ type Kept struct {
 	store  *Store
 	source *vault.Reader
 	log    *slog.Logger
-	gate   machinemarks.Gate
 
 	mu     sync.Mutex
 	folder *machinefile.Folder
@@ -76,17 +75,13 @@ func (k *Kept) clock() time.Time {
 
 // OpenKept names the marks of the vault source holds. It reads and writes
 // nothing: the earlier file of marks, which store keeps, is what the first
-// write of a machine with no file takes in. gate is the privacy rules every
-// call is made under; a mark it withholds is as if it were not there.
-func OpenKept(store *Store, source *vault.Reader, log *slog.Logger, gate machinemarks.Gate) *Kept {
-	if store == nil || source == nil || log == nil || gate == nil {
-		panic("mark: OpenKept requires a Store, a vault, a logger and a gate")
+// write of a machine with no file takes in.
+func OpenKept(store *Store, source *vault.Reader, log *slog.Logger) *Kept {
+	if store == nil || source == nil || log == nil {
+		panic("mark: OpenKept requires a Store, a vault and a logger")
 	}
-	return &Kept{store: store, source: source, log: log, gate: gate}
+	return &Kept{store: store, source: source, log: log}
 }
-
-// Gate is the gate every read and write of these marks goes through.
-func (k *Kept) Gate() machinemarks.Gate { return k.gate }
 
 // Marks is this machine's hand on the marks. It is an error when the reader
 // folder cannot be entered: it is a link, or not a folder, or moved.
@@ -169,7 +164,7 @@ func (k *Kept) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
 	}
 	var out []machinemarks.Mark
 	for i := range earlier {
-		if _, there := view.Entry(earlier[i].ID, k.gate); !there && k.gate(&earlier[i]) {
+		if _, there := view.Entry(earlier[i].ID, AllMarks); !there {
 			out = append(out, earlier[i])
 		}
 	}
@@ -197,7 +192,7 @@ func (k *Kept) Questions() ([]Mark, error) {
 		return nil, err
 	}
 	var out []Mark
-	for _, e := range view.Entries(k.gate) {
+	for _, e := range view.Entries(AllMarks) {
 		m := e.Mark()
 		if e.Deleted() || m.Kind != machinemarks.Question || !m.Resolved.IsZero() {
 			continue
@@ -227,7 +222,7 @@ func (k *Kept) Live(rel string) ([]machinemarks.Mark, error) {
 		return nil, err
 	}
 	var out []machinemarks.Mark
-	for _, e := range view.Entries(k.gate) {
+	for _, e := range view.Entries(AllMarks) {
 		if m := e.Mark(); !e.Deleted() && m.Path == rel {
 			out = append(out, m)
 		}
@@ -393,7 +388,7 @@ func (k *Kept) Held() (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	if view.MachineID() != "" || len(view.Entries(k.gate)) > 0 || len(pending) > 0 {
+	if view.MachineID() != "" || len(view.Entries(AllMarks)) > 0 || len(pending) > 0 {
 		return true, nil
 	}
 	_, stored, err := k.store.loadMarks()
