@@ -38,14 +38,7 @@ func In(zones []Span, off int) bool {
 // comment closes at its first -->, including CommonMark's short empty forms.
 // An unclosed one owns the rest of the body; closed distinguishes that case.
 func HTMLCommentSpan(body string, open int) (span Span, closed bool) {
-	if open < 0 || open > len(body) || !strings.HasPrefix(body[open:], "<!--") {
-		return Span{}, false
-	}
-	escapes := 0
-	for i := open - 1; i >= 0 && body[i] == '\\'; i-- {
-		escapes++
-	}
-	if escapes%2 == 1 {
+	if open < 0 || open > len(body) || !strings.HasPrefix(body[open:], "<!--") || escapedAt(body, open) {
 		return Span{}, false
 	}
 	rest := body[open+4:]

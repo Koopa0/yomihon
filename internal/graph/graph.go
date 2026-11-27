@@ -246,7 +246,7 @@ func (idx *Index) add(key, path string) {
 
 // noteKeys are the names Obsidian resolves a markdown note by, title excluded.
 func noteKeys(path string) []string {
-	return []string{filenameStem(path), filename(path), pathStem(path), path}
+	return []string{FileStem(path), filename(path), pathStem(path), path}
 }
 
 // resourceKeys are the names Obsidian resolves a non-markdown file by; both
@@ -260,10 +260,6 @@ func filename(path string) string {
 		return after
 	}
 	return path
-}
-
-func filenameStem(path string) string {
-	return strings.TrimSuffix(filename(path), ".md")
 }
 
 func pathStem(path string) string {

@@ -85,11 +85,7 @@ func TitleOf(n *vault.Note) string {
 // FileStem is a note's file name without its directory and its .md extension,
 // the title a note with neither heading nor declared title is read by.
 func FileStem(relPath string) string {
-	base := relPath
-	if _, after, found := strings.CutLast(relPath, "/"); found {
-		base = after
-	}
-	return strings.TrimSuffix(base, ".md")
+	return strings.TrimSuffix(filename(relPath), ".md")
 }
 
 // withoutHiddenText is body with its %% and HTML comments and its $$ math
@@ -198,7 +194,8 @@ func mathZones(body string, skip []Span) []Span {
 	}
 }
 
-// escapedAt reports whether the byte at off follows an odd run of backslashes.
+// escapedAt reports whether the byte at off follows an odd run of
+// backslashes, the CommonMark escape.
 func escapedAt(body string, off int) bool {
 	escapes := 0
 	for i := off - 1; i >= 0 && body[i] == '\\'; i-- {

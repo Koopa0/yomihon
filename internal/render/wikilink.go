@@ -419,45 +419,6 @@ func fenceCloses(line string, marker byte, openerLen int) bool {
 	return graph.FenceCloses(line, marker, openerLen)
 }
 
-// htmlBlockKind is one of the HTML blocks CommonMark ends at a particular
-// string rather than at an empty line: what opens it, and the text whose
-// appearance anywhere on a later line ends it.
-type htmlBlockKind struct {
-	opens *regexp.Regexp
-	// ends matches the appearance that closes the block. The four raw-text
-	// elements share one: a block opened by any of them is closed by any of
-	// their closing tags, not only the tag that matches what opened it, which
-	// is what the markdown parser this scan predicts does with them.
-	ends *regexp.Regexp
-	// closing is the text a scan stopped mid-block writes to close one itself.
-	// That is this kind's own tag rather than whichever tag would have ended
-	// it, because the scan is repairing its own interruption, not guessing at
-	// a line the author was going to write.
-	closing string
-}
-
-// htmlBlockKinds is the closed set of block openings that survive an empty
-// line, which is the set a scan stopping mid-block has to be able to close.
-// CommonMark's other two HTML blocks — the known-tag one and the bare-tag one —
-// are deliberately absent, because an empty line ends both and a callout's body
-// is laid into its note with one after it.
-//
-// The comment and declaration kinds are here on purpose rather than left to
-// chance. Both happen to be terminated today by the marker this renderer plants
-// to close a callout, which carries "-->" and ">" in its own spelling; that is a
-// coincidence of how the marker is written, not a property of the block, and it
-// would go away the moment the marker were respelled.
-var htmlBlockKinds = []htmlBlockKind{
-	{graph.HTMLBlockRawPre, graph.HTMLBlockRawEnd, "</pre>"},
-	{graph.HTMLBlockRawScript, graph.HTMLBlockRawEnd, "</script>"},
-	{graph.HTMLBlockRawStyle, graph.HTMLBlockRawEnd, "</style>"},
-	{graph.HTMLBlockRawTextarea, graph.HTMLBlockRawEnd, "</textarea>"},
-	{graph.HTMLBlockComment, regexp.MustCompile(`-->`), "-->"},
-	{graph.HTMLBlockInstr, regexp.MustCompile(`\?>`), "?>"},
-	{graph.HTMLBlockCDATA, regexp.MustCompile(`\]\]>`), "]]>"},
-	{graph.HTMLBlockDecl, regexp.MustCompile(`>`), ">"},
-}
-
 // leadingSpace is the indentation a line carries, which a close this scan writes
 // for that line's block has to repeat to stay inside the same container.
 func leadingSpace(line string) string {
@@ -638,6 +599,13 @@ func (st *preprocessState) source() string {
 // trackHTMLBlock records whether line leaves an HTML block open. It only reads
 // the line; what the line renders as is decided elsewhere, so noticing a block
 // here changes nothing about the page unless the scan stops while one is open.
+//
+// It asks only the kinds a blank line does not end, which are the kinds a scan
+// stopping mid-block has to be able to close: a callout's body is laid into its
+// note with a blank line after it, which ends the other two. The comment and
+// declaration kinds are asked on purpose. The marker this renderer plants to
+// close a callout happens to end both today, through the "-->" and ">" in its
+// spelling, and that would stop the moment the marker were respelled.
 func (st *preprocessState) trackHTMLBlock(line string) {
 	if st.htmlEnds != nil {
 		if st.htmlEnds.MatchString(line) {
@@ -645,19 +613,19 @@ func (st *preprocessState) trackHTMLBlock(line string) {
 		}
 		return
 	}
-	for i := range htmlBlockKinds {
-		kind := &htmlBlockKinds[i]
-		opener := kind.opens.FindStringIndex(line)
+	for i := range graph.HTMLBlockKinds {
+		kind := &graph.HTMLBlockKinds[i]
+		opener := kind.Opens.FindStringIndex(line)
 		if opener == nil {
 			continue
 		}
 		// The end may stand on the opening line, which is where every read-aloud
 		// marker and every marker this renderer plants ends.
-		if kind.ends.MatchString(line[opener[1]:]) {
+		if kind.Ends.MatchString(line[opener[1]:]) {
 			return
 		}
-		st.htmlEnds = kind.ends
-		st.pendingClose = leadingSpace(line) + kind.closing
+		st.htmlEnds = kind.Ends
+		st.pendingClose = leadingSpace(line) + kind.Closing
 		return
 	}
 }
