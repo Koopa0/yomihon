@@ -25,11 +25,11 @@ type Reading struct {
 	Type     string
 	Domain   string
 	// Draft is whether the author declared the note unfinished.
-	Draft              bool
-	Slug               string
-	FMDiagnostic       string
-	Language           string
-	LanguageDiagnostic string
+	Draft                 bool
+	Slug                  string
+	FrontmatterDiagnostic string
+	Language              string
+	LanguageDiagnostic    string
 	// HasFrontmatter is whether the source bytes opened a frontmatter block,
 	// including an empty fence pair whose YAML decoded to no fields.
 	HasFrontmatter bool
@@ -68,22 +68,22 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		title = graph.FileStem(parsed.RelPath)
 	}
 	return Reading{
-		RelPath:            parsed.RelPath,
-		Title:              title,
-		Titled:             titled,
-		Body:               parsed.Body,
-		BodyLine:           parsed.BodyLine,
-		Type:               parsed.Type(),
-		Domain:             parsed.Domain,
-		Draft:              schema.Draft(parsed.Frontmatter),
-		Slug:               parsed.Slug(),
-		FMDiagnostic:       parsed.FMDiagnostic,
-		Language:           language,
-		LanguageDiagnostic: diagnostic,
-		HasFrontmatter:     parsed.HasFrontmatter,
-		Created:            parsed.Created(),
-		VerifiedOn:         parsed.VerifiedOn(),
-		ContentIdentity:    vault.ContentIdentity(data),
+		RelPath:               parsed.RelPath,
+		Title:                 title,
+		Titled:                titled,
+		Body:                  parsed.Body,
+		BodyLine:              parsed.BodyLine,
+		Type:                  parsed.Type(),
+		Domain:                parsed.Domain,
+		Draft:                 schema.Draft(parsed.Frontmatter),
+		Slug:                  parsed.Slug(),
+		FrontmatterDiagnostic: parsed.FrontmatterDiagnostic,
+		Language:              language,
+		LanguageDiagnostic:    diagnostic,
+		HasFrontmatter:        parsed.HasFrontmatter,
+		Created:               parsed.Created(),
+		VerifiedOn:            parsed.VerifiedOn(),
+		ContentIdentity:       vault.ContentIdentity(data),
 		// Asked only of a note with no block, where the answer can be yes, so a
 		// note that did parse is not scanned a second time for it.
 		FrontmatterUnclosed: !parsed.HasFrontmatter && vault.OpensUnclosedFrontmatter(data),

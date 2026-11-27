@@ -32,10 +32,10 @@ type Note struct {
 	// Parse leaves it empty and whoever reads a vault against its contract
 	// fills it in.
 	Domain string
-	// FMDiagnostic is non-empty when the frontmatter block exists but is not
-	// valid YAML. Display-only: yomihon reports, a human edits the file.
-	FMDiagnostic string
-	Body         string
+	// FrontmatterDiagnostic is non-empty when the frontmatter block exists but
+	// is not valid YAML. Display-only: yomihon reports, a human edits the file.
+	FrontmatterDiagnostic string
+	Body                  string
 	// BodyLine is the 1-based file line Body begins on — 1 for a note with no
 	// frontmatter — so a body parser cites the lines an editor shows.
 	BodyLine int
@@ -43,8 +43,8 @@ type Note struct {
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
 // frontmatter into a map. rel is stored as given, in slash form. Broken YAML
-// becomes the note's FMDiagnostic rather than an error. A found block sets
-// HasFrontmatter even when the map stays nil.
+// becomes the note's FrontmatterDiagnostic rather than an error. A found block
+// sets HasFrontmatter even when the map stays nil.
 func Parse(rel string, data []byte) *Note {
 	n, _ := ParseWithTree(rel, data)
 	return n
@@ -59,9 +59,9 @@ func Parse(rel string, data []byte) *Note {
 //
 // The tree is nil for a note with no block and for a block that is not YAML. It
 // is set for any block that is, including one whose document is not a mapping:
-// there the map stays nil and FMDiagnostic says so, as a decode into a map
-// always has. A reader that has no use for the tree calls Parse and the tree is
-// dropped with the parse.
+// there the map stays nil and FrontmatterDiagnostic says so, as a decode into a
+// map always has. A reader that has no use for the tree calls Parse and the
+// tree is dropped with the parse.
 func ParseWithTree(rel string, data []byte) (*Note, *yaml.Node) {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
@@ -80,7 +80,7 @@ func ParseWithTree(rel string, data []byte) (*Note, *yaml.Node) {
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(content, &doc); err != nil {
-		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
+		n.FrontmatterDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
 		return n, nil
 	}
 	// A block of blank lines or comments holds no document. There is no map to
@@ -90,7 +90,7 @@ func ParseWithTree(rel string, data []byte) (*Note, *yaml.Node) {
 	}
 	var fields map[string]any
 	if err := doc.Decode(&fields); err != nil {
-		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
+		n.FrontmatterDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
 		return n, &doc
 	}
 	n.Frontmatter = fields

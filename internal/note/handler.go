@@ -512,7 +512,7 @@ func (h *Handler) reading(
 		Prerequisites:     prerequisites(snap, rel),
 		ObsidianHref:      obsidianOpenHref(h.sources.Source, n.RelPath),
 		FilePath:          notePath(h.sources.Source, n.RelPath),
-		Diagnostic:        n.FMDiagnostic,
+		Diagnostic:        n.FrontmatterDiagnostic,
 		Stale:             n.Stale,
 		ParsePanic:        cause.ParsePanic,
 		ParseReason:       cause.Reason,
@@ -614,7 +614,7 @@ func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wor
 		}
 		target := deref(f.Target)
 		if f.RuleID == "schema.frontmatter" {
-			target = reading.FMDiagnostic
+			target = reading.FrontmatterDiagnostic
 		}
 		notice := pages.SchemaNotice{Says: wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target)}
 		if f.RuleID == "schema.enum" {

@@ -84,8 +84,8 @@ func TestParse(t *testing.T) {
 			if got := n.Slug(); got != tt.wantSlug {
 				t.Errorf("Slug() = %q, want %q", got, tt.wantSlug)
 			}
-			if (n.FMDiagnostic != "") != tt.wantDiag {
-				t.Errorf("FMDiagnostic = %q, want diagnostic: %v", n.FMDiagnostic, tt.wantDiag)
+			if (n.FrontmatterDiagnostic != "") != tt.wantDiag {
+				t.Errorf("FrontmatterDiagnostic = %q, want diagnostic: %v", n.FrontmatterDiagnostic, tt.wantDiag)
 			}
 			if !strings.Contains(n.Body, tt.wantInBody) {
 				t.Errorf("Body does not contain %q:\n%s", tt.wantInBody, n.Body)
@@ -136,8 +136,8 @@ func TestACarriageReturnOnlyFileHasNoFrontmatter(t *testing.T) {
 
 	const content = "---\rtitle: CR\r---\rbody"
 	n := vault.Parse("note.md", []byte(content))
-	if n.HasFrontmatter || n.Frontmatter != nil || n.FMDiagnostic != "" {
-		t.Errorf("Parse() HasFrontmatter = %v frontmatter = %#v, diagnostic %q, want none of either", n.HasFrontmatter, n.Frontmatter, n.FMDiagnostic)
+	if n.HasFrontmatter || n.Frontmatter != nil || n.FrontmatterDiagnostic != "" {
+		t.Errorf("Parse() HasFrontmatter = %v frontmatter = %#v, diagnostic %q, want none of either", n.HasFrontmatter, n.Frontmatter, n.FrontmatterDiagnostic)
 	}
 	if n.Body != content {
 		t.Errorf("Parse() body = %q, want the whole file", n.Body)
@@ -169,7 +169,7 @@ func TestNonMappingYAMLIsInvalidYAML(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := vault.Parse("note.md", []byte(tt.content))
-			if n.FMDiagnostic == "" {
+			if n.FrontmatterDiagnostic == "" {
 				t.Error("Parse() diagnostic empty, want the invalid-YAML diagnostic")
 			}
 			if n.Frontmatter != nil {
@@ -272,8 +272,8 @@ func TestAFrontmatterMergeKeyNeverPanicsTheParser(t *testing.T) {
 			if n.Body != "# hi\n" {
 				t.Errorf("Parse() body = %q, want %q", n.Body, "# hi\n")
 			}
-			if gotDiag := n.FMDiagnostic != ""; gotDiag != tt.wantDiag {
-				t.Errorf("Parse() diagnostic = %q, want a diagnostic: %v", n.FMDiagnostic, tt.wantDiag)
+			if gotDiag := n.FrontmatterDiagnostic != ""; gotDiag != tt.wantDiag {
+				t.Errorf("Parse() diagnostic = %q, want a diagnostic: %v", n.FrontmatterDiagnostic, tt.wantDiag)
 			}
 			if diff := cmp.Diff(tt.wantFields, n.Frontmatter); diff != "" {
 				t.Errorf("Parse() frontmatter mismatch (-want +got):\n%s", diff)
@@ -292,8 +292,8 @@ func TestAnEmptyFrontmatterBlockIsPresentWithoutFields(t *testing.T) {
 	if !n.HasFrontmatter {
 		t.Error("Parse() HasFrontmatter = false, want the empty block counted as present")
 	}
-	if n.Frontmatter != nil || n.FMDiagnostic != "" {
-		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FMDiagnostic)
+	if n.Frontmatter != nil || n.FrontmatterDiagnostic != "" {
+		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FrontmatterDiagnostic)
 	}
 	if n.Body != "body\n" {
 		t.Errorf("Parse() body = %q, want %q", n.Body, "body\n")
@@ -372,8 +372,8 @@ func TestYAMLDiagnosticNamesFileLinesNotBlockLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := vault.Parse("note.md", []byte(tt.content))
-			if !strings.Contains(n.FMDiagnostic, tt.want) {
-				t.Errorf("Parse() diagnostic = %q, missing %q", n.FMDiagnostic, tt.want)
+			if !strings.Contains(n.FrontmatterDiagnostic, tt.want) {
+				t.Errorf("Parse() diagnostic = %q, missing %q", n.FrontmatterDiagnostic, tt.want)
 			}
 		})
 	}
@@ -766,24 +766,24 @@ func TestParseWithTreeHoldsBothViewsOfOneDecode(t *testing.T) {
 	t.Run("a block that is not YAML has no tree and says so", func(t *testing.T) {
 		t.Parallel()
 		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\nkey: [unclosed\n---\nbody\n"))
-		if doc != nil || n.FMDiagnostic == "" {
-			t.Errorf("tree = %v, FMDiagnostic = %q, want no tree and a diagnostic", doc, n.FMDiagnostic)
+		if doc != nil || n.FrontmatterDiagnostic == "" {
+			t.Errorf("tree = %v, FrontmatterDiagnostic = %q, want no tree and a diagnostic", doc, n.FrontmatterDiagnostic)
 		}
 	})
 
 	t.Run("a document that is not a mapping keeps its tree and has no map", func(t *testing.T) {
 		t.Parallel()
 		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\n- a\n- b\n---\nbody\n"))
-		if doc == nil || n.Frontmatter != nil || n.FMDiagnostic == "" {
-			t.Errorf("tree = %v, map = %v, FMDiagnostic = %q, want a tree, no map and a diagnostic", doc, n.Frontmatter, n.FMDiagnostic)
+		if doc == nil || n.Frontmatter != nil || n.FrontmatterDiagnostic == "" {
+			t.Errorf("tree = %v, map = %v, FrontmatterDiagnostic = %q, want a tree, no map and a diagnostic", doc, n.Frontmatter, n.FrontmatterDiagnostic)
 		}
 	})
 
 	t.Run("an empty block is a block with nothing in it", func(t *testing.T) {
 		t.Parallel()
 		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\n---\nbody\n"))
-		if doc == nil || !n.HasFrontmatter || n.Frontmatter != nil || n.FMDiagnostic != "" {
-			t.Errorf("tree = %v, HasFrontmatter = %t, map = %v, FMDiagnostic = %q", doc, n.HasFrontmatter, n.Frontmatter, n.FMDiagnostic)
+		if doc == nil || !n.HasFrontmatter || n.Frontmatter != nil || n.FrontmatterDiagnostic != "" {
+			t.Errorf("tree = %v, HasFrontmatter = %t, map = %v, FrontmatterDiagnostic = %q", doc, n.HasFrontmatter, n.Frontmatter, n.FrontmatterDiagnostic)
 		}
 	})
 

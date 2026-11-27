@@ -394,7 +394,7 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 		// a draft flag that is not a boolean on a thought leaves whether it is
 		// open so.
 		unread := snap.NotText(rel, "type") || (schema.NormalizeWord(reading.Type) == answerType && snap.NotBoolean(rel, schema.DraftField))
-		if reading.FMDiagnostic != "" || reading.FrontmatterUnclosed || unread {
+		if reading.FrontmatterDiagnostic != "" || reading.FrontmatterUnclosed || unread {
 			return fmt.Errorf("%s has frontmatter that could not be read, so whether it is a thought still open is unknown; nothing was listed", escapeTerminal(rel))
 		}
 	}

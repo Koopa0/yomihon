@@ -29,8 +29,8 @@ func TestByteOrderMarkBeforeTheFirstHeadingRendersAsAHeading(t *testing.T) {
 			if withTitle.TitleAnchor != "bom-heading" || strings.Contains(withTitle.HTML, "BOM heading") {
 				t.Errorf("HTML(Parse(BOM heading), matching title) anchor/body = %q/%q, want title anchor without a repeated heading", withTitle.TitleAnchor, withTitle.HTML)
 			}
-			if prefix != "" && (note.Type() != "metadata-type" || note.FMDiagnostic != "") {
-				t.Errorf("Parse(BOM frontmatter) type/diagnostic = %q/%q, want metadata-type and no diagnostic", note.Type(), note.FMDiagnostic)
+			if prefix != "" && (note.Type() != "metadata-type" || note.FrontmatterDiagnostic != "") {
+				t.Errorf("Parse(BOM frontmatter) type/diagnostic = %q/%q, want metadata-type and no diagnostic", note.Type(), note.FrontmatterDiagnostic)
 			}
 		})
 	}

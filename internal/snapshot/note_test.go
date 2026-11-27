@@ -51,7 +51,7 @@ func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
 	if !got.HasFrontmatter {
 		t.Fatal("malformed frontmatter dropped the block that produced the diagnostic")
 	}
-	if got.FMDiagnostic == "" {
+	if got.FrontmatterDiagnostic == "" {
 		t.Fatal("malformed frontmatter diagnostic was dropped")
 	}
 }
