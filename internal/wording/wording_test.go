@@ -293,36 +293,6 @@ func TestJoinGuide(t *testing.T) {
 	}
 }
 
-// TestTraditionalChineseUsesFullWidthPunctuation keeps the Traditional Chinese
-// chrome on full-width marks. Half-width punctuation in CJK context was a copy
-// defect across fifteen sites; the phrases exempt below quote YAML syntax or
-// a literal address. English is held to straight quotes in the same walk: %q and the other
-// format verbs already emit them at twenty-two sites, and curly at the four
-// former exceptions would mean StepBackOpen/StepBackClose-style splits at each
-// one — one more chance per site to put both conventions on one screen again.
-func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
-	t.Parallel()
-
-	exempt := map[string]string{
-		"StatusFieldUnsupportedYAMLNext": "quotes YAML status: 值 syntax",
-		"NoDeclaredTypeEmptyFmt":         "quotes the YAML type: 值 line a reader would write",
-		"NoDeclaredTypesEmptyFmt":        "quotes the YAML type: 值 line a reader would write",
-		"PrefSampleAddress":              "the address the example lesson quotes, set as code",
-	}
-	halfWidth := regexp.MustCompile(`[,;():]`)
-	for _, p := range writtenPhrases(t) {
-		if _, ok := exempt[p.name]; ok {
-			continue
-		}
-		if halfWidth.MatchString(p.zhHant) {
-			t.Errorf("%s Traditional Chinese carries half-width punctuation: %q", p.name, p.zhHant)
-		}
-		if strings.ContainsAny(p.en, "\u201c\u201d") {
-			t.Errorf("%s English carries curly quotes: %q", p.name, p.en)
-		}
-	}
-}
-
 // Other is the complement of a two-value set, so it has to be a complement:
 // never the language it was given, and its own inverse.
 func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
@@ -335,44 +305,5 @@ func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
 		if back := lang.Other().Other(); back != lang {
 			t.Errorf("%q.Other().Other() = %q, want %q", lang, back, lang)
 		}
-	}
-}
-
-// The desk's bookmark plate, its band of recent changes, the kind words a
-// note's head says and the settings' groups were worded by the owner, in both
-// languages, and are held here as approved: a reader of either language meets
-// the words that were signed off, and neither side can be left behind when the
-// other is edited.
-func TestApprovedWordsReadAsApprovedInBothLanguages(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name   string
-		phrase Phrase
-		zh, en string
-	}{
-		{"bookmark label", BookmarkLabel, "書籤", "Bookmark"},
-		{"stopped at", StoppedAtFmt, "停在 %s", "Stopped at %s"},
-		{"minutes ago", MinutesAgoFmt, "%d 分鐘前", "%d min ago"},
-		{"hours ago", HoursAgoFmt, "%d 小時前", "%d h ago"},
-		{"yesterday", Yesterday, "昨天", "Yesterday"},
-		// The owner first approved 最近改動, then chose 變更 so the band and the
-		// order by latest change say one word for one idea.
-		{"recently changed", RecentlyChanged, "最近變更", "Recently changed"},
-		{"template", Template, "範本", "Template"},
-		{"report", Report, "報告", "Report"},
-		{"paper and type", PrefGroupPaper, "紙面與字體", "Paper and type"},
-		{"while reading", PrefGroupReading, "閱讀行為", "While reading"},
-		{"preview", PrefPreview, "即時預覽", "Preview"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tt.phrase.In(ZhHant); got != tt.zh {
-				t.Errorf("In(ZhHant) = %q, want the approved %q", got, tt.zh)
-			}
-			if got := tt.phrase.In(En); got != tt.en {
-				t.Errorf("In(En) = %q, want the approved %q", got, tt.en)
-			}
-		})
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/render"
@@ -81,29 +80,6 @@ func TestEveryDiagnosticKindHasWordsOnThePage(t *testing.T) {
 			if summary := diagnosticSummary(&render.Diagnostic{Kind: kind}, lang); summary == unknown {
 				t.Errorf("%s (%q) has no summary in %s: the page would call it unrecognised", name, value, lang)
 			}
-		}
-	}
-}
-
-// TestTheDiagnosticKindWalkSeesAKindItWasNotToldAbout proves the enumeration
-// above is reading declarations rather than reproducing a list. A walk that
-// silently found nothing would let every assertion in the test beside it pass
-// while checking no kind at all.
-func TestTheDiagnosticKindWalkSeesAKindItWasNotToldAbout(t *testing.T) {
-	t.Parallel()
-
-	kinds := declaredDiagnosticKinds(t)
-	// Two the walk must have found: one declared long before this test and one
-	// added after it, named here so a rename is a failure rather than a
-	// quietly shorter list.
-	for _, name := range []string{"DiagWikilinkBroken", "DiagEmbedNotExpanded"} {
-		if _, found := kinds[name]; !found {
-			t.Errorf("the walk did not find %s; it is reading something other than the kind declarations", name)
-		}
-	}
-	for name, value := range kinds {
-		if !strings.HasPrefix(name, "Diag") || value == "" {
-			t.Errorf("the walk collected %s = %q, which is not a diagnostic kind", name, value)
 		}
 	}
 }

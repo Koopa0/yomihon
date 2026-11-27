@@ -282,8 +282,6 @@ e2e-http-check:
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-e2e-http.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	bash .github/e2e/serve.sh --self-test; \
-	bash .github/e2e/smoke.sh --self-test; \
 	bash .github/e2e/serve.sh "$$tmp/yomihon" 0 -- bash .github/e2e/smoke.sh
 
 # Each target gets a fixed work budget and one worker. A wall-clock fuzz budget

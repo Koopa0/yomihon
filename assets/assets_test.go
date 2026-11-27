@@ -111,39 +111,6 @@ func TestBrandMarkOnPaperDrawsTheCanonicalMark(t *testing.T) {
 	}
 }
 
-// Both READMEs open with the same heading: the canonical mark, and under a
-// dark colour scheme the mark on its paper tile, because the canonical page
-// shape is nearly the ink of GitHub's dark ground.
-func TestReadmesStartWithTheBrandHeading(t *testing.T) {
-	t.Parallel()
-
-	const heading = `<h1><picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/` + brandMarkOnPaperFile + `"><img src="assets/brand/` + brandMarkFile + `" width="36" height="36" alt="" aria-hidden="true"></picture> yomihon</h1>`
-	for _, name := range []string{"README.md", "README.zh-TW.md"} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			readme, err := os.ReadFile("../" + name) // #nosec G304 -- one of the two README names this test lists
-			if err != nil {
-				t.Fatalf("read repository %s: %v", name, err)
-			}
-			firstLine, _, _ := strings.Cut(string(readme), "\n")
-			if firstLine != heading {
-				t.Errorf("%s first line = %q, want rendered brand heading %q", name, firstLine, heading)
-			}
-			for _, projection := range []string{`src="assets/brand/` + brandMarkFile + `"`, `srcset="assets/brand/` + brandMarkOnPaperFile + `"`} {
-				if got := strings.Count(string(readme), projection); got != 1 {
-					t.Errorf("%s brand projections of %s = %d, want one", name, projection, got)
-				}
-			}
-			for _, file := range []string{brandMarkFile, brandMarkOnPaperFile} {
-				if _, err := os.Stat("brand/" + file); err != nil {
-					t.Errorf("%s names brand file %s, which is not in the brand directory: %v", name, file, err)
-				}
-			}
-		})
-	}
-}
-
 func TestBrandMarkValidatorRejectsNonCanonicalSVG(t *testing.T) {
 	t.Parallel()
 

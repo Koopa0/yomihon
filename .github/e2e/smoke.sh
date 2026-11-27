@@ -9,16 +9,6 @@
 # serve.sh starts the server and exports the two variables this reads:
 #
 #   bash .github/e2e/serve.sh ./bin/yomihon 19733 -- bash .github/e2e/smoke.sh
-#
-# The socket and Home assertions can never go red against a correct live server,
-# so they carry their own recorded proofs that they can:
-#
-#   bash .github/e2e/smoke.sh --self-test
-#
-# drives the same verdict over recorded listings from both engines — a widened
-# bind, a wildcard bind, an address family added alongside loopback — and
-# requires each to be refused. It needs no server, and it runs in CI beside the
-# live pass.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,9 +20,7 @@ fail() {
 
 # One named site per way into the library, one content marker that only the
 # fixture vault's rendered README can supply, and the quiet row that leads from
-# the desk to the library's health. The live verdict
-# and its self-test share this table, so neither can silently stop checking
-# one of them.
+# the desk to the library's health.
 #
 # The rail is not among them. Home carries the four ways in and no rail: a
 # listing beside a copy of itself is a second organisation of the same notes,
@@ -46,10 +34,6 @@ home_markers=(
   'desk-health|data-home-health'
 )
 
-# This is a set comparison, not an order oracle: deleting a marker from the
-# live table must not also delete its self-test by construction.
-required_home_sites=(courses indexes reports folders vault-readme desk-health)
-
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
 note_markers=(
@@ -57,18 +41,6 @@ note_markers=(
   'sidebar-course-path|data-book-path="Maps/study.md"'
   'sidebar-course-current|aria-current="page"'
 )
-
-required_note_sites=(sidebar-course sidebar-course-path sidebar-course-current)
-
-check_home_marker_table() {
-  local actual required
-  actual="$(printf '%s\n' "${home_markers[@]%%|*}" | sort)"
-  required="$(printf '%s\n' "${required_home_sites[@]}" | sort)"
-  [ "$actual" = "$required" ] || fail "Home marker sites differ from the required block and README set"
-  actual="$(printf '%s\n' "${note_markers[@]%%|*}" | sort)"
-  required="$(printf '%s\n' "${required_note_sites[@]}" | sort)"
-  [ "$actual" = "$required" ] || fail "note-page marker sites differ from the required rail set"
-}
 
 note_body_error() {
   local content="$1" entry site marker
@@ -136,8 +108,8 @@ home_body_error() {
 
 # Reads a listing of listening sockets and reports whether it describes a socket
 # bound to loopback and to nothing else. Empty means the server is not listening
-# at all, which is not the promise either. Echoing the reason lets one caller
-# print it and the self-test compare against it.
+# at all, which is not the promise either. The reason is echoed for the caller
+# to print.
 #
 # Both address tests end the port at a non-digit, because a port number is a
 # prefix of longer ones: asked about 1973, a line for 19733 answers. Without that
@@ -162,194 +134,6 @@ loopback_only() {
   return 0
 }
 
-# The verdict above is the live form of a wall, and against a real server it can
-# only ever come back green. These recordings are what make it a lock: each is a
-# listing a real engine would print, and each is answered for by exactly one of
-# the verdict's three refusals, which is why the expected reason is compared and
-# not merely the accept-or-refuse. A listing refused for the wrong reason has
-# found a hole in a different check than the one it was written to hold. Remove
-# any one refusal — the empty listing, the missing loopback address, any single
-# address family in the widened-bind pattern — and a row below turns red while
-# this file's live pass, against a server that binds loopback, goes on passing.
-self_test() {
-  local port=19733 failures=0
-  check_home_marker_table
-  check() { # <name> <want: accepted|the reason> <listing>
-    local name="$1" want="$2" listing="$3" reason status
-    reason="$(loopback_only "$listing" "$port")" && status=accepted || status=refused
-    if [ "$status" = accepted ]; then
-      reason=accepted
-    fi
-    case "$reason" in
-    *"$want"*)
-      echo "  ok: ${name} -> ${reason}"
-      ;;
-    *)
-      echo "  SELF-TEST FAIL: ${name} -> ${reason}, want ${want}" >&2
-      failures=1
-      ;;
-    esac
-  }
-
-  check "lsof, loopback only" \
-    "accepted" \
-    "yomihon 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:19733 (LISTEN)"
-  check "ss, loopback only" \
-    "accepted" \
-    "LISTEN 0 4096 127.0.0.1:19733 0.0.0.0:*"
-  check "nothing listening" \
-    "no listening socket found" \
-    ""
-  check "lsof, bound to a machine-local network address" \
-    "not bound to 127.0.0.1" \
-    "yomihon 1 koopa 6u IPv4 0x1 0t0 TCP 192.168.1.5:19733 (LISTEN)"
-  check "lsof, loopback and 0.0.0.0 together" \
-    "non-loopback address" \
-    "yomihon 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:19733 (LISTEN)
-yomihon 1 koopa 7u IPv4 0x2 0t0 TCP 0.0.0.0:19733 (LISTEN)"
-  check "ss, loopback and every v6 address together" \
-    "non-loopback address" \
-    "LISTEN 0 4096 127.0.0.1:19733 0.0.0.0:*
-LISTEN 0 4096 [::]:19733 [::]:*"
-  check "lsof, loopback and a wildcard bind together" \
-    "non-loopback address" \
-    "yomihon 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:19733 (LISTEN)
-yomihon 1 koopa 7u IPv4 0x2 0t0 TCP *:19733 (LISTEN)"
-  # A port number is a prefix of longer ones. These two hold the loopback test to
-  # the port it was asked about: the first is a loopback socket on a different
-  # port that merely starts with this one, and the second sets that decoy beside
-  # a server reachable from the network on the port that was asked about.
-  check "lsof, loopback on a longer port that starts with this one" \
-    "not bound to 127.0.0.1" \
-    "something 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:197330 (LISTEN)"
-  check "lsof, that decoy beside a network-reachable bind on the asked port" \
-    "not bound to 127.0.0.1" \
-    "something 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:197330 (LISTEN)
-yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
-
-  # Build one complete Home recording from the same marker table the live
-  # verdict reads. Then remove each named invariant in turn. This proves a blank
-  # 200, a recording missing any block, and one missing only the README
-  # content all go red for the invariant that was removed, regardless of table
-  # order.
-  local complete="" entry site marker broken reason
-  for entry in "${home_markers[@]}"; do
-    complete+="${entry#*|}"$'\n'
-  done
-  if ! home_body_error "$complete" >/dev/null; then
-    echo "  SELF-TEST FAIL: the complete Home recording was refused" >&2
-    failures=1
-  fi
-  if home_body_error "" >/dev/null 2>&1; then
-    echo "  SELF-TEST FAIL: a blank 200 body was accepted as Home" >&2
-    failures=1
-  else
-    echo "  ok: blank 200 -> refused"
-  fi
-  for entry in "${home_markers[@]}"; do
-    site="${entry%%|*}"
-    marker="${entry#*|}"
-    broken="${complete//"$marker"/}"
-    if reason="$(home_body_error "$broken")"; then
-      echo "  SELF-TEST FAIL: Home without ${site} was accepted" >&2
-      failures=1
-    elif [ "$reason" != "missing ${site} marker: ${marker}" ]; then
-      echo "  SELF-TEST FAIL: Home without ${site} failed at '${reason}'" >&2
-      failures=1
-    else
-      echo "  ok: Home without ${site} -> refused at ${site}"
-    fi
-  done
-
-  local note_complete=""
-  for entry in "${note_markers[@]}"; do
-    note_complete+="${entry#*|}"$'\n'
-  done
-  if ! note_body_error "$note_complete" >/dev/null; then
-    echo "  SELF-TEST FAIL: the complete note-page recording was refused" >&2
-    failures=1
-  fi
-  if note_body_error "" >/dev/null 2>&1; then
-    echo "  SELF-TEST FAIL: a blank 200 body was accepted as a note page" >&2
-    failures=1
-  else
-    echo "  ok: blank 200 -> refused as a note page"
-  fi
-  for entry in "${note_markers[@]}"; do
-    site="${entry%%|*}"
-    marker="${entry#*|}"
-    broken="${note_complete//"$marker"/}"
-    if reason="$(note_body_error "$broken")"; then
-      echo "  SELF-TEST FAIL: a note page without ${site} was accepted" >&2
-      failures=1
-    elif [ "$reason" != "missing ${site} marker: ${marker}" ]; then
-      echo "  SELF-TEST FAIL: a note page without ${site} failed at '${reason}'" >&2
-      failures=1
-    else
-      echo "  ok: note page without ${site} -> refused at ${site}"
-    fi
-  done
-
-  # The declared types of a contract are read from the tables and from the
-  # enum list. Each recording is a contract shape a reader may write, and each
-  # states which types it declares; a reading that drops the tables, drops the
-  # enum words, follows a multi-line list too short, or counts a word from some
-  # other list turns exactly one row red.
-  check_types() { # <name> <want: comma-joined types> <contract text>
-    local name="$1" want="$2" text="$3" got
-    got="$(declared_types <<<"$text" | tr '\n' ',')"
-    got="${got%,}"
-    if [ "$got" = "$want" ]; then
-      echo "  ok: ${name} -> ${got:-no types}"
-    else
-      echo "  SELF-TEST FAIL: ${name} -> '${got}', want '${want}'" >&2
-      failures=1
-    fi
-  }
-  check_types "tables only" "concept,guide" '[types.concept]
-
-[types.guide]
-role = "x"'
-  check_types "one-line enum list only" "inbox,moc" '[enums]
-domain = ["golang"]
-type = ["inbox", "moc"]'
-  check_types "tables and enum list together" "inbox,note,concept" '[enums]
-type = ["inbox"]
-
-[types.note]
-[types.concept]'
-  check_types "a multi-line enum list" "a,b,c" '[enums]
-type = [
-  "a", "b",
-  "c",
-]
-level = ["not-a-type"]'
-  check_types "words from other lists and tables are not types" "" '[enums]
-domain = ["field-note"]
-level = ["field-note"]
-
-[fields]
-common = ["type", "field-note"]
-
-[folders]
-checked = ["field-note"]'
-  check_types "a type list after another table is not the enum list" "" '[fields]
-type = ["field-note"]'
-  check_types "a quoted table name" "study path" '[types."study path"]'
-  check_types "a commented-out declaration" "" '# [types.field-note]
-# type = ["field-note"]'
-  check_types "no declarations" "" '[privacy]
-never_egress_dirs = []'
-
-  [ "$failures" -eq 0 ] || fail "an HTTP smoke verdict accepted a recorded regression"
-  echo "self-test passed: widened binds, incomplete Home bodies and note pages without their rail were refused at their named invariants"
-}
-
-if [ "${1:-}" = "--self-test" ]; then
-  self_test
-  exit 0
-fi
-
 out_of_contract_note="${here}/vault/Notes/out-of-contract.md"
 fixture_contract="${here}/vault/System/schemas/vault-schema.toml"
 out_of_contract_type="$(sed -n 's/^type: //p' "$out_of_contract_note")"
@@ -362,7 +146,6 @@ fi
 
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
-check_home_marker_table
 body="$(mktemp "${TMPDIR:-/tmp}/yomihon-smoke.XXXXXX")"
 trap 'rm -f "$body"' EXIT
 

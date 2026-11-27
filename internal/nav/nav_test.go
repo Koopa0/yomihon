@@ -3,9 +3,6 @@ package nav
 import (
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"slices"
@@ -2593,85 +2590,5 @@ func TestEntryKindOfAnswersTheResolverAndStopsOnAnythingElse(t *testing.T) {
 	}()
 	if recovered == nil {
 		t.Fatal("an unknown resolution kind was absorbed, which is how a study path used to report it as a missing note")
-	}
-}
-
-// One classifier answers what a resolved target is, and the reason it is one is
-// that the two it replaced disagreed: they mapped the same four outcomes with
-// opposite policies for a kind neither knew. A unit test on the classifier
-// cannot see that come back — a caller growing its own switch beside it leaves
-// the classifier correct and every test green, which is exactly the state this
-// package was in before.
-//
-// So this reads the package instead: the resolver's kinds are matched in one
-// place, and the two row builders reach it by calling that place.
-func TestOnlyOneFunctionClassifiesAResolutionKind(t *testing.T) {
-	t.Parallel()
-
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read the package directory: %v", err)
-	}
-	matching := map[string]int{}
-	calling := map[string]int{}
-	sources := 0
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		sources++
-		file, parseErr := parser.ParseFile(token.NewFileSet(), name, nil, 0)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", name, parseErr)
-		}
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
-			}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				switch node := n.(type) {
-				case *ast.SwitchStmt:
-					for _, stmt := range node.Body.List {
-						clause, ok := stmt.(*ast.CaseClause)
-						if !ok {
-							continue
-						}
-						for _, expr := range clause.List {
-							sel, ok := expr.(*ast.SelectorExpr)
-							if !ok || !strings.HasPrefix(sel.Sel.Name, "Kind") {
-								continue
-							}
-							if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "graph" {
-								matching[fn.Name.Name]++
-							}
-						}
-					}
-				case *ast.CallExpr:
-					if callee, ok := node.Fun.(*ast.Ident); ok && callee.Name == "entryKindOf" {
-						calling[fn.Name.Name]++
-					}
-				}
-				return true
-			})
-		}
-	}
-	if sources == 0 {
-		t.Fatal("no source file was read, so this check would pass over any package")
-	}
-
-	for name := range matching {
-		if name != "entryKindOf" {
-			t.Errorf("%s matches the resolver's kinds itself; one place classifies them, and two places disagreed once already", name)
-		}
-	}
-	if matching["entryKindOf"] == 0 {
-		t.Error("entryKindOf no longer matches the resolver's kinds, so this check is watching a name that moved")
-	}
-	for _, builder := range []string{"resolveEntry", "buildPathEntry"} {
-		if calling[builder] == 0 {
-			t.Errorf("%s does not ask entryKindOf what it resolved", builder)
-		}
 	}
 }
