@@ -317,7 +317,8 @@ func RemoveLeftovers(dir Dir, name string) error {
 // directory that holds it, and the directory above each one this call made.
 // The directory is synced on that first append and not only when the file is
 // made, since the call that made it may have failed after it did, or been
-// another process's that stopped. An error means data may be there in part or
+// another process's that stopped. A file another process has replaced since is
+// a file this process has not appended to. An error means data may be there in part or
 // whole and may not be on stable storage. A name that is something other
 // than a regular file, a link among them, is refused before it is opened.
 //
@@ -346,8 +347,7 @@ func Append(dir Dir, name string, data []byte) error {
 	// Opened before anything is written, so that a directory that cannot be
 	// synced refuses the first data while there is no file to hold part of it.
 	var directories []directory
-	first := !appended.has(path)
-	if missing || first || len(made) > 0 {
+	if missing || !appended.synced(path, info) || len(made) > 0 {
 		if directories, err = openDirectories(dir.path, made); err != nil {
 			return fmt.Errorf("open the directory of %s to sync it: %w", name, err)
 		}
@@ -357,31 +357,39 @@ func Append(dir Dir, name string, data []byte) error {
 		err = errors.Join(err, d.close())
 	}
 	if err == nil {
-		appended.add(path)
+		// A file this cannot look at again is synced again next time.
+		if after, lookErr := os.Lstat(path); lookErr == nil {
+			appended.add(path, after)
+		}
 	}
 	return err
 }
 
 // appended is the files this process has appended to with their directory
-// synced: after that, an append syncs only the file.
-var appended = pathSet{held: map[string]bool{}}
+// synced: after that, an append to the same file syncs only the file.
+var appended = syncedFiles{held: map[string]fs.FileInfo{}}
 
-// pathSet is a set of paths that goroutines share.
-type pathSet struct {
+// syncedFiles is the files, by path, whose directory this process synced, as
+// they were then. Goroutines share it.
+type syncedFiles struct {
 	mu   sync.Mutex
-	held map[string]bool
+	held map[string]fs.FileInfo
 }
 
-func (s *pathSet) has(path string) bool {
+// synced says the file at path, which a look found as info, is the very file
+// whose directory this process synced: another file renamed over it since is
+// not.
+func (s *syncedFiles) synced(path string, info fs.FileInfo) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.held[path]
+	held, ok := s.held[path]
+	return ok && info != nil && os.SameFile(held, info)
 }
 
-func (s *pathSet) add(path string) {
+func (s *syncedFiles) add(path string, info fs.FileInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.held[path] = true
+	s.held[path] = info
 }
 
 // appendTo writes data to the end of the file at path, syncs it, and syncs

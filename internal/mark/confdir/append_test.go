@@ -127,6 +127,28 @@ func TestTheFirstAppendToAFileThereSyncsItsDirectory(t *testing.T) {
 	}
 }
 
+// A file another process replaced since this one last appended to it is a new
+// file, whose entry in the directory that process may have stopped before it
+// synced: the next append syncs the directory again, and a directory that cannot
+// be synced refuses it.
+func TestAnAppendToAFileAnotherReplacedSyncsItsDirectory(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	if err := confdir.Append(dir, "ledger.jsonl", []byte("one\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir.Join(".ledger-1.jsonl"), []byte("one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(dir.Join(".ledger-1.jsonl"), dir.Join("ledger.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	unreadableDir(t, dir.Path(), 0o300)
+	if err := confdir.Append(dir, "ledger.jsonl", []byte("two\n")); err == nil {
+		t.Fatal("an Append to a file another replaced, in a directory that cannot be synced = nil, want an error")
+	}
+}
+
 // What stands at the name and is not a regular file is refused before it is
 // opened: a directory cannot hold a line, and a link would put the bytes
 // wherever it points.

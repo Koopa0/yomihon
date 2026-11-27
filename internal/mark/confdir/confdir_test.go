@@ -380,3 +380,26 @@ func TestAZeroDirIsRefusedByEverythingThatChangesAFile(t *testing.T) {
 		t.Errorf("Stat = %v, want ErrNotNamed", err)
 	}
 }
+
+// unreadableDir gives path, a directory of the test's own, mode, and gives it
+// 0o700 back when the test ends. It skips where a mode refuses nothing: on
+// Windows, which does not refuse a directory by its permission bits, and for a
+// user who opens a directory it may not read (a privileged user).
+func unreadableDir(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not refuse a directory by its permission bits")
+	}
+	if err := os.Chmod(path, mode); err != nil { // #nosec G302 -- the test's own temporary directory
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(path, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+			t.Errorf("restore the directory's mode: %v", err)
+		}
+	})
+	if opened, err := os.Open(path); err == nil { // #nosec G304 -- the test's own temporary directory
+		_ = opened.Close() //nolint:errcheck // only whether it opened matters
+		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
+	}
+}
