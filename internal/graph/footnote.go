@@ -22,21 +22,21 @@ type InlineFootnote struct {
 	Content string
 }
 
-// inlineFootnote records a note's source without rendering it. Goldmark
+// footnoteNode records an inline note's source without rendering it. Goldmark
 // decides where inline syntax is legal, so code, escapes and HTML attributes
 // do not become notes.
-type inlineFootnote struct {
+type footnoteNode struct {
 	ast.BaseInline
 
 	span    text.Segment
 	content *text.Segments
 }
 
-var kindInlineFootnote = ast.NewNodeKind("InlineFootnote")
+var kindFootnoteNode = ast.NewNodeKind("InlineFootnote")
 
-func (*inlineFootnote) Kind() ast.NodeKind { return kindInlineFootnote }
+func (*footnoteNode) Kind() ast.NodeKind { return kindFootnoteNode }
 
-func (n *inlineFootnote) Dump(source []byte, level int) {
+func (n *footnoteNode) Dump(source []byte, level int) {
 	ast.DumpHelper(n, source, level, nil, nil)
 }
 
@@ -57,7 +57,7 @@ func (inlineFootnoteParser) Parse(_ ast.Node, block text.Reader, _ parser.Contex
 		return nil
 	}
 	_, end := block.Position()
-	return &inlineFootnote{span: text.NewSegment(start.Start, end.Start), content: content}
+	return &footnoteNode{span: text.NewSegment(start.Start, end.Start), content: content}
 }
 
 // footnoteReader reads a source with the page's footnote grammar, ordinary and
@@ -77,7 +77,7 @@ func InlineFootnotes(source string) []InlineFootnote {
 	src := []byte(source)
 	var notes []InlineFootnote
 	_ = ast.Walk(footnoteReader.Parse(text.NewReader(src)), func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
-		if note, ok := n.(*inlineFootnote); ok && entering {
+		if note, ok := n.(*footnoteNode); ok && entering {
 			notes = append(notes, InlineFootnote{
 				Span:    Span{Start: note.span.Start, Stop: note.span.Stop},
 				Content: string(note.content.Value(src)),
