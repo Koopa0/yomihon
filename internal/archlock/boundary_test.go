@@ -2,11 +2,13 @@ package archlock
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/constant"
 	"go/token"
 	"go/types"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -21,17 +23,19 @@ import (
 )
 
 // The boundary walk reads every shipped package of this module with its types,
-// on each system the release is built for, and holds it to what a reader trusts
-// yomihon for: it writes only in the two packages that may, reads one variable
-// of its environment, opens no connection but its loopback listener, and hands
-// an agent only what the privacy gate sealed. Every rule is judged on what a use
-// resolves to, since a name says what a programmer called something and a type
-// says what it is.
+// on each system the release is built for, and holds each use of a name of the
+// standard library to what a reader trusts yomihon for: only the two packages
+// that write name what changes a file; the environment is read through os,
+// syscall or os/user only where the rules below allow; the network is named
+// only by the server's own names; and what an agent is handed leaves through a
+// sealed payload. A use is judged by what it resolves to, not by how it is
+// spelt.
 //
 // The modules the program links are not read: go.mod and go.sum pin them and
-// govulncheck checks them, and what they do inside is theirs. Reflection is not
-// read either, so reflect and the template packages are forbidden imports, with
-// C, unsafe and go:linkname.
+// govulncheck checks them, and what they do inside is theirs. What this walk
+// cannot read is refused outright: reflection, the templates, cgo, unsafe, a
+// linkname directive, a function with no body, and a source file that is not
+// Go.
 
 const (
 	// rawWriter writes the reader's own files, inside the configuration
@@ -58,12 +62,21 @@ type writer struct {
 var writers = map[string]writer{
 	rawWriter: {dir: "Dir"},
 	// machinefile writes through the root it opens and the files that root
-	// opens, and so names no write by a path. Which file it writes is held by
-	// its own tests.
+	// opens. On Windows it also reopens a folder by its path to flush it, with
+	// the names of flushWindows. Which file it writes is held by its own tests.
 	machineFileWriter: {dir: "Folder", may: func(key string) bool {
 		return key == "os.OpenRoot" || strings.HasPrefix(key, "os.Root.") || strings.HasPrefix(key, "os.File.") ||
-			strings.HasPrefix(key, "os.O_") || strings.HasPrefix(key, systemCalls+"/windows.")
+			strings.HasPrefix(key, "os.O_") || slices.Contains(flushWindows, strings.TrimPrefix(key, systemCalls+"/windows."))
 	}},
+}
+
+// flushWindows are the names of golang.org/x/sys/windows machinefile uses to
+// flush a folder and to tell a rename's passing failures from lasting ones.
+var flushWindows = []string{
+	"ByHandleFileInformation", "CloseHandle", "CreateFile", "ERROR_ACCESS_DENIED", "ERROR_FILENAME_EXCED_RANGE",
+	"ERROR_SHARING_VIOLATION", "FILE_FLAG_BACKUP_SEMANTICS", "FILE_FLAG_OPEN_REPARSE_POINT", "FILE_SHARE_DELETE",
+	"FILE_SHARE_READ", "FILE_SHARE_WRITE", "FlushFileBuffers", "GENERIC_WRITE", "GetFileInformationByHandle",
+	"GetFinalPathNameByHandle", "Handle", "MAX_LONG_PATH", "OPEN_EXISTING", "UTF16ToString",
 }
 
 // reachesFilesystem reports whether a package can change a file or run a
@@ -111,6 +124,28 @@ var writeFamilies = []string{
 	"Remove", "Rename", "Symlink", "Truncate", "WriteFile", "Kill", "Signal",
 }
 
+// networkPackages are held to networkNames, in every package the writers
+// included: a name of theirs that is not on the list is refused, so one the
+// standard library adds is refused the day it appears. A constant opens
+// nothing and passes.
+var networkPackages = []string{"net", "net/http", "crypto/tls"}
+
+// networkNames are what the server is made of: the loopback listener main
+// binds, the server and its routes, and the request and response they answer.
+// None dials, resolves a name or listens on its own.
+var networkNames = []string{
+	"net.JoinHostPort", "net.SplitHostPort", "net.TCPAddr", "net.Listener", "net.ListenConfig", "net.ListenConfig.Listen",
+	"net/http.Server", "net/http.Server.Serve", "net/http.Server.Shutdown", "net/http.Server.Close", "net/http.ErrServerClosed",
+	"net/http.Handler", "net/http.HandlerFunc", "net/http.ServeMux", "net/http.NewServeMux",
+	"net/http.ServeMux.HandleFunc", "net/http.ServeMux.Handler", "net/http.ServeMux.ServeHTTP",
+	"net/http.NewCrossOriginProtection", "net/http.CrossOriginProtection.Handler", "net/http.CrossOriginProtection.SetDenyHandler",
+	"net/http.Request", "net/http.Request.Context", "net/http.Request.Cookie", "net/http.Request.ParseForm",
+	"net/http.Request.PathValue", "net/http.Request.WithContext",
+	"net/http.ResponseWriter", "net/http.Header", "net/http.Header.Get", "net/http.Header.Set", "net/http.Cookie", "net/http.SetCookie",
+	"net/http.Error", "net/http.Redirect", "net/http.ServeContent", "net/http.MaxBytesReader", "net/http.MaxBytesError",
+	"net/http.NewResponseController", "net/http.ResponseController.Flush",
+}
+
 // alsoRefused write files of their own outside the packages above.
 var alsoRefused = []string{
 	"runtime/debug.WriteHeapDump",
@@ -122,18 +157,31 @@ var alsoRefused = []string{
 	"net/http.Request.FormValue", "net/http.Request.PostFormValue",
 }
 
-// forbiddenImports reach past the types this walk reads: cgo calls any C,
-// unsafe breaks the types, and reflect and the templates call a method by a
-// name that is a string.
-var forbiddenImports = []string{"C", "unsafe", "reflect", "text/template", "html/template"}
+// refusedImports are packages shipped code may not import, each with why.
+var refusedImports = map[string]string{
+	"C":                 "reaches past what this guard can read",
+	"unsafe":            "reaches past what this guard can read",
+	"reflect":           "calls a method by a name that is a string, which this guard cannot read",
+	"text/template":     "calls a method by a name that is a string, which this guard cannot read",
+	"html/template":     "calls a method by a name that is a string, which this guard cannot read",
+	"os/exec":           "starts another program, whose writes are no name in this source",
+	"plugin":            "loads another program, whose writes are no name in this source",
+	"os/user":           "reads the environment past the one variable main reads",
+	"log/syslog":        "opens a connection, and yomihon makes no outbound call",
+	"net/smtp":          "opens a connection, and yomihon makes no outbound call",
+	"net/rpc":           "opens a connection, and yomihon makes no outbound call",
+	"net/rpc/jsonrpc":   "opens a connection, and yomihon makes no outbound call",
+	"net/http/httputil": "opens a connection, and yomihon makes no outbound call",
+	"net/http/httptest": "opens a listener, and the one listener is the loopback one main binds",
+}
 
-// programStarters start or load another program, whose writes are no name in
-// this source. A package of the standard library that imports one, however far
-// down, is refused as well.
+// programStarters start or load another program. A package of the standard
+// library that imports one, however far down, is refused as well.
 var programStarters = []string{"os/exec", "plugin"}
 
-// placeRule refuses a name outside the files or directories (ending in "/") it
-// is allowed in, or everywhere when allowedIn is empty.
+// placeRule refuses a name outside the files or the directories (ending in
+// "/", the package and none below it) it is allowed in, or everywhere when
+// allowedIn is empty.
 type placeRule struct {
 	match     func(key string) bool
 	allowedIn []string
@@ -156,14 +204,10 @@ var placeRules = []placeRule{
 	{named("os.UserHomeDir"), []string{"internal/vault/tilde.go"}, "is read only to spell a path under it as ~"},
 	{named("os.Environ", "os.ExpandEnv", "os.Expand", "os.UserCacheDir", "syscall.Getenv", "syscall.Environ"), nil,
 		"reads the environment past the one variable main reads"},
-	{named("net.Dial*", "net.Lookup*", "net.Resolver*", "net.DefaultResolver",
-		"net/http.Client*", "net/http.DefaultClient", "net/http.DefaultTransport", "net/http.Transport*",
-		"net/http.Get", "net/http.Head", "net/http.Post", "net/http.PostForm", "net/http.NewRequest*",
-		"crypto/tls.Dial*", "crypto/tls.Client", "crypto/tls.Listen"), nil,
-		"opens a connection, and yomihon makes no outbound call"},
 	{func(key string) bool { return strings.HasPrefix(key, "net.Listen") && key != "net.Listener" }, []string{mainFile},
 		"opens a listener, and the one listener is the loopback one main binds"},
-	{named("os.Stdout", "os.NewFile"), []string{mainFile}, "is standard output, and only main hands it to the commands, as a writer"},
+	{named("os.Stdout", "os.NewFile", "fmt.Print", "fmt.Printf", "fmt.Println"), []string{mainFile},
+		"is standard output, and only main hands it to the commands, as a writer"},
 	{named(module+"/internal/schema.PrivacyPolicy.EgressAllowed", module+"/internal/schema.PrivacyPolicy.WithheldDirs"),
 		[]string{"internal/egress/"}, "asks what is withheld, and only the gate decides that"},
 	{named("go.yaml.in/yaml/v3.Unmarshal", "go.yaml.in/yaml/v3.NewDecoder"), []string{"internal/vault/", "internal/drill/slot.go"},
@@ -176,7 +220,7 @@ var placeRules = []placeRule{
 // inPlace reports whether a repository file is one of places.
 func inPlace(file string, places []string) bool {
 	return slices.ContainsFunc(places, func(place string) bool {
-		return file == place || strings.HasSuffix(place, "/") && strings.HasPrefix(file, place)
+		return file == place || strings.HasSuffix(place, "/") && file[:strings.LastIndexByte(file, '/')+1] == place
 	})
 }
 
@@ -299,6 +343,22 @@ func resolve(obj types.Object) (symbol, bool) {
 	return symbol{}, false
 }
 
+// refusedEverywhere is what a use is refused as in any package, the writers
+// included, or that it is not.
+func refusedEverywhere(sym symbol, obj types.Object) (string, bool) {
+	if slices.Contains(alsoRefused, sym.key) {
+		return sym.key + ", which makes files of its own", true
+	}
+	// A method of an interface acts on a value it is handed, and has no key.
+	if sym.key == "" || !slices.Contains(networkPackages, sym.path) || slices.Contains(networkNames, sym.key) {
+		return "", false
+	}
+	if _, isConst := obj.(*types.Const); isConst {
+		return "", false
+	}
+	return sym.key + ", which is not one of the network's names this guard knows to open no connection", true
+}
+
 // refusal is what a use of obj outside the writers is refused as, or that it
 // is not.
 func refusal(sym symbol, obj types.Object) (string, bool) {
@@ -307,9 +367,6 @@ func refusal(sym symbol, obj types.Object) (string, bool) {
 			return "a call through an interface to " + sym.viaIfaceFor + ", which a handle that writes or ends a process answers", true
 		}
 		return "", false
-	}
-	if slices.Contains(alsoRefused, sym.key) {
-		return sym.key + ", which makes files of its own", true
 	}
 	if !reachesFilesystem(sym.path) || slices.Contains(readOnly, sym.key) {
 		return "", false
@@ -337,17 +394,23 @@ type unit struct {
 	pkg   *types.Package
 	// root is the directory paths are reported relative to.
 	root string
+	// others are the package's files that are not Go, which the go command
+	// builds into it.
+	others []string
 }
 
 func (u *unit) rel(pos token.Pos) (path string, line int) {
 	position := u.fset.Position(pos)
-	name := position.Filename
+	return u.relPath(position.Filename), position.Line
+}
+
+func (u *unit) relPath(name string) string {
 	if u.root != "" {
 		if rel, err := filepath.Rel(u.root, name); err == nil {
 			name = rel
 		}
 	}
-	return filepath.ToSlash(name), position.Line
+	return filepath.ToSlash(name)
 }
 
 func (u *unit) at(pos token.Pos, text string) site {
@@ -379,17 +442,26 @@ func refusedUses(u *unit) []site {
 	permitted := permittedCalls(u)
 	var found []site
 	for id, obj := range u.info.Uses {
+		if builtin, isBuiltin := obj.(*types.Builtin); isBuiltin && (builtin.Name() == "print" || builtin.Name() == "println") {
+			found = append(found, u.at(id.Pos(), builtin.Name()+", which writes to standard error past every gate"))
+			continue
+		}
 		sym, ok := resolve(obj)
 		if !ok {
 			continue
 		}
 		file, _ := u.rel(id.Pos())
-		if i := slices.IndexFunc(placeRules, func(r placeRule) bool { return sym.key != "" && r.match(sym.key) }); i >= 0 && !inPlace(file, placeRules[i].allowedIn) {
+		i := slices.IndexFunc(placeRules, func(r placeRule) bool { return sym.key != "" && r.match(sym.key) })
+		if i >= 0 && !inPlace(file, placeRules[i].allowedIn) {
 			found = append(found, u.at(id.Pos(), shortKey(sym.key)+", which "+placeRules[i].why))
 			continue
 		}
 		if rule, constrained := constrainedCalls[sym.key]; constrained && !permitted[id] {
 			found = append(found, u.at(id.Pos(), shortKey(sym.key)+", which is called only with "+rule.says))
+			continue
+		}
+		if what, refused := refusedEverywhere(sym, obj); refused {
+			found = append(found, u.at(id.Pos(), what))
 			continue
 		}
 		if isWriter && (w.may == nil || w.may(sym.key)) {
@@ -402,68 +474,98 @@ func refusedUses(u *unit) []site {
 	return found
 }
 
-// shape holds each exported function or method of a writer that changes a
-// file, however many of its own helpers away, to being handed the writer's
-// type, as a parameter or in a receiver that holds one: one that took a path
-// could be pointed anywhere, a vault included.
+// shape holds what a writer exports that changes a file, however many of its
+// own helpers and variables away, to being handed the writer's type: a
+// function or method takes it, as a parameter or in a receiver that holds one,
+// and a variable may not hold such a function at all, since whoever calls it
+// hands it nothing. One that took a path could be pointed anywhere, a vault
+// included.
 func shape(u *unit) []site {
 	w, isWriter := writers[u.path]
 	if !isWriter {
 		return nil
 	}
-	type function struct {
-		decl   *ast.FuncDecl
-		obj    *types.Func
-		writes bool
-		calls  []*types.Func
+	// A holder is a function, or a variable of the package, with the code it
+	// runs: a body, or the value it is set to.
+	type holder struct {
+		obj      types.Object
+		from, to token.Pos
+		writes   bool
+		uses     []types.Object
 	}
-	var functions []*function
+	var holders []*holder
 	for _, file := range u.files {
 		for _, decl := range file.Decls {
-			if fn, isFunc := decl.(*ast.FuncDecl); isFunc && fn.Body != nil {
-				if obj, isDef := u.info.Defs[fn.Name].(*types.Func); isDef {
-					functions = append(functions, &function{decl: fn, obj: obj})
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				if obj, isFunc := u.info.Defs[d.Name].(*types.Func); isFunc && d.Body != nil {
+					holders = append(holders, &holder{obj: obj, from: d.Body.Pos(), to: d.Body.End()})
+				}
+			case *ast.GenDecl:
+				for _, spec := range d.Specs {
+					value, isValue := spec.(*ast.ValueSpec)
+					if !isValue || len(value.Values) == 0 {
+						continue
+					}
+					for _, name := range value.Names {
+						if obj, isVar := u.info.Defs[name].(*types.Var); isVar {
+							holders = append(holders, &holder{obj: obj, from: value.Values[0].Pos(), to: value.Values[len(value.Values)-1].End()})
+						}
+					}
 				}
 			}
 		}
 	}
 	for id, obj := range u.info.Uses {
-		i := slices.IndexFunc(functions, func(fn *function) bool {
-			return fn.decl.Body.Pos() <= id.Pos() && id.Pos() < fn.decl.Body.End()
-		})
+		i := slices.IndexFunc(holders, func(h *holder) bool { return h.from <= id.Pos() && id.Pos() < h.to })
 		if i < 0 {
 			continue
 		}
 		if sym, ok := resolve(obj); ok && !slices.Contains(writerQueries, sym.key) {
 			if _, refused := refusal(sym, obj); refused {
-				functions[i].writes = true
+				holders[i].writes = true
 			}
 		}
-		if callee, isFunc := obj.(*types.Func); isFunc && callee.Pkg() == u.pkg {
-			functions[i].calls = append(functions[i].calls, callee.Origin())
+		switch used := obj.(type) {
+		case *types.Func:
+			if used.Pkg() == u.pkg {
+				holders[i].uses = append(holders[i].uses, used.Origin())
+			}
+		case *types.Var:
+			if used.Pkg() == u.pkg && used.Parent() == u.pkg.Scope() {
+				holders[i].uses = append(holders[i].uses, used)
+			}
 		}
 	}
 	for changed := true; changed; {
 		changed = false
-		for _, fn := range functions {
-			if !fn.writes && slices.ContainsFunc(fn.calls, func(callee *types.Func) bool {
-				return slices.ContainsFunc(functions, func(other *function) bool { return other.obj == callee && other.writes })
+		for _, h := range holders {
+			if !h.writes && slices.ContainsFunc(h.uses, func(used types.Object) bool {
+				return slices.ContainsFunc(holders, func(other *holder) bool { return other.obj == used && other.writes })
 			}) {
-				fn.writes, changed = true, true
+				h.writes, changed = true, true
 			}
 		}
 	}
 	dir := u.pkg.Scope().Lookup(w.dir)
 	var found []site
-	for _, fn := range functions {
-		if !fn.writes || !fn.obj.Exported() || handed(fn.obj.Signature(), dir) {
+	for _, h := range holders {
+		if !h.writes || !h.obj.Exported() {
 			continue
 		}
-		name := fn.obj.Name()
-		if recv := fn.obj.Signature().Recv(); recv != nil {
-			name = typeName(recv.Type()) + "." + name
+		switch obj := h.obj.(type) {
+		case *types.Var:
+			found = append(found, u.at(obj.Pos(), obj.Name()+" is a variable that holds what changes a file, and a caller outside hands it no "+w.dir))
+		case *types.Func:
+			if handed(obj.Signature(), dir) {
+				continue
+			}
+			name := obj.Name()
+			if recv := obj.Signature().Recv(); recv != nil {
+				name = typeName(recv.Type()) + "." + name
+			}
+			found = append(found, u.at(obj.Pos(), name+" changes a file, or a process, and takes no "+w.dir+", so a caller could point it anywhere"))
 		}
-		found = append(found, u.at(fn.decl.Pos(), name+" changes a file, or a process, and takes no "+w.dir+", so a caller could point it anywhere"))
 	}
 	return found
 }
@@ -526,15 +628,24 @@ func typeName(t types.Type) string {
 	return t.String()
 }
 
-// forbidden reports what reaches past the type checker: one of
-// forbiddenImports, and a go:linkname, which names a symbol of another package
-// without importing it.
+// forbidden reports what the walk refuses by its shape alone: an import of
+// refusedImports; a go:linkname, which names a symbol of another package
+// without importing it; and a function with no body, or a file that is not Go,
+// whose code is in a language this guard does not read.
 func forbidden(u *unit) []site {
 	var found []site
+	for _, name := range u.others {
+		found = append(found, site{path: u.relPath(name), text: "a file that is not Go, which this guard does not read"})
+	}
 	for _, file := range u.files {
 		for _, imp := range file.Imports {
-			if path, err := strconv.Unquote(imp.Path.Value); err == nil && slices.Contains(forbiddenImports, path) {
-				found = append(found, u.at(imp.Pos(), "imports "+path+", which reaches past what this guard can read"))
+			if path, err := strconv.Unquote(imp.Path.Value); err == nil && refusedImports[path] != "" {
+				found = append(found, u.at(imp.Pos(), "imports "+path+", which "+refusedImports[path]))
+			}
+		}
+		for _, decl := range file.Decls {
+			if fn, isFunc := decl.(*ast.FuncDecl); isFunc && fn.Body == nil {
+				found = append(found, u.at(fn.Pos(), fn.Name.Name+" has no body, so its code is in a file this guard does not read"))
 			}
 		}
 		for _, group := range file.Comments {
@@ -600,12 +711,21 @@ func startsAProgram(u *unit, reached map[string]string) []site {
 // payloadWrite is how a sealed payload leaves for an agent.
 const payloadWrite = module + "/internal/egress.Payload.WriteTo"
 
-// payloadOnly holds a writer that an egress.Payload is written to, which is a
-// command's standard output, to that and nothing else. A writer is a variable,
-// known by what it is and not by what it is called, and one handed on to
-// another variable, or to a parameter of another function of the package, is
-// held there too: a command that printed text of its own to it would put out
-// what no gate sealed.
+// gateKeys are what an agent-facing command opens a gate or runs an engine
+// with.
+var gateKeys = []string{
+	module + "/internal/egress.Open",
+	module + "/internal/judge.RunCheck", module + "/internal/judge.RunCoverage", module + "/internal/judge.RunExists",
+}
+
+// payloadOnly holds a writer that an egress.Payload is written to to that and
+// nothing else. A writer is a variable, known by what it is and not by what it
+// is called, and what it flows into, another variable or a parameter of
+// another function of the package, is held too: a command that printed text of
+// its own to it would put out what no gate sealed. In the command, the
+// parameters main hands standard output to, and what they flow into, must be
+// written a payload in every file that opens a gate or runs an engine, and
+// such a file has to receive standard output that way.
 func payloadOnly(u *unit) []site {
 	local := func(obj types.Object) *types.Var {
 		if v, isVar := obj.(*types.Var); isVar && !v.IsField() && v.Pkg() == u.pkg && v.Parent() != u.pkg.Scope() {
@@ -613,86 +733,144 @@ func payloadOnly(u *unit) []site {
 		}
 		return nil
 	}
-	// A use of a variable is a payload written to it, the variable it is handed
-	// on to, or anything else.
-	type use struct {
-		id      *ast.Ident
+	// A flow is where one use of a variable goes: into a payload's write, or
+	// into another variable, as itself or as part of what is handed on. A use
+	// with no flow goes anywhere else.
+	type flow struct {
 		written bool
 		into    *types.Var
+		itself  bool
 	}
-	handed := map[*ast.Ident]use{}
-	handOn := func(from ast.Expr, into *types.Var) {
-		if id, isIdent := ast.Unparen(from).(*ast.Ident); isIdent && into != nil {
-			handed[id] = use{id: id, into: into}
+	flows := map[*ast.Ident][]flow{}
+	stdout := map[*types.Var]bool{}
+	flowsInto := func(from ast.Expr, to flow) {
+		whole := selectorOrIdent(from)
+		if call, isCall := ast.Unparen(from).(*ast.CallExpr); isCall && len(call.Args) == 1 && u.info.Types[call.Fun].IsType() {
+			whole = selectorOrIdent(call.Args[0])
 		}
+		ast.Inspect(from, func(node ast.Node) bool {
+			if id, isIdent := node.(*ast.Ident); isIdent && local(u.info.Uses[id]) != nil {
+				to.itself = id == whole
+				flows[id] = append(flows[id], to)
+			}
+			return true
+		})
 	}
+	gated := map[string]bool{}
 	for _, file := range u.files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch n := node.(type) {
 			case *ast.AssignStmt:
-				if len(n.Lhs) == len(n.Rhs) {
-					for i, lhs := range n.Lhs {
-						if id, isIdent := lhs.(*ast.Ident); isIdent {
-							handOn(n.Rhs[i], local(u.info.ObjectOf(id)))
-						}
+				for i, lhs := range n.Lhs {
+					id, isIdent := lhs.(*ast.Ident)
+					if !isIdent || id.Name == "_" {
+						continue
 					}
+					target := local(u.info.ObjectOf(id))
+					if target == nil {
+						continue
+					}
+					// A call that returns several values hands each of them what it
+					// was handed.
+					from := n.Rhs[0]
+					if len(n.Lhs) == len(n.Rhs) {
+						from = n.Rhs[i]
+					}
+					flowsInto(from, flow{into: target})
 				}
 			case *ast.ValueSpec:
-				if len(n.Names) == len(n.Values) {
-					for i, name := range n.Names {
-						handOn(n.Values[i], local(u.info.Defs[name]))
+				for i, name := range n.Names {
+					if target := local(u.info.Defs[name]); target != nil && len(n.Names) == len(n.Values) {
+						flowsInto(n.Values[i], flow{into: target})
 					}
 				}
 			case *ast.CallExpr:
-				callee := typeutil.StaticCallee(u.info, n)
-				if callee == nil {
-					return true
+				key := calleeKey(u.info, n)
+				if slices.Contains(gateKeys, key) {
+					path, _ := u.rel(n.Pos())
+					gated[path] = true
 				}
-				sym, _ := resolve(callee)
-				sig := callee.Origin().Signature()
+				callee := typeutil.StaticCallee(u.info, n)
 				for i, arg := range n.Args {
-					id, isIdent := ast.Unparen(arg).(*ast.Ident)
 					switch {
-					case !isIdent:
-					case sym.key == payloadWrite:
-						handed[id] = use{id: id, written: true}
-					case callee.Pkg() == u.pkg && !n.Ellipsis.IsValid() && i < sig.Params().Len() && (!sig.Variadic() || i < sig.Params().Len()-1):
-						handOn(id, sig.Params().At(i))
+					case key == payloadWrite:
+						flowsInto(arg, flow{written: true})
+					case callee != nil && callee.Pkg() == u.pkg && !n.Ellipsis.IsValid() && i < callee.Signature().Params().Len() &&
+						(!callee.Signature().Variadic() || i < callee.Signature().Params().Len()-1):
+						param := callee.Origin().Signature().Params().At(i)
+						flowsInto(arg, flow{into: param})
+						if sym, ok := resolve(u.info.Uses[selectorOrIdent(arg)]); ok && sym.key == "os.Stdout" {
+							stdout[param] = true
+						}
 					}
 				}
 			}
 			return true
 		})
 	}
-	uses := map[*types.Var][]use{}
+	uses := map[*types.Var][]*ast.Ident{}
 	for id, obj := range u.info.Uses {
 		if v := local(obj); v != nil {
-			one, isHanded := handed[id]
-			if !isHanded {
-				one = use{id: id}
-			}
-			uses[v] = append(uses[v], one)
+			uses[v] = append(uses[v], id)
 		}
 	}
 	bound := map[*types.Var]bool{}
-	held := func(one use) bool { return one.written || bound[one.into] }
+	held := func(id *ast.Ident) bool {
+		return slices.ContainsFunc(flows[id], func(f flow) bool { return f.written || bound[f.into] })
+	}
 	for changed := true; changed; {
 		changed = false
-		for v, all := range uses {
-			if !bound[v] && slices.ContainsFunc(all, held) {
+		for v, ids := range uses {
+			if !bound[v] && slices.ContainsFunc(ids, held) {
 				bound[v], changed = true, true
+			}
+			if stdout[v] {
+				for _, id := range ids {
+					for _, f := range flows[id] {
+						if f.itself && f.into != nil && !stdout[f.into] {
+							stdout[f.into], changed = true, true
+						}
+					}
+				}
 			}
 		}
 	}
 	var found []site
-	for v, all := range uses {
-		for _, one := range all {
-			if bound[v] && !held(one) {
-				found = append(found, u.at(one.id.Pos(), v.Name()+" is written an egress.Payload and is used here for something else, so what leaves is not only what the gate sealed"))
+	for v, ids := range uses {
+		for _, id := range ids {
+			if bound[v] && !held(id) {
+				found = append(found, u.at(id.Pos(), v.Name()+" is written an egress.Payload and is used here for something else, so what leaves is not only what the gate sealed"))
 			}
 		}
 	}
+	if u.pkg.Name() != "main" {
+		return found
+	}
+	reached := map[string]bool{}
+	for v := range stdout {
+		path, _ := u.rel(v.Pos())
+		reached[path] = true
+		if gated[path] && !bound[v] {
+			found = append(found, u.at(v.Pos(), v.Name()+" is standard output in a command that opens a gate or runs an engine, and is not written an egress.Payload"))
+		}
+	}
+	for path := range gated {
+		if !reached[path] {
+			found = append(found, site{path: path, text: "opens a gate or runs an engine, and main hands it standard output by no parameter this walk follows"})
+		}
+	}
 	return found
+}
+
+// selectorOrIdent is the identifier an expression names, or nil.
+func selectorOrIdent(e ast.Expr) *ast.Ident {
+	switch e := ast.Unparen(e).(type) {
+	case *ast.Ident:
+		return e
+	case *ast.SelectorExpr:
+		return e.Sel
+	}
+	return nil
 }
 
 // writtenSentences reports each http.Error handed a sentence written at the
@@ -747,7 +925,9 @@ type world struct {
 	units []*unit
 	// byPath is every package a fixture may import, the same packages the tree
 	// was checked against.
-	byPath   map[string]*types.Package
+	byPath map[string]*types.Package
+	// graph is every package of the build, by path, with what it imports.
+	graph    map[string]*packages.Package
 	starters map[string]string
 }
 
@@ -763,27 +943,34 @@ func (w *world) Import(path string) (*types.Package, error) {
 // import, loaded on top of it.
 var fixtureImports = []string{"io/ioutil", "mime/multipart", "net/http/cgi", "os/exec", "plugin", "runtime/coverage", "runtime/debug"}
 
-// loadWorld reads the module for one system, once.
-var loadWorld = func() func(target) (*world, error) {
-	loads := map[target]func() (*world, error){}
-	for _, at := range releaseTargets {
-		loads[at] = sync.OnceValues(func() (*world, error) { return readWorld(at) })
-	}
-	return func(at target) (*world, error) { return loads[at]() }
-}()
-
 // target is a system the release is built for.
 type target struct{ goos, goarch string }
 
 func (t target) String() string { return t.goos + "/" + t.goarch }
 
-// releaseTargets are the systems the release is built for. No file of the
-// module is chosen by architecture, so one each reads every file; the test
-// says so when one is.
-var releaseTargets = []target{{"darwin", "amd64"}, {"linux", "amd64"}, {"windows", "amd64"}}
+// releaseTargets are the systems make portable-build-check builds.
+var releaseTargets = []target{
+	{"darwin", "amd64"}, {"darwin", "arm64"}, {"linux", "amd64"}, {"linux", "arm64"}, {"windows", "amd64"}, {"windows", "arm64"},
+}
 
 // fixtureTarget is the system the fixtures are checked against.
 var fixtureTarget = target{"linux", "amd64"}
+
+// worlds reads the module for every release system, once, side by side.
+var worlds = sync.OnceValues(func() (map[target]*world, error) {
+	read := make([]*world, len(releaseTargets))
+	errs := make([]error, len(releaseTargets))
+	var reading sync.WaitGroup
+	for i, at := range releaseTargets {
+		reading.Go(func() { read[i], errs[i] = readWorld(at) })
+	}
+	reading.Wait()
+	all := map[target]*world{}
+	for i, at := range releaseTargets {
+		all[at] = read[i]
+	}
+	return all, errors.Join(errs...)
+})
 
 func readWorld(at target) (*world, error) {
 	root, err := filepath.Abs(repoRoot)
@@ -795,23 +982,19 @@ func readWorld(at target) (*world, error) {
 		patterns = append(patterns, fixtureImports...)
 	}
 	// What the release is built with, and not what the shell has set: GOFLAGS
-	// could add files to the load and a workspace could swap a module.
-	env := append(os.Environ(), "GOOS="+at.goos, "GOARCH="+at.goarch, "CGO_ENABLED=0", "GOFLAGS=", "GOWORK=off", "GOENV=off")
+	// could add files to the load and a workspace could swap a module. The
+	// module's packages are read from source and what they import from export
+	// data, which still carries the whole import graph.
 	pkgs, err := packages.Load(&packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
 			packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedModule,
 		Dir: root,
-		Env: env,
+		Env: append(os.Environ(), "GOOS="+at.goos, "GOARCH="+at.goarch, "CGO_ENABLED=0", "GOFLAGS=", "GOWORK=off", "GOENV=off"),
 	}, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("read the module for %s: %w", at, err)
 	}
-	// The import graph alone, for what reaches a program starter.
-	graph, err := packages.Load(&packages.Config{Mode: packages.NeedName | packages.NeedImports | packages.NeedDeps | packages.NeedModule, Dir: root, Env: env}, patterns...)
-	if err != nil {
-		return nil, fmt.Errorf("read the import graph for %s: %w", at, err)
-	}
-	w := &world{byPath: map[string]*types.Package{}}
+	w := &world{byPath: map[string]*types.Package{}, graph: map[string]*packages.Package{}}
 	var add func(p *types.Package)
 	add = func(p *types.Package) {
 		if _, seen := w.byPath[p.Path()]; !seen {
@@ -829,12 +1012,11 @@ func readWorld(at target) (*world, error) {
 			add(p.Types)
 		}
 		if p.Module != nil && p.Module.Path == module && len(p.GoFiles) > 0 {
-			w.units = append(w.units, &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: root})
+			w.units = append(w.units, &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: root, others: p.OtherFiles})
 		}
 	}
-	nodes := map[string]*packages.Package{}
-	packages.Visit(graph, nil, func(p *packages.Package) { nodes[p.PkgPath] = p })
-	w.starters = startersReached(nodes)
+	packages.Visit(pkgs, nil, func(p *packages.Package) { w.graph[p.PkgPath] = p })
+	w.starters = startersReached(w.graph)
 	return w, nil
 }
 
@@ -844,46 +1026,25 @@ func readWorld(at target) (*world, error) {
 func TestShippedCodeKeepsToItsBoundaries(t *testing.T) {
 	t.Parallel()
 
-	type walked struct {
-		found []site
-		read  []string
-		err   error
+	all, err := worlds()
+	if err != nil {
+		t.Fatal(err)
 	}
-	results := make([]walked, len(releaseTargets))
-	var reading sync.WaitGroup
-	for i, at := range releaseTargets {
-		reading.Go(func() {
-			w, err := loadWorld(at)
-			if err != nil {
-				results[i].err = err
-				return
-			}
-			for _, u := range w.units {
-				results[i].found = append(results[i].found, check(u, w.starters)...)
-				for _, file := range u.files {
-					path, _ := u.rel(file.Pos())
-					results[i].read = append(results[i].read, path)
-				}
-			}
-		})
-	}
-	reading.Wait()
-
 	on := map[site][]string{}
 	var order []site
 	read := map[string]bool{}
-	for i, result := range results {
-		if result.err != nil {
-			t.Fatal(result.err)
-		}
-		for _, one := range result.found {
-			if _, seen := on[one]; !seen {
-				order = append(order, one)
+	for _, at := range releaseTargets {
+		for _, u := range all[at].units {
+			for _, one := range check(u, all[at].starters) {
+				if _, seen := on[one]; !seen {
+					order = append(order, one)
+				}
+				on[one] = append(on[one], at.String())
 			}
-			on[one] = append(on[one], releaseTargets[i].String())
-		}
-		for _, path := range result.read {
-			read[path] = true
+			for _, file := range u.files {
+				path, _ := u.rel(file.Pos())
+				read[path] = true
+			}
 		}
 	}
 	for _, one := range order {
@@ -893,10 +1054,52 @@ func TestShippedCodeKeepsToItsBoundaries(t *testing.T) {
 		t.Errorf("%s:%d %s", one.path, one.line, one.text)
 	}
 	// A file no system builds is a file nothing here read.
-	for _, path := range productionFiles(t, ".go") {
+	for _, path := range repositoryFiles(t, func(name string) bool {
+		return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+	}) {
 		if !read[path] {
 			t.Errorf("%s is built on none of %v, so what it does is not checked", path, releaseTargets)
 		}
+	}
+}
+
+// notGo are the extensions of the files the go command builds besides Go.
+var notGo = []string{".s", ".S", ".sx", ".syso", ".c", ".h", ".hh", ".hpp", ".cc", ".cpp", ".cxx", ".m", ".f", ".F", ".for", ".f90", ".swig", ".swigcxx"}
+
+// TestTheModuleIsBuiltFromWhatTheWalkReads refuses what would build the
+// program from code the walk does not read: a file the go command builds that
+// is not Go, a vendored copy of modules, which is built without being checked
+// against go.sum, and a workspace or a second module, which can swap one.
+func TestTheModuleIsBuiltFromWhatTheWalkReads(t *testing.T) {
+	t.Parallel()
+
+	err := filepath.WalkDir(repoRoot, func(p string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(repoRoot, p)
+		if err != nil {
+			return err
+		}
+		rel, name := filepath.ToSlash(rel), entry.Name()
+		switch {
+		case entry.IsDir() && slices.Contains(outsideTheTree, name):
+			return fs.SkipDir
+		case entry.IsDir() && name == "vendor":
+			t.Errorf("%s is a vendored copy of modules, which go builds without checking it against go.sum", rel)
+			return fs.SkipDir
+		case entry.IsDir():
+		case slices.Contains(notGo, filepath.Ext(name)):
+			t.Errorf("%s is a file the go command builds that is not Go, which the boundary walk does not read", rel)
+		case name == "go.work" || name == "go.work.sum":
+			t.Errorf("%s is a workspace, which can swap a module for another", rel)
+		case name == "go.mod" && rel != "go.mod":
+			t.Errorf("%s is a second module inside this one", rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the repository: %v", err)
 	}
 }
 

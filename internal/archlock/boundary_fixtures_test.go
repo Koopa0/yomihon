@@ -25,6 +25,8 @@ type fixture struct {
 	stubs map[string]string
 	// parsed is read for its syntax alone, since it cannot be type-checked.
 	parsed bool
+	// others are files of the package that are not Go.
+	others []string
 	// want is a part of what each refusal says, one for each, in any order.
 	want []string
 }
@@ -77,7 +79,7 @@ func (f *fixture) read(w *world) (*unit, error) {
 	fset := token.NewFileSet()
 	if f.parsed {
 		parsed, err := parser.ParseFile(fset, file, f.src, parser.ParseComments)
-		return &unit{path: path, fset: fset, files: []*ast.File{parsed}}, err
+		return &unit{path: path, fset: fset, files: []*ast.File{parsed}, others: f.others}, err
 	}
 	return (&fixtureImporter{world: w, fset: fset, stubs: f.stubs, made: map[string]*types.Package{}}).check(path, file, f.src)
 }
@@ -133,7 +135,7 @@ func Renameat2(a int, b string, c int, d string, e uint) error { return nil }`},
 		src: `package fixture
 import ("os/exec"; "plugin")
 func run() error { _, _ = plugin.Open("x.so"); return exec.Command("rm", "x").Run() }`,
-		want: []string{"plugin.Open", "os/exec.Command", "os/exec.Cmd.Run"},
+		want: []string{"imports os/exec", "imports plugin", "plugin.Open", "os/exec.Command", "os/exec.Cmd.Run"},
 	},
 	{
 		name: "a program started by a package of the standard library",
@@ -156,7 +158,26 @@ func parse(r *http.Request) error { return r.ParseMultipartForm(1 << 20) }`,
 import _ "unsafe"
 //go:linkname write os.write
 func write(fd int, p []byte) (int, error)`,
-		want: []string{"imports unsafe", "go:linkname"},
+		want: []string{"imports unsafe", "go:linkname", "write has no body"},
+	},
+	{
+		name:   "a system call written in assembly",
+		parsed: true,
+		src: `package fixture
+func rawsys(trap, a1 uintptr) uintptr`,
+		others: []string{"internal/fixture/zz_asm_amd64.s"},
+		want:   []string{"rawsys has no body", "a file that is not Go"},
+	},
+	{
+		name:   "packages that reach the network or the environment on their own",
+		parsed: true,
+		src: `package fixture
+import (
+	_ "net/http/httputil"
+	_ "net/smtp"
+	_ "os/user"
+)`,
+		want: []string{"imports net/http/httputil, which opens a connection", "imports net/smtp, which opens a connection", "imports os/user, which reads the environment"},
 	},
 	{
 		name:   "a method called by a name that is a string",
@@ -203,6 +224,29 @@ type Folder struct{ root *os.Root }
 func (f *Folder) Clear(name string) error { return f.root.Remove(name) }
 func Clean(root *os.Root, name string) error { return root.Remove(name) }`,
 		want: []string{"Clean changes a file, or a process, and takes no Folder"},
+	},
+	{
+		name: "writes held in variables of confdir",
+		as:   rawWriter,
+		file: "internal/mark/confdir/fixture.go",
+		src: `package confdir
+import "os"
+type Dir struct{ path string }
+var PlantWipe = os.RemoveAll
+var rename = os.Rename
+func Move(from, to string) error { return rename(from, to) }`,
+		want: []string{"PlantWipe is a variable that holds what changes a file", "Move changes a file, or a process, and takes no Dir"},
+	},
+	{
+		name: "a Windows call machinefile's flush does not make",
+		as:   machineFileWriter,
+		file: "internal/mark/machinefile/fixture.go",
+		src: `package machinefile
+import "golang.org/x/sys/windows"
+func wipe(path *uint16) error { return windows.DeleteFile(path) }`,
+		stubs: map[string]string{"golang.org/x/sys/windows": `package windows
+func DeleteFile(path *uint16) error { return nil }`},
+		want: []string{"golang.org/x/sys/windows.DeleteFile, which is not one this guard knows"},
 	},
 	{
 		name: "a signal other than 0",
@@ -255,6 +299,17 @@ func reach(ctx context.Context) {
 		want: []string{"net/http.Get", "net.Dial,", "net.Dialer,", "net.Dialer.DialContext", "crypto/tls.Dial,"},
 	},
 	{
+		name: "a listener on every interface, a name resolved, and a listener made from a file",
+		src: `package fixture
+import ("net"; "net/http"; "os")
+func reach(f *os.File) {
+	_ = (&http.Server{Addr: ":8080"}).ListenAndServe()
+	_, _ = net.ResolveTCPAddr("tcp", "example.invalid:80")
+	_, _ = net.FileListener(f)
+}`,
+		want: []string{"net/http.Server.ListenAndServe", "net.ResolveTCPAddr", "net.FileListener"},
+	},
+	{
 		name: "a listener outside main",
 		src: `package fixture
 import "net"
@@ -265,8 +320,12 @@ func listen() (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }`
 		name: "standard output outside main",
 		src: `package fixture
 import ("fmt"; "os")
-func say() { fmt.Fprintln(os.Stdout, "x") }`,
-		want: []string{"os.Stdout, which is standard output"},
+func say() {
+	fmt.Fprintln(os.Stdout, "x")
+	fmt.Println("y")
+	println("z")
+}`,
+		want: []string{"os.Stdout, which is standard output", "fmt.Println, which is standard output", "println, which writes to standard error"},
 	},
 
 	// What leaves for an agent.
@@ -276,6 +335,14 @@ func say() { fmt.Fprintln(os.Stdout, "x") }`,
 import "github.com/koopa0/yomihon/internal/schema"
 func withheld(p schema.PrivacyPolicy) []string { return p.WithheldDirs() }`,
 		want: []string{"schema.PrivacyPolicy.WithheldDirs, which asks what is withheld"},
+	},
+	{
+		name: "what is withheld asked in a package below the gate",
+		file: "internal/egress/sub/fixture.go",
+		src: `package sub
+import "github.com/koopa0/yomihon/internal/schema"
+func withheld(p schema.PrivacyPolicy) bool { return p.EgressAllowed("x") }`,
+		want: []string{"schema.PrivacyPolicy.EgressAllowed, which asks what is withheld"},
 	},
 	{
 		name: "a gate opened with an extractor of its own",
@@ -303,6 +370,59 @@ func run(w io.Writer, p egress.Payload) {
 }
 func hand(out io.Writer, p egress.Payload) { _, _ = p.WriteTo(out) }`,
 		want: []string{"w is written an egress.Payload and is used here for something else"},
+	},
+	{
+		name: "a payload written to a converted writer, which is printed to as well",
+		src: `package fixture
+import (
+	"fmt"
+	"io"
+	"github.com/koopa0/yomihon/internal/egress"
+)
+func run(w io.Writer, p egress.Payload) {
+	_, _ = p.WriteTo(io.Writer(w))
+	fmt.Fprintln(w, "unsealed text")
+}`,
+		want: []string{"w is written an egress.Payload and is used here for something else"},
+	},
+	{
+		name: "a command that runs an engine and prints to standard output",
+		as:   module + "/cmd/yomihon",
+		file: mainFile,
+		src: `package main
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"github.com/koopa0/yomihon/internal/judge"
+)
+func main() { runPlant(context.Background(), os.Stdout) }
+func runPlant(ctx context.Context, stdout io.Writer) {
+	_, _, err := judge.RunCheck(ctx, &judge.CheckOptions{Root: "."})
+	fmt.Fprintln(stdout, err)
+}`,
+		want: []string{"stdout is standard output in a command that opens a gate or runs an engine, and is not written an egress.Payload"},
+	},
+	{
+		name: "a command that runs an engine with standard output handed some other way",
+		as:   module + "/cmd/yomihon",
+		file: mainFile,
+		src: `package main
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"github.com/koopa0/yomihon/internal/judge"
+)
+type streams struct{ out io.Writer }
+func main() { runPlant(context.Background(), &streams{out: os.Stdout}) }
+func runPlant(ctx context.Context, s *streams) {
+	_, _, err := judge.RunCheck(ctx, &judge.CheckOptions{Root: "."})
+	fmt.Fprintln(s.out, err)
+}`,
+		want: []string{"opens a gate or runs an engine, and main hands it standard output by no parameter this walk follows"},
 	},
 
 	// The source's own words and ways.
@@ -362,10 +482,11 @@ func look(root *os.Root, name string, w io.Writer, l net.Listener, rw http.Respo
 func TestTheBoundaryWalkRefusesEachWayAcross(t *testing.T) {
 	t.Parallel()
 
-	w, err := loadWorld(fixtureTarget)
+	all, err := worlds()
 	if err != nil {
 		t.Fatal(err)
 	}
+	w := all[fixtureTarget]
 	for _, f := range boundaryFixtures {
 		t.Run(f.name, func(t *testing.T) {
 			t.Parallel()

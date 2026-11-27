@@ -72,6 +72,15 @@ func outsideTheSource(p, name string) bool {
 // not this module's source.
 func productionFiles(t *testing.T, ext string) []string {
 	t.Helper()
+	return repositoryFiles(t, func(name string) bool {
+		return filepath.Ext(name) == ext && !strings.HasSuffix(name, "_test.go") && !strings.HasSuffix(name, "_templ.go")
+	})
+}
+
+// repositoryFiles lists the files of the module's own source whose names keep
+// accepts, by their paths from the repository root.
+func repositoryFiles(t *testing.T, keep func(name string) bool) []string {
+	t.Helper()
 
 	var paths []string
 	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
@@ -85,7 +94,7 @@ func productionFiles(t *testing.T, ext string) []string {
 			}
 			return nil
 		}
-		if filepath.Ext(name) != ext || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_templ.go") {
+		if !keep(name) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(repoRoot, p)

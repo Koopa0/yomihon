@@ -21,6 +21,10 @@ var (
 	textNames = []string{"Makefile", "LICENSE", "go.mod", "go.sum"}
 )
 
+// outsideTheTree are directories that hold no source of the module: git's own,
+// the tools' and the build's.
+var outsideTheTree = []string{".agents", ".claude", ".codex", ".git", "bin", "node_modules", "tmp"}
+
 // separatorFixtures carry U+2028 and U+2029 on purpose: the judge's tests
 // read them to show the output escapes both.
 var separatorFixtures = []string{
@@ -49,8 +53,7 @@ func TestTextCarriesNoInvisibleBreak(t *testing.T) {
 		}
 		name := entry.Name()
 		if entry.IsDir() {
-			switch name {
-			case ".agents", ".claude", ".codex", ".git", "bin", "node_modules", "tmp":
+			if slices.Contains(outsideTheTree, name) {
 				return fs.SkipDir
 			}
 			return nil

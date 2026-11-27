@@ -21,10 +21,11 @@ var vaultVocabulary = []string{"lesson", "concept", "draft"}
 func TestOnlyTheSchemaPackageSpellsTheVaultVocabulary(t *testing.T) {
 	t.Parallel()
 
-	w, err := loadWorld(fixtureTarget)
+	all, err := worlds()
 	if err != nil {
 		t.Fatal(err)
 	}
+	w := all[fixtureTarget]
 	for _, u := range w.units {
 		if u.path == module+"/internal/schema" {
 			continue

@@ -48,7 +48,9 @@ explicit ruling from the maintainer on the issue.
    platform's configuration directory, outside the vault. `internal/mark` is the
    only package allowed to write at all, and inside a vault only through
    `internal/mark/machinefile`; a test in `internal/archlock` reads every
-   shipped file and fails on a write anywhere else.
+   shipped package and fails on a use of a name of the standard library or of
+   `golang.org/x/sys` that changes a file anywhere else, and on code it cannot
+   read.
 2. **Loopback only, no network call.** The listener binds `127.0.0.1` and only
    the port varies, through `YOMIHON_PORT`. The home directory, which
    `os.UserHomeDir` takes from `HOME` (`USERPROFILE` on Windows), is read in
@@ -60,10 +62,13 @@ explicit ruling from the maintainer on the issue.
    configuration directory. Adding another variable, or another use of these
    two, needs a ruling. A test in `internal/archlock` reads every shipped
    package, on each system the release is built for, and fails on any other
-   reach for the environment. The process opens no outbound
-   connection of any kind. A figure the owner approved runs scripts in the
-   browser that can reach the network; that is the one browser-side exception,
-   decided on 2026-11-12, and the threat model bounds it.
+   read of the environment through `os`, `syscall` or `os/user`. The process
+   opens no outbound connection of any kind; the same test holds `net`,
+   `net/http` and `crypto/tls` to the names the server is built from, and
+   refuses a package that dials on its own. A figure the owner approved runs
+   scripts in the browser that can reach the network; that is the one
+   browser-side exception, decided on 2026-11-12, and the threat model bounds
+   it.
 3. **Withheld ground stays withheld.** What a rules file's `[privacy]` section
    withholds never reaches the output of a command an AI reads: `check`,
    `coverage`, `exists` and `marks`.
