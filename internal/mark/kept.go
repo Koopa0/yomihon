@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -46,31 +45,15 @@ type Kept struct {
 	source *vault.Reader
 	log    *slog.Logger
 
-	mu     sync.Mutex
-	folder *machinefile.Folder
-	marks  *machinemarks.Marks
+	mu    sync.Mutex
+	marks *machinemarks.Marks
 	// said is what the log last said of each topic of the state of the files, so
 	// that a state that stays is said once and not at every page.
 	said map[string]string
-	// mendedAt is when the last mend began, and now the clock, for tests.
+	// mendedAt is when the last mend began, by now, the clock, which a test of
+	// this package sets.
 	mendedAt time.Time
 	now      func() time.Time
-}
-
-// SetClock gives the marks a clock, for tests, so that a test moves time on
-// without waiting. Nil is the clock.
-func (k *Kept) SetClock(now func() time.Time) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	k.now = now
-}
-
-// clock is the time now. It is called with k.mu held.
-func (k *Kept) clock() time.Time {
-	if k.now != nil {
-		return k.now()
-	}
-	return time.Now()
 }
 
 // OpenKept names the marks of the vault source holds. It reads and writes
@@ -80,7 +63,7 @@ func OpenKept(store *Store, source *vault.Reader, log *slog.Logger) *Kept {
 	if store == nil || source == nil || log == nil {
 		panic("mark: OpenKept requires a Store, a vault and a logger")
 	}
-	return &Kept{store: store, source: source, log: log}
+	return &Kept{store: store, source: source, log: log, now: time.Now}
 }
 
 // Marks is this machine's hand on the marks. It is an error when the reader
@@ -91,13 +74,12 @@ func (k *Kept) Marks() (*machinemarks.Marks, error) {
 	if k.marks != nil {
 		return k.marks, nil
 	}
-	folder, err := machinefile.Open(k.source)
+	marks, err := machinemarks.Open(k.source, k.store.dir, k.log, k.store.MachineMarks)
 	if err != nil {
 		return nil, fmt.Errorf("open the reader folder: %w", err)
 	}
-	k.folder = folder
-	k.marks = machinemarks.Open(folder, k.store.dir, k.log, machinemarks.Options{Legacy: k.store.MachineMarks})
-	return k.marks, nil
+	k.marks = marks
+	return marks, nil
 }
 
 // View reads the marks of every machine, which writes nothing and makes no
@@ -110,7 +92,7 @@ func (k *Kept) Marks() (*machinemarks.Marks, error) {
 func (k *Kept) View() (*machinemarks.View, error) {
 	marks, err := k.Marks()
 	if err != nil {
-		if errors.Is(err, machinefile.ErrLink) || errors.Is(err, machinefile.ErrNotAFolder) {
+		if errors.Is(err, machinemarks.ErrNotAFolder) {
 			return machinemarks.LegacyView(), nil
 		}
 		return nil, err
@@ -124,12 +106,9 @@ func (k *Kept) View() (*machinemarks.View, error) {
 // a mount that is read only, is not seen here; the write that is refused
 // says so when it is made.
 func (k *Kept) Writable() string {
-	_, err := k.Marks()
+	marks, err := k.Marks()
 	if err == nil {
-		k.mu.Lock()
-		folder := k.folder
-		k.mu.Unlock()
-		readOnly, askErr := folder.ReadOnly()
+		readOnly, askErr := marks.ReadOnly()
 		if askErr == nil {
 			if readOnly {
 				return WritableReadOnly
@@ -139,9 +118,9 @@ func (k *Kept) Writable() string {
 		err = askErr
 	}
 	switch {
-	case errors.Is(err, machinefile.ErrLink):
+	case errors.Is(err, machinemarks.ErrLink):
 		return WritableLink
-	case errors.Is(err, machinefile.ErrNotAFolder):
+	case errors.Is(err, machinemarks.ErrNotAFolder):
 		return WritableNotAFolder
 	default:
 		return WritableReadOnly
@@ -252,7 +231,7 @@ const mendEvery = 5 * time.Second
 // so: the reader is not told of it here.
 func (k *Kept) Mend() {
 	k.mu.Lock()
-	now := k.clock()
+	now := k.now()
 	if !k.mendedAt.IsZero() && now.Sub(k.mendedAt) < mendEvery {
 		k.mu.Unlock()
 		return
@@ -324,11 +303,11 @@ func (k *Kept) say(topic, state, msg string, args ...any) {
 func (k *Kept) Close() error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if k.folder == nil {
+	if k.marks == nil {
 		return nil
 	}
-	err := k.folder.Close()
-	k.folder, k.marks = nil, nil
+	err := k.marks.Close()
+	k.marks = nil
 	return err
 }
 

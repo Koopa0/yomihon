@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/sealedline"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // lockName is the lock a write of this machine's marks is made under, in the
@@ -84,34 +85,32 @@ func (*StaleError) Error() string { return ErrStale.Error() }
 // Is says a StaleError is ErrStale.
 func (*StaleError) Is(target error) bool { return target == ErrStale }
 
-// Options are what Open takes beyond the places.
-type Options struct {
-	// Legacy gives the marks of the earlier file, which the first write of a
-	// machine with no file of marks takes in. Nil takes in nothing.
-	Legacy func() ([]Mark, error)
-	// Now is the time, for tests. Nil is the clock.
-	Now func() time.Time
-	// LockWait is how long a change waits for the vault's lock, and the ledger
-	// for its own. Zero is confdir.LockWait, which is what every caller but a
-	// test that crowds the lock on purpose uses: such a test asks whether
-	// anything is lost, and not how fast the lock comes free.
-	LockWait time.Duration
-}
+// ErrNotAFolder means the reader folder, or a folder in it on the way to the
+// machine files, is a link or something other than a folder: no write is made
+// through it, wherever a link points. ErrLink is said beside it when the name
+// is a link.
+var (
+	ErrNotAFolder = machinefile.ErrNotAFolder
+	ErrLink       = machinefile.ErrLink
+)
 
 // Marks is this machine's hand on the marks of one vault: every read and every
 // change of them. It is safe for use by several goroutines and by several
 // processes over one vault; a change takes the vault's lock for its whole. A
 // change takes a context, which bounds its waits for the vault's lock and the
-// ledger's as confdir.Acquire says; a change of this process already under way
-// is waited for whatever the context says. A read waits for no change.
+// ledger's as confdir.Acquire says, each for confdir.LockWait at most; a change
+// of this process already under way is waited for whatever the context says. A
+// read waits for no change.
 type Marks struct {
 	folder *machinefile.Folder
 	dir    confdir.Dir
 	ledger *ledger.Ledger
-	opts   Options
-	// lockWait is how long a change waits for the vault's lock.
-	lockWait time.Duration
-	// maxLive and maxLines are MaxLive and MaxLines; a test sets them lower.
+	// legacy gives the marks of the earlier file, which the first write of a
+	// machine with no file of marks takes in. Nil takes in nothing.
+	legacy func() ([]Mark, error)
+	// now is the clock, and maxLive and maxLines are MaxLive and MaxLines; a
+	// test of this package sets them.
+	now               func() time.Time
 	maxLive, maxLines int
 
 	// mu orders the changes of this process, and holds issued.
@@ -123,26 +122,35 @@ type Marks struct {
 	session atomic.Pointer[string]
 }
 
-// Open is the marks of the vault whose reader folder is folder, kept in dir,
-// the vault's directory under the configuration directory, which is where its
-// ledger is. It reads and writes nothing.
-func Open(folder *machinefile.Folder, dir confdir.Dir, log *slog.Logger, opts Options) *Marks {
-	if folder == nil {
-		panic("machinemarks: Open with no folder")
+// Open is the marks of the vault source reads, kept in dir, the vault's
+// directory under the configuration directory, which is where its ledger is.
+// legacy gives the marks of the earlier file, which the first write of a
+// machine that has no file of marks takes in; nil takes in nothing.
+//
+// It reads and writes nothing in either, and makes no folder: it pins the
+// reader folder, which is refused with ErrNotAFolder when it, or a folder in it
+// on the way to the machine files, is a link or not a folder, and with an
+// error when the vault's folder is no longer where source opened it. Close lets
+// the folder go.
+func Open(source *vault.Reader, dir confdir.Dir, log *slog.Logger, legacy func() ([]Mark, error)) (*Marks, error) {
+	folder, err := machinefile.Open(source)
+	if err != nil {
+		return nil, err
 	}
-	wait := opts.LockWait
-	if wait <= 0 {
-		wait = confdir.LockWait
-	}
-	return &Marks{folder: folder, dir: dir, ledger: ledger.Open(dir, log), opts: opts, lockWait: wait, maxLive: MaxLive, maxLines: MaxLines}
+	return &Marks{
+		folder: folder, dir: dir, ledger: ledger.Open(dir, log), legacy: legacy,
+		now: time.Now, maxLive: MaxLive, maxLines: MaxLines,
+	}, nil
 }
 
-func (m *Marks) now() time.Time {
-	if m.opts.Now != nil {
-		return m.opts.Now()
-	}
-	return time.Now()
-}
+// ReadOnly says the reader folder, or the deepest folder on the way to the
+// machine files that is there, has no write permission for its owner. It asks
+// the mode and writes nothing; a write that a mount or an access list refuses
+// fails when it is made. On Windows nothing is read only.
+func (m *Marks) ReadOnly() (bool, error) { return m.folder.ReadOnly() }
+
+// Close lets the reader folder go. It is called once, after the last use.
+func (m *Marks) Close() error { return m.folder.Close() }
 
 func (m *Marks) currentSession() string {
 	if s := m.session.Load(); s != nil {
@@ -282,7 +290,7 @@ func (m *Marks) run(ctx context.Context, takeIn bool, plan func(*view) (*proposa
 	defer m.mu.Unlock()
 	start := time.Now()
 	var res Result
-	err := confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
+	err := confdir.Exclusive(ctx, m.dir, lockName, confdir.LockWait, func() error {
 		res.LockWait = time.Since(start)
 		return m.locked(ctx, takeIn, plan, &res)
 	})
@@ -367,7 +375,7 @@ func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (
 			return nil, err
 		}
 	}
-	if m.opts.Legacy != nil && (takeIn || (!v.st.converted && !v.ownFound)) {
+	if m.legacy != nil && (takeIn || (!v.st.converted && !v.ownFound)) {
 		if err := m.convert(v, takeIn, record); err != nil {
 			return nil, err
 		}
@@ -388,7 +396,7 @@ func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (
 // not brought back, and one that was set aside as not fitting a line is not set
 // aside again.
 func (m *Marks) convert(v *view, takeIn bool, record func(*ledger.Event) error) error {
-	legacy, err := m.opts.Legacy()
+	legacy, err := m.legacy()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrLegacy, err)
 	}

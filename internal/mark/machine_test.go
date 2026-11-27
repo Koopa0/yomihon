@@ -14,7 +14,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -32,16 +31,16 @@ func machineMarksOver(t *testing.T, store *mark.Store, root, config string) *mac
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = r.Close() }) //nolint:errcheck // the test is over
-	f, err := machinefile.Open(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = f.Close() }) //nolint:errcheck // the test is over
 	dir, err := confdir.VaultDir(confdir.At(config), root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return machinemarks.Open(f, dir, slog.New(slog.DiscardHandler), machinemarks.Options{Legacy: store.MachineMarks})
+	m, err := machinemarks.Open(r, dir, slog.New(slog.DiscardHandler), store.MachineMarks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = m.Close() }) //nolint:errcheck // the test is over
+	return m
 }
 
 // marks.json is taken in by the first write of the machine file, a question's

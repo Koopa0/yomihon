@@ -6,7 +6,7 @@ import (
 
 // MachineMarks are the marks marks.json holds, as the marks of a machine file:
 // what the first write of a machine that has no file of marks takes in, as the
-// legacy function of machinemarks.Options. It only reads: marks.json is not
+// legacy function machinemarks.Open takes. It only reads: marks.json is not
 // changed, renamed or removed, so that a reader who goes back to a version that
 // keeps marks there finds them as they left them.
 //

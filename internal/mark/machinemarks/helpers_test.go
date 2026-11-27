@@ -2,6 +2,7 @@ package machinemarks
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,16 +15,22 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
-	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// crowded is how long the tests that crowd the vault's lock on purpose wait for
-// it. Several writers of two processes poll one lock while a slow runner
-// stalls them, and past confdir.LockWait one of them is told the lock is held
-// although nothing is wrong: these tests ask whether anything is lost, not how
-// fast the lock comes free.
-const crowded = time.Minute
+// crowded is put, asked again while another holds the vault's lock: several
+// writers of two processes poll one lock while a slow runner stalls them, and
+// past confdir.LockWait one of them is told the lock is held although nothing
+// is wrong. The tests that crowd the lock ask whether anything is lost, not how
+// fast the lock comes free, and ErrLocked writes nothing.
+func crowded[T any](put func() (T, error)) (T, error) {
+	for {
+		res, err := put()
+		if !errors.Is(err, confdir.ErrLocked) {
+			return res, err
+		}
+	}
+}
 
 // open is every mark, whatever the privacy rules say: what a test wants to see.
 func open(*Mark) bool { return true }
@@ -87,12 +94,13 @@ func (c *clone) restart() {
 		c.t.Fatal(err)
 	}
 	c.t.Cleanup(func() { _ = r.Close() }) //nolint:errcheck // the test is over
-	f, err := machinefile.Open(r)
+	m, err := Open(r, c.dir, slog.New(slog.DiscardHandler), c.legacy)
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	c.t.Cleanup(func() { _ = f.Close() }) //nolint:errcheck // the test is over
-	c.m = Open(f, c.dir, slog.New(slog.DiscardHandler), Options{Now: c.clock.now, Legacy: c.legacy, LockWait: crowded})
+	c.t.Cleanup(func() { _ = m.Close() }) //nolint:errcheck // the test is over
+	m.now = c.clock.now
+	c.m = m
 }
 
 func (c *clone) marksDir() string { return filepath.Join(c.root, "reader-notes", ".yomihon", "marks") }

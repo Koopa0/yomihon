@@ -44,7 +44,7 @@ func TestKeepsAtOnceKeepOne(t *testing.T) {
 	for n := 1; n <= 8; n++ {
 		wg.Go(func() {
 			m := highlight(n, "same passage")
-			if _, err := a.m.Keep(t.Context(), &m, sameQuote("same passage"), open); err != nil {
+			if _, err := crowded(func() (Outcome, error) { return a.m.Keep(t.Context(), &m, sameQuote("same passage"), open) }); err != nil {
 				t.Error(err)
 			}
 		})
