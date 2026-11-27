@@ -224,7 +224,7 @@ func enumWholeNote(kind, field, value string) (rel, body string) {
 
 func enumWholeJudge(t *testing.T, rel, body string, contract *schema.Contract, field, kind string) []judge.Finding {
 	t.Helper()
-	findings := judge.LintFrontmatter(rel, []byte(body), contract)
+	findings := judge.NewFrontmatterLinter(contract).Lint(rel, []byte(body))
 	t.Logf("hit: enum-guidance field=%s type=%s judge=returned", field, kind)
 	return findings
 }
