@@ -31,9 +31,6 @@ type DeclaringNote struct {
 // so every answer belongs to this generation without scanning the vault again.
 // The returned slice and every Locations slice belong to the caller.
 func (g *Generation) DeclaredBy(relPath string) []DeclaringNote {
-	if g == nil {
-		return nil
-	}
 	var out []DeclaringNote
 	for _, ref := range g.BasedOnBy(relPath) {
 		if ref.RelPath == relPath {

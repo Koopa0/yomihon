@@ -289,9 +289,6 @@ func TestHealthNavigationFaultsBelongToCaller(t *testing.T) {
 	if diff := cmp.Diff([]nav.CoreFault{fault}, generation.Health().NavigationFaults); diff != "" {
 		t.Errorf("captured fault changed (-want +got):\n%s", diff)
 	}
-	if (*Generation)(nil).Health().NavigationFaults != nil {
-		t.Error("absent generation carries faults")
-	}
 }
 
 // coverageVault is a folder whose maps reach one concept, whose other concepts

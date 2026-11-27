@@ -217,9 +217,6 @@ type Generation struct {
 // Capture returns a request-local Generation bound to one point-in-time artifact
 // authority, so a contract change mid-response cannot reach the response.
 func (g *Generation) Capture() *Generation {
-	if g == nil {
-		return nil
-	}
 	captured := *g
 	captured.artifactPolicy = g.artifactPolicy.Capture()
 	captured.search = g.search.WithArtifactPolicy(captured.artifactPolicy)
@@ -228,9 +225,6 @@ func (g *Generation) Capture() *Generation {
 
 // Graph returns the immutable wikilink resolver for this generation.
 func (g *Generation) Graph() *graph.Index {
-	if g == nil {
-		return nil
-	}
 	return g.graph
 }
 
@@ -239,9 +233,6 @@ func (g *Generation) Graph() *graph.Index {
 // The answer is body wikilinks only; a based_on declaration is a different
 // claim, read through BasedOn.
 func (g *Generation) CitedBy(relPath string) []nav.NoteRef {
-	if g == nil {
-		return nil
-	}
 	return g.backlinks.To(relPath)
 }
 
@@ -250,9 +241,6 @@ func (g *Generation) CitedBy(relPath string) []nav.NoteRef {
 // path; an unresolved or ambiguous value is the author's own text with no
 // path, never a guess.
 func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
-	if g == nil {
-		return nil
-	}
 	return projectBasedOn(g.parsed[relPath], g.graph, titlesIn(g.notes))
 }
 
@@ -261,9 +249,6 @@ func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
 // a translation names the original, and the original has no way to name the
 // translation — so both answers come from one projection of one generation.
 func (g *Generation) BasedOnBy(relPath string) []nav.NoteRef {
-	if g == nil {
-		return nil
-	}
 	return g.basedOnBy.of(relPath)
 }
 
@@ -274,9 +259,6 @@ func (g *Generation) BasedOnBy(relPath string) []nav.NoteRef {
 // attempt cannot read, naming more trouble than the reader suffers but never
 // less. The returned value is the caller's own copy.
 func (g *Generation) Freshness() Freshness {
-	if g == nil {
-		return Freshness{}
-	}
 	out := Freshness{
 		BuiltAt:      g.built.builtAt,
 		Complete:     g.built.complete,
@@ -306,9 +288,6 @@ func (g *Generation) Freshness() Freshness {
 
 // Health returns this generation's whole-folder view of what needs attention.
 func (g *Generation) Health() Health {
-	if g == nil {
-		return Health{}
-	}
 	health := g.health
 	health.NavigationFaults = slices.Clone(health.NavigationFaults)
 	return health
@@ -320,50 +299,32 @@ func (g *Generation) Health() Health {
 // Resolution is asked first, as the adjudicator asks it, because a target that
 // does resolve can still fail to render for an unrelated reason.
 func (g *Generation) TrackedForwardReference(target string) bool {
-	if g == nil || g.graph == nil {
-		return false
-	}
 	return g.graph.Resolve(target).Kind == graph.KindUnresolved && g.planned.Has(target)
 }
 
 // Navigation returns the immutable navigation model for this generation.
 func (g *Generation) Navigation() *nav.Model {
-	if g == nil {
-		return nil
-	}
 	return g.navigation
 }
 
 // Search returns the immutable lexical index for this generation.
 func (g *Generation) Search() *lexical.Index {
-	if g == nil {
-		return nil
-	}
 	return g.search
 }
 
 // Slots returns the immutable lesson-slot index for this generation.
 func (g *Generation) Slots() drill.SlotIndex {
-	if g == nil {
-		return drill.SlotIndex{}
-	}
 	return g.slots
 }
 
 // Concepts returns the immutable concept-sheet index for this generation.
 func (g *Generation) Concepts() drill.ConceptIndex {
-	if g == nil {
-		return drill.ConceptIndex{}
-	}
 	return g.concepts
 }
 
 // ArtifactPolicy returns this Generation's point-in-time artifact authority. A handler
 // calls Capture at entry; that Generation then holds one authority all response long.
 func (g *Generation) ArtifactPolicy() schema.ArtifactPolicy {
-	if g == nil {
-		return schema.ArtifactPolicy{}
-	}
 	return g.artifactPolicy.Capture()
 }
 
@@ -373,9 +334,6 @@ func (g *Generation) ArtifactPolicy() schema.ArtifactPolicy {
 // here so a reader can be told why those commands are unusable, which their own
 // output cannot say without quoting the vault out under the missing policy.
 func (g *Generation) PrivacyPolicy() schema.PrivacyPolicy {
-	if g == nil {
-		return schema.PrivacyPolicy{}
-	}
 	return g.privacyPolicy
 }
 
@@ -383,18 +341,12 @@ func (g *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 // through. A page shows it to a reader whose shelf is empty, because a note
 // reaches Paths or Maps by declaring one of these types and by nothing else.
 func (g *Generation) NavigationRoles() schema.NavigationRoles {
-	if g == nil {
-		return schema.NavigationRoles{}
-	}
 	return g.navRoles
 }
 
 // Files returns this generation's captured regular files in canonical path
 // order. The returned slice and entries are independent of the Generation.
 func (g *Generation) Files() []vault.Entry {
-	if g == nil {
-		return nil
-	}
 	return g.scan.Files()
 }
 
@@ -405,9 +357,6 @@ func (g *Generation) Files() []vault.Entry {
 // counted; a note the reading could not open, or refused for size, is counted,
 // because it is still a note somebody wrote.
 func (g *Generation) NoteCount() int {
-	if g == nil {
-		return 0
-	}
 	return g.noteCount
 }
 
@@ -432,9 +381,6 @@ const overSourceBound = "over the source bound"
 // because a folder that organises by link — or that holds one note past
 // the bound — would otherwise lose it with nothing anywhere saying so.
 func (g *Generation) Skipped() []Skipped {
-	if g == nil {
-		return nil
-	}
 	scan := g.scan.Skipped()
 	if len(scan) == 0 && len(g.sizeSkipped) == 0 {
 		return nil
@@ -452,9 +398,6 @@ func (g *Generation) Skipped() []Skipped {
 
 // Entry returns the captured regular-file identity for canonicalPath.
 func (g *Generation) Entry(canonicalPath string) (vault.Entry, bool) {
-	if g == nil {
-		return vault.Entry{}, false
-	}
 	return g.scan.Entry(canonicalPath)
 }
 
@@ -463,9 +406,6 @@ func (g *Generation) Entry(canonicalPath string) (vault.Entry, bool) {
 // walk there, so its absence from this reading is this reader's boundary rather
 // than a file anybody lost.
 func (g *Generation) MissingFile(canonicalPath string) bool {
-	if g == nil {
-		return false
-	}
 	// The address comes from a note's own text, where a composed and a
 	// decomposed spelling of one name are both what somebody typed. The route
 	// that serves these bytes composes before it looks, and a page saying a file
@@ -481,9 +421,6 @@ func (g *Generation) MissingFile(canonicalPath string) bool {
 // OutsideScan reports whether canonicalPath lies where this generation's scan
 // did not look: under a dot-prefixed name or a directory the contract excludes.
 func (g *Generation) OutsideScan(canonicalPath string) bool {
-	if g == nil {
-		return vault.OutsideScan(canonicalPath)
-	}
 	return g.scan.OutsideScan(canonicalPath)
 }
 
@@ -492,9 +429,6 @@ func (g *Generation) OutsideScan(canonicalPath string) bool {
 // spelling is composed before the look, as MissingFile does, because a link
 // carries whichever form its author typed.
 func (g *Generation) IsDirectory(canonicalPath string) bool {
-	if g == nil {
-		return false
-	}
 	canonicalPath = vault.NormalizeNFC(canonicalPath)
 	if _, file := g.scan.Entry(canonicalPath); file {
 		return false
@@ -505,14 +439,11 @@ func (g *Generation) IsDirectory(canonicalPath string) bool {
 // Contains reports whether canonicalPath was a file or directory in this
 // generation.
 func (g *Generation) Contains(canonicalPath string) bool {
-	return g != nil && g.scan.Contains(canonicalPath)
+	return g.scan.Contains(canonicalPath)
 }
 
 // Note returns an immutable Markdown reading projection by value.
 func (g *Generation) Note(canonicalPath string) (Reading, bool) {
-	if g == nil {
-		return Reading{}, false
-	}
 	note, ok := g.notes[canonicalPath]
 	return note, ok
 }
@@ -521,9 +452,6 @@ func (g *Generation) Note(canonicalPath string) (Reading, bool) {
 // out of the note map because the contract named its basename under
 // folders.skipped_files. A skipped path is a file, not a note.
 func (g *Generation) SkipsNote(canonicalPath string) bool {
-	if g == nil {
-		return false
-	}
 	_, ok := g.skippedNotes[canonicalPath]
 	return ok
 }
@@ -539,9 +467,6 @@ func (g *Generation) Render(relPath, body string, lang wording.Lang) render.Resu
 // RenderIn is Render for a body sharing a page with another, naming the region
 // this one occupies. It qualifies footnote ids only, not heading ids.
 func (g *Generation) RenderIn(region, relPath, body string, lang wording.Lang) render.Result {
-	if g == nil || g.markdown == nil {
-		return render.Result{}
-	}
 	// The title the page will show, so the renderer can spot a heading repeating it.
 	return g.markdown.HTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
 }
@@ -550,9 +475,6 @@ func (g *Generation) RenderIn(region, relPath, body string, lang wording.Lang) r
 // with the owner's approval of those bytes asked now rather than at build
 // time. A check that fails is no approval, and the state says so.
 func (g *Generation) Figure(canonicalPath string) render.FigureState {
-	if g == nil {
-		return render.FigureState{}
-	}
 	inspection, read := g.figures[canonicalPath]
 	state := render.FigureState{Inspection: inspection, Read: read}
 	if entry, ok := g.scan.Entry(canonicalPath); ok {
@@ -576,9 +498,6 @@ func (g *Generation) Figure(canonicalPath string) render.FigureState {
 // RenderExcerptIn is RenderIn for a note shown inside another page rather
 // than opened: a figure in it is drawn as its stand-in, never as a frame.
 func (g *Generation) RenderExcerptIn(region, relPath, body string, lang wording.Lang) render.Result {
-	if g == nil || g.markdown == nil {
-		return render.Result{}
-	}
 	return g.markdown.ExcerptHTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
 }
 

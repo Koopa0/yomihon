@@ -16,7 +16,7 @@ import (
 // a template. It grants no role meaning; the caller supplies the
 // type obtained from its contract authority.
 func (g *Generation) NotesOfType(noteType string) []Reading {
-	if g == nil || noteType == "" {
+	if noteType == "" {
 		return nil
 	}
 	var notes []Reading
@@ -50,7 +50,7 @@ func (g *Generation) VaultTitle(folder string) string {
 // frontmatter title, empty when it has neither. A reading's Title falls back to
 // the file name, which is a path rather than a title.
 func (g *Generation) DeclaredTitle(rel string) string {
-	if g == nil || !g.notes[rel].Titled {
+	if !g.notes[rel].Titled {
 		return ""
 	}
 	return g.notes[rel].Title
@@ -61,7 +61,7 @@ func (g *Generation) DeclaredTitle(rel string) string {
 // read from it as that field. An absent or empty key wrote nothing to misread
 // and answers false.
 func (g *Generation) NotText(rel, key string) bool {
-	if g == nil || g.parsed[rel] == nil {
+	if g.parsed[rel] == nil {
 		return false
 	}
 	value, present := g.parsed[rel].Frontmatter[key]
@@ -77,7 +77,7 @@ func (g *Generation) NotText(rel, key string) bool {
 // cannot be read from it. An absent or empty key wrote nothing to misread and
 // answers false.
 func (g *Generation) NotBoolean(rel, key string) bool {
-	if g == nil || g.parsed[rel] == nil {
+	if g.parsed[rel] == nil {
 		return false
 	}
 	value, present := g.parsed[rel].Frontmatter[key]
@@ -160,10 +160,7 @@ func (g *Generation) NameWithin(target string, allowed func(string) bool) bool {
 	if target == "" {
 		return true
 	}
-	var resolved graph.Resolution
-	if g != nil {
-		resolved = g.Graph().Resolve(target)
-	}
+	resolved := g.graph.Resolve(target)
 	switch resolved.Kind {
 	case graph.KindUnique:
 		return allowed(resolved.RelPath)
@@ -179,9 +176,6 @@ func (g *Generation) NameWithin(target string, allowed func(string) bool) bool {
 // only ground allowed accepts, as NameWithin reads a name. A declaration that
 // carries no name at all names no ground.
 func (g *Generation) BasedOnWithin(rel string, allowed func(string) bool) bool {
-	if g == nil {
-		return true
-	}
 	for _, value := range basedOnValues(g.parsed[rel]) {
 		if target, ok := basedOnTarget(strings.TrimSpace(value)); ok && !g.NameWithin(target, allowed) {
 			return false

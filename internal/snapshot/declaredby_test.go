@@ -73,9 +73,6 @@ based_on:
 			t.Errorf("DeclaredBy(%q) = %+v, want no declaration", rel, got)
 		}
 	}
-	if got := (*Generation)(nil).DeclaredBy("A/twin.md"); got != nil {
-		t.Errorf("nil DeclaredBy() = %+v", got)
-	}
 }
 
 func TestDeclaredByReturnsDetachedLocationsFromCapturedGeneration(t *testing.T) {

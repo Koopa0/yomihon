@@ -48,9 +48,6 @@ func titlesByName(readings map[string]Reading) map[string][]nav.NoteRef {
 // order, and nothing when no note writes it. It answers with every holder,
 // never a guess.
 func (g *Generation) TitledBy(name string) []string {
-	if g == nil {
-		return nil
-	}
 	held := g.titledBy[graph.NormalizeKey(name)]
 	names := make([]string, len(held))
 	for i, ref := range held {

@@ -96,7 +96,6 @@ func TestGenerationDomainFolder(t *testing.T) {
 		want  string
 		found bool
 	}{
-		{name: "nil generation", path: "Writing/lessons/japanese/L1.md"},
 		{name: "zero generation", gen: &Generation{}, path: "Writing/lessons/japanese/L1.md"},
 		{name: "absent contract", gen: ungoverned.Current().Capture(), path: "Writing/lessons/japanese/L1.md"},
 		{name: "empty roots", gen: empty.Current().Capture(), path: "Writing/lessons/japanese/L1.md"},

@@ -26,9 +26,6 @@ type DeclaredSource struct {
 // same as BasedOn; location identity additionally includes the authored address.
 // All resolution and destination rendering use this immutable generation.
 func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]DeclaredSource, []render.Diagnostic) {
-	if g == nil {
-		return nil, nil
-	}
 	var groups []DeclaredSource
 	var diagnostics []render.Diagnostic
 	positions := make(map[string]int)
@@ -99,9 +96,6 @@ type basedOnBy struct {
 func newBasedOnBy(notes []*vault.Note, idx *graph.Index, titles titleFunc) *basedOnBy {
 	b := &basedOnBy{bySource: make(map[string][]nav.NoteRef)}
 	for _, n := range notes {
-		if n == nil {
-			continue
-		}
 		for _, ref := range projectBasedOn(n, idx, titles) {
 			if ref.RelPath == "" || ref.RelPath == n.RelPath {
 				continue
@@ -123,9 +117,6 @@ func newBasedOnBy(notes []*vault.Note, idx *graph.Index, titles titleFunc) *base
 // of returns the notes declaring relPath as their source, sorted by the name
 // each shows, and nil when none does. The caller receives its own copy.
 func (b *basedOnBy) of(relPath string) []nav.NoteRef {
-	if b == nil {
-		return nil
-	}
 	return slices.Clone(b.bySource[relPath])
 }
 
@@ -160,9 +151,6 @@ func projectBasedOn(n *vault.Note, idx *graph.Index, titles titleFunc) []nav.Not
 // places the note itself is not a prerequisite of it and is left out. A repeat of
 // a note or of a text already listed is kept only the first time.
 func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
-	if g == nil {
-		return nil
-	}
 	n := g.parsed[relPath]
 	if n == nil {
 		return nil
@@ -230,7 +218,7 @@ func declaredSource(idx *graph.Index, titles titleFunc, value string) (nav.NoteR
 		return nav.NoteRef{}, false
 	}
 	target, ok := basedOnTarget(written)
-	if !ok || idx == nil {
+	if !ok {
 		return nav.NoteRef{Name: written}, true
 	}
 	res := idx.Resolve(target)

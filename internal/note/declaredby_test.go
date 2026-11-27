@@ -126,9 +126,6 @@ func TestDeclaredByUsesOnlyPlacesInTheSuppliedRender(t *testing.T) {
 	if diff := cmp.Diff(want, declaredBy(snap, "Source.md", nil, "", wording.En)); diff != "" {
 		t.Errorf("declaredBy(nil render) mismatch (-want +got):\n%s", diff)
 	}
-	if got := declaredBy(nil, "Source.md", &result, "", wording.En); got != nil {
-		t.Errorf("declaredBy(nil generation) = %+v, want nil", got)
-	}
 }
 
 func TestDeclaredByRejectsCodeAndAuthoredHTMLBlockAnchors(t *testing.T) {
