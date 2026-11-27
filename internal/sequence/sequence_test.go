@@ -14,12 +14,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// authoringExample is the worked example from the tracked authoring contract,
-// byte for byte. It exercises every part of the grammar at once — an ordered
-// main line, a declared side branch hanging from the third lesson, a block
-// declared out of the course, a lesson that is planned but unwritten, and a
-// marker that must not appear in a displayed name — and the contract states in
-// prose exactly what it produces.
+// authoringExample is the worked example the tracked authoring contract gives.
+// It exercises every part of the grammar at once — an ordered main line, a
+// declared side branch hanging from the third lesson, a block declared out of
+// the course, a lesson that is planned but unwritten, and a marker that must
+// not appear in a displayed name — and the contract states in prose exactly
+// what it produces.
 const authoringExample = "" +
 	"## 主線 {sequence=primary}\n" +
 	"\n" +
@@ -1261,10 +1261,8 @@ func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
 // at a fixed end: they are collected while the list is read and filed once,
 // while a branch the same list declares is filed the moment it is met.
 //
-// Both orders are here because the two are mirror images and a fix for one is
-// the other's regression — which is what happened: filing the rows before the
-// list's branches corrected the first shape and broke the second, which had
-// been right.
+// Both orders are here because they are mirror images: filing the stray rows
+// at either fixed end puts one of them right and the other wrong.
 func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
 	t.Parallel()
 
