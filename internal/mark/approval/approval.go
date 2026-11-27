@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
@@ -79,8 +78,6 @@ type document struct {
 type Store struct {
 	dir       confdir.Dir
 	vaultRoot string
-	// mu serializes writers, which read the file and replace it whole.
-	mu sync.Mutex
 }
 
 // Open names this vault's approvals. It creates nothing: the directory and the
@@ -144,7 +141,7 @@ func (s *Store) List() ([]Approval, error) {
 	seen := make(map[string]bool, len(doc.Approvals))
 	for i := range doc.Approvals {
 		if err = validate(&doc.Approvals[i]); err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+			return nil, fmt.Errorf("%w: %v", ErrUnreadable, err) //nolint:errorlint // a damaged file is not a refused approval, so ErrInvalid is not wrapped
 		}
 		if seen[doc.Approvals[i].RelPath] {
 			return nil, fmt.Errorf("%w: %s is approved twice", ErrUnreadable, doc.Approvals[i].RelPath)
@@ -207,11 +204,10 @@ func without(held []Approval, relPath string) []Approval {
 }
 
 // exclusive runs change as the only writer of the approvals, in this process
-// and in any other on the same directory. The store's methods take no context,
-// so the wait for the lock is bounded by confdir.LockWait alone.
+// and in any other on the same directory: the lock lets this process's writers
+// through in the order they asked. The store's methods take no context, so the
+// wait for the lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 
