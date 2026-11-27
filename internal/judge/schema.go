@@ -345,13 +345,16 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 // schemaRuleSource names the artifact holding one frontmatter rule's
 // authority. The slug rule enforces the pattern a type's own table states, and
 // the provenance rule a key the [rules] table declares, so each anchors there;
-// every other rule reads several tables and cites the file without an anchor.
+// the draft flag is the product's own key, whatever the rules file lists; every
+// other rule reads several tables and cites the file without an anchor.
 func schemaRuleSource(ruleID RuleID) string {
 	switch ruleID {
 	case RuleSchemaSlug:
 		return sourceContractTypes
 	case RuleSchemaProvenance:
 		return sourceContractRules
+	case RuleSchemaDraft:
+		return sourceYomihon
 	default:
 		return sourceContract
 	}
