@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -97,7 +96,7 @@ func withoutHiddenText(body string) string {
 	if !strings.Contains(body, "%%") && !strings.Contains(body, "<!--") && !strings.Contains(body, "$$") {
 		return body
 	}
-	code := codeZones(body)
+	code := CodeZones(ParseCommonMark(body))
 	comments := CommentZones(body, code)
 	hidden := slices.Concat(comments, mathZones(body, slices.Concat(code, comments)))
 	slices.SortFunc(hidden, func(a, b Span) int { return a.Start - b.Start })
@@ -118,10 +117,9 @@ func withoutHiddenText(body string) string {
 	return b.String()
 }
 
-// codeZones are the code blocks and code spans of body as the Markdown parser
-// reads them: the places a comment or math marker is displayed text.
-func codeZones(body string) []Span {
-	doc := commentParser.Parse(text.NewReader([]byte(body)))
+// CodeZones are the code blocks and code spans of a parsed body: the places a
+// comment, math or link marker is displayed text.
+func CodeZones(doc ast.Node) []Span {
 	var zones []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
 		if entering {

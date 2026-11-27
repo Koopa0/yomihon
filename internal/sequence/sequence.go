@@ -14,9 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 )
@@ -293,17 +291,15 @@ type Document struct {
 	Diagnostics []Diagnostic
 }
 
-// mdParser is plain CommonMark, the same dialect the rest of the vault's
-// tooling reads. Task list items are deliberately not enabled: the checkbox is
-// recognized from the row's own text, so "[x]" means one thing everywhere.
-var mdParser = goldmark.New().Parser()
-
 // Parse reads one study path body into its declared structure. bodyStartLine
 // is the file line the body begins on, so a note with frontmatter reports the
 // lines an editor shows.
+//
+// The body is read as plain CommonMark, the dialect the rest of the vault's
+// tooling reads. Task list items are deliberately not enabled: the checkbox is
+// recognized from the row's own text, so "[x]" means one thing everywhere.
 func Parse(body string, bodyStartLine int) Document {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+	doc := graph.ParseCommonMark(body)
 
 	p := &parser{
 		body:          body,
@@ -1105,9 +1101,7 @@ func LiveScan(body string) (links []Link, zones []Span) {
 	if body == "" {
 		return nil, nil
 	}
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
-	zones = skipZones(doc, body)
+	zones = skipZones(graph.ParseCommonMark(body), body)
 	p := &parser{body: body, zones: zones}
 	hits := p.linksIn(Span{Start: 0, Stop: len(body)})
 	if len(hits) == 0 {
@@ -1172,26 +1166,10 @@ func childList(item *ast.ListItem) *ast.List {
 
 // skipZones are the byte ranges whose brackets are not live links: code
 // blocks and code spans, Obsidian comments, and the authored HTML blocks
-// LineScan already hides. It reads the tree the caller already has, because
+// LineSkipZones already hides. It reads the tree the caller already has, because
 // a second parse is a second answer to what the document is.
 func skipZones(doc ast.Node, body string) []Span {
-	var code []Span
-	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch node := n.(type) {
-		case *ast.FencedCodeBlock, *ast.CodeBlock:
-			if r, ok := linesRange(node); ok {
-				code = append(code, r)
-			}
-		case *ast.CodeSpan:
-			if r, ok := inlineRange(node); ok {
-				code = append(code, r)
-			}
-		}
-		return ast.WalkContinue, nil
-	})
+	code := graph.CodeZones(doc)
 	code = append(code, graph.CommentZones(body, code)...)
 	return append(code, graph.LineSkipZones(body)...)
 }
