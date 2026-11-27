@@ -305,6 +305,8 @@ func (a *action) abort(cause error) error {
 		}
 	}
 	if closeErr := a.close(); closeErr != nil {
+		// Both are kept: the cause is why the run failed, and errors.Is still
+		// finds a refusal in it once the close failure is beside it.
 		return errors.Join(cause, closeErr)
 	}
 	return cause

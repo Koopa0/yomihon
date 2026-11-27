@@ -111,8 +111,10 @@ const (
 )
 
 // Standing reads one citation the way the link rules do, so the check and the
-// health page give one verdict on it. titled says whether the target is some
-// note's title.
+// health page give one verdict on it. titled says whether the target is the
+// title of some note the caller may describe: the caller decides which notes
+// those are, the check counting only what the rules file lets out and the
+// health page every note it holds.
 func Standing(c Citation, idx *graph.Index, planned Planned, titled bool) LinkStanding {
 	switch {
 	case idx.Names(c.Target):
