@@ -16,8 +16,7 @@ type Status int
 // it is kept and shown as such, never dropped, because it is the note that no
 // longer says where the words it was about are, not the mark that is at fault.
 const (
-	// Found means the words the reader chose are in the note, at one place, or
-	// a mark of a whole section has its section.
+	// Found means the words the reader chose are in the note, at one place.
 	Found Status = iota + 1
 	// SectionOnly means the mark names a section or the note as a whole, not a
 	// span of text, and the section is there.

@@ -100,7 +100,7 @@ func (h *Handler) refuseWrite(w http.ResponseWriter, r *http.Request) bool {
 	if why == WritableOK {
 		return false
 	}
-	h.log.Warn("a mark was refused: the reader folder cannot be written to", "why", why, "directory", h.store.Dir())
+	h.log.Warn("a mark was refused: the reader folder cannot be written to", "why", why)
 	http.Error(w, wording.MarkNotKept.In(origin.Language(r)), http.StatusUnprocessableEntity)
 	return true
 }
@@ -134,7 +134,7 @@ func (h *Handler) addMark(w http.ResponseWriter, r *http.Request) {
 	candidate := machinemarks.Mark{
 		ID: id, Kind: request.Kind, Path: request.Path, Anchor: request.Anchor,
 		Quote: request.Quote, Before: request.Before, After: request.After,
-		Identity: page.Identity, Body: request.Body, At: time.Now(),
+		Identity: page.Identity, Body: request.Body, At: stamp(),
 	}
 	if err = candidate.Validate(); err != nil {
 		h.refuse(w, r, err, "keep a mark")
@@ -314,7 +314,7 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	was := page.Mark
-	next, err := revised(&was, &request, time.Now())
+	next, err := revised(&was, &request, stamp())
 	if err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
@@ -492,6 +492,9 @@ func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fa
 			// not shown is.
 			if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
 				seen = maps.Clone(seen)
+				if seen == nil {
+					seen = machinemarks.Seen{}
+				}
 				seen[top.Writer] = top.Rev
 			}
 			h.send(w, r, status, &shown, seen, lang)

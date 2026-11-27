@@ -344,7 +344,7 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	candidate := questionOf(r.PostForm.Get("path"), r.PostForm.Get("anchor"))
-	candidate.ID, candidate.At = newID(), time.Now()
+	candidate.ID, candidate.At = newID(), stamp()
 	marks, err := h.vaultMarks.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "mark a question")

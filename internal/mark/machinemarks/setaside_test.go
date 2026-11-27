@@ -44,6 +44,17 @@ func TestAnOwnValueNobodyWasShownIsSetAsideInTheLedger(t *testing.T) {
 	if got := a.setAside(); !slices.Equal(got, []string{"A's words"}) {
 		t.Fatalf("set aside = %q, want A's words", got)
 	}
+	// The line that keeps it names the machine that wrote it, as every line
+	// of the ledger does.
+	events, _, err := a.m.ledger.Events()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if e.Kind == kindSetAside && e.Machine != a.id() {
+			t.Errorf("a set-aside line names the machine %q, want %q", e.Machine, a.id())
+		}
+	}
 	// The gate is asked of it as of any value: one it refuses hides the mark.
 	if _, ok := a.view().Entry(mid(1), func(m *Mark) bool { return m.Body != "A's words" }); ok {
 		t.Error("a mark whose value set aside the gate refuses was given")

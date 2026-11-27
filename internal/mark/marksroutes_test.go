@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -316,6 +317,44 @@ func TestMkPostKeepsEachKindAndAnswersWithWhatThePageHasRead(t *testing.T) {
 	if got := len(r.mkLines()); got != 7 {
 		t.Fatalf("the vault holds %d lines, want 7", got)
 	}
+}
+
+// A mark's times are kept in UTC to the millisecond, as a bookmark's are: the
+// machine file is carried to other computers by git, and a time that held this
+// one's zone would say where the reader was.
+func TestMkAMarkIsKeptAtATimeInUTCToTheMillisecond(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	question := r.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+mkNote+`","anchor":"section-one"}`)
+	mkStatus(t, question, http.StatusCreated)
+	asked := mkDecode[mkAnswer](t, question)
+	resolved := r.do(http.MethodPatch, "/mark/"+asked.ID, `{"seen":`+mkSeenJSON(t, asked.Seen)+`,"resolved":true}`)
+	mkStatus(t, resolved, http.StatusOK)
+	for _, line := range r.mkLines() {
+		var l struct {
+			Mark struct {
+				At       time.Time `json:"at"`
+				Resolved time.Time `json:"resolved"`
+			} `json:"mark"`
+		}
+		if err := json.Unmarshal([]byte(line), &l); err != nil {
+			t.Fatal(err)
+		}
+		for _, at := range []time.Time{l.Mark.At, l.Mark.Resolved} {
+			if !at.IsZero() && (at.Location() != time.UTC || !at.Equal(at.Truncate(time.Millisecond))) {
+				t.Errorf("a mark keeps the time %s, want UTC to the millisecond: %s", at.Format(time.RFC3339Nano), line)
+			}
+		}
+	}
+}
+
+// A body that is past the limit after its first value is too large, not a
+// second value: the answer says which.
+func TestMkABodyPastTheLimitAfterItsValueIsTooLarge(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	body := `{"kind":"thought","path":"` + mkNote + `","body":"x"}` + strings.Repeat(" ", 70<<10) + "x"
+	mkStatus(t, r.do(http.MethodPost, "/mark", body), http.StatusRequestEntityTooLarge)
 }
 
 // What the route will not keep, it says, in the reader's language, and writes

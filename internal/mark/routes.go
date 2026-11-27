@@ -283,8 +283,11 @@ func (h *Handler) decode(w http.ResponseWriter, r *http.Request, into any, limit
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(into)
 	if err == nil {
-		if _, more := decoder.Token(); !errors.Is(more, io.EOF) {
+		switch _, more := decoder.Token(); {
+		case more == nil:
 			err = errors.New("a second value follows the first")
+		case !errors.Is(more, io.EOF):
+			err = more
 		}
 	}
 	if err != nil {

@@ -622,7 +622,7 @@ func (m *Marks) recordFirst(v *view, line *rawLine, aside []*rawLine, record fun
 	// whole before the line that replaces it, which is the commit point: a kill
 	// between the two leaves the value kept twice at worst, never not at all.
 	for _, ol := range aside {
-		err := record(&ledger.Event{Kind: kindSetAside, Machine: ol.Writer(), Process: m.currentProcess(), Content: ol.raw})
+		err := record(&ledger.Event{Kind: kindSetAside, Machine: ol.M, Process: m.currentProcess(), Content: ol.raw})
 		if err != nil {
 			return fmt.Errorf("set a value aside: %w", err)
 		}
