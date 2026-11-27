@@ -34,10 +34,10 @@ const (
 // gate the export puts on its own reads.
 func AllMarks(*machinemarks.Mark) bool { return true }
 
-// VaultMarks is the reader's highlights, thoughts and questions as the vault keeps
-// them: the machine files under reader-notes/ and the ledger beside the other
-// files of the vault's configuration directory. The folder is opened when it is
-// first asked for and again after a failure, so that a vault whose reader
+// VaultMarks is the reader's highlights, thoughts and questions as the vault
+// keeps them: the machine files under reader-notes/ and the ledger beside the
+// other files of the vault's configuration directory. The folder is opened when
+// it is first asked for and again after a failure, so that a vault whose reader
 // folder cannot be used still opens for reading, and one that is mended is
 // written to without a restart.
 type VaultMarks struct {

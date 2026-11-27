@@ -186,9 +186,9 @@ func markID(sent string) (string, error) {
 	return sent, nil
 }
 
-// answerExisting answers a request to keep a mark with an id the page made, when a
-// mark of that id is kept already: the same send again, which keeps nothing
-// twice. It reports whether it answered.
+// answerExisting answers a request to keep a mark with an id the page made,
+// when a mark of that id is kept already: the same send again, which keeps
+// nothing twice. It reports whether it answered.
 func (h *Handler) answerExisting(w http.ResponseWriter, r *http.Request, id string) bool {
 	view, err := h.vaultMarks.View()
 	if err != nil {
@@ -264,10 +264,10 @@ func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (
 }
 
 // getMark answers a mark as it is read now: the value that counts, which is the
-// newest live one where computers changed it differently (the others stay in the
-// files and are not told here), and what a page that shows it has read, which a change
-// is sent on top of. A deleted mark is answered too, with deleted set, so that
-// what was deleted can be put back.
+// newest live one where computers changed it differently (the others stay in
+// the files and are not told here), and what a page that shows it has read,
+// which a change is sent on top of. A deleted mark is answered too, with
+// deleted set, so that what was deleted can be put back.
 func (h *Handler) getMark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	entry, ok := h.readable(w, r, false)

@@ -579,8 +579,9 @@ func sameValue(a, b *Mark) bool {
 		a.Before == b.Before && a.After == b.After
 }
 
-// recordFirst records in the ledger what is to be kept before the file is replaced:
-// the file as it is when it is not what this machine last wrote, then the line.
+// recordFirst records in the ledger what is to be kept before the file is
+// replaced: the file as it is when it is not what this machine last wrote, then
+// the line.
 func (m *Marks) recordFirst(v *view, line *rawLine, aside []*rawLine, record func(*ledger.Event) error) error {
 	if !v.held() && len(v.ownDisk) > 0 {
 		// What is in the vault is not what this machine last wrote. It is about

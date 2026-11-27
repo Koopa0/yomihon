@@ -125,11 +125,11 @@ func (s *Store) Changed() (bool, error) {
 }
 
 // Add puts the folder root in the list if it is not there, read at at, and
-// answers its entry and whether it was new. A new vault is given the first port from start
-// up that no other vault holds and that free allows, and the port is written
-// down: it is the vault's from then on, and no later start moves it. A vault
-// already listed keeps its port. Adding is the command line's: it is given a
-// path because the reader typed one.
+// answers its entry and whether it was new. A new vault is given the first port
+// from start up that no other vault holds and that free allows, and the port is
+// written down: it is the vault's from then on, and no later start moves it. A
+// vault already listed keeps its port. Adding is the command line's: it is
+// given a path because the reader typed one.
 func (s *Store) Add(root string, start int, at time.Time) (entry Entry, added bool, err error) {
 	if start < MinPort || start > maxPort {
 		return Entry{}, false, ErrStartPort
@@ -384,8 +384,8 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // update is every change to the list: under the lock, from the list as it is
 // now, so that a vault another process added a moment ago is in it. change
 // answers the list to write and whether it differs; a list that cannot be read
-// is saved as damaged first and the change is made to an empty one, which keeps what
-// the reader had in a file they can open and never deletes it. The store's
+// is saved as damaged first and the change is made to an empty one, which keeps
+// what the reader had in a file they can open and never deletes it. The store's
 // methods take no context, so the wait for the lock is bounded by
 // confdir.LockWait alone.
 func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {

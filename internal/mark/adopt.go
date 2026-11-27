@@ -30,11 +30,11 @@ var ErrOtherVault = errors.New("what is kept for that path records another folde
 // Adopt brings the bookmarks and the finished notes the reader kept for the
 // vault at old, the path it had before it moved, into this vault's own, with
 // the ledger of what this machine wrote there, and answers the marks kept
-// there, for this vault's marks to take in (VaultMarks.TakeIn): they belong in the
-// vault's machine files, which a Store does not write, and the earlier files of
-// marks are only ever read. A vault's directory under the configuration
-// directory is named from its path, so a vault that moved is a vault with none
-// of these until they are brought across.
+// there, for this vault's marks to take in (VaultMarks.TakeIn): they belong in
+// the vault's machine files, which a Store does not write, and the earlier
+// files of marks are only ever read. A vault's directory under the
+// configuration directory is named from its path, so a vault that moved is a
+// vault with none of these until they are brought across.
 //
 // admit is asked, for each note a thing names, whether this vault holds that
 // note and lets it be read. What it refuses stays where it was. That is the

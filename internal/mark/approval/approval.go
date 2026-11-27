@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -135,7 +136,7 @@ func (s *Store) List() ([]Approval, error) {
 	if err = decoder.Decode(&doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	if !json.Valid(data) || doc.Version != version || doc.Approvals == nil {
+	if _, err = decoder.Token(); !errors.Is(err, io.EOF) || doc.Version != version || doc.Approvals == nil {
 		return nil, fmt.Errorf("%w: not a version %d approvals file", ErrUnreadable, version)
 	}
 	seen := make(map[string]bool, len(doc.Approvals))

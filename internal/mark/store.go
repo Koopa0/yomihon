@@ -9,7 +9,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
@@ -31,8 +30,6 @@ type Store struct {
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
 	vaultRoot string
-	// mu serializes writers, whose updates read a file and replace it whole.
-	mu sync.Mutex
 }
 
 // Open names this vault's marks. It reads and creates nothing.
@@ -61,11 +58,10 @@ func (s *Store) Dir() string {
 // exclusive runs change as the only writer of this vault's marks and progress,
 // in this process and in any other on the same directory: a change reads a file
 // and replaces it whole, so one that read before another replaced would write
-// the other's away. The store's methods take no context, so the wait for the
-// lock is bounded by confdir.LockWait alone.
+// the other's away. confdir lets this process's changes through one at a time
+// in the order they asked. The store's methods take no context, so the wait for
+// the lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 

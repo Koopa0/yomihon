@@ -75,15 +75,15 @@ type Places interface {
 // same loopback listener, with a body cap. They are not a face an agent has any
 // business calling: these endpoints are the reader's. The routes that write
 // refuse a request another origin made (the command wraps them in
-// http.NewCrossOriginProtection and origin.LoopbackOnly) and a vault whose reader folder cannot be
-// written to.
+// http.NewCrossOriginProtection and origin.LoopbackOnly) and a vault whose
+// reader folder cannot be written to.
 //
 // It keeps a mark only in a note the vault holds now. The path is the one field
 // of a mark that can reach the desk as text, so a path nobody's note carries is
 // refused rather than stored for a later page to print. It reaches the
-// highlights, thoughts and questions only through VaultMarks, which keeps them in the
-// vault's machine files, and the bookmarks and finished notes only through a
-// Store, which keeps them in the configuration directory.
+// highlights, thoughts and questions only through VaultMarks, which keeps them
+// in the vault's machine files, and the bookmarks and finished notes only
+// through a Store, which keeps them in the configuration directory.
 type Handler struct {
 	store      *Store
 	vaultMarks *VaultMarks
@@ -232,17 +232,18 @@ func (h *Handler) refuseBookmark(w http.ResponseWriter, r *http.Request, err err
 	http.Error(w, wording.BookmarkNotStored.In(lang), http.StatusInternalServerError)
 }
 
-// setBookmark stores kept as the bookmark of course and answers the one it
-// replaced, if that is the one expect names, when its shape is one these files hold, its note is one the vault
-// holds and, for a course, the course walks it. The shape is judged first, so a
-// path no note could carry never reaches the vault to be looked up.
+// setBookmark stores b as the bookmark of course and answers the one it
+// replaced, if that is the one expect names, when its shape is one these files
+// hold, its note is one the vault holds and, for a course, the course walks it.
+// The shape is judged first, so a path no note could carry never reaches the
+// vault to be looked up.
 //
 // Only the note is asked after: the empty anchor names it as a whole. An anchor
-// is any id the rendered body carries — a block address or a footnote as readily
-// as a heading — and the vault's answer for an anchor covers headings alone, so
-// asking it about the anchor would refuse a place a reading page honestly
-// stamps. The anchor stays bounded by its shape, and it only ever reaches the
-// desk inside an address.
+// is any id the rendered body carries — a block address or a footnote as
+// readily as a heading — and the vault's answer for an anchor covers headings
+// alone, so asking it about the anchor would refuse a place a reading page
+// honestly stamps. The anchor stays bounded by its shape, and it only ever
+// reaches the desk inside an address.
 func (h *Handler) setBookmark(course string, b *Bookmark, expect *Expectation) (Bookmark, bool, error) {
 	if err := validateBookmark(course, b); err != nil {
 		return Bookmark{}, false, err

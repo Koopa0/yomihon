@@ -73,8 +73,8 @@ const (
 	// compactAt is how long the ledger grows before a Record compacts it.
 	compactAt = 8 << 20
 	// maxBytes is the most of a ledger, or of the damaged lines moved out of
-	// one, that is read. Nothing here caps what the ledger keeps, so this is a bound on
-	// memory and not a size the ledger is expected to reach.
+	// one, that is read. Nothing here caps what the ledger keeps, so this is a
+	// bound on memory and not a size the ledger is expected to reach.
 	maxBytes = 1 << 30
 	// maxLineBytes is the most one line may hold: a machine file of marks as a
 	// write replaced it, which is at most 16 MiB and takes at most 4/3 of that
@@ -253,8 +253,8 @@ func (l *Ledger) Record(ctx context.Context, e *Event) (uint64, error) {
 // those compactions moved to ledger.damaged.jsonl. It takes no lock and waits
 // for no writer, of this process or another: a line being appended as it reads
 // is a line cut short to it, and is not there yet, and a compaction installs
-// the ledger by rename, so it is read whole before or after. The Content of each is shared
-// with what the ledger holds, and is not changed by the caller.
+// the ledger by rename, so it is read whole before or after. The Content of
+// each is shared with what the ledger holds, and is not changed by the caller.
 func (l *Ledger) Events() (events []Event, changed int, err error) {
 	st, err := l.load()
 	if err != nil {
@@ -275,10 +275,10 @@ func (l *Ledger) Compact(ctx context.Context) error {
 // this one, when this one has no line of its own, whole or changed. The ledger
 // is copied byte for byte, so this machine goes on under the machine id and the
 // seqs it had there, and the damaged lines moved out there are moved out here
-// beside any this one holds, none twice. A ledger that has lines of its own is left as
-// it is, and the earlier one is not merged into it: false says nothing was
-// carried. from is only read, so the same call can be made again, and one that
-// stopped part way is finished by it. ctx bounds the wait for the lock.
+// beside any this one holds, none twice. A ledger that has lines of its own is
+// left as it is, and the earlier one is not merged into it: false says nothing
+// was carried. from is only read, so the same call can be made again, and one
+// that stopped part way is finished by it. ctx bounds the wait for the lock.
 func (l *Ledger) Carry(ctx context.Context, from confdir.Dir) (bool, error) {
 	// Read first, and the lock taken only when there is something to carry, so
 	// that a vault with no earlier ledger is left without even a lock file.

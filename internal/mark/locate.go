@@ -46,8 +46,9 @@ type Placement struct {
 }
 
 // contextSteps are how much of the context on each side is asked for, nearest
-// the words first, longest first: the whole of what a mark keeps, then less. An author who edits a sentence that stood a
-// paragraph away leaves the sentences beside the words as they were.
+// the words first, longest first: the whole of what a mark keeps, then less. An
+// author who edits a sentence that stood a paragraph away leaves the sentences
+// beside the words as they were.
 var contextSteps = [...]int{512, 96, 32}
 
 // Locate says where a mark is in text, the note's words as a reader sees them,

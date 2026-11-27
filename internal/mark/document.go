@@ -3,7 +3,9 @@ package mark
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
@@ -199,7 +201,7 @@ func decodeStrict(data []byte, v any) error {
 	if err := decoder.Decode(v); err != nil {
 		return fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	if !json.Valid(data) {
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return fmt.Errorf("%w: more than one value", ErrUnreadable)
 	}
 	return nil
