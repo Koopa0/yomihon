@@ -194,6 +194,7 @@ func (s *Store) Touch(id, name string, at time.Time) (written bool, err error) {
 	if last, ok := s.touched[id]; ok && at.Sub(last.at) < touchEvery && (name == "" || name == last.name) {
 		return false, nil
 	}
+	var now touch
 	err = s.update(func(list []Entry) ([]Entry, bool, error) {
 		i := indexOf(list, id)
 		if i < 0 {
@@ -207,11 +208,17 @@ func (s *Store) Touch(id, name string, at time.Time) (written bool, err error) {
 		if renamed {
 			list[i].Name = name
 		}
-		s.touched[id] = touch{at: list[i].LastRead, name: list[i].Name}
+		now = touch{at: list[i].LastRead, name: list[i].Name}
 		written = stale || renamed
 		return list, written, nil
 	})
-	return written, err
+	if err != nil {
+		return false, err
+	}
+	// Only what is in the file is answered from memory: a write that failed is
+	// made again by the next page.
+	s.touched[id] = now
+	return written, nil
 }
 
 // Remove takes the vault out of the list and remembers it so that Restore can

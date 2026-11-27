@@ -254,6 +254,41 @@ func TestTheListIsOrderedByLastReadWithTheLatestFirst(t *testing.T) {
 	}
 }
 
+// A last-read time that could not be written is written by the next page,
+// and not answered from memory as though it had been.
+func TestALastReadThatWasNotWrittenIsWrittenNextTime(t *testing.T) {
+	t.Parallel()
+	if !runtimeHasModes() {
+		t.Skip("Windows does not refuse a directory by its permission bits")
+	}
+	config := t.TempDir()
+	s, clock := storeIn(t, config, nil)
+	e := mustAdd(t, s, folder(t, "a"))
+	home := filepath.Join(config, "yomihon")
+	if err := os.Chmod(home, 0o500); err != nil { // #nosec G302 -- the test's own temporary directory, readable and searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(home, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+			t.Errorf("restore the directory's mode: %v", err)
+		}
+	})
+	if probe, err := os.CreateTemp(home, "probe"); err == nil {
+		_ = probe.Close() //nolint:errcheck // only whether it was made matters
+		t.Skip("this user writes in a directory it may not write in (a privileged user), so the fixture shows nothing")
+	}
+	later := clock.Add(2 * time.Minute)
+	if _, err := s.Touch(e.ID, "", later); err == nil {
+		t.Fatal("Touch into a directory that cannot be written = nil, want an error")
+	}
+	if err := os.Chmod(home, 0o700); err != nil { // #nosec G302 -- the test's own temporary directory, writable again
+		t.Fatal(err)
+	}
+	if written, err := s.Touch(e.ID, "", later.Add(time.Second)); err != nil || !written {
+		t.Fatalf("Touch after a write that failed = written %v, %v; want the write made now", written, err)
+	}
+}
+
 func TestALastReadIsWrittenAtMostOnceAMinuteAndANewNameAtOnce(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
