@@ -176,6 +176,9 @@ linters:
               desc: use stdlib slices, in the standard library since Go 1.21
             - pkg: golang.org/x/exp/maps
               desc: use stdlib maps, in the standard library since Go 1.21
+            # The YAML decoder every note is read through, on its maintained line.
+            - pkg: gopkg.in/yaml.v3
+              desc: unmaintained; its last release panics on a merge key beside a list or a mapping — use go.yaml.in/yaml/v3
             # Test doubles. Tests here run against the real thing wherever one
             # can be built — a temp vault, an httptest server — and a fake only
             # where the real thing cannot be reached at all.
@@ -235,6 +238,8 @@ linters:
       forbid:
         - pattern: ^fmt\.Print(f|ln)?$
           msg: use log/slog, which the served faces and the commands share
+        - pattern: ^print(ln)?$
+          msg: the builtins write to standard error past every gate; use log/slog
         - pattern: ^log\.(Print(f|ln)?|Fatal(f|ln)?|Panic(f|ln)?)$
           msg: use log/slog; the paths that exit belong in main
         - pattern: ^sort\.Slice(Stable)?$

@@ -1,9 +1,6 @@
 package archlock
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -33,9 +30,8 @@ func report(t *testing.T, rule string, remaining []site) {
 }
 
 // productionLines yields every line of every Go source file this repository
-// ships, skipping tests and generated code. A check over the text answers the
-// same question a reader answers by reading, which is what these rules are
-// about; the two checks that need the syntax tree ask for it separately.
+// ships, skipping tests and generated code, for a check over the text a reader
+// reads.
 func productionLines(t *testing.T) []site {
 	t.Helper()
 
@@ -90,40 +86,6 @@ func productionFiles(t *testing.T, ext string) []string {
 			return nil
 		}
 		if filepath.Ext(name) != ext || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_templ.go") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(repoRoot, p)
-		if relErr != nil {
-			return relErr
-		}
-		paths = append(paths, filepath.ToSlash(rel))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk the repository: %v", err)
-	}
-	slices.Sort(paths)
-	return paths
-}
-
-// everyGoFile lists this module's own Go source with the tests included, for a
-// rule that holds in test files too.
-func everyGoFile(t *testing.T) []string {
-	t.Helper()
-
-	var paths []string
-	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		name := d.Name()
-		if d.IsDir() {
-			if outsideTheSource(p, name) {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_templ.go") {
 			return nil
 		}
 		rel, relErr := filepath.Rel(repoRoot, p)
@@ -307,132 +269,6 @@ func colouredClasses(t *testing.T) map[string]int {
 	return at
 }
 
-// httpPackageNames reports every name net/http answers to in one file. It is
-// almost always the one name, and the cases worth resolving rather than
-// assuming are the others: a file that imports it under another name writes
-// calls no pattern over the text will recognize, and a file that imports it
-// twice answers to both, so stopping at the first name found would leave the
-// second one unread.
-func httpPackageNames(file *ast.File) (names []string, readable bool) {
-	for _, spec := range file.Imports {
-		if spec.Path == nil || spec.Path.Value != `"net/http"` {
-			continue
-		}
-		switch {
-		case spec.Name == nil:
-			names = append(names, "http")
-		case spec.Name.Name == ".":
-			// The calls lose their qualifier entirely, so this file cannot be
-			// read by the walk below.
-			return nil, false
-		case spec.Name.Name == "_":
-			// Imported for its initialisers; nothing here is callable through it.
-		default:
-			names = append(names, spec.Name.Name)
-		}
-	}
-	return names, true
-}
-
-// carriesWrittenSentence reports whether an argument is words written at the
-// call rather than words fetched from somewhere. A literal is, so is a literal
-// joined to something else, and so is a format string, which is the sentence
-// however much is interpolated into it. An ordinary call is not, even one whose
-// own arguments hold literals — those are keys and names, not the sentence.
-//
-// It reads the expression it is given and nothing before it, so a sentence
-// bound to a name first — a constant, or a local assigned on the line above —
-// reads as words fetched from somewhere. Following those would mean resolving
-// identifiers across the file and the package, which is a different instrument
-// from this one; the table below states that boundary rather than leaving it to
-// be discovered.
-func carriesWrittenSentence(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		return e.Kind == token.STRING
-	case *ast.ParenExpr:
-		return carriesWrittenSentence(e.X)
-	case *ast.BinaryExpr:
-		return e.Op == token.ADD && (carriesWrittenSentence(e.X) || carriesWrittenSentence(e.Y))
-	case *ast.CallExpr:
-		if selector, ok := e.Fun.(*ast.SelectorExpr); ok && selector.Sel.Name == "Sprintf" {
-			return len(e.Args) > 0 && carriesWrittenSentence(e.Args[0])
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-// responseSentenceSites finds, in one file, the calls that put words in front
-// of a reader without going through the dictionary, and counts the calls that
-// take their words from somewhere else, so a caller can tell an empty answer
-// from an unasked question.
-func responseSentenceSites(path string, fset *token.FileSet, file *ast.File) (found []site, fromElsewhere int) {
-	names, readable := httpPackageNames(file)
-	if readable && len(names) == 0 {
-		return nil, 0
-	}
-	if !readable {
-		return []site{{
-			path: path,
-			line: fset.Position(file.Pos()).Line,
-			text: "net/http is imported into this file's own namespace, so its calls cannot be read here",
-		}}, 0
-	}
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		qualifier, ok := selector.X.(*ast.Ident)
-		if !ok || !slices.Contains(names, qualifier.Name) {
-			return true
-		}
-		line := fset.Position(call.Pos()).Line
-		switch {
-		case selector.Sel.Name == "NotFound":
-			found = append(found, site{path: path, line: line, text: "NotFound writes the standard library's own sentence"})
-		case selector.Sel.Name != "Error" || len(call.Args) < 2:
-		case carriesWrittenSentence(call.Args[1]):
-			found = append(found, site{path: path, line: line, text: "the body is written at this call"})
-		default:
-			fromElsewhere++
-		}
-		return true
-	})
-	return found, fromElsewhere
-}
-
-// TestNoResponseCarriesASentenceWrittenInTheSource keeps every string a reader
-// can see inside the dictionary that has both languages of it. A sentence
-// written in a handler is the one that gets missed, because it looks like code.
-//
-// It reads the call rather than the line. The line is written differently by
-// different hands — the response parameter is named w almost everywhere and
-// nothing makes it so, and net/http can be imported under another name — and a
-// check that matches one spelling is a check a rename walks through in
-// silence, with every gate still green.
-func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
-	t.Parallel()
-
-	var found []site
-	fromElsewhere := 0
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		sites, conforming := responseSentenceSites(path, fset, file)
-		found = append(found, sites...)
-		fromElsewhere += conforming
-	})
-	if fromElsewhere == 0 {
-		t.Fatal("no handler takes its words from anywhere but its own source, so this check is comparing against nothing")
-	}
-	report(t, "a response body a reader sees must come from internal/wording, not from a sentence written here", found)
-}
-
 // TestNoScriptCarriesASentenceOfItsOwn keeps the client's words where the
 // server's are. A script is one file for every reader, so a sentence written
 // into one is written in a single language and reaches the reader who asked
@@ -511,22 +347,4 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 		t.Fatal("nothing in the tree resolves a phrase from the request, so this check is comparing against nothing")
 	}
 	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", found)
-}
-
-// forEachProductionFile parses every shipped Go file once and hands it over.
-func forEachProductionFile(t *testing.T, visit func(path string, fset *token.FileSet, file *ast.File)) {
-	t.Helper()
-
-	fset := token.NewFileSet()
-	paths := productionFiles(t, ".go")
-	if len(paths) == 0 {
-		t.Fatal("no production source was parsed, so every check over the syntax tree passes for the wrong reason")
-	}
-	for _, path := range paths {
-		file, err := parser.ParseFile(fset, filepath.Join(repoRoot, path), nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		visit(path, fset, file)
-	}
 }

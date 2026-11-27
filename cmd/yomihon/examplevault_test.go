@@ -204,7 +204,7 @@ func requirePhrases(t *testing.T, where, markup string, phrases []string) {
 }
 
 // requireNoStatusControl holds a page to offering no way to change a note: the
-// reading room writes nothing into the vault.
+// reading room writes no note into the vault.
 func requireNoStatusControl(t *testing.T, where, page string) {
 	t.Helper()
 	if strings.Contains(page, `action="/status"`) || strings.Contains(page, `name="to"`) {

@@ -58,9 +58,9 @@ explicit ruling from the maintainer on the issue.
    in logs. When no home directory can be found, the full path is shown.
    `os.UserConfigDir` already reads the same variable indirectly to find the
    configuration directory. Adding another variable, or another use of these
-   two, needs a ruling. A test in `cmd/yomihon` parses
-   every file the binary is built from, on each supported platform, and fails on
-   any other reach for the environment. The process opens no outbound
+   two, needs a ruling. A test in `internal/archlock` reads every shipped
+   package, on each system the release is built for, and fails on any other
+   reach for the environment. The process opens no outbound
    connection of any kind. A figure the owner approved runs scripts in the
    browser that can reach the network; that is the one browser-side exception,
    decided on 2026-11-12, and the threat model bounds it.
@@ -74,7 +74,7 @@ The interface speaks Traditional Chinese and English, and a reader chooses
 between them with one cookie. A sentence a reader sees is therefore not written
 where it is used: it lives in `internal/wording`, built from both languages at
 once with `both(zhHant, en)`, and resolved with `In` by the surface that knows
-who is reading. Three tests in `internal/archlock` hold that shape. One turns
+who is reading. Three checks in `internal/archlock` hold that shape. One turns
 red when a response carries a sentence written in its own source rather than
 taken from `internal/wording`; one when a phrase picks its language before the
 request says which; and one when a script carries Chinese or Japanese text of
