@@ -385,7 +385,7 @@ func (l *Ledger) exclusive(ctx context.Context, change func() error) error {
 // keeping of what was read are made under l.mu; the files are looked at and
 // read outside it.
 func (l *Ledger) load() (state, error) {
-	info, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	info, err := confdir.Stat(l.dir, fileName)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		info = nil
@@ -422,7 +422,7 @@ func (l *Ledger) readLedger(st *state, info fs.FileInfo) error {
 	// What was read is reused only while the file is what was read: one that
 	// changed or was replaced between the look and the end of the read is read
 	// again next time.
-	after, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	after, err := confdir.Stat(l.dir, fileName)
 	if err == nil && sameFile(info, after) && after.Size() == int64(len(data)) {
 		st.info = after
 	}
@@ -470,7 +470,7 @@ func ended(data []byte) []byte {
 
 // lookAside looks at the file of the lines set aside.
 func (l *Ledger) lookAside() (look, error) {
-	info, err := os.Stat(l.dir.Join(damagedName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	info, err := confdir.Stat(l.dir, damagedName)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return look{}, nil
@@ -538,7 +538,7 @@ func (l *Ledger) extend(st *state, e *Event, appended int64) {
 		l.forget()
 		return
 	}
-	after, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	after, err := confdir.Stat(l.dir, fileName)
 	if err != nil {
 		l.forget()
 		return
@@ -576,7 +576,7 @@ func (l *Ledger) compactIfLong() {
 	l.mu.Lock()
 	failedAt := l.failedAt
 	l.mu.Unlock()
-	info, err := os.Stat(l.dir.Join(fileName)) // #nosec G703 -- a file of this vault's own directory under the configuration directory
+	info, err := confdir.Stat(l.dir, fileName)
 	if err != nil || info.Size() <= l.compactAt || info.Size() < 2*failedAt {
 		return
 	}

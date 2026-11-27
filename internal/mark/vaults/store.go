@@ -353,14 +353,14 @@ func (s *Store) forget(id string) {
 
 // statList is how the list looks on disk, without reading it.
 func (s *Store) statList() (stamp, error) {
-	size, modified, err := confdir.Stat(s.dir, listFile)
+	info, err := confdir.Stat(s.dir, listFile)
 	if errors.Is(err, os.ErrNotExist) {
 		return stamp{}, nil
 	}
 	if err != nil {
 		return stamp{}, fmt.Errorf("look at the list of vaults: %w", err)
 	}
-	return stamp{present: true, size: size, modified: modified}, nil
+	return stamp{present: true, size: info.Size(), modified: info.ModTime()}, nil
 }
 
 // read is the list as it is on disk. The raw bytes come back with the list
@@ -448,7 +448,7 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 		return fmt.Errorf("set the list of vaults aside: %w", err)
 	}
 	if raw == nil {
-		err = confdir.SetAside(s.dir, listFile, name)
+		err = confdir.Rename(s.dir, listFile, name)
 	} else {
 		err = confdir.Replace(s.dir, name, raw)
 	}
@@ -472,7 +472,7 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 func (s *Store) freeAsideName() (string, error) {
 	name := asideFile(keptAside)
 	for n := 1; n <= keptAside; n++ {
-		_, _, err := confdir.Stat(s.dir, asideFile(n))
+		_, err := confdir.Stat(s.dir, asideFile(n))
 		if errors.Is(err, os.ErrNotExist) {
 			return asideFile(n), nil
 		}

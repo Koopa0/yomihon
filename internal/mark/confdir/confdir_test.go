@@ -335,23 +335,23 @@ func TestRemoveDeletesAFileAndAFileThatIsNotThereIsAlreadyRemoved(t *testing.T) 
 func TestStatSaysHowLongAFileIsWithoutReadingIt(t *testing.T) {
 	t.Parallel()
 	dir := homeIn(t)
-	if _, _, err := confdir.Stat(dir, "vaults.json"); !errors.Is(err, os.ErrNotExist) {
+	if _, err := confdir.Stat(dir, "vaults.json"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat of a file that is not there = %v, want ErrNotExist", err)
 	}
 	if err := confdir.Replace(dir, "vaults.json", []byte("12345")); err != nil {
 		t.Fatal(err)
 	}
-	size, modified, err := confdir.Stat(dir, "vaults.json")
+	info, err := confdir.Stat(dir, "vaults.json")
 	if err != nil {
 		t.Fatalf("Stat: %v", err)
 	}
-	if size != 5 {
-		t.Errorf("size = %d, want 5", size)
+	if info.Size() != 5 {
+		t.Errorf("size = %d, want 5", info.Size())
 	}
-	if modified.IsZero() {
+	if info.ModTime().IsZero() {
 		t.Error("Stat gave no modification time")
 	}
-	if _, _, err := confdir.Stat(dir, "../vaults.json"); err == nil {
+	if _, err := confdir.Stat(dir, "../vaults.json"); err == nil {
 		t.Error("Stat accepted a name that leaves the directory")
 	}
 }
@@ -367,8 +367,8 @@ func TestAZeroDirIsRefusedByEverythingThatChangesAFile(t *testing.T) {
 	if err := confdir.Remove(none, "f.json"); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Remove = %v, want ErrNotNamed", err)
 	}
-	if err := confdir.SetAside(none, "f.json", "g.json"); !errors.Is(err, confdir.ErrNotNamed) {
-		t.Errorf("SetAside = %v, want ErrNotNamed", err)
+	if err := confdir.Rename(none, "f.json", "g.json"); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Rename = %v, want ErrNotNamed", err)
 	}
 	if _, err := confdir.Acquire(t.Context(), none, "l.lock", 0); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Acquire = %v, want ErrNotNamed", err)
@@ -376,7 +376,7 @@ func TestAZeroDirIsRefusedByEverythingThatChangesAFile(t *testing.T) {
 	if _, err := confdir.Read(none, "f.json", 1); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Read = %v, want ErrNotNamed", err)
 	}
-	if _, _, err := confdir.Stat(none, "f.json"); !errors.Is(err, confdir.ErrNotNamed) {
+	if _, err := confdir.Stat(none, "f.json"); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Stat = %v, want ErrNotNamed", err)
 	}
 }

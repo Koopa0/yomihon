@@ -485,11 +485,11 @@ func Remove(dir Dir, name string) error {
 	return nil
 }
 
-// SetAside renames the file called from in dir to the name to, replacing one
+// Rename renames the file called from in dir to the name to, replacing one
 // that is already there. It is how a file that cannot be read as what it should
 // be is kept for the reader to open, without ever being read in whole or
-// deleted. A file that is not there is already set aside.
-func SetAside(dir Dir, from, to string) error {
+// deleted. A file that is not there is already renamed.
+func Rename(dir Dir, from, to string) error {
 	if err := dir.named(); err != nil {
 		return err
 	}
@@ -505,20 +505,16 @@ func SetAside(dir Dir, from, to string) error {
 	return nil
 }
 
-// Stat is how long the file called name in dir is, in bytes, and when it last
-// changed, without reading it. It is what a poller asks first, so a file that has not
-// changed costs one system call and not a parse. A file that is not there
-// answers an error that satisfies errors.Is(err, os.ErrNotExist).
-func Stat(dir Dir, name string) (int64, time.Time, error) {
+// Stat is the file called name in dir as the system describes it, without
+// reading it: what a poller asks first, so a file that has not changed costs
+// one system call and not a parse. A file that is not there answers an error
+// that satisfies errors.Is(err, os.ErrNotExist).
+func Stat(dir Dir, name string) (fs.FileInfo, error) {
 	if err := dir.named(); err != nil {
-		return 0, time.Time{}, err
+		return nil, err
 	}
 	if err := checkName(name); err != nil {
-		return 0, time.Time{}, err
+		return nil, err
 	}
-	info, err := os.Stat(dir.Join(name))
-	if err != nil {
-		return 0, time.Time{}, err
-	}
-	return info.Size(), info.ModTime(), nil
+	return os.Stat(dir.Join(name))
 }
