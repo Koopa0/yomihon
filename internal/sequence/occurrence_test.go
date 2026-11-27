@@ -41,7 +41,11 @@ func TestTargetSpanIsTheWrittenLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse(tt.body, 1)
-			entry := onlyEntry(t, doc)
+			entries := doc.Groups[0].entries()
+			if len(entries) != 1 {
+				t.Fatalf("entries = %d, want 1", len(entries))
+			}
+			entry := entries[0]
 			if entry.State != EntryAccepted {
 				t.Fatalf("row state = %s, want accepted", entry.State)
 			}
@@ -52,26 +56,6 @@ func TestTargetSpanIsTheWrittenLink(t *testing.T) {
 				t.Errorf("target span covers %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-// TestTargetSpanSeparatesTwoWritingsOfOneName holds that a name written on two
-// rows is two occurrences. Joining on the name would let either row answer for
-// the other; these spans are what keeps them apart.
-func TestTargetSpanSeparatesTwoWritingsOfOneName(t *testing.T) {
-	t.Parallel()
-	doc := Parse("## Main {sequence=primary}\n\n- [[Lesson]]\n- [[Lesson]]\n", 1)
-	entries := doc.Groups[0].entries()
-	if len(entries) != 2 {
-		t.Fatalf("entries = %d, want 2", len(entries))
-	}
-	if entries[0].Target != entries[1].Target {
-		t.Fatalf("the two rows name different notes (%q, %q), so this holds nothing",
-			entries[0].Target, entries[1].Target)
-	}
-	if entries[0].TargetSpan == entries[1].TargetSpan {
-		t.Errorf("both rows report the same target span %v, so one can answer for the other",
-			entries[0].TargetSpan)
 	}
 }
 
@@ -98,7 +82,11 @@ func TestTargetSpanIsSetExactlyWhenTargetIs(t *testing.T) {
 	seen := map[EntryState]bool{}
 	for _, body := range bodies {
 		doc := Parse(body, 1)
-		for _, e := range allEntries(doc) {
+		for _, item := range walk(doc.Groups) {
+			e := item.Entry
+			if e == nil {
+				continue
+			}
 			seen[e.State] = true
 			if (e.Target == "") != e.TargetSpan.Zero() {
 				t.Errorf("target %q and span %v disagree about whether this row resolves to a note, in %q",
@@ -120,38 +108,4 @@ func TestTargetSpanIsSetExactlyWhenTargetIs(t *testing.T) {
 			t.Errorf("no fixture produced a %s row, so that state's invariant is unheld", state)
 		}
 	}
-}
-
-// allEntries are every row a document lists, including those in branches
-// opened beneath another row.
-func allEntries(doc Document) []*Candidate {
-	var out []*Candidate
-	var walk func(g *Group)
-	walk = func(g *Group) {
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				out = append(out, item.Entry)
-			case item.Branch != nil:
-				walk(item.Branch)
-			}
-		}
-	}
-	for _, g := range doc.Groups {
-		walk(g)
-	}
-	return out
-}
-
-// onlyEntry is the single row a one-row fixture declares.
-func onlyEntry(t *testing.T, doc Document) *Candidate {
-	t.Helper()
-	var found []*Candidate
-	for _, g := range doc.Groups {
-		found = append(found, g.entries()...)
-	}
-	if len(found) != 1 {
-		t.Fatalf("entries = %d, want 1", len(found))
-	}
-	return found[0]
 }

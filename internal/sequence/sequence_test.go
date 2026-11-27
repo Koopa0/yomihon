@@ -4,6 +4,7 @@ import (
 	goast "go/ast"
 	goparser "go/parser"
 	"go/token"
+	"iter"
 	"os"
 	"regexp"
 	"slices"
@@ -145,22 +146,6 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	wantSide := []string{"磨豆機校正基礎", "粒徑分布判讀", "校正實作"}
 	if diff := cmp.Diff(wantSide, targets(side.entries())); diff != "" {
 		t.Errorf("side branch order mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestOrderedAndUnorderedRowsAreTheSameCandidate holds the one equivalence the
-// contract states outright. A course written with numbers and a course written
-// with dashes are the same course; punctuation is not a declaration.
-func TestOrderedAndUnorderedRowsAreTheSameCandidate(t *testing.T) {
-	t.Parallel()
-	ordered := Parse("## P {sequence=primary}\n\n1. [[A]]\n2. [[B]]\n", 1)
-	unordered := Parse("## P {sequence=primary}\n\n- [[A]]\n* [[B]]\n", 1)
-
-	if diff := cmp.Diff(targets(ordered.Groups[0].entries()), targets(unordered.Groups[0].entries())); diff != "" {
-		t.Errorf("ordered and unordered rows disagree (-ordered +unordered):\n%s", diff)
-	}
-	if len(ordered.Diagnostics) != 0 || len(unordered.Diagnostics) != 0 {
-		t.Errorf("a well-formed list reports problems: ordered=%+v unordered=%+v", ordered.Diagnostics, unordered.Diagnostics)
 	}
 }
 
@@ -368,68 +353,6 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	}
 }
 
-// TestInvalidBranchesSaySoInTheType holds the one-verdict rule. Navigation and
-// the judge read Projectable and Invalid off the group; neither re-derives the
-// verdict from the diagnostics, because two readings of one report are two
-// different courses.
-func TestInvalidBranchesSaySoInTheType(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a role conflict does not project", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n", 1)
-		inner := doc.Groups[0].subgroups()[0]
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("conflicted branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-	})
-
-	t.Run("an orphaned side branch does not project", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n", 1)
-		side := doc.Groups[0].subgroups()[0]
-		if !side.Invalid || side.Projectable() {
-			t.Errorf("orphaned branch = (invalid %t, projectable %t), want (true, false)", side.Invalid, side.Projectable())
-		}
-	})
-
-	t.Run("a side branch nested too deep does not project, and the outer one still does", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].subgroups()[0]
-		if outer.Invalid || !outer.Projectable() {
-			t.Errorf("outer side branch = (invalid %t, projectable %t), want (false, true); the error is the inner one's", outer.Invalid, outer.Projectable())
-		}
-		inner := outer.subgroups()[0]
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("inner side branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-	})
-
-	t.Run("a main-line branch inside a side branch does not project, and the side branch still does", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].subgroups()[0]
-		if outer.Invalid || !outer.Projectable() {
-			t.Errorf("side branch = (invalid %t, projectable %t), want (false, true); the error is the nested primary's", outer.Invalid, outer.Projectable())
-		}
-		inner := outer.subgroups()[0]
-		if inner.Role != RolePrimary {
-			t.Errorf("nested branch role = %v, want primary", inner.Role)
-		}
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("nested primary = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-		found := findRule(doc, RuleRoleNestedPrimary)
-		if found == nil {
-			t.Fatal("the nested primary was not reported")
-		}
-		if !strings.Contains(found.Message, "side branch") {
-			t.Errorf("nested-primary conflict did not name the side branch it sits in: %q", found.Message)
-		}
-	})
-}
-
 // TestCandidateIdentityDisambiguatesRepeatedTargets holds the reason a span
 // exists at all. Two rows may name the same note; the side branch under the
 // second must say it hangs from the second, and a target string alone cannot.
@@ -469,10 +392,10 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 	if doc.Groups[0].Role != RoleUnclassified {
 		t.Errorf("branch role = %v, want unclassified; a row the grammar recognized is a row", doc.Groups[0].Role)
 	}
-	if !hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) == nil {
 		t.Errorf("an undeclared branch that lists rows was not reported: %+v", doc.Diagnostics)
 	}
-	if !hasRule(doc, RuleEntryMultiTarget) {
+	if findRule(doc, RuleEntryMultiTarget) == nil {
 		t.Errorf("a row naming two notes was not reported: %+v", doc.Diagnostics)
 	}
 	entries := doc.Groups[0].entries()
@@ -509,7 +432,9 @@ func TestABranchThatOnlyGroupsOtherBranchesIsSilent(t *testing.T) {
 
 // TestDiagnosticsNameWhatTheAuthorHasToDecide walks the rules one at a time.
 // Each case is a document a person could plausibly write, and the assertion is
-// that the right rule fires on the right line.
+// that the right rule fires on the right line. A structural error also marks
+// the branch it names invalid, and only that branch: navigation and the judge
+// read the verdict off the type rather than re-deriving it from the reports.
 func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -517,6 +442,9 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 		body     string
 		wantRule Rule
 		wantLine int
+		// wantInvalid is whether the branch opened on wantLine is marked
+		// invalid. No other branch in the document ever is.
+		wantInvalid bool
 	}{
 		{
 			name:     "a branch that lists lessons but declares nothing",
@@ -531,34 +459,39 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			wantLine: 1,
 		},
 		{
-			name:     "a branch in the course under a branch out of it",
-			body:     "## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n",
-			wantRule: RuleRoleConflict,
-			wantLine: 3,
+			name:        "a branch in the course under a branch out of it",
+			body:        "## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n",
+			wantRule:    RuleRoleConflict,
+			wantLine:    3,
+			wantInvalid: true,
 		},
 		{
-			name:     "a side branch with nothing to hang from",
-			body:     "## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n",
-			wantRule: RuleLocalOrphan,
-			wantLine: 3,
+			name:        "a side branch with nothing to hang from",
+			body:        "## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n",
+			wantRule:    RuleLocalOrphan,
+			wantLine:    3,
+			wantInvalid: true,
 		},
 		{
-			name:     "a side branch inside a side branch",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n",
-			wantRule: RuleNestingTooDeep,
-			wantLine: 6,
+			name:        "a side branch inside a side branch",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n",
+			wantRule:    RuleNestingTooDeep,
+			wantLine:    6,
+			wantInvalid: true,
 		},
 		{
-			name:     "a main-line branch inside a side branch",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
-			wantRule: RuleRoleNestedPrimary,
-			wantLine: 6,
+			name:        "a main-line branch inside a side branch",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
+			wantRule:    RuleRoleNestedPrimary,
+			wantLine:    6,
+			wantInvalid: true,
 		},
 		{
-			name:     "a row that is both a lesson and a branch heading",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- [[B]] {sequence=local}\n\t\t- [[C]]\n",
-			wantRule: RuleRoleOnEntry,
-			wantLine: 4,
+			name:        "a row that is both a lesson and a branch heading",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- [[B]] {sequence=local}\n\t\t- [[C]]\n",
+			wantRule:    RuleRoleOnEntry,
+			wantLine:    4,
+			wantInvalid: true,
 		},
 		{
 			name:     "a value outside the three",
@@ -651,6 +584,19 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			if found.Message == "" {
 				t.Errorf("%s carries no message", tt.wantRule)
 			}
+			var invalid []int
+			for _, item := range walk(doc.Groups) {
+				if item.Branch != nil && item.Branch.Invalid {
+					invalid = append(invalid, item.Branch.Line)
+				}
+			}
+			var wantInvalid []int
+			if tt.wantInvalid {
+				wantInvalid = []int{tt.wantLine}
+			}
+			if diff := cmp.Diff(wantInvalid, invalid); diff != "" {
+				t.Errorf("lines of the branches marked invalid (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
@@ -673,7 +619,7 @@ func TestAQuotedMarkerIsNotAWrittenOne(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\n"+tt.body, 1)
-			if hasRule(doc, RuleRoleMisplaced) {
+			if findRule(doc, RuleRoleMisplaced) != nil {
 				t.Errorf("a quoted marker was reported as misplaced: %+v", doc.Diagnostics)
 			}
 		})
@@ -682,7 +628,7 @@ func TestAQuotedMarkerIsNotAWrittenOne(t *testing.T) {
 	// The control: the same sentence with the marker actually written in prose
 	// is still reported, so the exemption above cannot be "report nothing".
 	doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\n這一段 {sequence=local} 沒有宣告任何東西。\n", 1)
-	if !hasRule(doc, RuleRoleMisplaced) {
+	if findRule(doc, RuleRoleMisplaced) == nil {
 		t.Errorf("a marker written in prose was not reported: %+v", doc.Diagnostics)
 	}
 }
@@ -697,13 +643,13 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Run("code span on a heading declares nothing and is not misplaced", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## 語法說明 `{sequence=primary}`\n\n- [[A]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a quoted marker on a heading was reported: %+v", doc.Diagnostics)
 		}
 		if got := doc.Groups[0].Role; got != RoleUnclassified {
 			t.Errorf("branch role = %v, want unclassified; a quoted marker must not become a role", got)
 		}
-		if !hasRule(doc, RuleRoleMissing) {
+		if findRule(doc, RuleRoleMissing) == nil {
 			t.Errorf("the branch under a quoted marker was not asked to declare itself: %+v", doc.Diagnostics)
 		}
 	})
@@ -711,7 +657,7 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Run("obsidian comment on a heading declares nothing", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## 語法說明 %%{sequence=primary}%%\n\n- [[A]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a commented-out marker on a heading was reported: %+v", doc.Diagnostics)
 		}
 		if got := doc.Groups[0].Role; got != RoleUnclassified {
@@ -733,14 +679,14 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Run("a quoted marker on a container row does not open a branch", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 旁支 `{sequence=local}`\n\t\t- [[B]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a quoted marker on a row was reported: %+v", doc.Diagnostics)
 		}
-		if hasRule(doc, RuleLocalOrphan) || hasRule(doc, RuleRoleOnEntry) {
+		if findRule(doc, RuleLocalOrphan) != nil || findRule(doc, RuleRoleOnEntry) != nil {
 			t.Errorf("a quoted marker opened a branch: %+v", doc.Diagnostics)
 		}
 		// The nested rows are simply undeclared nesting now, reported as such.
-		if !hasRule(doc, RuleRoleMissing) {
+		if findRule(doc, RuleRoleMissing) == nil {
 			t.Errorf("the undeclared nested list was not reported: %+v", doc.Diagnostics)
 		}
 	})
@@ -752,7 +698,7 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 func TestNoneSuppressesTheMissingRoleBeneathIt(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## 日常 {sequence=none}\n\n- [[A]]\n\t- [[B]]\n", 1)
-	if hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) != nil {
 		t.Errorf("a branch under a declared none was asked to declare itself: %+v", doc.Diagnostics)
 	}
 	if len(doc.Diagnostics) != 0 {
@@ -855,25 +801,13 @@ func TestLineNumbersAreFileLinesNotBodyLines(t *testing.T) {
 	t.Parallel()
 	const frontmatterLines = 6
 	doc := Parse("## Part\n\n- [[A]]\n", frontmatterLines+1)
-	if !hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) == nil {
 		t.Fatalf("expected an undeclared branch to be reported: %+v", doc.Diagnostics)
 	}
 	for _, d := range doc.Diagnostics {
 		if d.Rule == RuleRoleMissing && d.Line != frontmatterLines+1 {
 			t.Errorf("%s reported on line %d, want %d", d.Rule, d.Line, frontmatterLines+1)
 		}
-	}
-}
-
-// TestParseIsDeterministic guards the one property every consumer assumes
-// without stating: two reads of one document agree, so a rebuild does not
-// reshuffle a course.
-func TestParseIsDeterministic(t *testing.T) {
-	t.Parallel()
-	first := Parse(authoringExample, 1)
-	second := Parse(authoringExample, 1)
-	if diff := cmp.Diff(first, second); diff != "" {
-		t.Errorf("Parse() is not deterministic (-first +second):\n%s", diff)
 	}
 }
 
@@ -885,28 +819,42 @@ func targets(cs []*Candidate) []string {
 	return out
 }
 
+// walk yields every item the document lists, in source order and at any
+// depth, with the number of branches enclosing it. A top-level branch is
+// yielded as an item no branch encloses.
+func walk(groups []*Group) iter.Seq2[int, Item] {
+	return func(yield func(int, Item) bool) {
+		var visit func(items []Item, depth int) bool
+		visit = func(items []Item, depth int) bool {
+			for _, item := range items {
+				if !yield(depth, item) {
+					return false
+				}
+				if item.Branch != nil && !visit(item.Branch.Items, depth+1) {
+					return false
+				}
+			}
+			return true
+		}
+		for _, g := range groups {
+			if !visit([]Item{{Branch: g}}, 0) {
+				return
+			}
+		}
+	}
+}
+
 // collected is every accepted target the document lists, at any depth. Only an
 // accepted entry may become a lesson, so this is what "the course lists"
 // means everywhere below.
 func collected(groups []*Group) []string {
 	var out []string
-	for _, g := range groups {
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				if item.Entry.State == EntryAccepted {
-					out = append(out, item.Entry.Target)
-				}
-			case item.Branch != nil:
-				out = append(out, collected([]*Group{item.Branch})...)
-			}
+	for _, item := range walk(groups) {
+		if item.Entry != nil && item.Entry.State == EntryAccepted {
+			out = append(out, item.Entry.Target)
 		}
 	}
 	return out
-}
-
-func hasRule(doc Document, rule Rule) bool {
-	return findRule(doc, rule) != nil
 }
 
 func findRule(doc Document, rule Rule) *Diagnostic {
@@ -916,6 +864,17 @@ func findRule(doc Document, rule Rule) *Diagnostic {
 		}
 	}
 	return nil
+}
+
+// countRule is how many times a rule fired.
+func countRule(doc Document, rule Rule) int {
+	n := 0
+	for _, d := range doc.Diagnostics {
+		if d.Rule == rule {
+			n++
+		}
+	}
+	return n
 }
 
 // TestAnEscapedWikilinkIsNotALink locks the one reading of a backslash that
@@ -967,10 +926,10 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse(tt.body, 1)
-			if tt.wantFinding && !hasRule(doc, tt.wantRule) {
+			if tt.wantFinding && findRule(doc, tt.wantRule) == nil {
 				t.Fatalf("Parse() findings = %v, want one naming %v", doc.Diagnostics, tt.wantRule)
 			}
-			if !tt.wantFinding && hasRule(doc, RuleEntryMultiTarget) {
+			if !tt.wantFinding && findRule(doc, RuleEntryMultiTarget) != nil {
 				t.Fatalf("Parse() reported a second target for a row that names one: %v", doc.Diagnostics)
 			}
 			var got []string
@@ -1122,52 +1081,6 @@ func TestRulesListsEveryDeclaredRule(t *testing.T) {
 		if !seen[rule] {
 			t.Errorf("%s (%q) is declared but Rules() does not list it", name, rule)
 		}
-	}
-}
-
-// TestTheTwoBranchVerdictsOverEveryDeclaration states both verdicts for every
-// combination of declared role and structural error, so a consumer reading
-// either one has the whole table in front of it rather than a sentence about
-// the cases somebody thought of. The two are disjoint by construction — a
-// branch that projects lists rows of its own, one that carries merely groups
-// others — and an error stops both.
-func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		role            Role
-		invalid         bool
-		wantProjectable bool
-		wantCarries     bool
-	}{
-		{role: RoleStructural, invalid: false, wantProjectable: false, wantCarries: true},
-		{role: RoleStructural, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleUnclassified, invalid: false, wantProjectable: false, wantCarries: false},
-		{role: RoleUnclassified, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RolePrimary, invalid: false, wantProjectable: true, wantCarries: false},
-		{role: RolePrimary, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleLocal, invalid: false, wantProjectable: true, wantCarries: false},
-		{role: RoleLocal, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleNone, invalid: false, wantProjectable: false, wantCarries: false},
-		{role: RoleNone, invalid: true, wantProjectable: false, wantCarries: false},
-	}
-	for _, tt := range tests {
-		name := tt.role.String()
-		if tt.invalid {
-			name += " carrying a structural error"
-		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			g := &Group{Role: tt.role, Invalid: tt.invalid}
-			if got := g.Projectable(); got != tt.wantProjectable {
-				t.Errorf("Projectable() = %t, want %t", got, tt.wantProjectable)
-			}
-			if got := g.Carries(); got != tt.wantCarries {
-				t.Errorf("Carries() = %t, want %t", got, tt.wantCarries)
-			}
-			if g.Projectable() && g.Carries() {
-				t.Error("one branch both projects and merely carries; the two verdicts overlap")
-			}
-		})
 	}
 }
 

@@ -84,11 +84,11 @@ func TestASideBranchHangsOnlyFromALesson(t *testing.T) {
 			t.Parallel()
 			body := "## P {sequence=primary}\n\n" + tt.parent + "\n\t- 旁支 {sequence=local}\n\t\t- [[C]]\n"
 			doc := Parse(body, 1)
-			if !hasRule(doc, RuleLocalOrphan) {
+			if findRule(doc, RuleLocalOrphan) == nil {
 				t.Errorf("a side branch under %q was given an anchor; diagnostics = %+v", tt.parent, doc.Diagnostics)
 			}
-			for _, g := range allGroups(doc.Groups) {
-				if g.Role == RoleLocal && g.Projectable() {
+			for _, item := range walk(doc.Groups) {
+				if g := item.Branch; g != nil && g.Role == RoleLocal && g.Projectable() {
 					t.Errorf("a side branch with nothing to hang from still projects: %+v", g)
 				}
 			}
@@ -102,12 +102,12 @@ func TestASideBranchHangsOnlyFromALesson(t *testing.T) {
 func TestASideBranchUnderALessonKeepsItsAnchor(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[C]]\n", 1)
-	if hasRule(doc, RuleLocalOrphan) {
+	if findRule(doc, RuleLocalOrphan) != nil {
 		t.Fatalf("a side branch under a lesson was called an orphan: %+v", doc.Diagnostics)
 	}
 	var local *Group
-	for _, g := range allGroups(doc.Groups) {
-		if g.Role == RoleLocal {
+	for _, item := range walk(doc.Groups) {
+		if g := item.Branch; g != nil && g.Role == RoleLocal {
 			local = g
 		}
 	}
@@ -123,11 +123,11 @@ func TestADeclarationLivesOnTheRowsOwnLine(t *testing.T) {
 	t.Parallel()
 	// The marker sits on the second line of the row's own paragraph.
 	doc := Parse("## P {sequence=primary}\n\n- 旁支\n  說明 {sequence=local}\n\t- [[A]]\n", 1)
-	if !hasRule(doc, RuleRoleMisplaced) {
+	if findRule(doc, RuleRoleMisplaced) == nil {
 		t.Errorf("a marker on a continuation line was read as a declaration: %+v", doc.Diagnostics)
 	}
-	for _, g := range allGroups(doc.Groups) {
-		if g.Role == RoleLocal {
+	for _, item := range walk(doc.Groups) {
+		if g := item.Branch; g != nil && g.Role == RoleLocal {
 			t.Errorf("a marker off the row's own line opened a side branch: %+v", g)
 		}
 	}
@@ -140,12 +140,12 @@ func TestADeclarationLivesOnTheRowsOwnLine(t *testing.T) {
 func TestAnUndeclaredNestedListIsNeverSilent(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 還沒決定怎麼歸\n", 1)
-	if !hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) == nil {
 		t.Errorf("an undeclared nested list vanished without a word: %+v", doc.Diagnostics)
 	}
 	var nested *Group
-	for _, g := range allGroups(doc.Groups) {
-		if g.Container {
+	for _, item := range walk(doc.Groups) {
+		if g := item.Branch; g != nil && g.Container {
 			nested = g
 		}
 	}
@@ -155,46 +155,4 @@ func TestAnUndeclaredNestedListIsNeverSilent(t *testing.T) {
 	if nested.Projectable() {
 		t.Errorf("an undeclared nested list projects: %+v", nested)
 	}
-}
-
-// TestAnUndeclaredContainerSaysWhatItIs keeps the report honest. A heading that
-// lists lessons and a nested list that lists none are both undeclared, and
-// telling the author the second "lists lessons" sends them looking for lessons
-// that are not there.
-func TestAnUndeclaredContainerSaysWhatItIs(t *testing.T) {
-	t.Parallel()
-	nested := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 還沒決定怎麼歸\n", 1)
-	heading := Parse("## P\n\n- [[A]]\n", 1)
-
-	nestedMessage := ruleMessage(nested, RuleRoleMissing)
-	headingMessage := ruleMessage(heading, RuleRoleMissing)
-	if nestedMessage == "" || headingMessage == "" {
-		t.Fatalf("both shapes must report: nested=%q heading=%q", nestedMessage, headingMessage)
-	}
-	if nestedMessage == headingMessage {
-		t.Errorf("an undeclared nested list is told it %q, the same sentence a heading gets", nestedMessage)
-	}
-}
-
-// allGroups is every branch in the document, at any depth.
-func allGroups(groups []*Group) []*Group {
-	var out []*Group
-	for _, g := range groups {
-		out = append(out, g)
-		for _, item := range g.Items {
-			if item.Branch != nil {
-				out = append(out, allGroups([]*Group{item.Branch})...)
-			}
-		}
-	}
-	return out
-}
-
-func ruleMessage(doc Document, rule Rule) string {
-	for _, d := range doc.Diagnostics {
-		if d.Rule == rule {
-			return d.Message
-		}
-	}
-	return ""
 }

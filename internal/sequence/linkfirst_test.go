@@ -12,14 +12,15 @@ func TestARefusedRowAnchorsNothing(t *testing.T) {
 	// course.role_on_entry — it is neither a lesson nor a plain branch heading.
 	doc := Parse("## P {sequence=primary}\n\n- [[A]] {sequence=primary}\n\t- 支線 {sequence=local}\n\t\t- [[C]]\n", 1)
 
-	if !hasRule(doc, RuleRoleOnEntry) {
+	if findRule(doc, RuleRoleOnEntry) == nil {
 		t.Fatalf("the fixture no longer produces a refused parent row: %+v", doc.Diagnostics)
 	}
-	if !hasRule(doc, RuleLocalOrphan) {
+	if findRule(doc, RuleLocalOrphan) == nil {
 		t.Errorf("a side branch hung from a row the grammar refused: %+v", doc.Diagnostics)
 	}
-	for _, g := range allGroups(doc.Groups) {
-		if g.Role != RoleLocal {
+	for _, item := range walk(doc.Groups) {
+		g := item.Branch
+		if g == nil || g.Role != RoleLocal {
 			continue
 		}
 		if g.Projectable() {
@@ -41,11 +42,11 @@ func TestAContainerDeclarationIsReadOnTheRowsOwnLine(t *testing.T) {
 	// path the helper takes rather than the main one.
 	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 旁支\n\t  說明 {sequence=local}\n\t\t- [[B]]\n", 1)
 
-	if !hasRule(doc, RuleRoleMisplaced) {
+	if findRule(doc, RuleRoleMisplaced) == nil {
 		t.Errorf("a marker on a continuation line was read as a declaration: %+v", doc.Diagnostics)
 	}
-	for _, g := range allGroups(doc.Groups) {
-		if g.Role == RoleLocal {
+	for _, item := range walk(doc.Groups) {
+		if g := item.Branch; g != nil && g.Role == RoleLocal {
 			t.Errorf("a marker off the row's own line opened a side branch: %+v", g)
 		}
 	}
@@ -57,38 +58,13 @@ func TestAContainerDeclarationIsReadOnTheRowsOwnLine(t *testing.T) {
 		t.Errorf("undeclared nesting reported %d times, want 2 — one per level nobody declared: %+v",
 			got, doc.Diagnostics)
 	}
-	if depth := groupDepthHolding(doc.Groups, "B", 0); depth != 2 {
-		t.Errorf("the row's nested list sits %d branches below its part, want 2; a misplaced marker moved it", depth)
-	}
-}
-
-// countRule is how many times a rule fired.
-func countRule(doc Document, rule Rule) int {
-	n := 0
-	for _, d := range doc.Diagnostics {
-		if d.Rule == rule {
-			n++
+	depth := -1
+	for d, item := range walk(doc.Groups) {
+		if item.Entry != nil && item.Entry.Target == "B" {
+			depth = d
 		}
 	}
-	return n
-}
-
-// groupDepthHolding is how many branches below the top a target's row sits, or
-// -1 when nothing lists it.
-func groupDepthHolding(groups []*Group, target string, depth int) int {
-	for _, g := range groups {
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				if item.Entry.Target == target {
-					return depth
-				}
-			case item.Branch != nil:
-				if found := groupDepthHolding([]*Group{item.Branch}, target, depth+1); found >= 0 {
-					return found
-				}
-			}
-		}
+	if depth != 3 {
+		t.Errorf("the row naming B sits inside %d branches, want 3: its part and the two lists nobody declared; a misplaced marker moved it", depth)
 	}
-	return -1
 }

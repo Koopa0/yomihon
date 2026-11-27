@@ -60,8 +60,10 @@ func TestAGlossIsOnlyTheRowsOwnWords(t *testing.T) {
 		"- [[D]] — 提到 [[E]] 的課\n", 1)
 
 	got := map[string]string{}
-	for _, e := range allEntries(doc) {
-		got[e.Target+"/"+e.State.String()] = e.Gloss
+	for _, item := range walk(doc.Groups) {
+		if e := item.Entry; e != nil {
+			got[e.Target+"/"+e.State.String()] = e.Gloss
+		}
 	}
 	want := map[string]string{
 		"A/accepted":     "— 自己的話",
