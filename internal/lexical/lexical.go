@@ -168,7 +168,9 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 
 // WithArtifactPolicy returns a read-only copy bound to policy, which has to be a
 // point-in-time capture of the same artifact authority idx was built from, so one
-// request's metadata queries answer to the capture its projections used.
+// request's metadata queries answer to the capture its projections used. A nil
+// index, as an empty generation carries, stays nil; the query methods ask for
+// an index.
 func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 	if idx == nil {
 		return nil

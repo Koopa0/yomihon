@@ -76,11 +76,10 @@ func DefaultPlannedInlineMarks() []string {
 	return slices.Clone(defaultPlannedInlineMarks)
 }
 
-// Contract is the validated, immutable vault authority. Its zero value carries
-// no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
-// *Contract answers as an ungoverned vault: every method is safe to call and
-// returns what a folder that declared nothing declares — no vocabulary, no
-// capability.
+// Contract is the validated, immutable vault authority, loaded with
+// [LoadReader]. A nil *Contract answers as an ungoverned vault: every method is
+// safe to call and returns what a folder that declared nothing declares — no
+// vocabulary, no capability.
 type Contract struct {
 	types      []typeDefinition
 	typeByName map[string]int

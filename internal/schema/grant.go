@@ -74,9 +74,9 @@ type Claim struct {
 }
 
 // Rejected returns the claim for a declaration that was made and could not be
-// honoured. The closure is a fact about the declaration, not about whether
-// anyone wrote a sentence for it: a capability answered from the presence of a
-// message is the failure this type exists to remove.
+// honoured: the one way a caller outside this package closes a capability,
+// which nothing outside it can open. The closure is a fact about the
+// declaration, not about whether anyone wrote a sentence for it.
 func Rejected(diagnostic string) Claim {
 	return Claim{outcome: grantUnresolved, diagnostic: diagnostic}
 }
