@@ -231,6 +231,7 @@ func TestHeadingsReadsBothFormsTheWayThePageDoes(t *testing.T) {
 		{"a CRLF file's closing hashes", "## Balanced ##\r\n\r\nprose\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Balanced"}}},
 		{"a CRLF file's heading that is only a run", "# #\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "#"}}},
 		{"a CRLF file's underlined heading", "Title\r\n=====\r\n\r\nprose\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}}},
+		{"a CRLF file's dashed underline", "Intro\r\n\r\nSub\r\n---\r\n\r\nbody\r\n", []graph.Heading{{Line: 2, Start: 9, Level: 2, Text: "Sub"}}},
 		{"a CRLF file's heading over two lines", "One\r\ntwo\r\n---\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "One\ntwo"}}},
 		{"no trailing newline", "## Tail", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Tail"}}},
 		{"heading then deeper heading", "# Title\n\nlede\n\n## Two\n\n### Three\n\n## Two again\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}, {Line: 4, Start: 15, Level: 2, Text: "Two"}, {Line: 6, Start: 23, Level: 3, Text: "Three"}, {Line: 8, Start: 34, Level: 2, Text: "Two again"}}},
