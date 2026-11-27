@@ -510,38 +510,46 @@ func (e *entry) landing(tokens []string) (terms landingTerms, fromFence bool) {
 		return landingTerms{}, false
 	}
 	terms = e.landingAt(foldStart, foldEnd)
-	if !terms.crossing {
-		foldEnd = mergedMatchEnd(e.plainFold, tokens, foldStart, foldEnd)
-		start, end := sourceOffsetOfFold(e.plainText, foldStart), sourceEndOfFold(e.plainText, foldEnd)
-		// A phrase quoted with white space at its ends matches that white
-		// space too, and the page marks the words, not the space around them.
-		matched := e.plainText[start:end]
-		start += len(matched) - len(strings.TrimLeftFunc(matched, unicode.IsSpace))
-		end -= len(matched) - len(strings.TrimRightFunc(matched, unicode.IsSpace))
-		terms = e.landingAtSource(start, end)
+	if terms.crossing {
+		return terms, fromFence
+	}
+	start, end := sourceOffsetOfFold(e.plainText, foldStart), sourceEndOfFold(e.plainText, foldEnd)
+	if markStart, markEnd, ok := e.markedRunFrom(start, end, tokens); ok {
+		terms = e.landingAtSource(markStart, markEnd)
 	}
 	return terms, fromFence
 }
 
-// mergedMatchEnd extends the folded match [start, end) over every match of any
-// token that begins inside it or where it ends, until none does.
-func mergedMatchEnd(fold string, tokens []string, start, end int) int {
-	for grown := true; grown; {
-		grown = false
-		for _, t := range tokens {
-			for at := start; t != "" && at <= end; {
-				i, stop := phraseIndex(fold, t, at)
-				if i < 0 || i > end {
-					break
-				}
-				if stop > end {
-					end, grown = stop, true
-				}
-				at = i + 1
-			}
+// landingMarkReach is how many characters past the start of the earliest match
+// the run of marks it opens is followed, which is further than any run of
+// marks a reader reads as one.
+const landingMarkReach = 160
+
+// markedRunFrom is the first stretch MarkHits marks as one in the text that
+// opens at the earliest match [start, end): the match and every match of any
+// token that overlaps or touches it, white space at its ends left out. Line
+// breaks are read as spaces, so a run is never joined across one, and the text
+// stops short of a fence the match is not in, or at the end of the one it is
+// in. ok is false where nothing in that text is marked.
+func (e *entry) markedRunFrom(start, end int, tokens []string) (markStart, markEnd int, ok bool) {
+	stop := max(end, runesAfter(e.plainText, start, landingMarkReach))
+	for _, fence := range e.fenceRanges {
+		switch {
+		case fence[0] <= start && start < fence[1]:
+			stop = min(stop, fence[1])
+		case start < fence[0]:
+			stop = min(stop, max(end, fence[0]))
 		}
 	}
-	return end
+	at := start
+	for _, run := range MarkHits(strings.ReplaceAll(e.plainText[start:stop], "\n", " "), tokens) {
+		if text := strings.TrimSpace(run.Text); run.Hit && text != "" {
+			markStart = at + strings.Index(run.Text, text)
+			return markStart, markStart + len(text), true
+		}
+		at += len(run.Text)
+	}
+	return 0, 0, false
 }
 
 // landingTerms is everything one body match gives a browser text directive:

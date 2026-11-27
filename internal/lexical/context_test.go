@@ -166,7 +166,8 @@ func TestInsertionNFCMapping(t *testing.T) {
 // TestALandingIsTheWholeMarkAtTheEarliestMatch holds a landing to the stretch
 // the page marks as one at the earliest match: every match of any term that
 // overlaps or touches it is part of it, the note's own spacing stands in it,
-// and a later copy of the same words is not taken for it.
+// and neither a later copy of the same words, a term overlapping itself, nor a
+// match beyond a line break is taken for it.
 func TestALandingIsTheWholeMarkAtTheEarliestMatch(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -177,6 +178,8 @@ func TestALandingIsTheWholeMarkAtTheEarliestMatch(t *testing.T) {
 		{"unicode space", "before\u3000lanthanum\u3000here after", `" lanthanum here "`, "lanthanum here"},
 		{"folded character", "\u017f\u017f before lanthanum here", "nthanum", "nthanum"},
 		{"repeated text", "unmatched before lanthanum here and lanthanum later", "nthanum", "nthanum"},
+		{"a term never overlaps itself", "before ### after", "##", "##"},
+		{"a line break parts two matches", "\u4e8b\u4ef6\n\u4e8b\u4ef6 after", "\u4e8b\u4ef6", "\u4e8b\u4ef6"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
