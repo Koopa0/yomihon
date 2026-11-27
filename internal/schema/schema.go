@@ -397,10 +397,13 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		},
 	}
 	applyPlannedMarkDefaults(&contract.rules, contract.written)
-	if duplicate, found := firstRepeated(decoded.Enums["type"]); found {
+	foldWords(decoded.Enums[FieldType])
+	if duplicate, found := firstRepeated(decoded.Enums[FieldType]); found {
 		return nil, fmt.Errorf("enums.type: duplicate value %q", duplicate)
 	}
-	contract.declareTypes(decoded.Types, decoded.Enums, tomlMeta.Keys())
+	if err := contract.declareTypes(decoded.Types, decoded.Enums[FieldType], tomlMeta.Keys()); err != nil {
+		return nil, err
+	}
 	contract.declareEnums(decoded.Enums)
 	foldDeclaredWords(contract)
 	if err := validateContractSemantics(contract); err != nil {
@@ -421,38 +424,43 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	return contract, nil
 }
 
-// declareTypes lists the contract's note types in the order they were written.
-// A type is declared by its own [types.<name>] table or by a place in
-// enums.type, so a plain type with nothing to say needs no table of its own.
-func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]string, keys []toml.Key) {
-	var names []string
-	add := func(name string) {
-		if !slices.Contains(names, name) {
-			names = append(names, name)
+// declareTypes lists the contract's note types in the order they were written,
+// each under its one spelling. A type is declared by its own [types.<name>]
+// table or by a place in enums.type, so a plain type with nothing to say needs
+// no table of its own, and the two places name one type however each composes
+// the word. Two tables composing one word are refused.
+func (c *Contract) declareTypes(tables map[string]typeFile, enumTypes []string, keys []toml.Key) error {
+	byName := make(map[string]typeFile, len(tables))
+	for raw, table := range tables {
+		name := NormalizeWord(raw)
+		if _, duplicate := byName[name]; duplicate {
+			return fmt.Errorf("types: duplicate type %q", name)
 		}
+		byName[name] = table
 	}
-	for _, name := range enums["type"] {
-		add(name)
-	}
+	names := slices.Clone(enumTypes)
 	for _, key := range keys {
-		if len(key) >= 2 && key[0] == "types" {
-			add(key[1])
+		if len(key) < 2 || key[0] != "types" {
+			continue
+		}
+		if name := NormalizeWord(key[1]); !slices.Contains(names, name) {
+			names = append(names, name)
 		}
 	}
 	c.types = make([]typeDefinition, 0, len(names))
 	c.typeByName = make(map[string]int, len(names))
 	for _, name := range names {
-		table := tables[name]
-		def := typeDefinition{
+		table := byName[name]
+		c.typeByName[name] = len(c.types)
+		c.types = append(c.types, typeDefinition{
 			name:     name,
 			role:     Role(table.Role),
 			required: slices.Clone(table.Required),
 			fields:   slices.Clone(table.Fields),
 			slugText: table.SlugPattern,
-		}
-		c.typeByName[name] = len(c.types)
-		c.types = append(c.types, def)
+		})
 	}
+	return nil
 }
 
 // declareEnums keeps every vocabulary, sorted by field name so the order a
@@ -461,7 +469,7 @@ func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]s
 func (c *Contract) declareEnums(enums map[string][]string) {
 	fields := make([]string, 0, len(enums))
 	for field := range enums {
-		if field != "type" {
+		if field != FieldType {
 			fields = append(fields, field)
 		}
 	}
@@ -472,31 +480,21 @@ func (c *Contract) declareEnums(enums map[string][]string) {
 	}
 }
 
-// foldDeclaredWords folds every word this contract declares to one spelling, so
-// a note's own value is the only side left to fold when something compares the
-// two. A contract is written in an editor and a note's frontmatter is read back
-// off a filesystem, and the two hand over different byte strings for the same
-// word; a lookup keyed on the bytes then loses that note's whole type. The
-// knowledge layer and the domain roots are folded the same way, since the scan
-// reports composed paths. This runs before the contract is validated, so a
-// contract declaring one word twice is refused as the duplicate it is. Case is
-// left alone: two words differing only in case are two declarations the
-// contract meant.
+// foldDeclaredWords folds every enum value, knowledge-layer folder and domain
+// root this contract declares to one spelling, as declareTypes folds the type
+// names, so a note's own value is the only side left to fold when something
+// compares the two. A contract is written in an editor and a note's
+// frontmatter is read back off a filesystem, and the two hand over different
+// byte strings for the same word; a lookup keyed on the bytes then loses it.
+// This runs before the contract is validated, so a contract declaring one word
+// twice is refused as the duplicate it is. Case is left alone: two words
+// differing only in case are two declarations the contract meant.
 func foldDeclaredWords(contract *Contract) {
-	for i := range contract.types {
-		contract.types[i].name = NormalizeWord(contract.types[i].name)
-	}
 	for i := range contract.enums {
 		foldWords(contract.enums[i].values)
 	}
 	foldWords(contract.folders.Checked)
 	foldWords(contract.folders.DomainFrom)
-	contract.typeByName = make(map[string]int, len(contract.types))
-	for i := range contract.types {
-		if _, duplicate := contract.typeByName[contract.types[i].name]; !duplicate {
-			contract.typeByName[contract.types[i].name] = i
-		}
-	}
 }
 
 func foldWords(words []string) {
@@ -685,15 +683,8 @@ func validateContractSemantics(contract *Contract) error {
 }
 
 func validateTypes(contract *Contract) error {
-	seen := make(map[string]struct{}, len(contract.types))
-	for _, def := range contract.types {
-		if def.name == "" {
-			return errors.New("types: empty type name")
-		}
-		if _, duplicate := seen[def.name]; duplicate {
-			return fmt.Errorf("types: duplicate type %q", def.name)
-		}
-		seen[def.name] = struct{}{}
+	if _, empty := contract.typeByName[""]; empty {
+		return errors.New("types: empty type name")
 	}
 	return nil
 }

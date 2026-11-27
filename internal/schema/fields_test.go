@@ -277,6 +277,31 @@ role = "map"
 	}
 }
 
+// TestATypeIsOneTypeHoweverEachPlaceComposesIt holds the type list to the
+// spelling rule: enums.type and a [types] table naming one word, one of them
+// decomposed, declare one type, and the table's role is that type's.
+func TestATypeIsOneTypeHoweverEachPlaceComposesIt(t *testing.T) {
+	t.Parallel()
+
+	contract := loadText(t, `[enums]
+type = ["Cafe\u0301"]
+
+[types."Caf\u00e9"]
+role = "map"
+`)
+	if diff := cmp.Diff([]string{"Caf\u00e9"}, contract.EnumValues("type")); diff != "" {
+		t.Errorf("EnumValues(type) mismatch (-want +got):\n%s", diff)
+	}
+	if !contract.NavigationRoles().IsMapType("Caf\u00e9") {
+		t.Error("the table for a type enums.type also names lost its role")
+	}
+
+	err := loadTextError(t, "[types.\"Caf\u00e9\"]\nrole = \"map\"\n\n[types.\"Cafe\u0301\"]\n")
+	if err == nil || !strings.Contains(err.Error(), "types: duplicate type") {
+		t.Errorf("two tables composing one word: error = %v, want types: duplicate type", err)
+	}
+}
+
 func TestDomainsComeFromTheFolder(t *testing.T) {
 	t.Parallel()
 

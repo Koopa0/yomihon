@@ -98,7 +98,7 @@ func TestCoreSemanticsEnums(t *testing.T) {
 			name:    "type spelled twice once the words are folded",
 			from:    `type = ["inbox"]`,
 			to:      "type = [\"caf\u00e9\", \"cafe\u0301\"]",
-			wantErr: "types: duplicate type \"caf\u00e9\"",
+			wantErr: "enums.type: duplicate value \"caf\u00e9\"",
 		},
 		{
 			name:    "domain duplicate",
