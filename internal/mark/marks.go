@@ -484,24 +484,28 @@ func pageValue(entry machinemarks.Entry, seen machinemarks.Seen) machinemarks.Va
 // was just written. fallback is what is answered when the mark cannot be read
 // back.
 func (h *Handler) sendNow(w http.ResponseWriter, r *http.Request, status int, fallback *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
-	if view, err := h.vaultMarks.View(); err == nil {
-		if entry, ok := view.Entry(fallback.ID, AllMarks); ok {
-			shown := entry.Mark()
-			// What the page has read is what it is shown: the value that counts is
-			// covered, so that the next change is built on it, and no value that is
-			// not shown is.
-			if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
-				seen = maps.Clone(seen)
-				if seen == nil {
-					seen = machinemarks.Seen{}
-				}
-				seen[top.Writer] = top.Rev
-			}
-			h.send(w, r, status, &shown, seen, lang)
-			return
-		}
+	view, err := h.vaultMarks.View()
+	if err != nil {
+		h.send(w, r, status, fallback, seen, lang)
+		return
 	}
-	h.send(w, r, status, fallback, seen, lang)
+	entry, ok := view.Entry(fallback.ID, AllMarks)
+	if !ok {
+		h.send(w, r, status, fallback, seen, lang)
+		return
+	}
+	// What the page has read is what it is shown: the value that counts is
+	// covered, so that the next change is built on it, and no value that is not
+	// shown is.
+	if top := &entry.Values[0]; seen[top.Writer] < top.Rev {
+		seen = maps.Clone(seen)
+		if seen == nil {
+			seen = machinemarks.Seen{}
+		}
+		seen[top.Writer] = top.Rev
+	}
+	shown := entry.Mark()
+	h.send(w, r, status, &shown, seen, lang)
 }
 
 // statusOf is the one place a refusal of the marks becomes a status and, for a
