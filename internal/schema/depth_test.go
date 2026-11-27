@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -69,8 +70,8 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 			if err == nil {
 				t.Fatal("decodeContract() error = nil, want the depth refusal")
 			}
-			if got := classifyDecodeError(err); got != "too-deep" {
-				t.Errorf("classifyDecodeError() = %q, want %q (error was %v)", got, "too-deep", err)
+			if !errors.Is(err, errContractTooDeep) {
+				t.Errorf("decodeContract() error = %v, want the depth refusal", err)
 			}
 		})
 	}
@@ -166,7 +167,7 @@ func TestDecodeRefusesAContractPastTheSizeBound(t *testing.T) {
 	if err == nil {
 		t.Fatal("decodeContract() error = nil, want the size refusal")
 	}
-	if got := classifyDecodeError(err); got != "too-large" {
-		t.Errorf("classifyDecodeError() = %q, want %q (error was %v)", got, "too-large", err)
+	if !errors.Is(err, errContractTooLarge) {
+		t.Errorf("decodeContract() error = %v, want the size refusal", err)
 	}
 }

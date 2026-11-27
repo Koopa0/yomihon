@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -654,36 +653,6 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 		}
 	})
-}
-
-func TestClassifyDecodeErrorPreservesSemanticMessage(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{
-			name: "semantic error",
-			err:  errors.New(`enums.title: "title" is not a field yomihon defines or derives`),
-			want: `enums.title: "title" is not a field yomihon defines or derives`,
-		},
-		{
-			name: "TOML decoder error",
-			err:  errors.New(`toml: line 3: incompatible types`),
-			want: "toml-decode",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := classifyDecodeError(tt.err); got != tt.want {
-				t.Errorf("classifyDecodeError(%q) = %q, want %q", tt.err, got, tt.want)
-			}
-		})
-	}
 }
 
 func replaceContractText(t *testing.T, contract, from, to string) string {

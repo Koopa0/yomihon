@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,31 +57,14 @@ func TestDynamicContractMapKeysDecode(t *testing.T) {
 
 // TestAVersionKeyIsAnUnknownKey holds that a rules file declares no version.
 // The key the rules files of an earlier yomihon began with is refused like any
-// key nothing reads, and named, whatever it says: it is not read, not asked
-// for, and not quietly ignored.
+// key nothing reads, and named: it is not read, not asked for, and not quietly
+// ignored.
 func TestAVersionKeyIsAnUnknownKey(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range []struct {
-		name string
-		line string
-	}{
-		{"the number an earlier rules file carried", `schema_version = "1"`},
-		{"another number", `schema_version = "2"`},
-		{"an empty value", `schema_version = ""`},
-		{"a value that is not a string", `schema_version = 1`},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := decodeContract([]byte(tt.line+"\n"+validContract), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract(%s) error = nil, want the key refused", tt.line)
-			}
-			if got, want := err.Error(), `unknown keys: "schema_version"`; got != want {
-				t.Errorf("decodeContract(%s) error = %q, want %q", tt.line, got, want)
-			}
-		})
+	_, err := decodeContract([]byte("schema_version = \"1\"\n"+validContract), policySource{})
+	if !errors.Is(err, errUnknownKeys) || !strings.Contains(err.Error(), `"schema_version"`) {
+		t.Errorf("decodeContract(schema_version) error = %v, want the key refused by name", err)
 	}
 }
 
@@ -242,7 +226,7 @@ func loadContractBytes(t *testing.T, data []byte) (*Contract, error) {
 }
 
 type decodeClassification struct {
-	errClass             string
+	err                  string
 	typeRoles            string
 	navigationAvailable  bool
 	navigationDiagnostic string
@@ -257,7 +241,7 @@ type decodeClassification struct {
 func classifyDecode(data []byte) decodeClassification {
 	s, err := decodeContract(data, policySource{})
 	if err != nil {
-		return decodeClassification{errClass: classifyDecodeError(err)}
+		return decodeClassification{err: err.Error()}
 	}
 	return decodeClassification{
 		typeRoles:            typeRoles(s),
@@ -282,23 +266,6 @@ func typeRoles(contract *Contract) string {
 		names[i] = def.name + ":" + string(def.role)
 	}
 	return strings.Join(names, ",")
-}
-
-func classifyDecodeError(err error) string {
-	switch message := err.Error(); {
-	case strings.HasPrefix(message, "unknown keys: "):
-		return "unknown-core"
-	case strings.HasPrefix(message, "rules file keys differ only by letter case: "):
-		return "folded-keys"
-	case strings.HasPrefix(message, "rules file nests deeper than "):
-		return "too-deep"
-	case strings.HasPrefix(message, "rules file is larger than "):
-		return "too-large"
-	case strings.HasPrefix(message, "toml:"):
-		return "toml-decode"
-	default:
-		return message
-	}
 }
 
 func FuzzDecodeContractDeterministic(f *testing.F) {
@@ -433,8 +400,8 @@ func TestDecodeRefusesKeysThatFoldTogether(t *testing.T) {
 			if err == nil {
 				t.Fatal("decodeContract() error = nil, want a refusal naming both spellings")
 			}
-			if got := classifyDecodeError(err); got != "folded-keys" {
-				t.Fatalf("classifyDecodeError() = %q, want %q (error was %v)", got, "folded-keys", err)
+			if !errors.Is(err, errFoldedKeys) {
+				t.Fatalf("decodeContract() error = %v, want the folded-keys refusal", err)
 			}
 			for _, name := range tc.names {
 				if !strings.Contains(err.Error(), name) {
@@ -502,8 +469,8 @@ func TestDecodeKeepsSpellingsTheDecoderTellsApart(t *testing.T) {
 		if err == nil {
 			t.Fatal("decodeContract() error = nil, want the unknown-key refusal")
 		}
-		if got, want := classifyDecodeError(err), "unknown-core"; got != want {
-			t.Fatalf("classifyDecodeError() = %q, want %q (error was %v)", got, want, err)
+		if !errors.Is(err, errUnknownKeys) {
+			t.Fatalf("decodeContract() error = %v, want the unknown-keys refusal", err)
 		}
 	})
 

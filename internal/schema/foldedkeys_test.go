@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -62,13 +63,10 @@ func TestDistinctKeyRefusalBytes(t *testing.T) {
 [[rows]]
 "a" = 4
 `
-	const want = `rules file keys differ only by letter case: "K" and "k"; "K" and "K"; "k" and "K"; "ß" and "ẞ"; "nested.A" and "nested.a"; "rows.Q" and "rows.q"`
+	const pairs = `"K" and "k"; "K" and "K"; "k" and "K"; "ß" and "ẞ"; "nested.A" and "nested.a"; "rows.Q" and "rows.q"`
 	err := validateDistinctKeys([]byte(data))
-	if err == nil {
-		t.Fatal("validateDistinctKeys(folding siblings) error = nil, want a refusal")
-	}
-	if got := err.Error(); got != want {
-		t.Errorf("validateDistinctKeys(folding siblings) = %q, want %q", got, want)
+	if !errors.Is(err, errFoldedKeys) || !strings.HasSuffix(err.Error(), pairs) {
+		t.Errorf("validateDistinctKeys(folding siblings) = %v, want the folded-keys refusal naming %s", err, pairs)
 	}
 }
 

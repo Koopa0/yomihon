@@ -297,6 +297,13 @@ func LoadForAgents(ctx context.Context, reader *vault.Reader) (*Contract, Privac
 	}
 }
 
+// The refusals of a contract whose keys cannot be read one way: a key nothing
+// reads, and two spellings of one key the decoder would bind to one field.
+var (
+	errUnknownKeys = errors.New("unknown keys")
+	errFoldedKeys  = errors.New("rules file keys differ only by letter case")
+)
+
 // ErrRulesFileUnknown is a folder whose surroundings could not be looked at, so
 // it is not known to have no rules file. It carries no path: the one that could
 // not be listed is the vault's own to name.
@@ -370,7 +377,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	unknown := classifyUnknownKeys(tomlMeta.Undecoded())
 	if len(unknown.core) > 0 {
 		slices.Sort(unknown.core)
-		return nil, fmt.Errorf("unknown keys: %s", formatContractKeys(unknown.core))
+		return nil, fmt.Errorf("%w: %s", errUnknownKeys, formatContractKeys(unknown.core))
 	}
 
 	contract := &Contract{
@@ -577,7 +584,7 @@ func validateDistinctKeys(data []byte) error {
 	if len(pairs) == 0 {
 		return nil
 	}
-	return fmt.Errorf("rules file keys differ only by letter case: %s", strings.Join(pairs, "; "))
+	return fmt.Errorf("%w: %s", errFoldedKeys, strings.Join(pairs, "; "))
 }
 
 // foldedKeyPairs names every pair of sibling keys that fold together, in each
