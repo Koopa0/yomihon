@@ -724,7 +724,7 @@ func TestArtifactPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
 		{name: "normalized child", path: "System/templates/card.md", want: true},
 		{name: "component sibling", path: "System/templates-old/card.md", want: false},
 		{name: "NFC query", path: "Café/models/card.md", want: true},
-		{name: "NFD query", path: "Café/models/card.md", want: true},
+		{name: "NFD query", path: "Cafe\u0301/models/card.md", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

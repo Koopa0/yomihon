@@ -2,110 +2,13 @@ package schema
 
 import (
 	"fmt"
-	"maps"
 	"slices"
-	"sync"
 	"sync/atomic"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
 const staleArtifactDiagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
-
-// NavigationRoles classifies note types used for ordered study paths and
-// general maps; its membership sets cannot be changed after loading. The zero
-// value is unclaimed, so both sets are empty and no note is either.
-type NavigationRoles struct {
-	sets  *roleSets
-	claim Claim
-}
-
-// roleSets holds what the contract declared. They sit behind one pointer so
-// that NavigationRoles stays small enough to pass by value.
-type roleSets struct {
-	paths  map[string]struct{}
-	maps   map[string]struct{}
-	units  map[string]struct{}
-	answer string
-}
-
-// Claim reports how far the navigation declaration got.
-func (r NavigationRoles) Claim() Claim {
-	return r.claim
-}
-
-// Available reports whether the contract declared a valid navigation role set.
-func (r NavigationRoles) Available() bool {
-	return r.claim.held()
-}
-
-// Trustworthy reports whether the role sets may be projected over: true when
-// they were read cleanly or never declared, false when a declaration was made
-// and could not be honoured.
-func (r NavigationRoles) Trustworthy() bool {
-	return r.claim.Trustworthy()
-}
-
-// IsPathType reports whether noteType is declared as an ordered study path.
-func (r NavigationRoles) IsPathType(noteType string) bool {
-	if !r.Trustworthy() {
-		return false
-	}
-	if r.sets == nil {
-		return false
-	}
-	_, ok := r.sets.paths[NormalizeWord(noteType)]
-	return ok
-}
-
-// IsMapType reports whether noteType is declared as a general map.
-func (r NavigationRoles) IsMapType(noteType string) bool {
-	if !r.Trustworthy() {
-		return false
-	}
-	if r.sets == nil {
-		return false
-	}
-	_, ok := r.sets.maps[NormalizeWord(noteType)]
-	return ok
-}
-
-// PathTypes returns every type the contract declares for ordered study paths,
-// and MapTypes the same for general maps. They are the words a surface names
-// when it has to tell a reader what puts a note on one of those two shelves:
-// nothing else can spell them, because a second copy of the vault's vocabulary
-// goes on saying a word the vault has since renamed. The words are the folded
-// spelling every comparison here uses.
-//
-// The answer is sorted rather than given in the order the contract listed it.
-// What the contract declares is membership, so reordering the same words is no
-// change at all, and a reader's sentence that rearranged itself for one would
-// be reporting something that did not happen.
-//
-// A declaration nothing made, or one that could not be honoured, names none —
-// the same answer IsPathType and IsMapType give about every note. The returned
-// slice is the caller's own.
-func (r NavigationRoles) PathTypes() []string {
-	if !r.Trustworthy() {
-		return nil
-	}
-	if r.sets == nil {
-		return nil
-	}
-	return slices.Sorted(maps.Keys(r.sets.paths))
-}
-
-// MapTypes returns the types the contract declares as general maps. See
-// PathTypes for what the answer means.
-func (r NavigationRoles) MapTypes() []string {
-	if !r.Trustworthy() {
-		return nil
-	}
-	if r.sets == nil {
-		return nil
-	}
-	return slices.Sorted(maps.Keys(r.sets.maps))
-}
 
 // ArtifactPolicy identifies vault directories whose files are readable
 // artifacts but not governed note instances. The zero value is unclaimed, so
@@ -204,63 +107,11 @@ func (p ArtifactPolicy) Capture() ArtifactPolicy {
 	}}
 }
 
-// deriveNavigationRoles reads the roles the contract gave its types. A role it
-// does not know, or a second type holding a role only one may hold, closes
-// navigation rather than refusing the contract: the check report says so, and
-// the reader still opens everything it can read.
-func deriveNavigationRoles(types []typeDefinition) NavigationRoles {
-	sets := roleSets{paths: map[string]struct{}{}, maps: map[string]struct{}{}}
-	holders := map[Role]string{}
-	for _, def := range types {
-		switch def.role {
-		case "":
-			continue
-		case RoleCourse:
-			sets.paths[def.name] = struct{}{}
-		case RoleMap:
-			sets.maps[def.name] = struct{}{}
-		case RoleLesson, RoleThought:
-			if holder, taken := holders[def.role]; taken {
-				return invalidNavigationRoles("types %q and %q both hold the %s role, which one type holds", holder, def.name, def.role)
-			}
-			holders[def.role] = def.name
-		default:
-			return invalidNavigationRoles("type %q has the unknown role %q", def.name, string(def.role))
-		}
-	}
-	if lesson := holders[RoleLesson]; lesson != "" {
-		sets.units = map[string]struct{}{lesson: {}}
-	}
-	sets.answer = holders[RoleThought]
-	return NavigationRoles{sets: &sets, claim: heldClaim()}
-}
-
-// builtInNavigationRoles are the type names a folder with no rules file is read
-// by. A note that calls itself a course, a unit, an index or a thought is one,
-// and the older words each of those has — study-path, lesson, moc, map — are
-// accepted beside them. A rules file replaces the whole set; it is never
-// merged into it.
-var builtInNavigationRoles = sync.OnceValue(func() NavigationRoles {
-	return NavigationRoles{
-		sets: &roleSets{
-			paths:  map[string]struct{}{"course": {}, "study-path": {}},
-			maps:   map[string]struct{}{"index": {}, "moc": {}, "map": {}},
-			units:  map[string]struct{}{"unit": {}, "lesson": {}},
-			answer: "thought",
-		},
-		claim: heldClaim(),
-	}
-})
-
 // noRulesArtifactPolicy is the artifact policy of a folder with no rules file:
 // it declares no template directory, so every readable note is an ordinary
 // instance. It is frozen because no file stands behind it to be re-read.
 func noRulesArtifactPolicy() ArtifactPolicy {
 	return ArtifactPolicy{state: &artifactPolicyState{claim: heldClaim(), frozen: true}}
-}
-
-func invalidNavigationRoles(format string, args ...any) NavigationRoles {
-	return NavigationRoles{claim: Rejected(fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...))}
 }
 
 func deriveArtifactPolicy(templates []string, source policySource) ArtifactPolicy {

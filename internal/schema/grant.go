@@ -44,10 +44,10 @@ const (
 	ReasonContractChanged
 )
 
-// String names a rejection reason for a diagnostic, a log line or a panic.
-// These words are for an operator reading a machine's output; a reader's own
-// sentence comes from the dictionary at the surface. A reason outside the
-// constants is a programming error and panics.
+// String names a rejection reason for a diagnostic or a log line, and a value
+// outside the constants by its number. These words are for an operator
+// reading a machine's output; a reader's own sentence comes from the
+// dictionary at the surface.
 func (r Reason) String() string {
 	switch r {
 	case ReasonUnstated:
@@ -57,7 +57,7 @@ func (r Reason) String() string {
 	case ReasonContractChanged:
 		return "contract-changed"
 	default:
-		panic("schema: unknown Reason: " + strconv.Itoa(int(r)))
+		return "Reason(" + strconv.Itoa(int(r)) + ")"
 	}
 }
 

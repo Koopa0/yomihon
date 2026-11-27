@@ -44,14 +44,13 @@ const (
 type Role string
 
 const (
-	// RoleLesson marks the notes a course is made of: each carries a slug.
+	// RoleLesson marks the units a course is made of: each carries a slug.
 	RoleLesson Role = "lesson"
-	// RoleCourse marks an ordered study path over lessons.
+	// RoleCourse marks a course: an ordered list of units.
 	RoleCourse Role = "course"
-	// RoleMap marks a general map of notes.
+	// RoleMap marks an index of notes.
 	RoleMap Role = "map"
-	// RoleThought marks a reader's own source-linked thoughts, the notes the
-	// shelf of what is left open is made of.
+	// RoleThought marks a reader's own source-linked thoughts.
 	RoleThought Role = "thought"
 )
 
@@ -236,14 +235,16 @@ func ContractAbsent(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-// Load reads the contract from the vault rooted at root, and LoadFile from an
-// explicit path. Neither is on the served path, which loads through LoadReader
-// so a capability binds to the exact file it came from; these two serve a
-// caller that holds only a path.
+// Load reads the contract of the vault rooted at root. It serves a caller that
+// holds only a path, which today is only a test: the binary loads through
+// LoadReader, so a capability binds to the exact file it came from.
 func Load(root string) (*Contract, error) {
 	return LoadFile(filepath.Join(root, filepath.FromSlash(ContractRelPath)))
 }
 
+// LoadFile reads the contract at path, for the same callers as Load. Its
+// capabilities re-read the file by that path rather than through a pinned
+// reader.
 func LoadFile(path string) (*Contract, error) {
 	sourcePath, err := filepath.Abs(path)
 	if err != nil {
@@ -381,27 +382,19 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	}
 
 	contract := &Contract{
-		common: slices.Clone(decoded.Fields.Common),
+		common: decoded.Fields.Common,
 		written: writtenKeys{
 			frontmatterOptional: tomlMeta.IsDefined("folders", "frontmatter_optional"),
 			plannedGapMarks:     tomlMeta.IsDefined("rules", "planned_gap_marks"),
 			plannedInlineMarks:  tomlMeta.IsDefined("rules", "planned_inline_marks"),
 		},
-		required: slices.Clone(decoded.Fields.Required),
+		required: decoded.Fields.Required,
 		rules: Rules{
-			ConceptRequiresProvenance: slices.Clone(decoded.Rules.ConceptRequiresProvenance),
-			PlannedGapMarks:           slices.Clone(decoded.Rules.PlannedGapMarks),
-			PlannedInlineMarks:        slices.Clone(decoded.Rules.PlannedInlineMarks),
+			ConceptRequiresProvenance: decoded.Rules.ConceptRequiresProvenance,
+			PlannedGapMarks:           decoded.Rules.PlannedGapMarks,
+			PlannedInlineMarks:        decoded.Rules.PlannedInlineMarks,
 		},
-		folders: Folders{
-			Checked:             slices.Clone(decoded.Folders.Checked),
-			Ignored:             slices.Clone(decoded.Folders.Ignored),
-			Templates:           slices.Clone(decoded.Folders.Templates),
-			Journal:             decoded.Folders.Journal,
-			DomainFrom:          slices.Clone(decoded.Folders.DomainFrom),
-			SkippedFiles:        slices.Clone(decoded.Folders.SkippedFiles),
-			FrontmatterOptional: decoded.Folders.FrontmatterOptional,
-		},
+		folders: Folders(decoded.Folders),
 	}
 	applyPlannedMarkDefaults(&contract.rules, contract.written)
 	foldWords(decoded.Enums[FieldType])
@@ -415,6 +408,9 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	foldDeclaredWords(contract)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
+	}
+	if _, hasConcept := contract.typeByName[conceptType]; hasConcept {
+		contract.provenanceFields = contract.rules.ConceptRequiresProvenance
 	}
 
 	contract.navigationRoles = deriveNavigationRoles(contract.types)
@@ -699,7 +695,7 @@ func validateTypes(contract *Contract) error {
 func validateEnums(contract *Contract) error {
 	for _, enum := range contract.enums {
 		name := "enums." + enum.field
-		if enum.field != domainField && !slices.Contains(Fields(), enum.field) {
+		if enum.field != FieldDomain && !slices.Contains(Fields(), enum.field) {
 			return fmt.Errorf("%s: %q is not a field yomihon defines or derives", name, enum.field)
 		}
 		if err := validateUniqueStrings(name, enum.values); err != nil {
@@ -763,9 +759,6 @@ func validateRules(contract *Contract) error {
 	if _, hasConcept := contract.typeByName[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
 		return errors.New(`rules.concept_requires_provenance must not be empty when the types include "concept"`)
 	}
-	if _, hasConcept := contract.typeByName[conceptType]; hasConcept {
-		contract.provenanceFields = slices.Clone(rules.ConceptRequiresProvenance)
-	}
 	return nil
 }
 
@@ -777,7 +770,7 @@ func validateFolders(folders *Folders) error {
 		return err
 	}
 	for _, dir := range folders.Checked {
-		if !validTopLevelComponent(dir) {
+		if !validName(dir) {
 			return fmt.Errorf("folders.checked: unsafe top-level component %q", dir)
 		}
 	}
@@ -786,7 +779,7 @@ func validateFolders(folders *Folders) error {
 		return err
 	}
 	for _, basename := range folders.SkippedFiles {
-		if !validBasename(basename) {
+		if !validName(basename) {
 			return fmt.Errorf("folders.skipped_files: invalid basename %q", basename)
 		}
 	}
@@ -824,7 +817,7 @@ func validDomainRoot(value string) bool {
 		return false
 	}
 	for component := range strings.SplitSeq(value, "/") {
-		if !validTopLevelComponent(component) {
+		if !validName(component) {
 			return false
 		}
 	}
@@ -848,16 +841,11 @@ func DomainFolder(roots []string, relPath string) (string, bool) {
 	return "", false
 }
 
-func validTopLevelComponent(value string) bool {
-	return value != "" &&
-		value != "." &&
-		value != ".." &&
-		!filepath.IsAbs(value) &&
-		!strings.ContainsRune(value, 0) &&
-		!strings.ContainsAny(value, `/\`)
-}
-
-func validBasename(value string) bool {
+// validName reports whether value names one entry of a directory: a folder
+// the contract declares by its top-level name, one component of a domain root,
+// or a file name the scan skips. Without a separator it can be absolute on no
+// platform.
+func validName(value string) bool {
 	return value != "" &&
 		value != "." &&
 		value != ".." &&

@@ -8,8 +8,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-const articleLanguageField = "lang"
-
 // ArticleLanguage resolves the optional BCP 47 language tag a vault contract
 // declares for authored note content. Its zero value answers with no tag at
 // all, never with one inferred from a note's path, domain, or text.
@@ -24,7 +22,7 @@ func (c *Contract) ArticleLanguage() ArticleLanguage {
 	if c == nil {
 		return ArticleLanguage{}
 	}
-	return ArticleLanguage{declared: slices.Contains(c.common, articleLanguageField)}
+	return ArticleLanguage{declared: slices.Contains(c.common, FieldLang)}
 }
 
 // Declared reports whether the contract gave the article-language field
@@ -46,13 +44,13 @@ func (l ArticleLanguage) Resolve(frontmatter map[string]any) (string, error) {
 	if !l.declared {
 		return "", nil
 	}
-	value, ok := frontmatter[articleLanguageField]
+	value, ok := frontmatter[FieldLang]
 	if !ok {
 		return "", nil
 	}
 	raw, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("frontmatter %q must be a BCP 47 string", articleLanguageField)
+		return "", fmt.Errorf("frontmatter %q must be a BCP 47 string", FieldLang)
 	}
 	tag, err := ParseLanguageTag(raw)
 	if err != nil {
@@ -73,7 +71,7 @@ func ParseLanguageTag(raw string) (string, error) {
 	}
 	again, err := canonicalLanguageTag(canonical)
 	if err != nil || again != canonical {
-		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: its canonical form %q does not canonicalize to itself", articleLanguageField, canonical)
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: its canonical form %q does not canonicalize to itself", FieldLang, canonical)
 	}
 	return canonical, nil
 }
@@ -83,27 +81,27 @@ func ParseLanguageTag(raw string) (string, error) {
 // stable.
 func canonicalLanguageTag(raw string) (string, error) {
 	if raw == "" {
-		return "", fmt.Errorf("frontmatter %q must not be empty", articleLanguageField)
+		return "", fmt.Errorf("frontmatter %q must not be empty", FieldLang)
 	}
 	// x/text deliberately accepts common non-BCP-47 spellings such as
 	// underscores. HTML's lang contract is BCP 47, so keep the parser's complete
 	// subtag semantics but reject non-ASCII separators and malformed boundaries
 	// before parsing.
 	if raw[0] == '-' || raw[len(raw)-1] == '-' || strings.Contains(raw, "--") {
-		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag", articleLanguageField)
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag", FieldLang)
 	}
 	for _, r := range raw {
 		if r == '-' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
 			continue
 		}
-		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag", articleLanguageField)
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag", FieldLang)
 	}
 	if singleton, repeated := repeatedSingleton(raw); repeated {
-		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: singleton %q appears more than once", articleLanguageField, singleton)
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: singleton %q appears more than once", FieldLang, singleton)
 	}
 	tag, err := language.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: %w", articleLanguageField, err)
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: %w", FieldLang, err)
 	}
 	return tag.String(), nil
 }
