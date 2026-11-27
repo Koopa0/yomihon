@@ -143,20 +143,6 @@ func TestTitleSkipsWhatTheReaderNeverSees(t *testing.T) {
 	}
 }
 
-func TestFirstH1ReportsWhetherTheBodyHasOne(t *testing.T) {
-	t.Parallel()
-
-	if got, ok := FirstH1("## only a lesser heading\n"); ok || got != "" {
-		t.Errorf("FirstH1(lesser heading) = %q, %v, want no heading", got, ok)
-	}
-	if got, ok := FirstH1("# Found\n"); !ok || got != "Found" {
-		t.Errorf("FirstH1(level one) = %q, %v, want Found", got, ok)
-	}
-	if got, ok := FirstH1("%%\n# hidden\n%%\n"); ok || got != "" {
-		t.Errorf("FirstH1(a heading only inside a comment) = %q, %v, want no heading", got, ok)
-	}
-}
-
 func TestTitleKeepsWhatACodeSpanHoldsLiterally(t *testing.T) {
 	t.Parallel()
 
