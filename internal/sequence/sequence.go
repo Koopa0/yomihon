@@ -309,6 +309,11 @@ func Parse(body string, bodyStartLine int) Document {
 		body:          body,
 		bodyStartLine: bodyStartLine,
 	}
+	for i := range len(body) {
+		if body[i] == '\n' {
+			p.newlines = append(p.newlines, i)
+		}
+	}
 	p.zones = skipZones(doc, body)
 	p.openers = emphasisOpeners(doc)
 	p.rows = make(map[int]*Candidate)
@@ -341,7 +346,10 @@ func Parse(body string, bodyStartLine int) Document {
 type parser struct {
 	body          string
 	bodyStartLine int
-	zones         []Span
+	// newlines are the offsets of every newline in body, in order, so a
+	// line number is one search rather than a count from the top.
+	newlines []int
+	zones    []Span
 	// openers are the opening delimiter runs of the emphasis Markdown actually
 	// paired, so an unpaired run is known to be printed rather than markup.
 	openers []Span
@@ -372,7 +380,8 @@ func (p *parser) line(offset int) int {
 	if offset < 0 || offset > len(p.body) {
 		return p.bodyStartLine
 	}
-	return p.bodyStartLine + strings.Count(p.body[:offset], "\n")
+	before, _ := slices.BinarySearch(p.newlines, offset)
+	return p.bodyStartLine + before
 }
 
 // walkBlocks visits the document's top-level blocks in order, descending only
