@@ -53,9 +53,10 @@ const landingMarkReach = 160
 // markedRunFrom is the first stretch MarkHits marks as one in the text that
 // opens at the earliest match [start, end): the match and every match of any
 // token that overlaps or touches it, white space at its ends left out. Line
-// breaks are read as spaces, so a run is never joined across one, and the text
-// stops short of a fence the match is not in, or at the end of the one it is
-// in. ok is false where nothing in that text is marked.
+// breaks are read as spaces, so two matches a break parts are never joined
+// into one run, and the text stops short of a fence the match is not in, or
+// at the end of the one it is in. ok is false where nothing in that text is
+// marked.
 func (e *entry) markedRunFrom(start, end int, tokens []string) (markStart, markEnd int, ok bool) {
 	stop := max(end, runesAfter(e.plainText, start, landingMarkReach))
 	for _, fence := range e.fenceRanges {

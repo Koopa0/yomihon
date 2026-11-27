@@ -193,6 +193,24 @@ func TestALandingIsTheWholeMarkAtTheEarliestMatch(t *testing.T) {
 	}
 }
 
+// TestALandingStopsWhereAFenceBegins holds the run of marks a prose landing
+// takes to the prose: a phrase that carries the match on into the fence that
+// follows it marks across the break, and the landing is still the prose's own
+// run rather than one ending inside the code.
+func TestALandingStopsWhereAFenceBegins(t *testing.T) {
+	t.Parallel()
+
+	doc := DocumentFromNote(vault.Parse("Notes/fence-after.md", []byte("Prose ends with alpha\n\n```\nbeta gamma\n```\n")))
+	if len(doc.FenceRanges) != 1 {
+		t.Fatalf("DocumentFromNote().FenceRanges = %v, want the one fence", doc.FenceRanges)
+	}
+	got := soleResult(t, NewIndex([]Document{doc}, validArtifactPolicy(t)), `alpha "alpha beta"`)
+	if got.Landing != "alpha" || got.BlockCrossing || got.LandingEnd != "" || got.FromFence {
+		t.Errorf("Landing = %q, crossing %t to %q, from fence %t; want the prose run alpha alone",
+			got.Landing, got.BlockCrossing, got.LandingEnd, got.FromFence)
+	}
+}
+
 // TestALandingHoldsTheMatchWhenTheFoldChangesLength holds the landing on the
 // hit when case folding before it does not preserve length: Ⱥ grows from two
 // bytes to three and ſ shrinks from two to one, so an offset found on the

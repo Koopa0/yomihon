@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -89,29 +90,49 @@ func soleResult(tb testing.TB, idx *Index, query string) Result {
 	return results[0]
 }
 
+// TestALeadAndALandingRequireBodyEvidence holds the lead and every landing
+// field to a body that answers the whole query. A title that holds every term
+// over a body that holds only some of them is a title hit, and a pure filter
+// asks the body nothing, so neither may point into the body.
 func TestALeadAndALandingRequireBodyEvidence(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
+		{RelPath: "partial.md", Title: "Needle Beta", PlainText: "the needle alone, nothing else"},
 		{RelPath: "title-only.md", Title: "Needle", PlainText: "unrelated body"},
 		{RelPath: "title-and-body.md", Title: "Needle Too", PlainText: "needle appears here"},
-		{RelPath: "filter-only.md", Title: "Filter", PlainText: "body start", NoteType: "concept"},
+		{RelPath: "filter-only.md", Title: "Filter", PlainText: "needle in a filtered note", NoteType: "concept"},
 	}, validArtifactPolicy(t))
 
-	text := searchResults(t, idx, Parse("needle"))
-	if len(text) != 2 {
-		t.Fatalf("text results = %+v", text)
+	type pointer struct {
+		Lead                                                           Lead
+		Landing, LandingBare, LandingEnd, LandingPrefix, LandingSuffix string
+		BlockCrossing, FromFence                                       bool
 	}
-	if text[0].RelPath != "title-only.md" || text[0].Lead.Runs != nil || text[0].Landing != "" {
-		t.Errorf("title-only result = %+v, want the exact title first with no lead or landing", text[0])
+	pointerOf := func(r Result) pointer {
+		return pointer{r.Lead, r.Landing, r.LandingBare, r.LandingEnd, r.LandingPrefix, r.LandingSuffix, r.BlockCrossing, r.FromFence}
 	}
-	if text[1].RelPath != "title-and-body.md" || text[1].Lead.Runs == nil || text[1].Landing != "needle" {
-		t.Errorf("title+body result = %+v, want body evidence after the exact title", text[1])
+	for _, tt := range []struct {
+		name, query, path string
+	}{
+		{name: "a title holding every term over a body holding some", query: "needle beta", path: "partial.md"},
+		{name: "a title over a body holding none", query: "needle", path: "title-only.md"},
+		{name: "a pure filter", query: "type:concept", path: "filter-only.md"},
+	} {
+		results := searchResults(t, idx, Parse(tt.query))
+		i := slices.IndexFunc(results, func(r Result) bool { return r.RelPath == tt.path })
+		if i < 0 {
+			t.Fatalf("%s: Search(%q) = %v, want %s among the hits", tt.name, tt.query, paths(results), tt.path)
+		}
+		if diff := cmp.Diff(pointer{}, pointerOf(results[i])); diff != "" {
+			t.Errorf("%s: Search(%q) pointed into the body (-want +got):\n%s", tt.name, tt.query, diff)
+		}
 	}
 
-	filtered := searchResults(t, idx, Parse("type:concept"))
-	if len(filtered) != 1 || filtered[0].Lead.Runs != nil || filtered[0].Landing != "" {
-		t.Errorf("pure-filter result = %+v, want no lead or landing", filtered)
+	for _, r := range searchResults(t, idx, Parse("needle")) {
+		if r.RelPath == "title-and-body.md" && (r.Lead.Runs == nil || r.Landing != "needle") {
+			t.Errorf("title+body result = %+v, want a lead and a landing on the body's needle", r)
+		}
 	}
 }
 
