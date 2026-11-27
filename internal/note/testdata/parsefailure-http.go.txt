@@ -23,7 +23,11 @@ const parseFailureHTTPReason = "panic while parsing this note: <script>alert(1)<
 func parseFailureHTTPServer(t *testing.T, root string) (*httptest.Server, *snapshot.Store) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	source := openReadingVault(t, root)
+	store, err := snapshot.NewParseFailureHTTPFixture(t.Context(), source, log)
+	if err != nil {
+		t.Fatalf("snapshot fixture: %v", err)
+	}
 	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	mux := http.NewServeMux()
 	note.New(&note.Sources{Source: source, Authority: authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), Bookmark: noMark, Log: log}).Register(mux)
@@ -75,7 +79,6 @@ func assertParseFailureHTTP(t *testing.T, page, want, reason string) {
 }
 
 func TestParseFailureReachesEveryReadingSurface(t *testing.T) {
-	snapshot.InstallParseFailureHTTPFixture(t)
 	t.Log("invoked: snapshot parser HTTP fixture")
 	for _, language := range []struct{ name, note, health, recovery, absent string }{
 		{name: "zh-Hant", note: "檔案已開啟，但目前的筆記內容無法解析。", health: "這些檔案已開啟，但筆記內容無法解析。", recovery: "這篇筆記的文字無法解析", absent: "這裡沒有東西"},

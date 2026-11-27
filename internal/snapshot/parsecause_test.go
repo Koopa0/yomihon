@@ -22,36 +22,39 @@ func (s parseCauseReadFailure) ReadFile(ctx context.Context, entry vault.Entry) 
 }
 
 func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
+	t.Parallel()
 	for stage := range stagePanics {
 		t.Run(stagePanics[stage].name, func(t *testing.T) {
+			t.Parallel()
 			root := t.TempDir()
 			writePanicVault(t, root)
-			breakStage(t, stage)
-			store, err := New(t.Context(), panicSource(t, root), discardLogger(), nil, schema.Governance{})
-			if err != nil {
+			store := newStore(panicSource(t, root), discardLogger(), nil, schema.Governance{})
+			breakStage(store, stage)
+			if err := store.buildFirst(t.Context(), nil); err != nil {
 				t.Fatal(err)
 			}
 			assertParseCause(t, store.Current().Freshness().Blocked, true, "panic while parsing this note: "+panicValue)
 		})
 	}
 	t.Run("empty panic", func(t *testing.T) {
+		t.Parallel()
 		root := t.TempDir()
 		writePanicVault(t, root)
-		genuine := parsers
-		t.Cleanup(func() { parsers = genuine })
-		parsers.note = func(rel string, data []byte) *vault.Note {
+		store := newStore(panicSource(t, root), discardLogger(), nil, schema.Governance{})
+		genuine := store.parsers.note
+		store.parsers.note = func(rel string, data []byte) *vault.Note {
 			if strings.Contains(string(data), poisonMark) {
 				panic("")
 			}
-			return genuine.note(rel, data)
+			return genuine(rel, data)
 		}
-		store, err := New(t.Context(), panicSource(t, root), discardLogger(), nil, schema.Governance{})
-		if err != nil {
+		if err := store.buildFirst(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
 		assertParseCause(t, store.Current().Freshness().Blocked, true, "panic while parsing this note: ")
 	})
 	t.Run("read error resembles panic", func(t *testing.T) {
+		t.Parallel()
 		root := t.TempDir()
 		writePanicVault(t, root)
 		store, err := New(t.Context(), parseCauseReadFailure{panicSource(t, root)}, discardLogger(), nil, schema.Governance{})
@@ -88,6 +91,7 @@ func assertParseCause(t *testing.T, blocked []BlockedSource, want bool, reason s
 // TestRetainedReadingNamesTheFailedParseAttempt observes the live failure on
 // the same generation still serving its previous readable body.
 func TestRetainedReadingNamesTheFailedParseAttempt(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writePanicVault(t, root)
 	store, err := New(t.Context(), panicSource(t, root), discardLogger(), nil, schema.Governance{})
@@ -95,7 +99,7 @@ func TestRetainedReadingNamesTheFailedParseAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	whole := store.Current()
-	breakStage(t, 0)
+	breakStage(store, 0)
 	writeNote(t, root, panicPoisoned, "---\n---\npoisoned newly saved content\n")
 	base := time.Now()
 	clock := base

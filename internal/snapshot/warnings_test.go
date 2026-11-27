@@ -393,10 +393,10 @@ func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
 		t.Fatal("captured note entry unavailable")
 	}
 	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
-	g := newGeneration(1)
-	g.warnings = newWarningAttempt(make(map[warningKey]struct{}))
-	g.warnSourceUnavailable(entry, errors.New("same failure"), logger)
-	g.warnSlotProblems(f.store.Current().scan, []drill.Problem{{Source: "note.md", Message: "same failure"}}, logger)
+	b := newBuild(1, noteParsers{})
+	b.warnings = newWarningAttempt(make(map[warningKey]struct{}))
+	b.warnSourceUnavailable(entry, errors.New("same failure"), logger)
+	b.warnSlotProblems(f.store.Current().scan, []drill.Problem{{Source: "note.md", Message: "same failure"}}, logger)
 	assertWarningCount(t, f, "vault source unavailable in snapshot generation", 1, "read warning was not reported")
 	assertWarningCount(t, f, "slot sidecar unusable in snapshot generation", 1, "warning kinds were collapsed")
 }
@@ -524,7 +524,7 @@ func TestSnapshotWarningPanic(t *testing.T) {
 			root := t.TempDir()
 			writePanicVault(t, root)
 			f := newWarningFixture(t, root, nil)
-			restore := breakStage(t, stage)
+			restore := breakStage(f.store, stage)
 			for range 3 {
 				f.rescan(t)
 			}
@@ -541,7 +541,7 @@ func TestSnapshotWarningPanic(t *testing.T) {
 			if !f.store.Current().Freshness().Complete {
 				t.Fatal("genuine parser recovery remained incomplete")
 			}
-			breakStage(t, stage)
+			breakStage(f.store, stage)
 			f.rescan(t)
 			f.rescan(t)
 			assertWarningCount(t, f, message, 2, "recovered panic warning was not rearmed")

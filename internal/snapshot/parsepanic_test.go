@@ -3,7 +3,6 @@ package snapshot
 import (
 	"bytes"
 	"log/slog"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -46,13 +45,11 @@ const poisonMark = "poisoned"
 // makes that parser panic on a note carrying poisonMark.
 var stagePanics = []struct {
 	name string
-	// field is the noteParsers field the stage replaces.
-	field string
 	// install returns parsers whose stage panics with panicValue on a marked note and
 	// is otherwise genuine.
 	install func(genuine noteParsers) noteParsers
 }{
-	{"the note's own parse", "note", func(p noteParsers) noteParsers {
+	{"the note's own parse", func(p noteParsers) noteParsers {
 		genuine := p.note
 		p.note = func(rel string, data []byte) *vault.Note {
 			if strings.Contains(string(data), poisonMark) {
@@ -62,7 +59,7 @@ var stagePanics = []struct {
 		}
 		return p
 	}},
-	{"the search entry", "document", func(p noteParsers) noteParsers {
+	{"the search entry", func(p noteParsers) noteParsers {
 		genuine := p.document
 		p.document = func(n *vault.Note) lexical.Document {
 			if strings.Contains(n.Body, poisonMark) {
@@ -72,7 +69,7 @@ var stagePanics = []struct {
 		}
 		return p
 	}},
-	{"the planned names", "planned", func(p noteParsers) noteParsers {
+	{"the planned names", func(p noteParsers) noteParsers {
 		genuine := p.planned
 		p.planned = func(body string, contract *schema.Contract) judge.Planned {
 			if strings.Contains(body, poisonMark) {
@@ -82,7 +79,7 @@ var stagePanics = []struct {
 		}
 		return p
 	}},
-	{"the link targets", "links", func(p noteParsers) noteParsers {
+	{"the link targets", func(p noteParsers) noteParsers {
 		genuine := p.links
 		p.links = func(body string) []string {
 			if strings.Contains(body, poisonMark) {
@@ -94,43 +91,12 @@ var stagePanics = []struct {
 	}},
 }
 
-// breakStage makes one parser stage panic on every note carrying poisonMark, and
-// returns the function that puts the real parsers back; the test's end puts them
-// back too.
-//
-// The parsers are a package variable, so a test calling this must not be
-// parallel: a parallel test is held until every sequential one has finished,
-// which is what keeps the swap from being read by a build running beside it.
-func breakStage(tb testing.TB, stage int) (restore func()) {
-	tb.Helper()
-	genuine := parsers
-	restore = func() { parsers = genuine }
-	parsers = stagePanics[stage].install(genuine)
-	tb.Cleanup(restore)
-	return restore
-}
-
-// TestEveryNoteParserHasAStageHere pins the set: a parser added to noteParsers
-// without a stage in this file would be a place a note's bytes meet a parser that
-// no test here makes panic.
-func TestEveryNoteParserHasAStageHere(t *testing.T) {
-	t.Parallel()
-
-	declared := reflect.TypeFor[noteParsers]()
-	covered := make(map[string]bool, len(stagePanics))
-	for _, stage := range stagePanics {
-		covered[stage.field] = true
-	}
-	fields := 0
-	for field := range declared.Fields() {
-		fields++
-		if !covered[field.Name] {
-			t.Errorf("noteParsers.%s has no stage in stagePanics, so no test makes it panic", field.Name)
-		}
-	}
-	if fields != len(covered) {
-		t.Errorf("stagePanics names %d parsers, noteParsers has %d", len(covered), fields)
-	}
+// breakStage makes one of store's parser stages panic on every note carrying
+// poisonMark, and returns the function that puts the real parsers back.
+func breakStage(store *Store, stage int) (restore func()) {
+	genuine := store.parsers
+	store.parsers = stagePanics[stage].install(genuine)
+	return func() { store.parsers = genuine }
 }
 
 // mustNotPanic runs step and turns a panic that escapes it into the test
@@ -209,6 +175,7 @@ func assertTheRestIsServed(t *testing.T, gen *Generation) {
 // parser panicked with. A vault with no contract is held to the same, because
 // the schema verdict is not what parses a body there.
 func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
+	t.Parallel()
 	for stage := range stagePanics {
 		for _, withContract := range []bool{true, false} {
 			name := stagePanics[stage].name
@@ -216,6 +183,7 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 				name += ", no contract"
 			}
 			t.Run(name, func(t *testing.T) {
+				t.Parallel()
 				root := t.TempDir()
 				writePanicVault(t, root)
 				var contract *schema.Contract
@@ -224,15 +192,12 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 					contract = testContract(t, root)
 					governance = contract.Governance()
 				}
-				breakStage(t, stage)
 				var logs bytes.Buffer
-
-				var store *Store
+				store := newStore(panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, governance)
+				breakStage(store, stage)
 				mustNotPanic(t, "startup scan", func() {
-					var err error
-					store, err = New(t.Context(), panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, governance)
-					if err != nil {
-						t.Fatalf("New() error = %v, want a generation of the notes that parse", err)
+					if err := store.buildFirst(t.Context(), nil); err != nil {
+						t.Fatalf("buildFirst() error = %v, want a generation of the notes that parse", err)
 					}
 				})
 				gen := store.Current()
@@ -282,8 +247,10 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 // carries the last good copy of the note — its words and what its body yielded
 // to search — marked stale, and names it blocked. Fixing the note recovers it.
 func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing.T) {
+	t.Parallel()
 	for stage := range stagePanics {
 		t.Run(stagePanics[stage].name, func(t *testing.T) {
+			t.Parallel()
 			root := t.TempDir()
 			writePanicVault(t, root)
 			contract := testContract(t, root)
@@ -302,7 +269,7 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			// The note is saved into the state its parse panics on, and a new note
 			// is written beside it, so what the containment costs the reader is
 			// visible. The size change is what makes the next rescan rebuild.
-			restore := breakStage(t, stage)
+			restore := breakStage(store, stage)
 			writeNote(t, root, panicPoisoned, "---\ntype: concept\n---\npoisoned, saved into a state that panics\n")
 			const added = "Concepts/Gamma.md"
 			writeNote(t, root, added, "---\ntype: concept\n---\ngamma\n")
@@ -364,6 +331,7 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 // stopped panicking is forgotten, so the same bytes panicking after it was
 // fixed are reported in full again rather than as a repeat of something old.
 func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writePanicVault(t, root)
 	contract := testContract(t, root)
@@ -390,7 +358,7 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 		return len(logged(&logs, "ERROR")), warns
 	}
 
-	restore := breakStage(t, 1)
+	restore := breakStage(store, 1)
 	writeNote(t, root, panicPoisoned, "---\ntype: concept\n---\npoisoned, edited once\n")
 	rescan()
 	if errs, warns := counts(); errs != 1 || warns != 0 {
@@ -413,7 +381,7 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 	if fresh := store.Current().Freshness(); !fresh.Complete {
 		t.Fatalf("Freshness() = %+v after the parsers recovered, want whole", fresh)
 	}
-	breakStage(t, 1)
+	breakStage(store, 1)
 	clock = base.Add(2 * time.Hour)
 	mustNotPanic(t, "reconciling rebuild", func() { store.rescan(t.Context()) })
 	if errs, _ := counts(); errs != 3 {

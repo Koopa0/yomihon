@@ -932,18 +932,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				t.Errorf("ScanAvailable: %v", err)
 				return
 			}
-			gen, _, err := buildGeneration(
-				t.Context(),
-				reader,
-				nil,
-				scan,
-				discardLogger(),
-				contract.Capabilities(contract.Governance()),
-				contract,
-				nil,
-				nil,
-				nil,
-			)
+			gen, _, err := store.buildGeneration(t.Context(), nil, scan, store.capabilities, nil)
 			if err != nil {
 				t.Errorf("buildGeneration: %v", err)
 				return

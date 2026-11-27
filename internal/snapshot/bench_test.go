@@ -31,24 +31,14 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.Cleanup(func() { closeReader(b, reader) })
+	store := newStore(reader, log, contract, contract.Governance())
 	b.ReportAllocs()
 	for b.Loop() {
 		scan, err := reader.ScanAvailable(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}
-		if _, _, err := buildGeneration(
-			b.Context(),
-			reader,
-			nil,
-			scan,
-			log,
-			contract.Capabilities(contract.Governance()),
-			contract,
-			nil,
-			nil,
-			nil,
-		); err != nil {
+		if _, _, err := store.buildGeneration(b.Context(), nil, scan, store.capabilities, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
