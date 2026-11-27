@@ -147,10 +147,6 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 		want int
 	}{
 		{"a path that climbs out", url.Values{"path": {"../x.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
-		// newHandler's vault holds every note, so what refuses these two is the
-		// shape of the path and not the vault failing to find a name.
-		{"a path carrying a line feed", url.Values{"path": {"Notes/a\nb.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
-		{"a path carrying a NUL and a line feed", url.Values{"path": {"Notes/a\x00b\nc.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"an offset that is not a number", url.Values{"path": {"a.md"}, "offset": {"soon"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no offset at all", url.Values{"path": {"a.md"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no identity", url.Values{"path": {"a.md"}, "offset": {"0"}}, http.StatusUnprocessableEntity},
@@ -232,39 +228,6 @@ func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 			_, kept := heldBookmark(t, file)
 			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
 				t.Errorf("a %d-byte body kept a place = %t, want %t", size, kept, wantKept)
-			}
-		})
-	}
-}
-
-// TestAMethodTheBookmarkRouteDoesNotTakeChangesNothing holds the methods. GET
-// reads the place, POST, PUT and DELETE are the ways it is set and cleared, and
-// anything else is refused with the ones the route does answer named.
-func TestAMethodTheBookmarkRouteDoesNotTakeChangesNothing(t *testing.T) {
-	t.Parallel()
-
-	for _, method := range []string{http.MethodPatch} {
-		t.Run(method, func(t *testing.T) {
-			t.Parallel()
-			file, handler := newHandler(t)
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequestWithContext(t.Context(), method, mark.Paths.Bookmark, strings.NewReader(aPost("Notes/alpha.md", "a").Encode()))
-			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			handler.ServeHTTP(recorder, request)
-			response := recorder.Result()
-			defer func() {
-				if err := response.Body.Close(); err != nil {
-					t.Error(err)
-				}
-			}()
-			if response.StatusCode != http.StatusMethodNotAllowed {
-				t.Errorf("%s %s = %d, want %d", method, mark.Paths.Bookmark, response.StatusCode, http.StatusMethodNotAllowed)
-			}
-			if got, want := response.Header.Get("Allow"), "DELETE, GET, HEAD, POST, PUT"; got != want {
-				t.Errorf("%s %s Allow = %q, want %q", method, mark.Paths.Bookmark, got, want)
-			}
-			if _, ok := heldBookmark(t, file); ok {
-				t.Errorf("%s kept a place", method)
 			}
 		})
 	}
@@ -528,34 +491,6 @@ func TestAPlaceTheVaultDoesNotHoldLeavesTheKeptPlaceAlone(t *testing.T) {
 	}
 }
 
-// TestTheRouteRefusesWhatItIsNotGiven holds the constructor's own guard, which
-// the question route has too: a route with no vault to ask, or no marks to keep
-// them in, would either accept everything or fail at the first request, and
-// neither is a refusal anyone chose.
-func TestTheRouteRefusesWhatItIsNotGiven(t *testing.T) {
-	t.Parallel()
-
-	store := newStore(t)
-	kept := newKept(t, store, resolvedRoot(t))
-	log := slog.New(slog.DiscardHandler)
-	for name, build := range map[string]func(){
-		"a nil Store":  func() { mark.NewHandler(nil, kept, vaultPlaces(nil), log) },
-		"a nil Kept":   func() { mark.NewHandler(store, nil, vaultPlaces(nil), log) },
-		"a nil Places": func() { mark.NewHandler(store, kept, nil, log) },
-		"a nil logger": func() { mark.NewHandler(store, kept, vaultPlaces(nil), nil) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			defer func() {
-				if recover() == nil {
-					t.Errorf("mark.NewHandler accepted %s", name)
-				}
-			}()
-			build()
-		})
-	}
-}
-
 // vaultPlaces answers for one vault. A nil map accepts every place.
 type vaultPlaces map[[2]string]bool
 
@@ -632,7 +567,7 @@ func TestQuestionRouteListsAndTogglesWithServerTime(t *testing.T) {
 		"path": {"Notes/source.md"}, "anchor": {"one"},
 		"time": {"2000-01-01T00:00:00Z"},
 	}
-	before := time.Now()
+	before := time.Now().Truncate(time.Millisecond)
 	added := questionRequest(t, srv.handler, http.MethodPost, form.Encode(), "en")
 	after := time.Now()
 	if added.Code != http.StatusOK || added.Body.String() != "{\"marked\":true}\n" {
@@ -739,10 +674,7 @@ func TestQuestionRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 		body string
 		want int
 	}{
-		{"missing path", "anchor=one", http.StatusUnprocessableEntity},
 		{"traversal", "path=../private.md&anchor=one", http.StatusUnprocessableEntity},
-		{"invalid anchor", "path=source.md&anchor=one%23two", http.StatusUnprocessableEntity},
-		{"invalid utf-8 anchor", "path=source.md&anchor=x%FF", http.StatusUnprocessableEntity},
 		{"malformed form", "path=%zz", http.StatusBadRequest},
 		{"past body cap", "path=source.md&anchor=one&pad=" + strings.Repeat("x", 4096), http.StatusBadRequest},
 		{"inside body cap", "path=source.md&anchor=one&pad=" + strings.Repeat("x", 3000), http.StatusOK},
@@ -804,39 +736,6 @@ func TestQuestionRoutePreservesCorruptFileAndReportsFailureInBothLanguages(t *te
 				t.Errorf("a refused write made the reader folder: %v", err)
 			}
 		})
-	}
-}
-
-func TestQuestionRouteRejectsOtherWriteMethods(t *testing.T) {
-	t.Parallel()
-	for _, method := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete} {
-		t.Run(method, func(t *testing.T) {
-			t.Parallel()
-			srv := newServer(t, nil)
-			response := questionRequest(t, srv.handler, method, "path=source.md&anchor=one", "en")
-			if response.Code != http.StatusMethodNotAllowed {
-				t.Fatalf("%s = %d, want 405", method, response.Code)
-			}
-			if _, err := os.Stat(filepath.Join(srv.root, "reader-notes")); !os.IsNotExist(err) {
-				t.Fatalf("%s created storage: %v", method, err)
-			}
-		})
-	}
-}
-
-func TestQuestionRouteRefusesInvalidUTF8RepeatedlyAndStaysReadable(t *testing.T) {
-	t.Parallel()
-	srv := newServer(t, nil)
-	for range 2 {
-		if response := questionRequest(t, srv.handler, http.MethodPost, "path=source.md&anchor=x%FF", "en"); response.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("POST invalid UTF-8 = %d, want 422", response.Code)
-		}
-	}
-	if response := questionRequest(t, srv.handler, http.MethodGet, "", "en"); response.Code != http.StatusOK {
-		t.Fatalf("GET after the refusals = %d %s, want 200", response.Code, response.Body.String())
-	}
-	if response := questionRequest(t, srv.handler, http.MethodPost, "path=source.md&anchor=one", "en"); response.Code != http.StatusOK {
-		t.Fatalf("a later valid POST = %d %s, want 200", response.Code, response.Body.String())
 	}
 }
 

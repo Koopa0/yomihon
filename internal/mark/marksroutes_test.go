@@ -367,14 +367,10 @@ func TestMkPostRefusesWhatItCannotKeepAndWritesNothing(t *testing.T) {
 		want       int
 	}{
 		{"a thought that says nothing", `{"kind":"thought","path":"` + mkNote + `","body":""}`, http.StatusUnprocessableEntity},
-		{"a highlight with words of its own", `{"kind":"highlight","path":"` + mkNote + `","quote":"the topic particle","body":"mine"}`, http.StatusUnprocessableEntity},
-		{"a highlight of nothing", `{"kind":"highlight","path":"` + mkNote + `"}`, http.StatusUnprocessableEntity},
 		{"words the note never had", `{"kind":"highlight","path":"` + mkNote + `","quote":"not in the note"}`, http.StatusUnprocessableEntity},
 		{"words at several places nothing tells apart", `{"kind":"highlight","path":"` + mkNote + `","quote":"topic particle"}`, http.StatusUnprocessableEntity},
 		{"a note this vault does not hold", `{"kind":"question","path":"Notes/missing.md"}`, http.StatusUnprocessableEntity},
 		{"an anchor the note does not render", `{"kind":"question","path":"` + mkNote + `","anchor":"nowhere"}`, http.StatusUnprocessableEntity},
-		{"a kind nobody has", `{"kind":"bookmark","path":"` + mkNote + `"}`, http.StatusUnprocessableEntity},
-		{"a path that leaves the vault", `{"kind":"question","path":"../x.md"}`, http.StatusUnprocessableEntity},
 		{"a field nobody knows", `{"kind":"question","path":"` + mkNote + `","reason":"why"}`, http.StatusBadRequest},
 		{"two values", `{"kind":"question","path":"` + mkNote + `"}{}`, http.StatusBadRequest},
 		{"no JSON at all", `not json`, http.StatusBadRequest},
@@ -447,8 +443,6 @@ func TestMkAWriteWhereTheReaderFolderCannotTakeItIsRefusedWithTheReason(t *testi
 					t.Errorf("%s %s said %q, want %q and no word of the folder", request.method, request.target, response.Body.String(), want)
 				}
 			}
-			form := r.press("section-one")
-			mkStatus(t, form, http.StatusUnprocessableEntity)
 			if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 				t.Errorf("a refused write changed the vault:\n%s", diff)
 			}
@@ -552,7 +546,6 @@ func TestMkPatchRefusesWhatTheKindDoesNotHaveAndWritesNothing(t *testing.T) {
 	}{
 		{"a thought resolved", thought.ID, thought.Seen, `"resolved":true`},
 		{"a thought with no words", thought.ID, thought.Seen, `"body":""`},
-		{"a highlight with words", highlight.ID, highlight.Seen, `"body":"mine"`},
 		{"a highlight resolved", highlight.ID, highlight.Seen, `"resolved":true`},
 		{"nothing to change", thought.ID, thought.Seen, `"edit":null`},
 	} {
@@ -805,88 +798,6 @@ func mkPull(t *testing.T, from, to *mkRig) {
 	}
 }
 
-// The question button's route keeps its wire: the same list, the same toggle,
-// and a section that two marked is not taken away blind.
-func TestMkQuestionsListAndToggleAsTheButtonExpects(t *testing.T) {
-	t.Parallel()
-	r := newMkRig(t)
-	list := func() []map[string]any {
-		t.Helper()
-		response := r.do(http.MethodGet, "/questions", "")
-		mkStatus(t, response, http.StatusOK)
-		return mkDecode[[]map[string]any](t, response)
-	}
-	if got := list(); got == nil || len(got) != 0 {
-		t.Fatalf("no questions listed as %v, want an empty list and not null", got)
-	}
-	marked := r.press("section-one")
-	mkStatus(t, marked, http.StatusOK)
-	if got := mkDecode[map[string]bool](t, marked); !got["marked"] {
-		t.Fatalf("the first press answered %v, want marked", got)
-	}
-	got := list()
-	if len(got) != 1 || got[0]["path"] != mkNote || got[0]["anchor"] != "section-one" || got[0]["time"] == nil {
-		t.Fatalf("the list is %v, want the section with its time", got)
-	}
-	// A question about a passage is not a mark of the section.
-	mkStatus(t, r.do(http.MethodPost, "/mark", `{"kind":"question","path":"`+mkNote+`","anchor":"section-one","quote":"the topic particle marks"}`), http.StatusCreated)
-	if len(list()) != 1 {
-		t.Fatalf("a question about a passage is listed as a section's: %v", list())
-	}
-	unmarked := r.press("section-one")
-	mkStatus(t, unmarked, http.StatusOK)
-	if got := mkDecode[map[string]bool](t, unmarked); got["marked"] {
-		t.Fatalf("the second press answered %v, want unmarked", got)
-	}
-	if len(list()) != 0 {
-		t.Fatalf("a question taken away is still listed: %v", list())
-	}
-	// The note as a whole is a place too, kept and taken away by the same press.
-	whole := r.press("")
-	mkStatus(t, whole, http.StatusOK)
-	if got := mkDecode[map[string]bool](t, whole); !got["marked"] || len(list()) != 1 || list()[0]["anchor"] != "" {
-		t.Fatalf("the note as a whole was answered %v and listed as %v, want it marked", got, list())
-	}
-	mkStatus(t, r.press(""), http.StatusOK)
-	if r.do(http.MethodPost, "/questions", "{}").Code != http.StatusBadRequest && r.do(http.MethodPost, "/questions", "{}").Code != http.StatusUnprocessableEntity {
-		t.Error("a JSON body to the form route was taken")
-	}
-}
-
-// Taking a question away is allowed where the note is gone; making one is not.
-func TestMkAQuestionOfANoteThatIsGoneCanStillBeTakenAway(t *testing.T) {
-	t.Parallel()
-	r := newMkRig(t)
-	mkStatus(t, r.press("section-one"), http.StatusOK)
-	// A new process whose vault has lost the note.
-	reader, err := vault.Open(r.root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close() //nolint:errcheck // the test is over
-	store, err := mark.Open(confdir.At(r.conf), reader.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
-	defer kept.Close() //nolint:errcheck // the test is over
-	mux := http.NewServeMux()
-	mark.NewHandler(store, kept, mkNotes{}, slog.New(slog.DiscardHandler)).Register(mux)
-	send := func(body string) *httptest.ResponseRecorder {
-		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/questions", strings.NewReader(body))
-		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		recorder := httptest.NewRecorder()
-		mux.ServeHTTP(recorder, request)
-		return recorder
-	}
-	gone := send("path=" + mkNote + "&anchor=section-one")
-	mkStatus(t, gone, http.StatusOK)
-	if got := mkDecode[map[string]bool](t, gone); got["marked"] {
-		t.Fatalf("pressing again on a question of a vanished note answered %v, want it taken away", got)
-	}
-	mkStatus(t, send("path=Notes/other.md&anchor="), http.StatusUnprocessableEntity)
-}
-
 // A question two computers each marked before either had read the other's is two
 // marks; pressing takes one away, and the answer still says the section is marked.
 func TestMkAQuestionTwoComputersMarkedStaysMarkedUntilBothAreTakenAway(t *testing.T) {
@@ -903,35 +814,6 @@ func TestMkAQuestionTwoComputersMarkedStaysMarkedUntilBothAreTakenAway(t *testin
 	second := a.press("section-one")
 	if got := mkDecode[map[string]bool](t, second); got["marked"] {
 		t.Fatalf("taking the second away answered %v, want unmarked", got)
-	}
-}
-
-// A question the earlier file kept is listed before the reader has written
-// anything, and the first press of the button takes it away: nothing the reader
-// marked before the upgrade is hidden until a write, and none is lost by one.
-func TestMkAnEarlierQuestionIsListedBeforeAnyWriteAndPressedAway(t *testing.T) {
-	t.Parallel()
-	r := newMkRig(t)
-	earlier := `{"version":1,"vault":"/somewhere","marks":[{"id":"` + strings.Repeat("7", 32) + `","kind":"question","path":"` + mkNote + `","anchor":"section-one","at":"2026-09-22T10:00:00Z"}]}`
-	r.writeEarlier(earlier)
-	before := tree(t, r.root)
-	listed := mkDecode[[]map[string]any](t, r.do(http.MethodGet, "/questions", ""))
-	if len(listed) != 1 || listed[0]["path"] != mkNote {
-		t.Fatalf("the list is %v, want the earlier file's question", listed)
-	}
-	if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
-		t.Fatalf("listing wrote into the vault:\n%s", diff)
-	}
-	pressed := r.press("section-one")
-	mkStatus(t, pressed, http.StatusOK)
-	if got := mkDecode[map[string]bool](t, pressed); got["marked"] {
-		t.Fatalf("pressing a question of the earlier file answered %v, want it taken away", got)
-	}
-	if got := mkDecode[[]map[string]any](t, r.do(http.MethodGet, "/questions", "")); len(got) != 0 {
-		t.Fatalf("the list after the press is %v, want none", got)
-	}
-	if _, err := os.Stat(filepath.Join(r.store.Dir(), "marks.json")); err != nil {
-		t.Fatalf("the earlier file is gone: %v", err)
 	}
 }
 

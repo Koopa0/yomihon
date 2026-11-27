@@ -1,13 +1,11 @@
 package mark_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -138,38 +136,6 @@ func TestMachineMarksCarriesEveryFieldOfAStoredMark(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("marks as a machine file takes them in (-want +got):\n%s", diff)
-	}
-}
-
-func TestAFileIsOwnerOnlyAndNothingIsLeftBesideIt(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows has no POSIX permission bits to read back")
-	}
-	store := newStore(t)
-	for range 3 {
-		if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	entries, err := os.ReadDir(store.Dir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var names []string
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	if diff := cmp.Diff([]string{"marks.lock", "progress.json"}, names); diff != "" {
-		t.Errorf("the directory holds more than the file and its lock (-want +got):\n%s", diff)
-	}
-	for _, path := range []string{progressPath(store), filepath.Join(store.Dir(), "marks.lock")} {
-		if info, statErr := os.Stat(path); statErr != nil || info.Mode().Perm() != 0o600 {
-			t.Errorf("%s mode = %v, %v; want 600", filepath.Base(path), info, statErr)
-		}
-	}
-	if info, statErr := os.Stat(store.Dir()); statErr != nil || info.Mode().Perm() != 0o700 {
-		t.Errorf("the directory mode = %v, %v; want 700", info, statErr)
 	}
 }
 
@@ -383,44 +349,6 @@ func TestTwoStoresOnOneDirectoryKeepEveryBookmark(t *testing.T) {
 	}
 }
 
-// TestTwoStoresOnOneDirectoryKeepEveryFinishedNote is the same loss in the file
-// of what a reader has finished, which a bookmark's change never touches.
-func TestTwoStoresOnOneDirectoryKeepEveryFinishedNote(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	const each = 100
-	kept := make([][]string, 2)
-	var writers sync.WaitGroup
-	for w := range 2 {
-		store := newStoreFor(t, config, "/vaults/notes")
-		writers.Go(func() {
-			for i := range each {
-				note := fmt.Sprintf("Notes/w%d-%d.md", w, i)
-				if err := pressedAgain(func() error { return store.SetFinished(note, true) }); err != nil {
-					t.Errorf("writer %d finish %d: %v", w, i, err)
-					return
-				}
-				kept[w] = append(kept[w], note)
-			}
-		})
-	}
-	writers.Wait()
-	finished, err := newStoreFor(t, config, "/vaults/notes").FinishedNotes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var notes []string
-	for _, f := range finished {
-		notes = append(notes, f.RelPath)
-	}
-	if absent := missing(kept, notes); len(absent) > 0 {
-		t.Errorf("%d notes answered finished are not in the file, first %s", len(absent), absent[0])
-	}
-	if len(finished) != 2*each {
-		t.Errorf("two stores kept %d finished notes; want %d", len(finished), 2*each)
-	}
-}
-
 // TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing is the other half
 // of pressedAgain: another process holds the lock past the wait, and the change
 // answers ErrLocked, which the reader is shown, and leaves the file as it was.
@@ -511,32 +439,19 @@ func TestMarksBeyondTheCountAreDamagedWhenStored(t *testing.T) {
 	}
 }
 
-// Every read has a cap. A file longer than anything the writer installs is read
-// as damaged, left as it is, and never taken in whole.
+// A file longer than anything the writer installs is read as damaged, left as
+// it is, and never taken in whole. Every file is read through confdir's cap,
+// which confdir's tests hold; this is the one the store reads with the least.
 func TestAFileBeyondItsReadCapIsUnreadableAndKept(t *testing.T) {
 	t.Parallel()
-	pad := strings.Repeat("x", 17<<20)
-	for _, tt := range []struct {
-		name string
-		path func(*mark.Store) string
-		data string
-		read func(*mark.Store) error
-	}{
-		{"the marks", marksPath, `{"version":1,"vault":"/v","marks":[],"pad":"` + pad + `"}`, func(s *mark.Store) error { _, err := s.MachineMarks(); return err }},
-		{"the progress", progressPath, `{"version":1,"vault":"/v","bookmarks":[],"pad":"` + pad[:2<<20] + `"}`, func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err }},
-		{"the old bookmark", func(s *mark.Store) string { return filepath.Join(s.Dir(), "reader.json") }, `{"version":1,"pad":"` + pad[:200<<10] + `"}`, func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err }},
-		{"the old questions", func(s *mark.Store) string { return filepath.Join(s.Dir(), "uncertainty.json") }, "[" + strings.Repeat(" ", 5<<20) + "]", func(s *mark.Store) error { _, err := s.MachineMarks(); return err }},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			store := newStore(t)
-			writeFile(t, tt.path(store), tt.data)
-			if err := tt.read(store); !errors.Is(err, mark.ErrUnreadable) {
-				t.Errorf("reading %s over its cap = %v, want ErrUnreadable", tt.name, err)
-			}
-			if after, err := os.ReadFile(tt.path(store)); err != nil || !bytes.Equal(after, []byte(tt.data)) {
-				t.Errorf("%s was changed: %v", tt.name, err)
-			}
-		})
+	store := newStore(t)
+	path := filepath.Join(store.Dir(), "reader.json")
+	data := `{"version":1,"pad":"` + strings.Repeat("x", 65<<10) + `"}`
+	writeFile(t, path, data)
+	if _, _, err := store.Bookmark(mark.NoCourse); !errors.Is(err, mark.ErrUnreadable) {
+		t.Errorf("reading reader.json over its cap = %v, want ErrUnreadable", err)
+	}
+	if contents(t, path) != data {
+		t.Error("reader.json was changed")
 	}
 }

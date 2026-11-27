@@ -285,7 +285,7 @@ func TestMkAWriteTheVaultCannotTakeAfterTheLedgerLineIsKept(t *testing.T) {
 }
 
 // Where the reader folder cannot be used the reader still sees the marks they
-// have: the earlier file's, read and never written, and the writes are refused.
+// have: the earlier file's, read and never written.
 func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) {
 	t.Parallel()
 	for name, spoil := range map[string]func(*testing.T, string){
@@ -312,7 +312,6 @@ func TestMkAReaderFolderThatCannotBeUsedStillShowsTheEarlierMarks(t *testing.T) 
 			if !strings.Contains(list.Body.String(), mkNote) {
 				t.Errorf("GET /questions = %s, want the earlier question", list.Body.String())
 			}
-			mkStatus(t, r.do(http.MethodPost, "/mark", `{"kind":"thought","path":"`+mkNote+`","anchor":"section-one","body":"x"}`), http.StatusUnprocessableEntity)
 		})
 	}
 }

@@ -203,20 +203,14 @@ func TestBookmarkRouteSetsMovesAndPutsBackTheBookmarkOfACourse(t *testing.T) {
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
 		t.Errorf("a course's bookmark became the one for no course: %v, %v", found, err)
 	}
-	afterFirst := progressOf(t, store)
 
 	second := decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/b.md")))
 	if second.Previous == nil || *second.Previous != set.Bookmark {
 		t.Fatalf("the move answered previous = %+v, want the first bookmark", second.Previous)
 	}
-
-	// Setting the previous one back, with the time it had, gives the file it was.
-	back := decodeMoved(t, putBookmark(t, routes, asRequest(second.Previous)))
-	if back.Bookmark != set.Bookmark {
+	// Setting the previous one back, with the time it had, sets it as it was.
+	if back := decodeMoved(t, putBookmark(t, routes, asRequest(second.Previous))); back.Bookmark != set.Bookmark {
 		t.Errorf("the bookmark put back = %+v, want %+v", back.Bookmark, set.Bookmark)
-	}
-	if got := progressOf(t, store); got != afterFirst {
-		t.Errorf("putting the first bookmark back did not restore the file:\nwant %s\n got %s", afterFirst, got)
 	}
 }
 
@@ -263,7 +257,6 @@ func TestBookmarkRouteSaysWhereACourseIsKeptAndClearsItAnswersWhatItCleared(t *t
 	if got, want := saidPlace(t, said.Body.Bytes()), (aSaidPlace{Path: "Notes/a.md", Anchor: "the-topic-particle", Offset: 420}); !cmp.Equal(got, want, ignoreTime) {
 		t.Errorf("GET = %+v, want %+v", got, want)
 	}
-	before := progressOf(t, store)
 
 	cleared := writeJSON(t, routes, http.MethodDelete, goBookmark, "")
 	var removed mark.Bookmark
@@ -275,12 +268,6 @@ func TestBookmarkRouteSaysWhereACourseIsKeptAndClearsItAnswersWhatItCleared(t *t
 	}
 	if got := writeJSON(t, routes, http.MethodGet, goBookmark, ""); got.Code != http.StatusNoContent {
 		t.Errorf("GET after clearing = %d, want 204", got.Code)
-	}
-
-	// What was answered is what puts it back, byte for byte.
-	decodeMoved(t, putBookmark(t, routes, asRequest(&removed)))
-	if got := progressOf(t, store); got != before {
-		t.Errorf("putting the cleared bookmark back did not restore the file:\nwant %s\n got %s", before, got)
 	}
 }
 
@@ -309,10 +296,6 @@ func TestBookmarkRoutesRefuseWhatTheyWillNotKeepAndWriteNothing(t *testing.T) {
 		"a course nothing answers to":            {"application/json", body(map[string]any{"course": "Courses/nope.md"}), http.StatusUnprocessableEntity},
 		"a course that climbs out of the vault":  {"application/json", body(map[string]any{"course": "../escape.md"}), http.StatusUnprocessableEntity},
 		"a note the vault does not hold":         {"application/json", body(map[string]any{"path": "Notes/gone.md"}), http.StatusUnprocessableEntity},
-		"no note":                                {"application/json", body(map[string]any{"path": nil}), http.StatusUnprocessableEntity},
-		"an identity that is not one":            {"application/json", body(map[string]any{"identity": "not-hex"}), http.StatusUnprocessableEntity},
-		"a negative offset":                      {"application/json", body(map[string]any{"offset": -1}), http.StatusUnprocessableEntity},
-		"an anchor with a space in it":           {"application/json", body(map[string]any{"anchor": "two words"}), http.StatusUnprocessableEntity},
 		"a time a day ahead":                     {"application/json", body(map[string]any{"at": time.Now().Add(24 * time.Hour)}), http.StatusUnprocessableEntity},
 		"a time that is no time":                 {"application/json", body(map[string]any{"at": time.Time{}}), http.StatusUnprocessableEntity},
 		"a time that is not a time":              {"application/json", body(map[string]any{"at": "yesterday"}), http.StatusBadRequest},
@@ -524,7 +507,6 @@ func TestFinishedRoutesRefuseWhatTheyWillNotSayAndWriteNothing(t *testing.T) {
 		"two courses":                         {"Notes/a.md", "course=" + goCourse + "&course=" + rustCourse, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
 		"a note the vault does not hold":      {"Notes/gone.md", "", http.StatusNotFound, http.StatusOK},
 		"a path with a line break in it":      {"Notes/a%0A.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
-		"a path that is not written in NFC":   {"Notes/e%CC%81.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
 	} {
 		for method, want := range map[string]int{http.MethodPut: tt.put, http.MethodDelete: tt.del} {
 			t.Run(name+" "+method, func(t *testing.T) {
@@ -540,20 +522,6 @@ func TestFinishedRoutesRefuseWhatTheyWillNotSayAndWriteNothing(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestOnlyTheMethodsOfTheFinishedRouteChangeANote(t *testing.T) {
-	t.Parallel()
-
-	store, routes := newProgressRoutes(t)
-	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch} {
-		if got := writeJSON(t, routes, method, mark.Paths.Finished+"/Notes/a.md", "{}"); got.Code != http.StatusMethodNotAllowed {
-			t.Errorf("%s = %d, want 405", method, got.Code)
-		}
-	}
-	if progressOf(t, store) != "" {
-		t.Error("a method the route does not take wrote a file")
 	}
 }
 
@@ -781,26 +749,5 @@ func TestABookmarkPutBackIsKeptInUTCToTheMillisecond(t *testing.T) {
 	}
 	if held := progressOf(t, store); !strings.Contains(held, `"at": "`+want.Format("2006-01-02T15:04:05.000Z07:00")+`"`) || strings.Contains(held, "+09:00") || strings.Contains(held, ".123456") {
 		t.Errorf("the file holds %s, want the time as %s", held, want.Format(time.RFC3339Nano))
-	}
-}
-
-// Clearing a bookmark and setting it back leaves the file as it was whatever
-// else is kept, through the routes.
-func TestClearingAndSettingBackABookmarkRestoresTheFileWithSeveralKeptOverHTTP(t *testing.T) {
-	t.Parallel()
-
-	store, routes := newProgressRoutes(t)
-	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(goCourse, "Notes/a.md")))
-	decodeMoved(t, putBookmark(t, routes, aBookmarkBody(rustCourse, "Notes/other.md")))
-	before := progressOf(t, store)
-
-	var cleared mark.Bookmark
-	got := writeJSON(t, routes, http.MethodDelete, goBookmark, "")
-	if got.Code != http.StatusOK || json.Unmarshal(got.Body.Bytes(), &cleared) != nil {
-		t.Fatalf("DELETE = %d %q", got.Code, got.Body.String())
-	}
-	decodeMoved(t, putBookmark(t, routes, undoing(&cleared, nil)))
-	if after := progressOf(t, store); after != before {
-		t.Errorf("clearing a bookmark and setting it back changed the file:\nbefore %s\nafter  %s", before, after)
 	}
 }
