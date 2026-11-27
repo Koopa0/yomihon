@@ -49,67 +49,6 @@ func schemaFindingMessages(findings []Finding) []string {
 	return out
 }
 
-// TestMarkdownCheckReportFrontmatterTheVaultAccepts is the Lock for the
-// markdown check body: a vault that does not declare type report is told so
-// instead of being handed `type: report`, which its own check rejects. A vault
-// that does declare report gets a block carrying the type alone — the title is
-// the report's own first heading — and LintFrontmatter accepts it.
-func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
-	t.Parallel()
-
-	const kept = "---\ntype: note\n---\n# Kept\n\nBody.\n"
-
-	t.Run("undeclared report is told, not filed as a failing note", func(t *testing.T) {
-		t.Parallel()
-		root := writeLeftoverLockVault(t, leftoverLockContract, map[string]string{"Notes/Kept.md": kept})
-		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
-		if err != nil {
-			t.Fatalf("RunCheck() error = %v", err)
-		}
-		if bytes.Contains(out, []byte("type: report")) {
-			t.Errorf("markdown report wrote type: report, which this contract does not declare:\n%s", out)
-		}
-		if !bytes.HasPrefix(out, []byte("This vault's rules file does not accept a fileable check report, so this body is not a note.\n\n# yomihon check\n")) {
-			t.Errorf("markdown report did not open by telling the reader the rules file cannot host the note:\n%s", out)
-		}
-
-		contract, err := schema.Load(root)
-		if err != nil {
-			t.Fatalf("schema.Load() error = %v", err)
-		}
-		filed := "Notes/check.md"
-		write(t, root, filed, string(out))
-		findings := LintFrontmatter(filed, out, contract)
-		if got := schemaFindingMessages(findings); len(got) != 0 {
-			t.Errorf("filed markdown report produced schema findings: %v", got)
-		}
-	})
-
-	t.Run("declared report writes frontmatter the vault accepts", func(t *testing.T) {
-		t.Parallel()
-		contractText := strings.Replace(leftoverLockContract, "[types.note]\n", "[types.note]\n\n[types.report]\n", 1)
-		root := writeLeftoverLockVault(t, contractText, map[string]string{"Notes/Kept.md": kept})
-		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
-		if err != nil {
-			t.Fatalf("RunCheck() error = %v", err)
-		}
-		if !bytes.HasPrefix(out, []byte("---\ntype: report\n---\n\n# yomihon check\n")) {
-			t.Errorf("markdown report did not open with a block carrying only type: report on a vault that declares it:\n%s", out)
-		}
-
-		contract, err := schema.Load(root)
-		if err != nil {
-			t.Fatalf("schema.Load() error = %v", err)
-		}
-		filed := "Notes/check.md"
-		write(t, root, filed, string(out))
-		findings := LintFrontmatter(filed, out, contract)
-		if got := schemaFindingMessages(findings); len(got) != 0 {
-			t.Errorf("filed markdown report produced schema findings: %v", got)
-		}
-	})
-}
-
 // TestExistsNeverMatchesTitleEn is the Lock for exists / title_en. title_en is
 // not a field yomihon defines, so no contract can declare it: a note that
 // writes it draws schema.unknown_key from check, and exists must not answer to

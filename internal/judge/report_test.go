@@ -44,7 +44,7 @@ func TestReportGolden(t *testing.T) {
 			}
 			got := []byte(humanReport(findings, roots))
 			if tt.format == FormatMarkdown {
-				got = []byte(markdownReport(findings, roots, contract))
+				got = []byte(markdownReport(findings, roots))
 			}
 			want, err := os.ReadFile(tt.golden)
 			if err != nil {

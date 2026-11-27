@@ -21,7 +21,7 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 |---|---|
 | `--root` | the vault to judge. Without it, the folder you are standing in is the vault |
 | `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`, and is refused |
-| `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's rules file would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
+| `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is the same summary as a markdown body. Without the flag, a pipe gets `json` and a terminal gets `human` |
 | `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither is refused rather than ignored |
 | `--all` | restores findings that touch nothing inside `[folders] checked`. It changes what is **reported**, never what is judged — see below |
 | `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. You write one by keeping a `--format json` run: `yomihon check --root <vault> --format json > baseline.jsonl`. It is version-locked; see the refusals below |
