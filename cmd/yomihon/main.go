@@ -300,12 +300,11 @@ func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config,
 	// is read with nothing kept: the process goes on with no configuration
 	// directory, as though the platform named none, and the warning below says
 	// why.
-	switch relation, err := cfg.configDir.Classify(cfg.root); relation {
-	case confdir.Overlaps:
-		return &refusal{cause: err, msg: err.Error()}
-	case confdir.Unknown:
+	if err := cfg.configDir.Classify(cfg.root); err != nil {
+		if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+			return &refusal{cause: err, msg: err.Error()}
+		}
 		cfg.configDir, cfg.noConfigDir = confdir.ConfigDir{}, err.Error()
-	case confdir.Apart:
 	}
 	if cfg.noConfigDir != "" {
 		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",

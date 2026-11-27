@@ -168,7 +168,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	// it or cannot be told apart from it. A folder that could not be compared at
 	// the start reaches here with no configuration directory, which is apart
 	// from every folder.
-	if relation, notApart := configDir.Classify(source.Name()); relation != confdir.Apart {
+	if notApart := configDir.Classify(source.Name()); notApart != nil {
 		return nil, notApart
 	}
 	if !configDir.IsZero() {

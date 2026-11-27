@@ -156,7 +156,7 @@ func (s *Store) Add(root string, start int) (entry Entry, added bool, err error)
 	// configuration directory: one that overlaps it is not one yomihon reads,
 	// and one that cannot be compared with it is not added on the chance. One
 	// listed before this was refused stays listed, and is not served.
-	if relation, notApart := s.configDir.Classify(root); relation != confdir.Apart {
+	if notApart := s.configDir.Classify(root); notApart != nil {
 		return Entry{}, false, notApart
 	}
 	id := confdir.VaultID(resolved)

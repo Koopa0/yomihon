@@ -343,7 +343,8 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 // cannot be read; nothing of it is read until its site is built, which compares
 // again and refuses it (composeReadingSite).
 func (h *host) overlaps(entry *vaults.Entry) error {
-	if relation, err := h.configDir.Classify(entry.Path); relation == confdir.Overlaps {
+	err := h.configDir.Classify(entry.Path)
+	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
 		return err
 	}
 	return nil

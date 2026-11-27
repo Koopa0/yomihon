@@ -420,7 +420,7 @@ func (r *openRequest) adoptEarlier(ctx context.Context, source *vault.Reader, sn
 	// Adopting writes this folder's marks, into a configuration directory that
 	// must not be inside the folder, nor the folder inside it: it is refused
 	// unless the two are known to be apart.
-	if relation, notApart := r.configDir.Classify(r.root); relation != confdir.Apart {
+	if notApart := r.configDir.Classify(r.root); notApart != nil {
 		return false, fmt.Errorf("%w; nothing was adopted", notApart)
 	}
 	store, err := mark.Open(r.configDir, vaultRoot)

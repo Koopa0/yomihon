@@ -54,41 +54,13 @@ func (e *OverlapError) Error() string {
 	}
 }
 
-// Relation is how a folder stands to the configuration directory, which
-// Classify answers and each caller acts on in a way of its own.
-type Relation int
-
-const (
-	// Apart is a folder that is not the configuration directory, does not hold
-	// it and is not inside it.
-	Apart Relation = iota + 1
-	// Overlaps is a folder that is the configuration directory, holds it or is
-	// inside it. Classify answers it with an *OverlapError.
-	Overlaps
-	// Unknown is a folder that could not be compared with the configuration
-	// directory, because something on the way to either could not be looked
-	// at: it is not known to be apart, nor known to overlap. Classify answers
-	// it with what stopped the comparison.
-	Unknown
-)
-
-func (r Relation) String() string {
-	switch r {
-	case Apart:
-		return "apart"
-	case Overlaps:
-		return "overlaps"
-	case Unknown:
-		return "unknown"
-	default:
-		panic(fmt.Sprintf("confdir: unknown Relation: %d", int(r)))
-	}
-}
-
-// Classify says how the folder stands to the configuration directory: Apart
-// with a nil error, Overlaps with an *OverlapError, or Unknown with the error
-// that stopped the comparison. The zero ConfigDir, which keeps nothing, is apart
-// from every folder.
+// Classify says how the folder stands to the configuration directory: nil for
+// a folder apart from it, an *OverlapError for one that is it, holds it or is
+// inside it, and for one that could not be compared, because something on the
+// way to either could not be looked at, the error that stopped the comparison:
+// such a folder is neither known to be apart nor known to overlap, and each
+// caller decides what it does with one. The zero ConfigDir, which keeps
+// nothing, is apart from every folder.
 //
 // The two are compared as the filesystem has them, not as they are spelled.
 // Each is resolved through every symbolic link and "..", the configuration
@@ -97,25 +69,25 @@ func (r Relation) String() string {
 // above the other, so a second spelling of one directory — another case on a
 // filesystem that ignores case, a trailing separator, another letter case of
 // a drive, or a link to it — is the same directory. Nothing is made.
-func (c ConfigDir) Classify(folder string) (Relation, error) {
+func (c ConfigDir) Classify(folder string) error {
 	if c.IsZero() {
-		return Apart, nil
+		return nil
 	}
 	_, root, err := vault.ResolveRoot(folder)
 	if err != nil {
-		return Unknown, err
+		return err
 	}
 	configDir, err := resolveExisting(c.dir)
 	if err == nil {
 		var how Overlap
 		if how, err = overlap(root, configDir); err == nil && how != 0 {
-			return Overlaps, &OverlapError{Folder: folder, Resolved: root, ConfigDir: c.dir, How: how}
+			return &OverlapError{Folder: folder, Resolved: root, ConfigDir: c.dir, How: how}
 		}
 	}
 	if err != nil {
-		return Unknown, fmt.Errorf("tell %s apart from the configuration directory %s: %w", folder, c.dir, err)
+		return fmt.Errorf("tell %s apart from the configuration directory %s: %w", folder, c.dir, err)
 	}
-	return Apart, nil
+	return nil
 }
 
 // overlap is how root, a resolved folder, and configDir, the configuration
