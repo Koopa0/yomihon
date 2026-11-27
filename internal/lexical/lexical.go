@@ -8,117 +8,15 @@ package lexical
 import (
 	"cmp"
 	"errors"
-	"iter"
 	"slices"
 	"strings"
-	"unicode"
 	"unicode/utf8"
-
-	"golang.org/x/text/width"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-// Fold is the single definer of "what counts as a match": NFC, then the walk
-// below, applied identically to stored text and to a query token. Case and
-// width folding live only here; vault.NormalizeNFC supplies the shared NFC step.
-func Fold(s string) string {
-	var out strings.Builder
-	out.Grow(len(s))
-	for _, r := range foldRunes(vault.NormalizeNFC(s)) {
-		out.WriteRune(r)
-	}
-	return out.String()
-}
-
-// foldRunes walks already-NFC text and yields each rune the fold keeps, folded,
-// with the byte offset in s it came from. It is the whole of what folding does, so
-// the folded string and the folded string mapped back to its source cannot
-// disagree about what a match is. A line break is dropped only when the characters
-// on both sides belong to scripts that do not divide their words with spaces.
-// Walking from any offset it yielded gives the rest of the same answer.
-func foldRunes(s string) iter.Seq2[int, rune] {
-	return func(yield func(int, rune) bool) {
-		var prev rune
-		for i, r := range s {
-			if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
-				continue
-			}
-			if !yield(i, foldRune(r)) {
-				return
-			}
-			prev = r
-		}
-	}
-}
-
-// fullwidthASCIIMin and fullwidthASCIIMax bound the block foldRune narrows.
-// Each of those runes has a one-rune halfwidth counterpart, so the fold's
-// source-offset walk stays a walk of one emitted rune per source rune.
-// Halfwidth katakana is outside it: a voiced mark beside one folds two runes
-// to one and is a separate decision.
-const (
-	fullwidthASCIIMin = 0xFF01
-	fullwidthASCIIMax = 0xFF5E
-)
-
-// foldRune is the per-character half of fold: the fullwidth ASCII block
-// narrows to its halfwidth counterpart, then a fixed simple-case representative.
-// Width first so a fullwidth letter and its ASCII counterpart meet before
-// either is case-folded.
-func foldRune(r rune) rune {
-	if r >= fullwidthASCIIMin && r <= fullwidthASCIIMax {
-		if n := width.LookupRune(r).Narrow(); n != 0 {
-			r = n
-		}
-	}
-	if r <= unicode.MaxASCII {
-		return unicode.ToLower(r)
-	}
-	return simpleCaseRune(r)
-}
-
-// simpleCaseRune prefers the smallest letter in the orbit, lowered only if
-// that lowercase remains a member. Greek iota's smallest member is a combining
-// mark: emitting it after a vowel could create a new NFC contraction. Dotted
-// capital I instead has no simple lowercase peer and stays in its own orbit.
-func simpleCaseRune(r rune) rune {
-	smallest := r
-	for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
-		letter, chosenLetter := unicode.IsLetter(next), unicode.IsLetter(smallest)
-		if (letter && !chosenLetter) || (letter == chosenLetter && next < smallest) {
-			smallest = next
-		}
-	}
-	lower := unicode.ToLower(smallest)
-	if strings.EqualFold(string(smallest), string(lower)) {
-		return lower
-	}
-	return smallest
-}
-
-// nextRune returns the first rune at or after i, or zero at the end of s.
-func nextRune(s string, i int) rune {
-	for _, r := range s[i:] {
-		return r
-	}
-	return 0
-}
-
-// writesWithoutSpaces reports whether a character belongs to a script that does
-// not part its words with spaces, the distinction Unicode text segmentation
-// (UAX #29) draws. Han, hiragana and katakana carry it. Hangul does not, and
-// its exclusion is that script property rather than a case left for later:
-// modern Korean divides its words with spaces, so closing a wrapped seam
-// would fuse two words.
-func writesWithoutSpaces(r rune) bool {
-	return unicode.Is(unicode.Han, r) ||
-		unicode.Is(unicode.Hiragana, r) ||
-		unicode.Is(unicode.Katakana, r)
-}
 
 // Document is the disk-free input to NewIndex: everything the index needs about
 // one note, with PlainText already extracted by render.PlainText.
