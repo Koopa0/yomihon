@@ -232,7 +232,6 @@ func (g *Generation) Capture() *Generation {
 	}
 	captured := *g
 	captured.artifactPolicy = g.artifactPolicy.Capture()
-	captured.privacyPolicy = g.privacyPolicy
 	captured.search = g.search.WithArtifactPolicy(captured.artifactPolicy)
 	return &captured
 }
@@ -1126,7 +1125,7 @@ func buildGeneration(
 		sidecars:       g.sidecars,
 		skippedNotes:   g.skippedNotes,
 		figures:        g.figures,
-		sizeSkipped:    slices.Clone(g.sizeSkipped),
+		sizeSkipped:    g.sizeSkipped,
 		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen).WithFigures(gen)
@@ -1216,7 +1215,7 @@ func (g *build) warnSlotProblems(scan vault.Scan, problems []drill.Problem, log 
 		// One unusable sidecar costs one lesson its practice panel, not the rest.
 		entry, ok := scan.Entry(problem.Source)
 		if !ok {
-			panic("snapshot: unknown sidecar source: " + sidecarSource(problem.Source).String())
+			panic("snapshot: unknown sidecar source: " + problem.Source)
 		}
 		if g.warnings.record(entry, warningSidecar, problem.Message) {
 			log.Warn("slot sidecar unusable in snapshot generation",

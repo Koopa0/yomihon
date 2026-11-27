@@ -31,15 +31,6 @@ func (g *Generation) NotesOfType(noteType string) []Reading {
 	return notes
 }
 
-// BasedOnDeclarations returns the source words the note authored, including
-// any section or block fragments. The detached list grants no link target.
-func (g *Generation) BasedOnDeclarations(rel string) []string {
-	if g == nil {
-		return nil
-	}
-	return slices.Clone(basedOnValues(g.parsed[rel]))
-}
-
 // ReadmeRelPath is the folder's own introduction, whose title is what the
 // folder is called to a reader. It is the one place the name is written.
 const ReadmeRelPath = "README.md"
