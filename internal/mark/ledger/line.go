@@ -26,15 +26,18 @@ type wire struct {
 	B64     string `json:"b64,omitempty"`
 }
 
-// encode is e as one line, without the newline that ends it. Content goes in as
-// text when it is UTF-8, which JSON keeps byte for byte, and as base64 when it
-// is not, which JSON would not: it writes U+FFFD for each byte it cannot read.
+// encode is e as one line, without the newline that ends it. Content goes in
+// as text when it is UTF-8, which JSON keeps byte for byte, and no longer so
+// than as base64; and as base64 otherwise, since JSON writes U+FFFD for each
+// byte it cannot read, and escapes a quote or a backslash in two bytes and a
+// control character in up to six. A content of n bytes so takes at most 4n/3
+// of a line.
 func encode(e *Event) []byte {
 	w := wire{
 		Seq: e.Seq, T: e.Time.UnixMilli(), Kind: e.Kind, ID: e.ID, Path: e.Path,
 		Sum: e.Sum, Writer: e.Writer, Session: e.Session,
 	}
-	if utf8.Valid(e.Content) {
+	if utf8.Valid(e.Content) && quotedLength(e.Content) <= base64.StdEncoding.EncodedLen(len(e.Content)) {
 		w.Bytes = string(e.Content)
 	} else {
 		w.B64 = base64.StdEncoding.EncodeToString(e.Content)
@@ -44,6 +47,16 @@ func encode(e *Event) []byte {
 		panic("ledger: a line of strings and integers did not encode: " + err.Error())
 	}
 	return line
+}
+
+// quotedLength is how long text is inside the quotes of a JSON string, as a
+// line writes it.
+func quotedLength(text []byte) int {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(string(text)) //nolint:errcheck,errchkjson // a string always encodes
+	return buf.Len() - len(`""`+"\n")
 }
 
 // verdict is what reading one line found.

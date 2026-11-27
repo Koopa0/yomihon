@@ -1159,6 +1159,23 @@ func TestACarryMadeAgainSetsNothingAsideTwice(t *testing.T) {
 	}
 }
 
+// The longest file of marks a write replaces is kept whole in one line however
+// much of it JSON would escape: a file that the reader filled with code and
+// quoted it twice over, every byte of it a backslash or a quote, is recorded
+// and read back. A refusal here would refuse every later write for as long as
+// the file stood in the vault.
+func TestAFileOfMarksThatJSONEscapesWhollyFitsALine(t *testing.T) {
+	t.Parallel()
+	l, _ := open(t, vaultDir(t))
+	content := bytes.Repeat([]byte(`\"`), 8<<20)
+	given := Event{Kind: "marks-replaced", Content: content}
+	record(t, l, &given)
+	got, _ := events(t, l)
+	if len(got) != 1 || !bytes.Equal(got[0].Content, content) {
+		t.Fatalf("read %d events back, want the one recorded whole", len(got))
+	}
+}
+
 // A line longer than its limit is refused, and nothing is written.
 func TestALineLongerThanItsLimitIsRefused(t *testing.T) {
 	t.Parallel()

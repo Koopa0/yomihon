@@ -70,7 +70,9 @@ const (
 	// memory and not a size the ledger is expected to reach.
 	maxBytes = 1 << 30
 	// MaxLineBytes is the most one line may hold: a machine file of marks as a
-	// write replaced it, with room for base64.
+	// write replaced it, which is at most 16 MiB and takes at most 4/3 of that
+	// however much of it JSON would escape (see encode), with room for the rest
+	// of the line.
 	MaxLineBytes = 32 << 20
 )
 
