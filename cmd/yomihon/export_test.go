@@ -70,7 +70,7 @@ func (c computer) hand() *machinemarks.Marks {
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	c.t.Cleanup(func() { _ = kept.Close() }) //nolint:errcheck // the test is over
 	hand, err := kept.Marks()
 	if err != nil {

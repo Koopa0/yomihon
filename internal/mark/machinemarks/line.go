@@ -61,10 +61,10 @@ type Mark struct {
 	At      time.Time `json:"at"`
 }
 
-// Edit names one editing session of one page, and the send of it that a line
-// holds. A later send of the same session may follow an earlier one that is
+// Edit names one edit a page makes of a mark, which it may send more than once,
+// and the send of it that a line holds. A later send of the same edit may follow an earlier one that is
 // still on its way, as the last words a page sends as it is left are; this is
-// how the two are told from two sessions writing over each other.
+// how the two are told from two edits writing over each other.
 type Edit struct {
 	ID  string `json:"id"`
 	Seq uint64 `json:"seq"`

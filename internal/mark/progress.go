@@ -146,8 +146,9 @@ func (s *Store) MoveBookmark(course string, b *Bookmark, expect *Expectation) (p
 		if checkErr != nil {
 			return checkErr
 		}
-		kept, at := bookmarkIn(held.bookmarks, course)
-		previous, had = kept, at >= 0
+		var at int
+		previous, at = bookmarkIn(held.bookmarks, course)
+		had = at >= 0
 		switch {
 		case had:
 			held.bookmarks[at].Bookmark = *b
@@ -166,12 +167,12 @@ func (s *Store) MoveBookmark(course string, b *Bookmark, expect *Expectation) (p
 
 // bookmarkIn is the bookmark held for course and where it is, at -1 where there
 // is none.
-func bookmarkIn(held []courseBookmark, course string) (kept Bookmark, at int) {
-	at = slices.IndexFunc(held, func(b courseBookmark) bool { return b.Course == course })
+func bookmarkIn(held []courseBookmark, course string) (b Bookmark, at int) {
+	at = slices.IndexFunc(held, func(c courseBookmark) bool { return c.Course == course })
 	if at >= 0 {
-		kept = held[at].Bookmark
+		b = held[at].Bookmark
 	}
-	return kept, at
+	return b, at
 }
 
 // check is nil where the bookmark held for course is the one e expects, and
@@ -180,8 +181,8 @@ func (e *Expectation) check(held []courseBookmark, course string) error {
 	if e == nil {
 		return nil
 	}
-	kept, at := bookmarkIn(held, course)
-	if e.At == nil && at < 0 || e.At != nil && at >= 0 && kept.At.Equal(*e.At) {
+	b, at := bookmarkIn(held, course)
+	if (e.At == nil && at < 0) || (e.At != nil && at >= 0 && b.At.Equal(*e.At)) {
 		return nil
 	}
 	return fmt.Errorf("%w: the bookmark kept is not the one expected", ErrChanged)

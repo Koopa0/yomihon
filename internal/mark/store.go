@@ -15,8 +15,9 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
-// Store keeps the reader's marks for one vault under the configuration
-// directory of the person running it.
+// Store is what the reader keeps for one vault under the configuration
+// directory of the person running it, beside the vault's ledger: the bookmarks
+// and the finished notes, and the earlier files of marks, which it only reads.
 //
 // It holds nothing in memory. The files on disk are the record, so a reader who
 // deletes one has deleted it, rather than arguing with a copy this process is

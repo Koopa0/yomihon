@@ -30,7 +30,7 @@ func markID(n int) string { return fmt.Sprintf("%032x", n) }
 // keep leaves each mark in the vault. A mark with no id is given one.
 func (k keptMarks) keep(marks ...machinemarks.Mark) {
 	k.t.Helper()
-	marktest.Keep(k.t, k.root, confdir.At(k.config), marks...)
+	marktest.Leave(k.t, k.root, confdir.At(k.config), marks...)
 }
 
 // forget deletes the mark with this id, the way the page's delete does.
@@ -49,7 +49,7 @@ func (k keptMarks) forget(id string) {
 	if err != nil {
 		k.t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			k.t.Error(closeErr)
@@ -164,7 +164,7 @@ func heldQuestions(t *testing.T, root, configDir string) []machinemarks.Mark {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			t.Error(closeErr)

@@ -43,8 +43,8 @@ type machine struct {
 	id string
 	// retired are ids this machine had and left.
 	retired []string
-	// sessions are the processes this machine was, by the id they wrote under.
-	sessions map[string]map[string]bool
+	// processes are the processes this machine was, by the id they wrote under.
+	processes map[string]map[string]bool
 	// converted says the earlier file's marks were taken in.
 	converted bool
 	// skipped are the ids of the marks of the earlier file that were not taken
@@ -56,15 +56,15 @@ type machine struct {
 
 // stateOf reads what the ledger's lines say of this machine.
 func stateOf(events []ledger.Event) machine {
-	st := machine{sessions: map[string]map[string]bool{}, skipped: map[string]bool{}, next: 1}
-	note := func(id, session string) {
-		if id == "" || session == "" {
+	st := machine{processes: map[string]map[string]bool{}, skipped: map[string]bool{}, next: 1}
+	note := func(id, process string) {
+		if id == "" || process == "" {
 			return
 		}
-		if st.sessions[id] == nil {
-			st.sessions[id] = map[string]bool{}
+		if st.processes[id] == nil {
+			st.processes[id] = map[string]bool{}
 		}
-		st.sessions[id][session] = true
+		st.processes[id][process] = true
 	}
 	for i := range events {
 		e := &events[i]

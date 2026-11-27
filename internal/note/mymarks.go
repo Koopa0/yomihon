@@ -60,7 +60,7 @@ func (h *Handler) markedBody(ctx context.Context, body string, n *snapshot.Readi
 			html := h.noteHTML(ctx, drawn, n.RelPath)
 			switch {
 			case html == "":
-			case m.Anchor != "" && (place.SectionKept || place.Status == mark.SectionOnly):
+			case m.Anchor != "" && (place.SectionThere || place.Status == mark.SectionOnly):
 				bySection[m.Anchor] = append(bySection[m.Anchor], html)
 			default:
 				tail.WriteString(html)

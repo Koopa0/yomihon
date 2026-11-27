@@ -33,10 +33,10 @@ func FuzzDecode(f *testing.F) {
 
 // linesFrom makes lines of three machines and two processes from bytes, six
 // bytes for each.
-func linesFrom(data []byte) []*kept {
+func linesFrom(data []byte) []*rawLine {
 	machines := []string{"11111111", "22222222", "33333333"}
 	processes := []string{"", "aaaaaaaa"}
-	var out []*kept
+	var out []*rawLine
 	// Two different lines of one writer, one rev and one mark are what only a
 	// hand makes, and which of them is read is the order the lines come in: the
 	// one case in which the order matters. The lines made here have one each.
@@ -68,13 +68,13 @@ func linesFrom(data []byte) []*kept {
 		if err != nil {
 			panic(err)
 		}
-		out = append(out, &kept{Line: l, raw: raw})
+		out = append(out, &rawLine{Line: l, raw: raw})
 	}
 	return out
 }
 
 // shown is what a resolution says, in a form two resolutions are compared by.
-func shown(ls []*kept) string {
+func shown(ls []*rawLine) string {
 	var parts []string
 	for id, r := range merge(ls) {
 		var heads []string
@@ -116,7 +116,7 @@ func FuzzMerge(f *testing.F) {
 					t.Fatalf("mark %s shows a line of %s that its writer's newer line replaced", id, h.Writer())
 				}
 			}
-			anyAlive := slices.ContainsFunc(r.heads, func(h *kept) bool { return !h.Mark.Deleted })
+			anyAlive := slices.ContainsFunc(r.heads, func(h *rawLine) bool { return !h.Mark.Deleted })
 			if anyAlive && r.heads[0].Mark.Deleted {
 				t.Fatalf("mark %s shows a deletion with a live value beside it", id)
 			}
@@ -135,12 +135,12 @@ func FuzzMerge(f *testing.F) {
 			}
 			// A line that has read every writer, and is of a new writer with a
 			// higher rev, is the one value.
-			top := &kept{Fmt: Format, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
+			top := &rawLine{Fmt: Format, M: "99999999", Rev: 1, T: 100, Mark: r.heads[0].Mark, Seen: Seen{}}
 			for w, n := range r.newest {
 				top.Seen[w] = n.Rev
 			}
 			top.Mark.Deleted = false
-			var group []*kept
+			var group []*rawLine
 			for _, l := range ls {
 				if l.Mark.ID == id {
 					group = append(group, l)
@@ -155,14 +155,14 @@ func FuzzMerge(f *testing.F) {
 
 // everyoneIsReplaced says every writer's newest line of mark id is replaced by
 // another's: the case in which no line is left, and every line stands.
-func everyoneIsReplaced(ls []*kept, id string) bool {
-	var group []*kept
+func everyoneIsReplaced(ls []*rawLine, id string) bool {
+	var group []*rawLine
 	for _, l := range ls {
 		if l.Mark.ID == id {
 			group = append(group, l)
 		}
 	}
-	newest := map[string]*kept{}
+	newest := map[string]*rawLine{}
 	for _, l := range group {
 		if old := newest[l.Writer()]; old == nil || l.Rev > old.Rev {
 			newest[l.Writer()] = l

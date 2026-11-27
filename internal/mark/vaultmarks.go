@@ -34,13 +34,13 @@ const (
 // gate the export puts on its own reads.
 func AllMarks(*machinemarks.Mark) bool { return true }
 
-// Kept is the reader's highlights, thoughts and questions as the vault keeps
+// VaultMarks is the reader's highlights, thoughts and questions as the vault keeps
 // them: the machine files under reader-notes/ and the ledger beside the other
 // files of the vault's configuration directory. The folder is opened when it is
 // first asked for and again after a failure, so that a vault whose reader
 // folder cannot be used still opens for reading, and one that is mended is
 // written to without a restart.
-type Kept struct {
+type VaultMarks struct {
 	store  *Store
 	source *vault.Reader
 	log    *slog.Logger
@@ -56,29 +56,29 @@ type Kept struct {
 	now      func() time.Time
 }
 
-// OpenKept names the marks of the vault source holds. It reads and writes
+// OpenVaultMarks names the marks of the vault source holds. It reads and writes
 // nothing: the earlier file of marks, which store keeps, is what the first
 // write of a machine with no file takes in.
-func OpenKept(store *Store, source *vault.Reader, log *slog.Logger) *Kept {
+func OpenVaultMarks(store *Store, source *vault.Reader, log *slog.Logger) *VaultMarks {
 	if store == nil || source == nil || log == nil {
-		panic("mark: OpenKept requires a Store, a vault and a logger")
+		panic("mark: OpenVaultMarks requires a Store, a vault and a logger")
 	}
-	return &Kept{store: store, source: source, log: log, now: time.Now}
+	return &VaultMarks{store: store, source: source, log: log, now: time.Now}
 }
 
 // Marks is this machine's hand on the marks. It is an error when the reader
 // folder cannot be entered: it is a link, or not a folder, or moved.
-func (k *Kept) Marks() (*machinemarks.Marks, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if k.marks != nil {
-		return k.marks, nil
+func (vm *VaultMarks) Marks() (*machinemarks.Marks, error) {
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+	if vm.marks != nil {
+		return vm.marks, nil
 	}
-	marks, err := machinemarks.Open(k.source, k.store.dir, k.log, k.store.MachineMarks)
+	marks, err := machinemarks.Open(vm.source, vm.store.dir, vm.log, vm.store.MachineMarks)
 	if err != nil {
 		return nil, fmt.Errorf("open the reader folder: %w", err)
 	}
-	k.marks = marks
+	vm.marks = marks
 	return marks, nil
 }
 
@@ -89,8 +89,8 @@ func (k *Kept) Marks() (*machinemarks.Marks, error) {
 // folder, the view holds no mark of the vault and the earlier file's marks are
 // what Pending lists, so that the reader still sees the marks they have; the
 // writes are refused, and Mend says so to the log.
-func (k *Kept) View() (*machinemarks.View, error) {
-	marks, err := k.Marks()
+func (vm *VaultMarks) View() (*machinemarks.View, error) {
+	marks, err := vm.Marks()
 	if err != nil {
 		if errors.Is(err, machinemarks.ErrNotAFolder) {
 			return machinemarks.LegacyView(), nil
@@ -105,8 +105,8 @@ func (k *Kept) View() (*machinemarks.View, error) {
 // nothing. A refusal the folder's mode does not show, such as an access list or
 // a mount that is read only, is not seen here; the write that is refused
 // says so when it is made.
-func (k *Kept) Writable() string {
-	marks, err := k.Marks()
+func (vm *VaultMarks) Writable() string {
+	marks, err := vm.Marks()
 	if err == nil {
 		readOnly, askErr := marks.ReadOnly()
 		if askErr == nil {
@@ -134,11 +134,11 @@ func (k *Kept) Writable() string {
 // file, which a read never changes, until the first write takes them in. A mark
 // that does not hold its shape is not among them, since the take-in leaves it in
 // the file. A file that cannot be read is an error and not an empty list.
-func (k *Kept) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
+func (vm *VaultMarks) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
 	if !view.AwaitsTakeIn() {
 		return nil, nil
 	}
-	earlier, err := k.store.MachineMarks()
+	earlier, err := vm.store.MachineMarks()
 	if err != nil {
 		return nil, err
 	}
@@ -153,20 +153,20 @@ func (k *Kept) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
 
 // Holds says the earlier file has a mark with this id that the vault does not
 // show yet, so that a change addressed to it takes the earlier marks in first.
-func (k *Kept) Holds(view *machinemarks.View, id string) bool {
-	pending, err := k.Pending(view)
+func (vm *VaultMarks) Holds(view *machinemarks.View, id string) bool {
+	pending, err := vm.Pending(view)
 	return err == nil && slices.ContainsFunc(pending, func(m machinemarks.Mark) bool { return m.ID == id })
 }
 
 // Questions is the questions the reader has open: the ones that are not deleted
 // and not resolved, the vault's in the order they were made and then the earlier
 // file's, until they are taken in. A conflict is shown as the value that counts.
-func (k *Kept) Questions() ([]machinemarks.Mark, error) {
-	view, err := k.View()
+func (vm *VaultMarks) Questions() ([]machinemarks.Mark, error) {
+	view, err := vm.View()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	pending, err := k.Pending(view)
+	pending, err := vm.Pending(view)
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +190,12 @@ func (k *Kept) Questions() ([]machinemarks.Mark, error) {
 // conflict is shown as the value that counts, so a page that draws these draws
 // what the newest of the writers wrote. An error says the marks cannot be read;
 // the page is then drawn without them.
-func (k *Kept) Live(rel string) ([]machinemarks.Mark, error) {
-	view, err := k.View()
+func (vm *VaultMarks) Live(rel string) ([]machinemarks.Mark, error) {
+	view, err := vm.View()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	pending, err := k.Pending(view)
+	pending, err := vm.Pending(view)
 	if err != nil {
 		return nil, err
 	}
@@ -228,50 +228,50 @@ const mendEvery = 5 * time.Second
 // only here. What it cannot mend, a file another program changed or that cannot
 // be read, is left as it is and said to the log, once for as long as it stays
 // so: the reader is not told of it here.
-func (k *Kept) Mend() {
-	k.mu.Lock()
-	now := k.now()
-	if !k.mendedAt.IsZero() && now.Sub(k.mendedAt) < mendEvery {
-		k.mu.Unlock()
+func (vm *VaultMarks) Mend() {
+	vm.mu.Lock()
+	now := vm.now()
+	if !vm.mendedAt.IsZero() && now.Sub(vm.mendedAt) < mendEvery {
+		vm.mu.Unlock()
 		return
 	}
-	k.mendedAt = now
-	k.mu.Unlock()
+	vm.mendedAt = now
+	vm.mu.Unlock()
 
-	marks, err := k.Marks()
+	marks, err := vm.Marks()
 	if err != nil {
-		k.say("folder", fmt.Sprintf("unusable: %v", err), "the reader folder cannot be used: the marks shown are those of the earlier file, and none is kept", "error", err)
+		vm.say("folder", fmt.Sprintf("unusable: %v", err), "the reader folder cannot be used: the marks shown are those of the earlier file, and none is kept", "error", err)
 		return
 	}
-	k.say("folder", "", "")
+	vm.say("folder", "", "")
 	view, err := marks.View()
 	if err != nil {
-		k.say("read", fmt.Sprintf("unreadable: %v", err), "the reader's marks cannot be read", "error", err)
+		vm.say("read", fmt.Sprintf("unreadable: %v", err), "the reader's marks cannot be read", "error", err)
 		return
 	}
-	k.say("read", "", "")
-	k.say("files", edgeState(view), "the reader's marks have a state this machine cannot show or use",
+	vm.say("read", "", "")
+	vm.say("files", edgeState(view), "the reader's marks have a state this machine cannot show or use",
 		"other_computers_damaged", view.Damaged(), "own_damaged", view.DamagedOwn(),
 		"unreadable_files", view.Unreadable(), "own_file_unreadable", view.OwnUnreadable(),
 		"later_format_lines", view.Newer(), "earlier_file_skipped", view.LegacySkipped(),
 		"ledger_changed", view.LedgerChanged(), "configuration_copied", view.IDRetired())
 	missing := view.Missing()
 	if missing == 0 {
-		k.say("missing", "", "")
+		vm.say("missing", "", "")
 		return
 	}
-	if why := k.Writable(); why != WritableOK {
-		k.say("missing", "unwritable:"+why, "marks are missing from the vault and cannot be put back: the reader folder cannot be written to", "missing", missing, "why", why)
+	if why := vm.Writable(); why != WritableOK {
+		vm.say("missing", "unwritable:"+why, "marks are missing from the vault and cannot be put back: the reader folder cannot be written to", "missing", missing, "why", why)
 		return
 	}
 	// Mend is the vault's, not the page's that happened to call it: what it puts
 	// back is put back whether or not that page is still waiting.
 	if _, err = marks.Restore(context.Background()); err != nil {
-		k.say("missing", "failed:"+err.Error(), "marks are missing from the vault and could not be put back", "missing", missing, "error", err)
+		vm.say("missing", "failed:"+err.Error(), "marks are missing from the vault and could not be put back", "missing", missing, "error", err)
 		return
 	}
-	k.say("missing", "", "")
-	k.log.Info("put back marks that were no longer in the vault", "marks", missing)
+	vm.say("missing", "", "")
+	vm.log.Info("put back marks that were no longer in the vault", "marks", missing)
 }
 
 // edgeState names the states of the files that the reader is not told of, empty
@@ -285,28 +285,28 @@ func edgeState(v *machinemarks.View) string {
 
 // say logs a state of one topic at Warn the first time it is seen and again only
 // when it changes; an empty state is none and is not said.
-func (k *Kept) say(topic, state, msg string, args ...any) {
-	k.mu.Lock()
-	changed := k.said[topic] != state
-	if k.said == nil {
-		k.said = map[string]string{}
+func (vm *VaultMarks) say(topic, state, msg string, args ...any) {
+	vm.mu.Lock()
+	changed := vm.said[topic] != state
+	if vm.said == nil {
+		vm.said = map[string]string{}
 	}
-	k.said[topic] = state
-	k.mu.Unlock()
+	vm.said[topic] = state
+	vm.mu.Unlock()
 	if changed && state != "" {
-		k.log.Warn(msg, args...)
+		vm.log.Warn(msg, args...)
 	}
 }
 
 // Close lets the folder go. It is called once, after the last request.
-func (k *Kept) Close() error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if k.marks == nil {
+func (vm *VaultMarks) Close() error {
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+	if vm.marks == nil {
 		return nil
 	}
-	err := k.marks.Close()
-	k.marks = nil
+	err := vm.marks.Close()
+	vm.marks = nil
 	return err
 }
 
@@ -315,8 +315,8 @@ func (k *Kept) Close() error {
 // deleted mark included, and that are not the same act as a mark there. Marks
 // that would pass the limit are refused whole with ErrInvalid. ctx bounds its
 // waits for the locks.
-func (k *Kept) TakeIn(ctx context.Context, adopted []machinemarks.Mark) error {
-	marks, err := k.Marks()
+func (vm *VaultMarks) TakeIn(ctx context.Context, adopted []machinemarks.Mark) error {
+	marks, err := vm.Marks()
 	if err != nil {
 		return err
 	}
@@ -328,21 +328,21 @@ func (k *Kept) TakeIn(ctx context.Context, adopted []machinemarks.Mark) error {
 }
 
 // Held says the reader has marks for this vault anywhere: in the vault's files,
-// in the local backup, or in the earlier file. A reader who never marked anything
+// in the ledger, or in the earlier file. A reader who never marked anything
 // and one who cleared every mark both hold none, and only the files tell them
 // apart.
-func (k *Kept) Held() (bool, error) {
-	view, err := k.View()
+func (vm *VaultMarks) Held() (bool, error) {
+	view, err := vm.View()
 	if err != nil {
 		return true, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	pending, err := k.Pending(view)
+	pending, err := vm.Pending(view)
 	if err != nil {
 		return true, err
 	}
 	if view.MachineID() != "" || len(view.Entries(AllMarks)) > 0 || len(pending) > 0 {
 		return true, nil
 	}
-	_, _, stored, err := k.store.loadMarks()
+	_, _, stored, err := vm.store.loadMarks()
 	return stored, err
 }

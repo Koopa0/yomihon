@@ -434,7 +434,7 @@ func (r *openRequest) adoptEarlier(ctx context.Context, source *vault.Reader, sn
 	if err == nil {
 		// The marks belong in the vault's own files, where they are read from, so
 		// they are taken in now, where the reader asked for the adoption.
-		reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler))
+		reader := mark.OpenVaultMarks(store, source, slog.New(slog.DiscardHandler))
 		takeErr := reader.TakeIn(ctx, marks)
 		err = errors.Join(takeErr, reader.Close())
 	}
@@ -468,7 +468,7 @@ func (r *openRequest) marks(source *vault.Reader, vaultRoot string) (kept []mach
 	if err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
-	reader := mark.OpenKept(store, source, slog.New(slog.DiscardHandler))
+	reader := mark.OpenVaultMarks(store, source, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := reader.Close(); closeErr != nil && err == nil {
 			kept, stored, err = nil, false, errOpenMarksUnreadable

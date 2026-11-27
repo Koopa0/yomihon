@@ -218,7 +218,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				Bookmark: noMark, Questions: kept.Questions, Kept: kept,
 				QuestionAddress: mark.Paths.Question, Log: log,
 			})
-			marktest.Keep(t, root, confdir.At(configDir), marktest.Question("Source.md", "chapter", time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)))
+			marktest.Leave(t, root, confdir.At(configDir), marktest.Question("Source.md", "chapter", time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)))
 			initial := http.NewServeMux()
 			mark.NewHandler(marks, kept, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
@@ -312,7 +312,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		{Kind: machinemarks.Question, Path: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{Kind: machinemarks.Question, Path: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marktest.Keep(t, root, confdir.At(configDir), machinemarks.Mark{ID: markID(i + 1), Kind: machinemarks.Question, Path: left.Path, Anchor: left.Anchor, At: left.At})
+		marktest.Leave(t, root, confdir.At(configDir), machinemarks.Mark{ID: markID(i + 1), Kind: machinemarks.Question, Path: left.Path, Anchor: left.Anchor, At: left.At})
 	}
 	held, err := kept.Questions()
 	if err != nil {

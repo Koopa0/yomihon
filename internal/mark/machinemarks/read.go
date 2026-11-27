@@ -71,7 +71,7 @@ func (v *View) entry(id string, gate Gate) (Entry, bool) {
 	if !ok {
 		return Entry{}, false
 	}
-	e := r.entry(func(l *kept) bool { return v.v.st.owns(l.M) })
+	e := r.entry(func(l *rawLine) bool { return v.v.st.owns(l.M) })
 	e.Aside = v.v.aside[id]
 	refused := func(val Value) bool { return !gate(&val.Mark) }
 	if slices.ContainsFunc(e.Values, refused) || slices.ContainsFunc(e.Aside, refused) {
@@ -136,5 +136,5 @@ func (v *View) AwaitsTakeIn() bool { return !v.v.st.converted && !v.v.ownFound }
 // holds no mark, and says the earlier file is not taken in, so that what a page
 // lists from the earlier file, which a read never changes, is still shown.
 func LegacyView() *View {
-	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*kept{}, ids: map[string]bool{}}}
+	return &View{v: &view{byMark: map[string]resolved{}, own: map[string][]*rawLine{}, ids: map[string]bool{}}}
 }

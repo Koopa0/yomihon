@@ -440,7 +440,7 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 }
 
 // writer is this machine's writer name in the current process.
-func (c *clone) writer() string { return c.id() + "/" + c.m.currentSession() }
+func (c *clone) writer() string { return c.id() + "/" + c.m.currentProcess() }
 
 // The last words of an editing session go through after an earlier send of it
 // was written; an earlier send that arrives after a later one is superseded;
@@ -610,7 +610,7 @@ func TestWhenEveryLineIsReplacedEachWritersNewestStands(t *testing.T) {
 		w2     = m2 + "/"
 	)
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	line := func(m string, rev uint64, seen Seen, body string) *kept {
+	line := func(m string, rev uint64, seen Seen, body string) *rawLine {
 		mark := thought(1, body)
 		mark.At = at
 		l := Line{Fmt: Format, M: m, Rev: rev, T: 1, Mark: mark, Seen: seen}
@@ -618,12 +618,12 @@ func TestWhenEveryLineIsReplacedEachWritersNewestStands(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return &kept{Line: l, raw: raw}
+		return &rawLine{Line: l, raw: raw}
 	}
 	// 1's second line says it had read 2's first; 2's first says it had read 1's
 	// second: each replaces the other, and 1's first line is replaced by its own
 	// second.
-	got := resolve([]*kept{
+	got := resolve([]*rawLine{
 		line(m1, 1, nil, "one, first"),
 		line(m1, 2, Seen{w2: 1}, "one, second"),
 		line(m2, 1, Seen{m1 + "/": 2}, "two, first"),

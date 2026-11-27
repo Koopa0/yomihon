@@ -7,57 +7,57 @@ import (
 	"testing"
 )
 
-// A Keep of a mark that is there writes nothing and answers the one that is.
-func TestKeepOfAMarkThatIsThereWritesNothing(t *testing.T) {
+// An Add of a mark that is there writes nothing and answers the one that is.
+func TestAddOfAMarkThatIsThereWritesNothing(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	first := highlight(1, "dead tuples")
-	out, err := a.m.Keep(t.Context(), &first, open)
+	out, err := a.m.Add(t.Context(), &first, open)
 	if err != nil || !out.Written {
-		t.Fatalf("first Keep = %+v, %v", out, err)
+		t.Fatalf("first Add = %+v, %v", out, err)
 	}
 	before := tree(t, a.root)
 	ledger := string(a.ledgerBytes())
 	again := highlight(2, "dead tuples")
-	out, err = a.m.Keep(t.Context(), &again, open)
+	out, err = a.m.Add(t.Context(), &again, open)
 	if err != nil || out.Written || out.Mark.ID != mid(1) {
-		t.Fatalf("second Keep = %+v, %v; want the first mark and no write", out, err)
+		t.Fatalf("second Add = %+v, %v; want the first mark and no write", out, err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" || string(a.ledgerBytes()) != ledger {
-		t.Fatalf("a Keep that found the mark wrote %q", diff)
+		t.Fatalf("an Add that found the mark wrote %q", diff)
 	}
 	if got := len(a.view().Entries(open)); got != 1 {
 		t.Fatalf("%d marks, want 1", got)
 	}
 }
 
-// Two Keeps of one highlight at once keep one: the look and the write are one
+// Two Adds of one highlight at once keep one: the look and the write are one
 // step under the lock.
-func TestKeepsAtOnceKeepOne(t *testing.T) {
+func TestAddsAtOnceKeepOne(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	var wg sync.WaitGroup
 	for n := 1; n <= 8; n++ {
 		wg.Go(func() {
 			m := highlight(n, "same passage")
-			if _, err := crowded(func() (Outcome, error) { return a.m.Keep(t.Context(), &m, open) }); err != nil {
+			if _, err := crowded(func() (Outcome, error) { return a.m.Add(t.Context(), &m, open) }); err != nil {
 				t.Error(err)
 			}
 		})
 	}
 	wg.Wait()
 	if got := len(a.view().Entries(open)); got != 1 {
-		t.Fatalf("%d marks after 8 Keeps of one place, want 1", got)
+		t.Fatalf("%d marks after 8 Adds of one place, want 1", got)
 	}
 }
 
-func TestKeepRefusesAnIDThatIsTaken(t *testing.T) {
+func TestAddRefusesAnIDThatIsTaken(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	a.say(1, "words")
 	m := highlight(1, "other")
-	if _, err := a.m.Keep(t.Context(), &m, open); !errors.Is(err, ErrInvalidMark) {
-		t.Fatalf("Keep with a taken id = %v, want ErrInvalidMark", err)
+	if _, err := a.m.Add(t.Context(), &m, open); !errors.Is(err, ErrInvalidMark) {
+		t.Fatalf("Add with a taken id = %v, want ErrInvalidMark", err)
 	}
 }
 

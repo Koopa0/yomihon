@@ -80,7 +80,7 @@ type mkRig struct {
 	root  string
 	conf  string
 	store *mark.Store
-	kept  *mark.Kept
+	kept  *mark.VaultMarks
 	mux   *http.ServeMux
 	mu    sync.Mutex
 	// onReading, when set, is called once, the next time a note is read to place a
@@ -112,7 +112,7 @@ func (r *mkRig) open() {
 		r.t.Fatal(err)
 	}
 	r.store = store
-	r.kept = mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	r.kept = mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	r.t.Cleanup(func() { _ = r.kept.Close() }) //nolint:errcheck // the test is over
 	r.mux = http.NewServeMux()
 	notes := &mkRigNotes{mkNotes: mkNotes{mkNote: mkText, mkSecret: mkText}, rig: r}
@@ -829,7 +829,7 @@ func TestMkAQuestionOfANoteThatIsGoneCanStillBeTakenAway(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	defer kept.Close() //nolint:errcheck // the test is over
 	mux := http.NewServeMux()
 	mark.NewHandler(store, kept, mkNotes{}, slog.New(slog.DiscardHandler)).Register(mux)

@@ -39,11 +39,11 @@ type Placement struct {
 	// only what stood on either side of them was, so the span between is what
 	// the author has put there since.
 	Exact bool
-	// SectionKept is whether the anchor the mark was made under is still among
-	// the note's. A Changed mark whose section is kept is drawn at that
+	// SectionThere is whether the anchor the mark was made under is still among
+	// the note's. A Changed mark whose section is there is drawn at that
 	// section's heading, and one whose section is gone is gathered at the end
 	// of the note.
-	SectionKept bool
+	SectionThere bool
 }
 
 // contextSteps are how much of the context on each side is asked for, nearest
@@ -70,25 +70,25 @@ func Locate(text string, sections []string, m *machinemarks.Mark) Placement {
 	if m == nil {
 		return Placement{Status: Changed}
 	}
-	kept := m.Anchor == "" || slices.Contains(sections, m.Anchor)
+	there := m.Anchor == "" || slices.Contains(sections, m.Anchor)
 	quote := squeezed(m.Quote)
 	if quote == "" {
-		if kept {
-			return Placement{Status: SectionOnly, SectionKept: true}
+		if there {
+			return Placement{Status: SectionOnly, SectionThere: true}
 		}
 		return Placement{Status: Changed}
 	}
 	v := newView(text)
 	if start, end, found, alone := v.exact(quote, squeezed(m.Before), squeezed(m.After)); found {
 		if !alone {
-			return Placement{Status: Changed, SectionKept: kept}
+			return Placement{Status: Changed, SectionThere: there}
 		}
-		return v.placed(start, end, true, kept)
+		return v.placed(start, end, true, there)
 	}
 	if start, end, ok := v.between(quote, squeezed(m.Before), squeezed(m.After)); ok {
-		return v.placed(start, end, false, kept)
+		return v.placed(start, end, false, there)
 	}
-	return Placement{Status: Changed, SectionKept: kept}
+	return Placement{Status: Changed, SectionThere: there}
 }
 
 // view is a note's text with every run of white space made one space, and where
@@ -132,8 +132,8 @@ func squeezed(s string) string {
 	return strings.TrimSpace(newView(s).text)
 }
 
-func (v *view) placed(start, end int, exact, kept bool) Placement {
-	return Placement{Status: Found, Start: v.from[start], End: v.from[end], Exact: exact, SectionKept: kept}
+func (v *view) placed(start, end int, exact, there bool) Placement {
+	return Placement{Status: Found, Start: v.from[start], End: v.from[end], Exact: exact, SectionThere: there}
 }
 
 // exact is the place in the view where quote occurs with the most of before

@@ -133,7 +133,7 @@ func (r *openRequest) exportMarks(ctx context.Context) (payload egress.Payload, 
 		return egress.Payload{}, nil, errOpenMarksUnreadable
 	}
 	x := &exporter{snap: snap, gate: gate, allowed: opened.allowed, lang: wording.En, locate: note.MarkLocator(snap, wording.En)}
-	kept := mark.OpenKept(store, source, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, source, slog.New(slog.DiscardHandler))
 	defer func() {
 		if closeErr := kept.Close(); closeErr != nil && err == nil {
 			payload, notices, err = egress.Payload{}, nil, errOpenMarksUnreadable
@@ -213,7 +213,7 @@ func (x *exporter) admit(m *machinemarks.Mark) bool {
 // gather reads every mark the gate lets out, with the values of it that do
 // not count, in the order the groups print them. incomplete says a file of
 // marks could not be read in full.
-func (x *exporter) gather(kept *mark.Kept) (marks []exportedMark, incomplete bool, err error) {
+func (x *exporter) gather(kept *mark.VaultMarks) (marks []exportedMark, incomplete bool, err error) {
 	view, err := kept.View()
 	if err != nil {
 		return nil, false, err

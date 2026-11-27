@@ -57,7 +57,7 @@ func resolvedRoot(t *testing.T) string {
 // newKept is the marks of the vault at root, kept beside store's files, with
 // every mark let through as the reading server lets them. It is closed when the
 // test is over.
-func newKept(t *testing.T, store *mark.Store, root string) *mark.Kept {
+func newKept(t *testing.T, store *mark.Store, root string) *mark.VaultMarks {
 	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -68,7 +68,7 @@ func newKept(t *testing.T, store *mark.Store, root string) *mark.Kept {
 			t.Error(closeErr)
 		}
 	})
-	kept := mark.OpenKept(store, reader, slog.New(slog.DiscardHandler))
+	kept := mark.OpenVaultMarks(store, reader, slog.New(slog.DiscardHandler))
 	t.Cleanup(func() {
 		if closeErr := kept.Close(); closeErr != nil {
 			t.Error(closeErr)
@@ -83,7 +83,7 @@ func newKept(t *testing.T, store *mark.Store, root string) *mark.Kept {
 type aServer struct {
 	root, config string
 	store        *mark.Store
-	kept         *mark.Kept
+	kept         *mark.VaultMarks
 	handler      http.Handler
 }
 
@@ -679,7 +679,7 @@ func TestQuestionRouteListsOnlyQuestionsOfWholeSections(t *testing.T) {
 	at := time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)
 	onWords := marktest.Question("Notes/source.md", "words", at)
 	onWords.Quote = "some words"
-	marktest.Keep(t, srv.root, confdir.At(srv.config),
+	marktest.Leave(t, srv.root, confdir.At(srv.config),
 		marktest.Question("Notes/source.md", "whole", at),
 		onWords,
 		machinemarks.Mark{Kind: machinemarks.Thought, Path: "Notes/source.md", Anchor: "thought", Body: "a thought", At: at},

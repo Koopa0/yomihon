@@ -77,7 +77,7 @@ type Sources struct {
 	QuestionAddress string
 	// Kept is where the reader's highlights, thoughts and questions are kept, in
 	// the vault. Nil means this process has nowhere to keep any.
-	Kept *mark.Kept
+	Kept *mark.VaultMarks
 	// FigureApproved reports whether the owner approved a figure's exact
 	// bytes to run their inline scripts. Nil means this process keeps no
 	// approvals, and every figure is served without script.

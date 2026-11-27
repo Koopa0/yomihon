@@ -21,11 +21,11 @@ import (
 
 // aMendedVault is a vault with one mark kept the way the server keeps it, the
 // marks of it, and what its log says.
-func aMendedVault(t *testing.T) (root string, kept *mark.Kept, logged *bytes.Buffer) {
+func aMendedVault(t *testing.T) (root string, kept *mark.VaultMarks, logged *bytes.Buffer) {
 	t.Helper()
 	root = resolvedRoot(t)
 	config := t.TempDir()
-	marktest.Keep(t, root, confdir.At(config), machinemarks.Mark{Kind: machinemarks.Thought, Path: "Notes/source.md", Body: "mine", At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)})
+	marktest.Leave(t, root, confdir.At(config), machinemarks.Mark{Kind: machinemarks.Thought, Path: "Notes/source.md", Body: "mine", At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)})
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func aMendedVault(t *testing.T) (root string, kept *mark.Kept, logged *bytes.Buf
 		t.Fatal(err)
 	}
 	logged = &bytes.Buffer{}
-	kept = mark.OpenKept(store, reader, slog.New(slog.NewTextHandler(logged, nil)))
+	kept = mark.OpenVaultMarks(store, reader, slog.New(slog.NewTextHandler(logged, nil)))
 	t.Cleanup(func() { _ = kept.Close() }) //nolint:errcheck // the test is over
 	return root, kept, logged
 }
@@ -94,7 +94,7 @@ func TestMendWritesNothingWhereNothingIsMissing(t *testing.T) {
 }
 
 // Where the reader folder cannot be written to, nothing is put back and
-// nothing is made: the log says why, and the marks stay in the local backup for
+// nothing is made: the log says why, and the marks stay in the ledger for
 // when it can.
 func TestMendLeavesAFolderItCannotWriteToAsItFound(t *testing.T) {
 	t.Parallel()

@@ -21,9 +21,9 @@ import (
 // throw away what it holds: nothing is written until it can be read.
 var ErrOwnFileUnreadable = errors.New("this machine's file of marks cannot be read")
 
-// ErrLedgerUnreadable means the ledger, the local backup, cannot be read at
-// all. A line of it changed by another program is counted and the rest read;
-// this is a ledger that cannot be opened.
+// ErrLedgerUnreadable means the ledger, this machine's record outside the vault,
+// cannot be read at all. A line of it changed by another program is counted and
+// the rest read; this is a ledger that cannot be opened.
 var ErrLedgerUnreadable = errors.New("the ledger cannot be read")
 
 // view is everything a read found, before any of it is held back from anyone.
@@ -33,7 +33,7 @@ type view struct {
 	byMark map[string]resolved
 	// own is this machine's own lines of each mark that none of its own others
 	// replaces: what its file is to hold.
-	own map[string][]*kept
+	own map[string][]*rawLine
 	// ownDisk is what this machine's file holds now, and ownFound whether it is
 	// there. ownNewer are its lines of a later format, which are kept.
 	ownDisk  []byte
@@ -106,7 +106,7 @@ func (m *Marks) load() (*view, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrLedgerUnreadable, err)
 	}
-	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*kept{}, aside: asideOf(events)}
+	v := &view{st: stateOf(events), ledgerChanged: changed, ids: map[string]bool{}, own: map[string][]*rawLine{}, aside: asideOf(events)}
 	files, err := m.folder.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("read the machine files: %w", err)
@@ -118,7 +118,7 @@ func (m *Marks) load() (*view, error) {
 	all := ledgerLines(events, &v.st)
 	ledgerNewest := newestOf(all)
 
-	var disk []*kept
+	var disk []*rawLine
 	for i := range files {
 		f := &files[i]
 		v.ids[f.ID] = true
@@ -141,7 +141,7 @@ func (m *Marks) load() (*view, error) {
 	}
 
 	v.byMark = merge(all)
-	ownLines := map[string][]*kept{}
+	ownLines := map[string][]*rawLine{}
 	for _, line := range all {
 		if m.ours(&v.st, line) {
 			ownLines[line.Mark.ID] = append(ownLines[line.Mark.ID], line)
@@ -169,12 +169,12 @@ func asideOf(events []ledger.Event) map[string][]Value {
 }
 
 // scan reads the lines of one machine's file, counting what is not read.
-func (m *Marks) scan(v *view, f *machinefile.File) []*kept {
+func (m *Marks) scan(v *view, f *machinefile.File) []*rawLine {
 	own := f.ID == v.st.id
 	if own {
 		v.ownDisk, v.ownFound = f.Data, true
 	}
-	var out []*kept
+	var out []*rawLine
 	for _, raw := range sealedline.Lines(f.Data) {
 		l, verdict := decode(raw)
 		switch verdict {
@@ -193,7 +193,7 @@ func (m *Marks) scan(v *view, f *machinefile.File) []*kept {
 				v.ownNewer = append(v.ownNewer, raw)
 			}
 		case readable:
-			line := &kept{Line: l, raw: raw}
+			line := &rawLine{Line: l, raw: raw}
 			v.note(m, line)
 			out = append(out, line)
 		}
@@ -202,8 +202,8 @@ func (m *Marks) scan(v *view, f *machinefile.File) []*kept {
 }
 
 // newestOf is the newest line of each writer of each mark, by the two together.
-func newestOf(ls []*kept) map[string]*kept {
-	out := map[string]*kept{}
+func newestOf(ls []*rawLine) map[string]*rawLine {
+	out := map[string]*rawLine{}
 	for _, l := range ls {
 		key := l.Mark.ID + "|" + l.Writer()
 		if old := out[key]; old == nil || l.Rev > old.Rev {
@@ -215,7 +215,7 @@ func newestOf(ls []*kept) map[string]*kept {
 
 // note takes what a line of the vault says of the counters and of who wrote
 // under this machine's id.
-func (v *view) note(m *Marks, l *kept) {
+func (v *view) note(m *Marks, l *rawLine) {
 	if v.st.id == "" {
 		return
 	}
@@ -238,23 +238,23 @@ func (v *view) note(m *Marks, l *kept) {
 // with no process is its own too; under an id it has left, whose file is
 // another machine's, only a process this machine ran counts. A line of a
 // machine that is not this one's is not.
-func (m *Marks) ours(st *machine, l *kept) bool {
+func (m *Marks) ours(st *machine, l *rawLine) bool {
 	if !st.owns(l.M) {
 		return false
 	}
 	// Under an id this machine has left, the file is another machine's now, so
 	// only a line of a process this machine ran is taken for its own.
-	return (l.S == "" && l.M == st.id) || (l.S != "" && (l.S == m.currentSession() || st.sessions[l.M][l.S]))
+	return (l.S == "" && l.M == st.id) || (l.S != "" && (l.S == m.currentProcess() || st.processes[l.M][l.S]))
 }
 
 // ledgerLines are the lines the ledger holds of this machine, the newest of
 // each mark under each of its ids and every line of a conversion, read as lines
 // of the vault are, all from events, the one read of the ledger load made.
-func ledgerLines(events []ledger.Event, st *machine) []*kept {
-	var out []*kept
+func ledgerLines(events []ledger.Event, st *machine) []*rawLine {
+	var out []*rawLine
 	add := func(raw []byte) {
 		if l, verdict := decode(raw); verdict == readable && st.owns(l.M) {
-			out = append(out, &kept{Line: l, raw: bytes.Clone(raw)})
+			out = append(out, &rawLine{Line: l, raw: bytes.Clone(raw)})
 		}
 	}
 	for _, id := range st.ids() {
@@ -312,12 +312,12 @@ func markIDOf(raw []byte) string {
 // canonical is the bytes of this machine's file for the lines it holds: its own
 // lines that none of its own replaces, in the order of their marks, then the
 // lines of a later format it was keeping, in the order it found them.
-func (v *view) canonical(own map[string][]*kept) []byte {
-	var all []*kept
+func (v *view) canonical(own map[string][]*rawLine) []byte {
+	var all []*rawLine
 	for _, ls := range own {
 		all = append(all, ls...)
 	}
-	slices.SortFunc(all, func(a, b *kept) int {
+	slices.SortFunc(all, func(a, b *rawLine) int {
 		return cmp.Or(a.Mark.At.Compare(b.Mark.At), strings.Compare(a.Mark.ID, b.Mark.ID), strings.Compare(a.Writer(), b.Writer()), cmp.Compare(a.Rev, b.Rev))
 	})
 	var out bytes.Buffer

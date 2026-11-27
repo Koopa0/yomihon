@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-// Outcome is what a Keep or a Toggle found and did.
+// Outcome is what an Add or a Toggle found and did.
 type Outcome struct {
 	Result
 
 	// Mark is the mark as it stands: the one written, the one that was there
 	// already, or the one that was taken away.
 	Mark Mark
-	// Written says a line was written. A Keep that found the mark there already
+	// Written says a line was written. An Add that found the mark there already
 	// writes none.
 	Written bool
 	// Remaining is how many other marks that are not deleted the same place
@@ -24,16 +24,16 @@ type Outcome struct {
 	Remaining int
 }
 
-// Keep writes mark as a new mark, unless a mark that is not deleted is the same
+// Add writes mark as a new mark, unless a mark that is not deleted is the same
 // act as it (SameAct), in which case that one is the answer and nothing is
 // written. The look and the write are one step under the vault's lock, so two
-// Keeps of one highlight at once keep one.
+// Adds of one highlight at once keep one.
 //
-// mark's ID has to be one no mark has: a Keep is a new mark and never a change
+// mark's ID has to be one no mark has: an Add is a new mark and never a change
 // of one the reader had read, which has to say what it had read. admit is asked
 // of a mark that is new, under the lock, and says whether the place is one the
 // caller can stand behind.
-func (m *Marks) Keep(ctx context.Context, mark *Mark, admit func(*Mark) bool) (Outcome, error) {
+func (m *Marks) Add(ctx context.Context, mark *Mark, admit func(*Mark) bool) (Outcome, error) {
 	if err := validate(mark, nil); err != nil {
 		return Outcome{}, err
 	}

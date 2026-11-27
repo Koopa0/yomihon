@@ -60,14 +60,14 @@ func (v aMovedVault) adopt(t *testing.T, admit func(string) bool) error {
 }
 
 // kept is the marks of the vault at the path it has now.
-func (v aMovedVault) kept(t *testing.T) *mark.Kept {
+func (v aMovedVault) kept(t *testing.T) *mark.VaultMarks {
 	t.Helper()
 	reader, err := vault.Open(v.newRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = reader.Close() }) //nolint:errcheck // the test is over
-	return mark.OpenKept(v.now, reader, slog.New(slog.DiscardHandler))
+	return mark.OpenVaultMarks(v.now, reader, slog.New(slog.DiscardHandler))
 }
 
 // inVault is the marks the reader has in the vault at the path it has now, the

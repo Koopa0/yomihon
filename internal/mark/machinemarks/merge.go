@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// kept is a line with the bytes it was read from, which are what is written
+// rawLine is a line with the bytes it was read from, which are what is written
 // back: a line that is kept is kept byte for byte, so its checksum still fits
 // and a field this version does not know is not lost.
-type kept struct {
+type rawLine struct {
 	Line
 
 	raw []byte
@@ -61,9 +61,9 @@ func (e Entry) Deleted() bool { return e.Values[0].Mark.Deleted }
 // resolved is the lines of one mark worked down to what no line replaces.
 type resolved struct {
 	// heads are the lines no other line replaces, in the order they are shown.
-	heads []*kept
+	heads []*rawLine
 	// newest is each writer's newest line of the mark.
-	newest map[string]*kept
+	newest map[string]*rawLine
 }
 
 // resolve works the lines of one mark down to the ones none replaces. A line
@@ -74,7 +74,7 @@ type resolved struct {
 // It reads a set: the order of ls and a line given twice make no difference,
 // except that of two different lines with one writer and one rev, which only a
 // hand writes, the first is the one read.
-func resolve(ls []*kept) resolved {
+func resolve(ls []*rawLine) resolved {
 	all, newest := distinct(ls)
 	// read[w][from] is the highest rev of writer w that a line of another
 	// writer, from, says it had read.
@@ -90,7 +90,7 @@ func resolve(ls []*kept) resolved {
 			read[w][l.Writer()] = max(read[w][l.Writer()], n)
 		}
 	}
-	var heads []*kept
+	var heads []*rawLine
 	for w, l := range newest {
 		if !slices.ContainsFunc(slices.Collect(maps.Values(read[w])), func(n uint64) bool { return n >= l.Rev }) {
 			heads = append(heads, l)
@@ -102,10 +102,10 @@ func resolve(ls []*kept) resolved {
 		// writer's newest line stands, and not the older lines it replaced itself.
 		heads = slices.Collect(maps.Values(newest))
 	}
-	slices.SortFunc(heads, func(a, b *kept) int {
+	slices.SortFunc(heads, func(a, b *rawLine) int {
 		return cmp.Or(cmp.Compare(b.T, a.T), strings.Compare(b.Writer(), a.Writer()), cmp.Compare(b.Rev, a.Rev))
 	})
-	if i := slices.IndexFunc(heads, func(l *kept) bool { return !l.Mark.Deleted }); i > 0 {
+	if i := slices.IndexFunc(heads, func(l *rawLine) bool { return !l.Mark.Deleted }); i > 0 {
 		alive := heads[i]
 		heads = slices.Insert(slices.Delete(heads, i, i+1), 0, alive)
 	}
@@ -114,12 +114,12 @@ func resolve(ls []*kept) resolved {
 
 // distinct is the lines of a set without the repeats of one writer's rev, and
 // each writer's newest.
-func distinct(ls []*kept) (all []*kept, newest map[string]*kept) {
+func distinct(ls []*rawLine) (all []*rawLine, newest map[string]*rawLine) {
 	type lineKey struct {
 		writer string
 		rev    uint64
 	}
-	newest = map[string]*kept{}
+	newest = map[string]*rawLine{}
 	has := map[lineKey]bool{}
 	for _, l := range ls {
 		key := lineKey{l.Writer(), l.Rev}
@@ -137,7 +137,7 @@ func distinct(ls []*kept) (all []*kept, newest map[string]*kept) {
 
 // entry is the resolved lines as an Entry. own says which lines this machine
 // wrote.
-func (r resolved) entry(own func(*kept) bool) *Entry {
+func (r resolved) entry(own func(*rawLine) bool) *Entry {
 	e := &Entry{Seen: Seen{}}
 	for _, l := range r.heads {
 		e.Values = append(e.Values, Value{
@@ -151,8 +151,8 @@ func (r resolved) entry(own func(*kept) bool) *Entry {
 }
 
 // merge groups lines by mark and resolves each group.
-func merge(ls []*kept) map[string]resolved {
-	groups := map[string][]*kept{}
+func merge(ls []*rawLine) map[string]resolved {
+	groups := map[string][]*rawLine{}
 	for _, l := range ls {
 		groups[l.Mark.ID] = append(groups[l.Mark.ID], l)
 	}
@@ -167,7 +167,7 @@ func merge(ls []*kept) map[string]resolved {
 // it: the first value, in the order the reader is shown them, that base covers.
 // A base that covers none, such as one that read nothing, is the page of a reader
 // who has been shown no value in particular, and gets the one that counts.
-func (r resolved) coveredHead(base Seen) *kept {
+func (r resolved) coveredHead(base Seen) *rawLine {
 	for _, l := range r.heads {
 		if l.Rev <= base[l.Writer()] {
 			return l

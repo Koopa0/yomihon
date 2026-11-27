@@ -46,7 +46,7 @@ type readingSite struct {
 	source    *vault.Reader
 	// kept holds the reader folder open for the marks; it is let go before the
 	// vault is, and is nil where the process has nowhere to keep marks.
-	kept      *mark.Kept
+	kept      *mark.VaultMarks
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -160,7 +160,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	var questions func() ([]machinemarks.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
-	var kept *mark.Kept
+	var kept *mark.VaultMarks
 	// The folder was compared with the configuration directory when it was
 	// mounted, and may have been put back, or a link to it changed, since. It
 	// is compared again, and its site is built only when the two are apart: a
@@ -179,7 +179,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 		if approvalsErr != nil {
 			return nil, fmt.Errorf("name the figure approvals: %w", approvalsErr)
 		}
-		kept = mark.OpenKept(marks, source, log)
+		kept = mark.OpenVaultMarks(marks, source, log)
 		keptPlace = bookmarkFrom(marks, log)
 		markAddress = mark.Paths.Bookmark
 		questionAddress = mark.Paths.Question
