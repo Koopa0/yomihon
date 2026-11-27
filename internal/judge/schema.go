@@ -185,8 +185,11 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 	if !ok {
 		return nil
 	}
-	if value.isList || !value.scalarIsString || value.scalar == "" {
-		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "must be a non-empty BCP 47 language tag")}
+	if !value.isList && value.scalar == "" {
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", "", "must be a non-empty BCP 47 language tag")}
+	}
+	if value.isList || !value.scalarIsString {
+		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "is not text; write a BCP 47 language tag")}
 	}
 	if _, err := schema.ParseLanguageTag(value.scalar); err != nil {
 		return []Finding{schemaFinding(n, RuleSchemaLanguage, "lang", value.scalar, "is not a valid BCP 47 language tag")}

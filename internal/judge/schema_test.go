@@ -135,6 +135,27 @@ func TestLintArticleLanguage(t *testing.T) {
 	}
 }
 
+// TestALanguageThatIsNotTextIsNotCalledEmpty asserts a lang value YAML reads as
+// something other than text is told so, rather than told it is empty.
+func TestALanguageThatIsNotTextIsNotCalledEmpty(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+	run := newLintRun(loadTestAuthority(t, root).contract)
+	// reason is the finding's message without the value it quotes.
+	reason := func(value string) string {
+		n := parseNote("Writing/T.md", []byte("---\ntype: note\nlang: "+value+"\n---\n"))
+		got := run.articleLanguage(&n)
+		if len(got) != 1 {
+			t.Fatalf("articleLanguage(lang: %q) = %d findings, want 1", value, len(got))
+		}
+		return strings.Replace(got[0].Message, ` "`+value+`"`, "", 1)
+	}
+	if empty, date := reason(""), reason("2024-01-01"); empty == date {
+		t.Errorf("an empty lang and a date are given the same reason: %q", date)
+	}
+}
+
 // TestTheProvenanceRuleFollowsTheContractsOwnConceptType holds the frontmatter
 // rules to the vocabulary the contract layer owns: the rule that asks a
 // distilled idea where it came from applies only where the contract declares a
