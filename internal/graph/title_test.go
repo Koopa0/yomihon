@@ -27,6 +27,7 @@ func TestTitleOf(t *testing.T) {
 		{"a link and a wikilink name their words", "Notes/a.md", "# [Docs](https://example.com) and [[Other|alias]]\n", "Docs and alias"},
 		{"an escaped mark is the character it escapes", "Notes/a.md", "# Cost \\*not bold\\*\n", "Cost *not bold*"},
 		{"an underlined heading over two lines is one title", "Notes/a.md", "First line\nsecond line\n===\n", "First line second line"},
+		{"a CRLF file's underlined heading is the title", "Notes/a.md", "Underlined\r\n=====\r\n\r\nBody.\r\n", "Underlined"},
 		{"only the last closing run is marks", "Notes/a.md", "# a b #  #\n", "a b #"},
 		{"a run that is the whole of the words is text", "Notes/a.md", "# #\n", "#"},
 		{"an indented marked heading is read", "Notes/a.md", "   # Indented\n", "Indented"},

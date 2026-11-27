@@ -244,13 +244,15 @@ func Headings(body string, zones []Span) []Heading {
 	for i, line := range lines {
 		start := offset
 		offset = start + len(line) + 1
+		// A CRLF file's carriage return is a line end, not part of a line's
+		// shape or of a heading's words; offsets still count it.
+		line = strings.TrimSuffix(line, "\r")
+		lines[i] = line
 		if In(zones, start) {
 			paragraph = -1
 			continue
 		}
-		// A line may end in the carriage return of a CRLF file; it is a line
-		// end and not part of the heading's words or of the closing marks.
-		if m := ATXHeading.FindStringSubmatch(strings.TrimSuffix(line, "\r")); m != nil {
+		if m := ATXHeading.FindStringSubmatch(line); m != nil {
 			out = append(out, Heading{Line: i, Start: start, Level: len(m[1]), Text: m[2]})
 			paragraph = -1
 			continue
