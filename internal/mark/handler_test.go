@@ -707,7 +707,7 @@ func TestQuestionRouteListsTheEarlierFilesQuestionsUntilTheFirstWriteTakesThemIn
 	t.Parallel()
 	srv := newServer(t, nil)
 	at := time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)
-	earlier := marksJSON(t, srv.root, mark.Mark{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "one", At: at}, mark.Mark{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "two", At: at})
+	earlier := marksJSON(t, srv.root, machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "one", At: at}, machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "two", At: at})
 	writeFile(t, marksPath(srv.store), earlier)
 
 	if got := anchorsOf(listedQuestions(t, srv.handler)); !slices.Equal(got, []string{"one", "two"}) {

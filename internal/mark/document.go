@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // The files this version writes. Each is one JSON document with its version
@@ -29,11 +32,50 @@ const (
 	maxProgressFileBytes = 4 << 20
 )
 
-// marksDocument is marks.json.
+// marksDocument is marks.json, which this version only reads.
 type marksDocument struct {
-	Version int    `json:"version"`
-	Vault   string `json:"vault"`
-	Marks   []Mark `json:"marks"`
+	Version int          `json:"version"`
+	Vault   string       `json:"vault"`
+	Marks   []legacyMark `json:"marks"`
+}
+
+// legacyMark is a mark as marks.json holds it. A question's words are its
+// reason there, and a thought's its body; the machine files have one field for
+// the reader's words in every state.
+type legacyMark struct {
+	ID         string            `json:"id"`
+	Kind       machinemarks.Kind `json:"kind"`
+	RelPath    string            `json:"path"`
+	Anchor     string            `json:"anchor,omitempty"`
+	Quote      string            `json:"quote,omitempty"`
+	Before     string            `json:"before,omitempty"`
+	After      string            `json:"after,omitempty"`
+	Identity   string            `json:"identity,omitempty"`
+	Reason     string            `json:"reason,omitempty"`
+	Body       string            `json:"body,omitempty"`
+	ResolvedAt time.Time         `json:"resolved,omitzero"`
+	At         time.Time         `json:"at"`
+}
+
+// machine is m as a line of the machine files holds it, or why it cannot be one
+// without losing a word: the earlier version wrote a reason only on a question
+// and a body only on another kind, so a mark that has the other is not one it
+// wrote.
+func (m *legacyMark) machine() (machinemarks.Mark, error) {
+	words := m.Body
+	switch {
+	case m.Kind == machinemarks.Question && m.Body != "":
+		return machinemarks.Mark{}, fmt.Errorf("the question %s has a body", m.ID)
+	case m.Kind == machinemarks.Question:
+		words = m.Reason
+	case m.Reason != "":
+		return machinemarks.Mark{}, fmt.Errorf("the %s %s has a reason", m.Kind, m.ID)
+	}
+	return machinemarks.Mark{
+		ID: m.ID, Kind: m.Kind, Path: m.RelPath, Anchor: m.Anchor,
+		Quote: m.Quote, Before: m.Before, After: m.After, Identity: m.Identity,
+		Body: words, Resolved: m.ResolvedAt, At: m.At,
+	}, nil
 }
 
 // progressDocument is progress.json.
@@ -46,10 +88,12 @@ type progressDocument struct {
 	Finished []Finished `json:"finished,omitempty"`
 }
 
-// progress is what progress.json holds, read whole and written whole.
+// progress is what progress.json holds, read whole and written whole, and the
+// vault it records, which is empty for a file an earlier version wrote.
 type progress struct {
 	bookmarks []courseBookmark
 	finished  []Finished
+	vault     string
 }
 
 // courseBookmark is one bookmark as it sits in progress.json, with the course
@@ -60,41 +104,37 @@ type courseBookmark struct {
 	Bookmark Bookmark `json:"bookmark"`
 }
 
-// decodeMarks reads a marks.json and holds every mark in it to the shape a
-// write would have produced. Anything else is ErrUnreadable.
-func decodeMarks(data []byte) ([]Mark, error) {
+// decodeMarks reads a marks.json as the marks of the machine files. A file that
+// is not one the earlier version wrote is ErrUnreadable: another version, an
+// unknown field, two marks under one id, more marks than are kept, or a mark
+// with a word the machine files have no place for. A mark is not held to its
+// shape here: that is machinemarks' Validate, which the take-in asks, and a mark
+// it refuses stays in the file and holds nothing else back.
+func decodeMarks(data []byte) (marks []machinemarks.Mark, recorded string, err error) {
 	var doc marksDocument
-	if err := decodeStrict(data, &doc); err != nil {
-		return nil, err
+	if err = decodeStrict(data, &doc); err != nil {
+		return nil, "", err
 	}
 	if doc.Version != documentVersion || doc.Marks == nil {
-		return nil, fmt.Errorf("%w: not a version %d marks file", ErrUnreadable, documentVersion)
+		return nil, "", fmt.Errorf("%w: not a version %d marks file", ErrUnreadable, documentVersion)
 	}
-	if len(doc.Marks) > MaxMarks {
-		return nil, fmt.Errorf("%w: more than %d marks", ErrUnreadable, MaxMarks)
+	if len(doc.Marks) > machinemarks.MaxLive {
+		return nil, "", fmt.Errorf("%w: more than %d marks", ErrUnreadable, machinemarks.MaxLive)
 	}
-	if err := checkMarks(doc.Marks); err != nil {
-		return nil, err
-	}
-	return doc.Marks, nil
-}
-
-// checkMarks holds stored marks to the bounds a submission is. The file is the
-// reader's own and they may edit it, and a value that arrived by hand reaches
-// the same page that a posted one does. The fault stays text: wrapping
-// ErrInvalid would let a route read a corrupt file as a refused request.
-func checkMarks(marks []Mark) error {
-	seen := make(map[string]bool, len(marks))
-	for i := range marks {
-		if err := validateMark(&marks[i]); err != nil {
-			return fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+	out := make([]machinemarks.Mark, len(doc.Marks))
+	seen := make(map[string]bool, len(doc.Marks))
+	for i := range doc.Marks {
+		m, convErr := doc.Marks[i].machine()
+		if convErr != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrUnreadable, convErr)
 		}
-		if seen[marks[i].ID] {
-			return fmt.Errorf("%w: two marks carry the id %s", ErrUnreadable, marks[i].ID)
+		if seen[m.ID] {
+			return nil, "", fmt.Errorf("%w: two marks carry the id %s", ErrUnreadable, m.ID)
 		}
-		seen[marks[i].ID] = true
+		seen[m.ID] = true
+		out[i] = m
 	}
-	return nil
+	return out, doc.Vault, nil
 }
 
 // decodeProgress reads a progress.json and holds every bookmark and every
@@ -113,7 +153,7 @@ func decodeProgress(data []byte) (progress, error) {
 	if err := checkFinished(doc.Finished); err != nil {
 		return progress{}, err
 	}
-	return progress{bookmarks: doc.Bookmarks, finished: doc.Finished}, nil
+	return progress{bookmarks: doc.Bookmarks, finished: doc.Finished, vault: doc.Vault}, nil
 }
 
 func checkFinished(held []Finished) error {
@@ -123,7 +163,7 @@ func checkFinished(held []Finished) error {
 	seen := make(map[string]bool, len(held))
 	for i := range held {
 		if err := validateFinished(&held[i]); err != nil {
-			return fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+			return fmt.Errorf("%w: %v", ErrUnreadable, err)
 		}
 		if seen[held[i].RelPath] {
 			return fmt.Errorf("%w: one note finished twice", ErrUnreadable)
@@ -140,7 +180,7 @@ func checkBookmarks(held []courseBookmark) error {
 	seen := make(map[string]bool, len(held))
 	for i := range held {
 		if err := validateBookmark(held[i].Course, &held[i].Bookmark); err != nil {
-			return fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+			return fmt.Errorf("%w: %v", ErrUnreadable, err)
 		}
 		if seen[held[i].Course] {
 			return fmt.Errorf("%w: two bookmarks for one course", ErrUnreadable)

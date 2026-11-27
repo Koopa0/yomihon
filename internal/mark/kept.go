@@ -131,8 +131,9 @@ func (k *Kept) Writable() string {
 // in and that a read of the vault does not show yet. A page that listed only what
 // the vault holds would, for a reader who has not marked anything since the
 // upgrade, show none of the marks they have: they are shown from the earlier
-// file, which a read never changes, until the first write takes them in. A file
-// that cannot be read is an error and not an empty list.
+// file, which a read never changes, until the first write takes them in. A mark
+// that does not hold its shape is not among them, since the take-in leaves it in
+// the file. A file that cannot be read is an error and not an empty list.
 func (k *Kept) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
 	if !view.AwaitsTakeIn() {
 		return nil, nil
@@ -143,7 +144,7 @@ func (k *Kept) Pending(view *machinemarks.View) ([]machinemarks.Mark, error) {
 	}
 	var out []machinemarks.Mark
 	for i := range earlier {
-		if _, there := view.Entry(earlier[i].ID, AllMarks); !there {
+		if _, there := view.Entry(earlier[i].ID, AllMarks); !there && earlier[i].Validate() == nil {
 			out = append(out, earlier[i])
 		}
 	}
@@ -157,11 +158,10 @@ func (k *Kept) Holds(view *machinemarks.View, id string) bool {
 	return err == nil && slices.ContainsFunc(pending, func(m machinemarks.Mark) bool { return m.ID == id })
 }
 
-// Questions is the questions the reader has open, in the shape the pages that
-// list them read: the ones that are not deleted and not resolved, in the order
-// they were made, the earlier file's among them until they are taken in. A
-// conflict is shown as the value that counts.
-func (k *Kept) Questions() ([]Mark, error) {
+// Questions is the questions the reader has open: the ones that are not deleted
+// and not resolved, the vault's in the order they were made and then the earlier
+// file's, until they are taken in. A conflict is shown as the value that counts.
+func (k *Kept) Questions() ([]machinemarks.Mark, error) {
 	view, err := k.View()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
@@ -170,24 +170,23 @@ func (k *Kept) Questions() ([]Mark, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Mark
+	var out []machinemarks.Mark
 	for _, e := range view.Entries(AllMarks) {
-		m := e.Mark()
-		if e.Deleted() || m.Kind != machinemarks.Question || !m.Resolved.IsZero() {
-			continue
+		if m := e.Mark(); !e.Deleted() && m.Kind == machinemarks.Question && m.Resolved.IsZero() {
+			out = append(out, m)
 		}
-		out = append(out, fromMachine(&m))
 	}
 	for i := range pending {
 		if pending[i].Kind == machinemarks.Question && pending[i].Resolved.IsZero() {
-			out = append(out, fromMachine(&pending[i]))
+			out = append(out, pending[i])
 		}
 	}
 	return out, nil
 }
 
-// Live is the marks of one note the reader has kept and not deleted, in the
-// order they were made, the earlier file's among them until they are taken in. A
+// Live is the marks of one note the reader has kept and not deleted, the
+// vault's in the order they were made and then the earlier file's, until they
+// are taken in. A
 // conflict is shown as the value that counts, so a page that draws these draws
 // what the newest of the writers wrote. An error says the marks cannot be read;
 // the page is then drawn without them.
@@ -311,46 +310,20 @@ func (k *Kept) Close() error {
 	return err
 }
 
-// fromMachine is a mark of the machine files as the pages that list marks read
-// one: the reader's words are its reason when it is a question and its body
-// when it is a thought.
-func fromMachine(m *machinemarks.Mark) Mark {
-	out := Mark{
-		ID: m.ID, Kind: Kind(m.Kind), RelPath: m.Path, Anchor: m.Anchor,
-		Quote: m.Quote, Before: m.Before, After: m.After, Identity: m.Identity,
-		ResolvedAt: m.Resolved, At: m.At,
-	}
-	if m.Kind == machinemarks.Question {
-		out.Reason = m.Body
-	} else {
-		out.Body = m.Body
-	}
-	return out
-}
-
-// toMachine is the other way, for a mark an earlier file kept.
-func toMachine(m *Mark) machinemarks.Mark {
-	words := m.Body
-	if m.Kind == Question {
-		words = m.Reason
-	}
-	return machinemarks.Mark{
-		ID: m.ID, Kind: machinemarks.Kind(m.Kind), Path: m.RelPath, Anchor: m.Anchor,
-		Quote: m.Quote, Before: m.Before, After: m.After, Identity: m.Identity,
-		Body: words, Resolved: m.ResolvedAt, At: m.At,
-	}
-}
-
-// TakeIn takes in the marks of the earlier file that were not taken in, which an
-// adoption of the marks of another path leaves to do when the vault had taken in
-// its own already. What a machine file already holds, a deleted mark included,
-// is not taken in again. ctx bounds its waits for the locks.
-func (k *Kept) TakeIn(ctx context.Context) error {
+// TakeIn takes into the vault's machine files the marks an adoption brought
+// from the vault's earlier path (Store.Adopt): those no machine file holds, a
+// deleted mark included, and that are not the same act as a mark there. Marks
+// that would pass the limit are refused whole with ErrInvalid. ctx bounds its
+// waits for the locks.
+func (k *Kept) TakeIn(ctx context.Context, adopted []machinemarks.Mark) error {
 	marks, err := k.Marks()
 	if err != nil {
 		return err
 	}
-	_, err = marks.TakeInLegacy(ctx)
+	_, err = marks.TakeIn(ctx, adopted)
+	if errors.Is(err, machinemarks.ErrLimit) {
+		return fmt.Errorf("%w: the marks kept for that path do not fit beside those kept here: %w", ErrInvalid, err)
+	}
 	return err
 }
 
@@ -370,6 +343,6 @@ func (k *Kept) Held() (bool, error) {
 	if view.MachineID() != "" || len(view.Entries(AllMarks)) > 0 || len(pending) > 0 {
 		return true, nil
 	}
-	_, stored, err := k.store.loadMarks()
+	_, _, stored, err := k.store.loadMarks()
 	return stored, err
 }

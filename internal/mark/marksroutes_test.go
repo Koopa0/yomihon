@@ -231,8 +231,9 @@ func (r *mkRig) mkLines() []string {
 	return out
 }
 
-// mkTree is every file under dir with what it holds.
-func mkTree(t *testing.T, dir string) map[string]string {
+// tree is every file and folder under dir, each file with what it holds and
+// each link with where it points.
+func tree(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
@@ -343,10 +344,10 @@ func TestMkPostRefusesWhatItCannotKeepAndWritesNothing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			own := newMkRig(t)
-			vaultBefore := mkTree(t, own.root)
+			vaultBefore := tree(t, own.root)
 			response := own.do(http.MethodPost, "/mark", tt.body)
 			mkStatus(t, response, tt.want)
-			if diff := cmp.Diff(vaultBefore, mkTree(t, own.root)); diff != "" {
+			if diff := cmp.Diff(vaultBefore, tree(t, own.root)); diff != "" {
 				t.Errorf("a refused mark changed the vault (-before +after):\n%s", diff)
 			}
 		})
@@ -393,7 +394,7 @@ func TestMkAWriteWhereTheReaderFolderCannotTakeItIsRefusedWithTheReason(t *testi
 			if got := r.kept.Writable(); got != tt.want {
 				t.Fatalf("Writable() = %q, want %q", got, tt.want)
 			}
-			before := mkTree(t, r.root)
+			before := tree(t, r.root)
 			for _, request := range []struct{ method, target, body string }{
 				{http.MethodPost, "/mark", `{"kind":"question","path":"` + mkNote + `"}`},
 				{http.MethodPatch, "/mark/" + strings.Repeat("a", 32), `{"seen":{},"body":"x"}`},
@@ -409,7 +410,7 @@ func TestMkAWriteWhereTheReaderFolderCannotTakeItIsRefusedWithTheReason(t *testi
 			}
 			form := r.press("section-one")
 			mkStatus(t, form, http.StatusUnprocessableEntity)
-			if diff := cmp.Diff(before, mkTree(t, r.root)); diff != "" {
+			if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 				t.Errorf("a refused write changed the vault:\n%s", diff)
 			}
 		})
@@ -518,10 +519,10 @@ func TestMkPatchRefusesWhatTheKindDoesNotHaveAndWritesNothing(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel() // each of these refuses and writes nothing, so they may share one vault
-			before := mkTree(t, r.root)
+			before := tree(t, r.root)
 			response := r.do(http.MethodPatch, "/mark/"+tt.id, `{"seen":`+mkSeenJSON(t, tt.seen)+","+tt.body+`}`)
 			mkStatus(t, response, http.StatusUnprocessableEntity)
-			if diff := cmp.Diff(before, mkTree(t, r.root)); diff != "" {
+			if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 				t.Errorf("a refused change wrote:\n%s", diff)
 			}
 		})
@@ -874,12 +875,12 @@ func TestMkAnEarlierQuestionIsListedBeforeAnyWriteAndPressedAway(t *testing.T) {
 	r := newMkRig(t)
 	earlier := `{"version":1,"vault":"/somewhere","marks":[{"id":"` + strings.Repeat("7", 32) + `","kind":"question","path":"` + mkNote + `","anchor":"section-one","at":"2026-09-22T10:00:00Z"}]}`
 	r.writeEarlier(earlier)
-	before := mkTree(t, r.root)
+	before := tree(t, r.root)
 	listed := mkDecode[[]map[string]any](t, r.do(http.MethodGet, "/questions", ""))
 	if len(listed) != 1 || listed[0]["path"] != mkNote {
 		t.Fatalf("the list is %v, want the earlier file's question", listed)
 	}
-	if diff := cmp.Diff(before, mkTree(t, r.root)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 		t.Fatalf("listing wrote into the vault:\n%s", diff)
 	}
 	pressed := r.press("section-one")

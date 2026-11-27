@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // Status is where a mark stands in a note as the note is now.
@@ -45,9 +47,9 @@ type Placement struct {
 }
 
 // contextSteps are how much of the context on each side is asked for, nearest
-// the words first, longest first. An author who edits a sentence that stood a
+// the words first, longest first: the whole of what a mark keeps, then less. An author who edits a sentence that stood a
 // paragraph away leaves the sentences beside the words as they were.
-var contextSteps = [...]int{maxContextBytes, 96, 32}
+var contextSteps = [...]int{512, 96, 32}
 
 // Locate says where a mark is in text, the note's words as a reader sees them,
 // and sections, the anchor ids the note has now. It takes plain text from the
@@ -64,7 +66,7 @@ var contextSteps = [...]int{maxContextBytes, 96, 32}
 // because a selection and the page it came from break lines differently.
 //
 // A nil mark is Changed.
-func Locate(text string, sections []string, m *Mark) Placement {
+func Locate(text string, sections []string, m *machinemarks.Mark) Placement {
 	if m == nil {
 		return Placement{Status: Changed}
 	}

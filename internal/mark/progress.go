@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 // NoCourse is the course of a bookmark set while reading outside any course.
@@ -80,13 +82,13 @@ func validateBookmark(course string, b *Bookmark) error {
 	if err := validatePath(b.RelPath); err != nil {
 		return err
 	}
-	if err := ValidateAnchor(b.Anchor); err != nil {
-		return err
+	if err := machinemarks.CheckAnchor(b.Anchor); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	switch {
 	case b.Offset < 0 || b.Offset > maxOffset:
 		return fmt.Errorf("%w: the offset is outside one document", ErrInvalid)
-	case !isContentIdentity(b.Identity):
+	case !machinemarks.ValidIdentity(b.Identity):
 		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
 	}
 	return nil

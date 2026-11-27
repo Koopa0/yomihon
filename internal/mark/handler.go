@@ -343,13 +343,8 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 	if h.refuseWrite(w, r) {
 		return
 	}
-	id, err := newID()
-	if err != nil {
-		h.refuse(w, r, err, "mark a question")
-		return
-	}
 	candidate := questionOf(r.PostForm.Get("path"), r.PostForm.Get("anchor"))
-	candidate.ID, candidate.At = id, time.Now()
+	candidate.ID, candidate.At = newID(), time.Now()
 	marks, err := h.kept.Marks()
 	if err != nil {
 		h.refuse(w, r, err, "mark a question")

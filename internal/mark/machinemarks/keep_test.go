@@ -7,23 +7,19 @@ import (
 	"testing"
 )
 
-func sameQuote(quote string) func(*Mark) bool {
-	return func(m *Mark) bool { return m.Kind == Highlight && m.Quote == quote }
-}
-
 // A Keep of a mark that is there writes nothing and answers the one that is.
 func TestKeepOfAMarkThatIsThereWritesNothing(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	first := highlight(1, "dead tuples")
-	out, err := a.m.Keep(t.Context(), &first, sameQuote("dead tuples"), open)
+	out, err := a.m.Keep(t.Context(), &first, open)
 	if err != nil || !out.Written {
 		t.Fatalf("first Keep = %+v, %v", out, err)
 	}
 	before := tree(t, a.root)
 	ledger := string(a.ledgerBytes())
 	again := highlight(2, "dead tuples")
-	out, err = a.m.Keep(t.Context(), &again, sameQuote("dead tuples"), open)
+	out, err = a.m.Keep(t.Context(), &again, open)
 	if err != nil || out.Written || out.Mark.ID != mid(1) {
 		t.Fatalf("second Keep = %+v, %v; want the first mark and no write", out, err)
 	}
@@ -44,7 +40,7 @@ func TestKeepsAtOnceKeepOne(t *testing.T) {
 	for n := 1; n <= 8; n++ {
 		wg.Go(func() {
 			m := highlight(n, "same passage")
-			if _, err := crowded(func() (Outcome, error) { return a.m.Keep(t.Context(), &m, sameQuote("same passage"), open) }); err != nil {
+			if _, err := crowded(func() (Outcome, error) { return a.m.Keep(t.Context(), &m, open) }); err != nil {
 				t.Error(err)
 			}
 		})
@@ -60,7 +56,7 @@ func TestKeepRefusesAnIDThatIsTaken(t *testing.T) {
 	a := newClone(t, "A")
 	a.say(1, "words")
 	m := highlight(1, "other")
-	if _, err := a.m.Keep(t.Context(), &m, sameQuote("other"), open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Keep(t.Context(), &m, open); !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Keep with a taken id = %v, want ErrInvalidMark", err)
 	}
 }
@@ -119,9 +115,10 @@ func TestToggleRefusesAMarkInConflict(t *testing.T) {
 	}
 }
 
-// An adoption that leaves marks in the earlier file takes in only the ones no
-// machine has: a taken-in mark that was then deleted stays deleted.
-func TestTakeInLegacyTakesInOnlyWhatIsNew(t *testing.T) {
+// An adoption takes in only the marks no machine has: a taken-in mark that was
+// then deleted stays deleted, a mark in the same place as the reader's own is
+// not taken for a second, and taking the same in again writes nothing.
+func TestTakeInTakesInOnlyWhatIsNew(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
 	old := []Mark{thought(1, "first"), thought(2, "second")}
@@ -129,21 +126,25 @@ func TestTakeInLegacyTakesInOnlyWhatIsNew(t *testing.T) {
 	a.restart()
 	a.say(3, "the first write takes the old ones in")
 	a.delete(1)
-	old = append(old, thought(4, "arrived with an adoption"))
-	if _, err := a.m.TakeInLegacy(t.Context()); err != nil {
+	here := highlight(5, "dead tuples")
+	a.put(here, nil)
+	same := here
+	same.ID = mid(6)
+	adopted := []Mark{thought(1, "first"), thought(4, "arrived with an adoption"), same}
+	if _, err := a.m.TakeIn(t.Context(), adopted); err != nil {
 		t.Fatal(err)
 	}
 	if a.words(4) != "arrived with an adoption" {
-		t.Fatalf("the new old mark reads %q", a.words(4))
+		t.Fatalf("the adopted mark reads %q", a.words(4))
 	}
 	if got := a.words(1); got != "deleted:first" {
-		t.Fatalf("the deleted mark reads %q after a second take-in, want it still deleted", got)
+		t.Fatalf("the deleted mark reads %q after a take-in, want it still deleted", got)
 	}
-	if a.words(2) != "second" {
-		t.Fatalf("mark 2 reads %q", a.words(2))
+	if _, ok := a.view().Entry(mid(6), open); ok {
+		t.Fatal("a mark in the same place as one there was taken in beside it")
 	}
 	before := string(a.ledgerBytes())
-	if _, err := a.m.TakeInLegacy(t.Context()); err != nil {
+	if _, err := a.m.TakeIn(t.Context(), adopted); err != nil {
 		t.Fatal(err)
 	}
 	if string(a.ledgerBytes()) != before {

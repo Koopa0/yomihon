@@ -25,7 +25,7 @@ func FuzzDecode(f *testing.F) {
 		if v != readable {
 			return
 		}
-		if l.Fmt != Format || !isMachine(l.M) || !isID(l.Mark.ID) || l.Rev == 0 {
+		if l.Fmt != Format || !isMachine(l.M) || !ValidID(l.Mark.ID) || l.Rev == 0 {
 			t.Fatalf("a line read has %+v", l)
 		}
 	})

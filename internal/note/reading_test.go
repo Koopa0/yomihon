@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/html/atom"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -286,7 +287,7 @@ func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 		reading, _ := snap.Note(rel)
 		squeezed := strings.Join(strings.Fields(page.Text), " ")
 		for _, words := range textNodes(t, snap.Render(rel, reading.Body, wording.ZhHant).HTML) {
-			m := &mark.Mark{Kind: mark.Highlight, RelPath: rel, Quote: words}
+			m := &machinemarks.Mark{Kind: machinemarks.Highlight, Path: rel, Quote: words}
 			found := mark.Locate(page.Text, nil, m)
 			if places(squeezed, words) > 1 {
 				if found.Status != mark.Changed {
@@ -345,7 +346,7 @@ func TestAQuoteOfTheBaseTextAcrossRubyIsFoundWhereItIs(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := mark.Locate(page.Text, nil, &mark.Mark{Kind: mark.Highlight, RelPath: rel, Quote: tt.quote})
+			got := mark.Locate(page.Text, nil, &machinemarks.Mark{Kind: machinemarks.Highlight, Path: rel, Quote: tt.quote})
 			if got.Status != tt.want {
 				t.Fatalf("Locate(%q) status = %v, want %v in %q", tt.quote, got.Status, tt.want, page.Text)
 			}

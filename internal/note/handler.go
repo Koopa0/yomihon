@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -52,7 +53,7 @@ import (
 type Sources struct {
 	// Questions reads the reader's question marks. Nil means this process has
 	// no mark storage; a read error remains visible on the desk.
-	Questions func() ([]mark.Mark, error)
+	Questions func() ([]machinemarks.Mark, error)
 	Source    *vault.Reader
 	// Contract supplies the field vocabulary a thought stub is written from;
 	// the note type it is for comes from the snapshot's roles.

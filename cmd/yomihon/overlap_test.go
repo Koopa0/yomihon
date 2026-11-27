@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
 
@@ -291,7 +291,7 @@ func TestMarksAdoptRefusesAFolderThatHoldsTheConfigurationDirectory(t *testing.T
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	configDir := filepath.Join(root, ".config")
 	earlier := filepath.Join(t.TempDir(), "earlier")
-	writeEarlierMarks(t, configDir, earlier, mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
+	writeEarlierMarks(t, configDir, earlier, machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
 	before := vaultState(t, root)
 	got := leftOpen(t, root, configDir, "--adopt", earlier)
 	if got.exit != 2 || !strings.Contains(got.stderr, refusalSays) || !strings.Contains(got.stderr, "nothing was adopted") {

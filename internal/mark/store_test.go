@@ -51,16 +51,24 @@ func aMarksFile(marks ...string) string {
 }
 
 // marksJSON is a marks.json for the vault at vaultRoot holding marks, as the
-// earlier version wrote it. A mark with no id is given one by its place in the
-// list. It is what a test of reading or taking in leaves for the code to find,
-// since nothing writes marks.json any more.
-func marksJSON(t *testing.T, vaultRoot string, marks ...mark.Mark) string {
+// earlier version wrote it, where a question's words were its reason. A mark
+// with no id is given one by its place in the list. It is what a test of
+// reading or taking in leaves for the code to find, since nothing writes
+// marks.json any more.
+func marksJSON(t *testing.T, vaultRoot string, marks ...machinemarks.Mark) string {
 	t.Helper()
+	type earlier struct {
+		machinemarks.Mark
+		Reason string `json:"reason,omitempty"`
+	}
 	entries := make([]string, len(marks))
 	for i := range marks {
-		m := marks[i]
+		m := earlier{Mark: marks[i]}
 		if m.ID == "" {
 			m.ID = fmt.Sprintf("%032x", i+1)
+		}
+		if m.Kind == machinemarks.Question {
+			m.Reason, m.Body = m.Body, ""
 		}
 		data, err := json.Marshal(m)
 		if err != nil {
@@ -96,12 +104,12 @@ func TestMachineMarksCarriesEveryFieldOfAStoredMark(t *testing.T) {
 	resolved := time.Date(2026, 9, 23, 8, 0, 0, 0, time.UTC)
 	writeFile(t, marksPath(store), marksJSON(t, "/vaults/notes",
 		*aHighlight(),
-		mark.Mark{
-			Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "section-one", Quote: "words", Before: "a ", After: " b",
-			Identity: anIdentity, Reason: "why does it work?", ResolvedAt: resolved, At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC),
+		machinemarks.Mark{
+			Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "section-one", Quote: "words", Before: "a ", After: " b",
+			Identity: anIdentity, Body: "why does it work?", Resolved: resolved, At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC),
 		},
-		mark.Mark{
-			Kind: mark.Thought, RelPath: "Notes/source.md", Anchor: "s", Quote: "words", Before: "a ", After: " b",
+		machinemarks.Mark{
+			Kind: machinemarks.Thought, Path: "Notes/source.md", Anchor: "s", Quote: "words", Before: "a ", After: " b",
 			Identity: anIdentity, Body: "what I think", At: time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC),
 		},
 	))
@@ -454,12 +462,7 @@ func TestAMarksFileThatCannotBeReadIsReportedAndLeftAsItIs(t *testing.T) {
 		`{"version":1,"vault":"/v","marks":[]} {}`,
 		`{"version":1,"vault":"/v","marks":[],"extra":1}`,
 		aMarksFile(good, good),
-		aMarksFile(`{"id":"1","kind":"question","path":"Notes/source.md","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"../source.md","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"note","path":"a.md","at":"2026-09-22T10:00:00Z"}`),
 		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"a.md","at":"invalid"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"Source.md\n2026-12-31  thought   Fake.md  Forged  (started)","at":"2026-09-22T10:00:00Z"}`),
-		aMarksFile(`{"id":"` + strings.Repeat("a", 32) + `","kind":"question","path":"Notes/\u001b]0;pwned\u0007.md","at":"2026-09-22T10:00:00Z"}`),
 	} {
 		t.Run(damaged, func(t *testing.T) {
 			t.Parallel()
@@ -490,18 +493,18 @@ func TestAMarksFileThatIsNotAFileIsReportedNotReadAsEmpty(t *testing.T) {
 // was not written by it.
 func TestMarksBeyondTheCountAreDamagedWhenStored(t *testing.T) {
 	t.Parallel()
-	full := make([]string, mark.MaxMarks)
+	full := make([]string, machinemarks.MaxLive)
 	for i := range full {
 		full[i] = aStoredQuestion(i)
 	}
 	store := newStore(t)
 	writeFile(t, marksPath(store), aMarksFile(full...))
-	if held, err := store.MachineMarks(); err != nil || len(held) != mark.MaxMarks {
+	if held, err := store.MachineMarks(); err != nil || len(held) != machinemarks.MaxLive {
 		t.Fatalf("a file at the cap read as %d marks, %v", len(held), err)
 	}
 
 	tooMany := newStore(t)
-	writeFile(t, marksPath(tooMany), aMarksFile(slices.Concat(full, []string{aStoredQuestion(mark.MaxMarks)})...))
+	writeFile(t, marksPath(tooMany), aMarksFile(slices.Concat(full, []string{aStoredQuestion(machinemarks.MaxLive)})...))
 	if held, err := tooMany.MachineMarks(); !errors.Is(err, mark.ErrUnreadable) {
 		t.Errorf("one mark past the cap read as %d marks, %v; want ErrUnreadable", len(held), err)
 	}

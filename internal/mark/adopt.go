@@ -2,16 +2,15 @@ package mark
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/ledger"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -28,11 +27,14 @@ var ErrOwnPath = errors.New("that path is this vault's own")
 // copied or renamed by hand is the one way the two can disagree.
 var ErrOtherVault = errors.New("what is kept for that path records another folder")
 
-// Adopt brings the marks, the bookmarks and the finished notes the reader kept
-// for the vault at old, the path it had before it moved, into this vault's own,
-// and the ledger of what this machine wrote there. A vault's marks directory is
-// named from its path, so a vault that moved is a vault with no marks until
-// they are brought across.
+// Adopt brings the bookmarks and the finished notes the reader kept for the
+// vault at old, the path it had before it moved, into this vault's own, with
+// the ledger of what this machine wrote there, and answers the marks kept
+// there, for this vault's marks to take in (Kept.TakeIn): they belong in the
+// vault's machine files, which a Store does not write, and the earlier files of
+// marks are only ever read. A vault's directory under the configuration
+// directory is named from its path, so a vault that moved is a vault with none
+// of these until they are brought across.
 //
 // admit is asked, for each note a thing names, whether this vault holds that
 // note and lets it be read. What it refuses stays where it was. That is the
@@ -50,47 +52,42 @@ var ErrOtherVault = errors.New("what is kept for that path records another folde
 //
 // The old directory is only read, never changed, so the same call can be made
 // again and brings across only what was not. Where this vault already has a
-// mark in the same place, or a bookmark for the same course, or a finished
-// note, its own stays. old has to be absolute: the files record the path they
-// were made for, and it is that record Adopt checks old against, so a path
-// as the record spells it is the path to give.
-//
-// Nothing is written unless what results can be held: a bound passed refuses
-// the whole call with ErrInvalid. The two files are replaced one after the
-// other, so a failure between them leaves marks adopted and progress not, which
-// the same call finishes.
-func (s *Store) Adopt(old string, admit func(relPath string) bool) error {
+// bookmark for the same course, or a finished note, its own stays. old has to
+// be absolute: the files record the path they were made for, and it is that
+// record Adopt checks old against, so a path as the record spells it is the
+// path to give. Bookmarks and finished notes that would pass their bound
+// refuse the whole call with ErrInvalid, and nothing is written.
+func (s *Store) Adopt(old string, admit func(relPath string) bool) ([]machinemarks.Mark, error) {
 	theirs, err := s.earlier(old)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if admit == nil {
 		admit = func(string) bool { return false }
 	}
-
-	return s.exclusive(func() error {
-		marks, _, err := s.loadMarks()
-		if err != nil {
-			return err
+	err = s.exclusive(func() error {
+		held, loadErr := s.loadProgress()
+		if loadErr != nil {
+			return loadErr
 		}
-		progress, err := s.loadProgress()
-		if err != nil {
-			return err
-		}
-		marks, marksChanged := adoptMarks(marks, theirs.marks, admit)
-		progress, progressChanged := adoptProgress(progress, theirs.progress, admit)
-		if len(marks) > MaxMarks || len(progress.bookmarks) > maxBookmarks || len(progress.finished) > maxFinished {
+		merged, changed := adoptProgress(held, theirs.progress, admit)
+		if len(merged.bookmarks) > maxBookmarks || len(merged.finished) > maxFinished {
 			return fmt.Errorf("%w: what is kept for that path does not fit beside what is kept here", ErrInvalid)
 		}
-		err = s.install(&adopted{marks: marks, marksChanged: marksChanged, progress: progress, progressChanged: progressChanged})
-		if err != nil {
-			return err
+		if changed {
+			if saveErr := s.saveProgress(merged); saveErr != nil {
+				return saveErr
+			}
 		}
 		// The store's methods take no context, so the ledger's lock is waited
 		// for as long as confdir.LockWait, as the store's own is.
-		_, err = s.ledger().Carry(context.Background(), theirs.dir)
-		return err
+		_, carryErr := s.ledger().Carry(context.Background(), theirs.dir)
+		return carryErr
 	})
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(theirs.marks, func(m machinemarks.Mark) bool { return !admit(m.Path) }), nil
 }
 
 // ledger is this vault's ledger. Nothing Adopt asks of it is said in a log: a
@@ -103,76 +100,40 @@ func (s *Store) ledger() *ledger.Ledger {
 // earlier is what was kept for the vault at old, or the reason there is none to
 // adopt: a path that is not absolute, this vault's own, one nothing is kept for,
 // or one whose directory is another vault's.
-func (s *Store) earlier(old string) (kept, error) {
+func (s *Store) earlier(old string) (earlierFiles, error) {
 	if !filepath.IsAbs(old) {
-		return kept{}, fmt.Errorf("%w: the path to adopt from is not absolute", ErrInvalid)
+		return earlierFiles{}, fmt.Errorf("%w: the path to adopt from is not absolute", ErrInvalid)
 	}
 	old = filepath.Clean(old)
 	if confdir.VaultID(old) == confdir.VaultID(s.vaultRoot) {
-		return kept{}, ErrOwnPath
+		return earlierFiles{}, ErrOwnPath
 	}
 	oldDir, err := confdir.VaultDir(s.configDir, old)
 	if err != nil {
-		return kept{}, err
+		return earlierFiles{}, err
 	}
 	earlierStore := &Store{dir: oldDir, vaultRoot: old}
 	theirs, found, err := earlierStore.read()
 	if err != nil {
-		return kept{}, err
+		return earlierFiles{}, err
 	}
 	// A ledger is kept too: a vault whose marks are all in its machine files
 	// has nothing else for the earlier path. Reading it writes nothing.
 	lines, changed, err := earlierStore.ledger().Events()
 	if err != nil {
-		return kept{}, fmt.Errorf("%w: the ledger: %w", ErrUnreadable, err)
+		return earlierFiles{}, fmt.Errorf("%w: the ledger: %w", ErrUnreadable, err)
 	}
 	if !found && len(lines) == 0 && changed == 0 {
-		return kept{}, ErrNothingKept
+		return earlierFiles{}, ErrNothingKept
 	}
 	theirs.dir = oldDir
 	return theirs, nil
 }
 
-// adopted is what an adoption results in, and which of the two files it changes.
-type adopted struct {
-	marks           []Mark
-	marksChanged    bool
-	progress        progress
-	progressChanged bool
-}
-
-// install writes the files an adoption changed. Both are encoded before either
-// is replaced, so what the files cannot hold is refused with nothing written.
-// The caller holds the lock.
-func (s *Store) install(a *adopted) error {
-	var marksData, progressData []byte
-	var err error
-	if a.marksChanged {
-		if marksData, err = encode(marksDocument{Version: documentVersion, Vault: s.vaultRoot, Marks: a.marks}, maxMarksFileBytes); err != nil {
-			return err
-		}
-	}
-	if a.progressChanged {
-		doc := progressDocument{Version: documentVersion, Vault: s.vaultRoot, Bookmarks: a.progress.bookmarks, Finished: a.progress.finished}
-		if progressData, err = encode(doc, maxProgressFileBytes); err != nil {
-			return err
-		}
-	}
-	if a.marksChanged {
-		if replaceErr := confdir.Replace(s.dir, marksFile, marksData); replaceErr != nil {
-			return replaceErr
-		}
-	}
-	if a.progressChanged {
-		return confdir.Replace(s.dir, progressFile, progressData)
-	}
-	return nil
-}
-
-// kept is everything the reader has for one vault, and the directory it is
-// kept in.
-type kept struct {
-	marks    []Mark
+// earlierFiles is everything the reader has for one vault, and the directory it
+// is in.
+type earlierFiles struct {
+	marks    []machinemarks.Mark
 	progress progress
 	dir      confdir.Dir
 }
@@ -182,64 +143,21 @@ type kept struct {
 // files record this store's vault, which is what makes the directory the one
 // its name says it is. Files an earlier version wrote record nothing, so a
 // directory that has only those is taken by its name.
-func (s *Store) read() (held kept, found bool, err error) {
-	if held.marks, _, err = s.loadMarks(); err != nil {
-		return kept{}, false, err
+func (s *Store) read() (held earlierFiles, found bool, err error) {
+	var recorded string
+	if held.marks, recorded, _, err = s.loadMarks(); err != nil {
+		return earlierFiles{}, false, err
 	}
 	if held.progress, err = s.loadProgress(); err != nil {
-		return kept{}, false, err
+		return earlierFiles{}, false, err
 	}
-	for _, name := range [...]string{marksFile, progressFile} {
-		recorded, ok, err := recordedVault(s.dir, name)
-		if err != nil {
-			return kept{}, false, err
-		}
-		if ok && vault.NormalizeNFC(filepath.Clean(recorded)) != vault.NormalizeNFC(s.vaultRoot) {
-			return kept{}, false, ErrOtherVault
+	for _, path := range [...]string{recorded, held.progress.vault} {
+		if path != "" && vault.NormalizeNFC(filepath.Clean(path)) != vault.NormalizeNFC(s.vaultRoot) {
+			return earlierFiles{}, false, ErrOtherVault
 		}
 	}
 	found = len(held.marks) > 0 || len(held.progress.bookmarks) > 0 || len(held.progress.finished) > 0
 	return held, found, nil
-}
-
-// recordedVault is the vault path a file in dir says it was made for. ok is
-// false when the file is not there. The file has been read whole and strictly
-// by the caller already, so only the one field is looked at.
-func recordedVault(dir confdir.Dir, name string) (path string, ok bool, err error) {
-	data, err := confdir.Read(dir, name, maxMarksFileBytes)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, fmt.Errorf("%w: %s: %w", ErrUnreadable, name, err)
-	}
-	var head struct {
-		Vault string `json:"vault"`
-	}
-	if err = json.Unmarshal(data, &head); err != nil {
-		return "", false, fmt.Errorf("%w: %s: %w", ErrUnreadable, name, err)
-	}
-	return head.Vault, true, nil
-}
-
-// adoptMarks is held with the marks of theirs that admit allows and that held
-// does not already have, by id or as the same reader's act in the same place. A
-// thought is not the same act twice: it says something, and two say two things.
-func adoptMarks(held, theirs []Mark, admit func(string) bool) (merged []Mark, changed bool) {
-	merged = slices.Clone(held)
-	for i := range theirs {
-		m := &theirs[i]
-		if !admit(m.RelPath) {
-			continue
-		}
-		if slices.ContainsFunc(merged, func(other Mark) bool {
-			return other.ID == m.ID || (m.Kind != Thought && sameMark(&other, m))
-		}) {
-			continue
-		}
-		merged, changed = append(merged, *m), true
-	}
-	return merged, changed
 }
 
 // adoptProgress is held with the bookmarks of theirs for a course held has none

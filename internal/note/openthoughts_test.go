@@ -254,7 +254,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 
 func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string) {
 	t.Helper()
-	var held []mark.Mark
+	var held []machinemarks.Mark
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)
@@ -265,7 +265,7 @@ func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string
 	type pair struct {
 		Path, Anchor string
 	}
-	if diff := cmp.Diff(pair{Path: rel, Anchor: anchor}, pair{Path: held[0].RelPath, Anchor: held[0].Anchor}); diff != "" {
+	if diff := cmp.Diff(pair{Path: rel, Anchor: anchor}, pair{Path: held[0].Path, Anchor: held[0].Anchor}); diff != "" {
 		t.Fatalf("stored identity mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -304,29 +304,29 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	})
 	// Marks made at one moment are listed by id, so the ids rise in the order
 	// the fixture names them.
-	for i, left := range []mark.Mark{
-		{Kind: mark.Question, RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
+	for i, left := range []machinemarks.Mark{
+		{Kind: machinemarks.Question, Path: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marktest.Keep(t, root, confdir.At(configDir), machinemarks.Mark{ID: markID(i + 1), Kind: machinemarks.Question, Path: left.RelPath, Anchor: left.Anchor, At: left.At})
+		marktest.Keep(t, root, confdir.At(configDir), machinemarks.Mark{ID: markID(i + 1), Kind: machinemarks.Question, Path: left.Path, Anchor: left.Anchor, At: left.At})
 	}
 	held, err := kept.Questions()
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantStored := []mark.Mark{
-		{Kind: mark.Question, RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
+	wantStored := []machinemarks.Mark{
+		{Kind: machinemarks.Question, Path: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	}
-	if diff := cmp.Diff(wantStored, held, cmpopts.IgnoreFields(mark.Mark{}, "ID")); diff != "" {
+	if diff := cmp.Diff(wantStored, held, cmpopts.IgnoreFields(machinemarks.Mark{}, "ID")); diff != "" {
 		t.Fatalf("initial complete stored sort fixture mismatch (-want +got):\n%s", diff)
 	}
 	if removeErr := os.Remove(filepath.Join(root, "Missing.md")); removeErr != nil {
@@ -378,7 +378,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	}
 }
 
-func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Mark {
+func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []machinemarks.Mark {
 	t.Helper()
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
 	var sent []struct {
@@ -389,14 +389,14 @@ func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Mark {
 	if err := json.Unmarshal([]byte(listed), &sent); err != nil {
 		t.Fatal(err)
 	}
-	held := make([]mark.Mark, len(sent))
+	held := make([]machinemarks.Mark, len(sent))
 	for i, entry := range sent {
-		held[i] = mark.Mark{Kind: mark.Question, RelPath: entry.Path, Anchor: entry.Anchor, At: entry.Time}
+		held[i] = machinemarks.Mark{Kind: machinemarks.Question, Path: entry.Path, Anchor: entry.Anchor, At: entry.Time}
 	}
 	return held
 }
 
-func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []mark.Mark) {
+func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []machinemarks.Mark) {
 	t.Helper()
 	if diff := cmp.Diff(want, lostMarkRecords(t, mux, lang)); diff != "" {
 		t.Errorf("caught: reading changed complete stored marks (-want +got):\n%s", diff)

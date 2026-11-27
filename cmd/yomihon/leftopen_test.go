@@ -21,7 +21,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -851,7 +850,7 @@ func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 	// A file the machine refuses to open is the case whose own error names
 	// the file's absolute path, and so the configuration directory's.
 	lockedRoot, locked := fresh(), t.TempDir()
-	writeEarlierMarks(t, locked, vaultNameOf(t, lockedRoot), mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+	writeEarlierMarks(t, locked, vaultNameOf(t, lockedRoot), machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
 	lockedFile := filepath.Join(earlierMarksDir(t, locked, lockedRoot), "marks.json")
 	if err := os.Chmod(lockedFile, 0); err != nil {
 		t.Fatal(err)
@@ -1167,10 +1166,10 @@ func movedFolder(t *testing.T) (root, configDir, earlier string) {
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n\n## Hidden heading\n\nwords\n")
 	writeEarlierMarks(t, configDir, earlier,
-		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)},
-		mark.Mark{ID: markID(2), Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(2)},
-		mark.Mark{ID: markID(3), Kind: mark.Question, RelPath: "Private/Gone.md", Anchor: "lost", At: leftOpenDay(3)},
-		mark.Mark{ID: markID(4), Kind: mark.Question, RelPath: "NotHere.md", Anchor: "elsewhere", At: leftOpenDay(4)},
+		machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(1)},
+		machinemarks.Mark{ID: markID(2), Kind: machinemarks.Question, Path: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(2)},
+		machinemarks.Mark{ID: markID(3), Kind: machinemarks.Question, Path: "Private/Gone.md", Anchor: "lost", At: leftOpenDay(3)},
+		machinemarks.Mark{ID: markID(4), Kind: machinemarks.Question, Path: "NotHere.md", Anchor: "elsewhere", At: leftOpenDay(4)},
 	)
 	return root, configDir, earlier
 }
@@ -1215,7 +1214,7 @@ func TestMarksAdoptBringsAcrossNothingThisFolderWithholdsOrHasNot(t *testing.T) 
 		}
 	}
 	held := heldQuestions(t, root, configDir)
-	if len(held) != 1 || held[0].RelPath != "Source.md" {
+	if len(held) != 1 || held[0].Path != "Source.md" {
 		t.Errorf("the folder holds %+v after adopting, want only the question on Source.md", held)
 	}
 }
@@ -1355,7 +1354,7 @@ func TestLeftOpenListsTheEarlierFilesQuestionsBeforeAnyWrite(t *testing.T) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	writeEarlierMarks(t, configDir, vaultNameOf(t, root),
-		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
+		machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
 	before := treeBytes(t, root, configDir)
 	got := leftOpen(t, root, configDir, "--format", "json")
 	if got.exit != 0 || !strings.Contains(got.stdout, `"Source.md"`) || !strings.Contains(got.stdout, "chapter") {

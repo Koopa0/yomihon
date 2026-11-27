@@ -115,20 +115,29 @@ func nameMarksDir(t *testing.T, configDir, vaultRoot string) string {
 // writeEarlierMarks writes the earlier file of marks (marks.json) of the vault
 // at vaultRoot, by hand: the shape a reader who used the version before the
 // machine files left behind, which the product only reads.
-func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...mark.Mark) {
+func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...machinemarks.Mark) {
 	t.Helper()
 	dir := nameMarksDir(t, configDir, vaultRoot)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if marks == nil {
-		marks = []mark.Mark{}
+	// The earlier file kept a question's words as its reason.
+	type earlier struct {
+		machinemarks.Mark
+		Reason string `json:"reason,omitempty"`
+	}
+	held := make([]earlier, len(marks))
+	for i, m := range marks {
+		held[i] = earlier{Mark: m}
+		if m.Kind == machinemarks.Question {
+			held[i].Reason, held[i].Mark.Body = m.Body, ""
+		}
 	}
 	data, err := json.Marshal(struct {
-		Version int         `json:"version"`
-		Vault   string      `json:"vault"`
-		Marks   []mark.Mark `json:"marks"`
-	}{Version: 1, Vault: vaultRoot, Marks: marks})
+		Version int       `json:"version"`
+		Vault   string    `json:"vault"`
+		Marks   []earlier `json:"marks"`
+	}{Version: 1, Vault: vaultRoot, Marks: held})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +148,7 @@ func writeEarlierMarks(t *testing.T, configDir, vaultRoot string, marks ...mark.
 
 // heldQuestions is the questions the reader has open in the vault at root, read
 // the way the marks command reads them.
-func heldQuestions(t *testing.T, root, configDir string) []mark.Mark {
+func heldQuestions(t *testing.T, root, configDir string) []machinemarks.Mark {
 	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {

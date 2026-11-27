@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func admitEverything(string) bool { return true }
@@ -39,7 +41,58 @@ func movedVault(t *testing.T) aMovedVault {
 	}
 	v.old = newStoreFor(t, v.config, v.oldRoot)
 	v.now = newStoreFor(t, v.config, v.newRoot)
+	if err := os.MkdirAll(v.newRoot, 0o750); err != nil {
+		t.Fatal(err)
+	}
 	return v
+}
+
+// adopt is what the marks command does when it is asked to adopt: Adopt, and
+// the vault's marks taking in the marks it answers.
+func (v aMovedVault) adopt(t *testing.T, admit func(string) bool) error {
+	t.Helper()
+	marks, err := v.now.Adopt(v.oldRoot, admit)
+	if err != nil {
+		return err
+	}
+	kept := v.kept(t)
+	return errors.Join(kept.TakeIn(t.Context(), marks), kept.Close())
+}
+
+// kept is the marks of the vault at the path it has now.
+func (v aMovedVault) kept(t *testing.T) *mark.Kept {
+	t.Helper()
+	reader, err := vault.Open(v.newRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reader.Close() }) //nolint:errcheck // the test is over
+	return mark.OpenKept(v.now, reader, slog.New(slog.DiscardHandler))
+}
+
+// inVault is the marks the reader has in the vault at the path it has now, the
+// ones not deleted, by id: what its machine files hold and what its earlier file
+// still would give the first write.
+func (v aMovedVault) inVault(t *testing.T) []machinemarks.Mark {
+	t.Helper()
+	kept := v.kept(t)
+	defer func() { _ = kept.Close() }() //nolint:errcheck // the test is over
+	view, err := kept.View()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, err := kept.Pending(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := pending
+	for _, e := range view.Entries(mark.AllMarks) {
+		if !e.Deleted() {
+			held = append(held, e.Mark())
+		}
+	}
+	slices.SortFunc(held, func(a, b machinemarks.Mark) int { return strings.Compare(a.ID, b.ID) })
+	return held
 }
 
 // keepEverything leaves one of each thing in the old vault's directory: a
@@ -48,7 +101,7 @@ func movedVault(t *testing.T) aMovedVault {
 func (v aMovedVault) keepEverything(t *testing.T) {
 	t.Helper()
 	thought := aHighlight()
-	thought.Kind, thought.Body, thought.Quote, thought.Anchor = mark.Thought, "this is why", "second", "section-two"
+	thought.Kind, thought.Body, thought.Quote, thought.Anchor = machinemarks.Thought, "this is why", "second", "section-two"
 	// Nothing writes marks.json any more, so the marks of the earlier version
 	// are left as it left them, by hand.
 	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *aHighlight(), *aQuestion(), *thought))
@@ -140,10 +193,12 @@ func TestAdoptBringsAcrossWhatWasKeptForTheOldPath(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
 	v.keepEverything(t)
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	if diff := cmp.Diff(listedMarks(t, v.old), listedMarks(t, v.now)); diff != "" {
+	want := listedMarks(t, v.old)
+	slices.SortFunc(want, func(a, b machinemarks.Mark) int { return strings.Compare(a.ID, b.ID) })
+	if diff := cmp.Diff(want, v.inVault(t)); diff != "" {
 		t.Errorf("the marks are not the old vault's (-old +now):\n%s", diff)
 	}
 	for _, course := range []string{mark.NoCourse, "Courses/go/index.md"} {
@@ -167,18 +222,21 @@ func TestAdoptTwiceChangesNothingTheSecondTime(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
 	v.keepEverything(t)
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("the first Adopt: %v", err)
 	}
-	after := directoryBytes(t, v.now.Dir())
+	after, vaultAfter := directoryBytes(t, v.now.Dir()), tree(t, v.newRoot)
 	if len(after) == 0 {
 		t.Fatal("the first Adopt wrote nothing, so the second proves nothing")
 	}
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("the second Adopt: %v", err)
 	}
 	if diff := cmp.Diff(after, directoryBytes(t, v.now.Dir())); diff != "" {
 		t.Errorf("the second Adopt changed a file (-after the first +after the second):\n%s", diff)
+	}
+	if diff := cmp.Diff(vaultAfter, tree(t, v.newRoot)); diff != "" {
+		t.Errorf("the second Adopt changed the vault (-after the first +after the second):\n%s", diff)
 	}
 }
 
@@ -189,7 +247,7 @@ func TestAdoptLeavesTheOldDirectoryAsItWas(t *testing.T) {
 	v := movedVault(t)
 	v.keepEverything(t)
 	before := directoryBytes(t, v.old.Dir())
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 	if diff := cmp.Diff(before, directoryBytes(t, v.old.Dir())); diff != "" {
@@ -217,15 +275,12 @@ func TestAdoptKeepsWhatTheVaultAlreadyHas(t *testing.T) {
 	}
 	ownFinishedAt := finishedAtFor(t, v.now, "Notes/source.md")
 
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	held := listedMarks(t, v.now)
-	if len(held) != 3 {
-		t.Errorf("%d marks are kept, want 3: the highlight this vault has, and the question and thought it has not", len(held))
-	}
-	if held[0].ID != ownHighlight.ID {
-		t.Errorf("the highlight this vault made is no longer first: %+v", held)
+	held := v.inVault(t)
+	if len(held) != 3 || !slices.ContainsFunc(held, func(m machinemarks.Mark) bool { return m.ID == ownHighlight.ID }) {
+		t.Errorf("the marks are %+v, want 3: the highlight this vault has, and the question and thought it has not", held)
 	}
 	if got, _ := bookmarkFor(t, v.now, mark.NoCourse); got.Anchor != "a-newer-place" {
 		t.Errorf("the bookmark this vault kept was replaced by %+v", got)
@@ -245,20 +300,38 @@ func TestAdoptKeepsWhatTheVaultAlreadyHas(t *testing.T) {
 func TestAdoptDoesNotTakeAThoughtForTheOneAlreadyThere(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
-	thought := func(body string) *mark.Mark {
+	thought := func(body string) *machinemarks.Mark {
 		m := aHighlight()
-		m.Kind, m.Body = mark.Thought, body
+		m.Kind, m.Body = machinemarks.Thought, body
 		return m
 	}
 	older, newer := thought("what the old one said"), thought("what this one says")
 	older.ID, newer.ID = markID(1), markID(2)
 	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *older))
 	writeFile(t, marksPath(v.now), marksJSON(t, v.newRoot, *newer))
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	if held := listedMarks(t, v.now); len(held) != 2 {
+	if held := v.inVault(t); len(held) != 2 {
 		t.Errorf("%d thoughts are kept, want both", len(held))
+	}
+}
+
+// The same words marked at two places of one section are two marks, as the
+// route that keeps a mark holds them: both are brought across, and neither is
+// taken for the other.
+func TestAdoptBringsTheSameWordsAtTwoPlacesAsTwoMarks(t *testing.T) {
+	t.Parallel()
+	v := movedVault(t)
+	first, second := aHighlight(), aHighlight()
+	first.ID, second.ID = markID(1), markID(2)
+	second.Before, second.After = "Elsewhere, ", " is said again"
+	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *first, *second))
+	if err := v.adopt(t, admitEverything); err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if held := v.inVault(t); len(held) != 2 {
+		t.Errorf("%d highlights were brought across, want both", len(held))
 	}
 }
 
@@ -270,15 +343,16 @@ func TestAdoptBringsAcrossOnlyWhatIsAdmitted(t *testing.T) {
 	v := movedVault(t)
 	v.keepEverything(t)
 	admit := func(rel string) bool { return rel == "Notes/source.md" || rel == "Courses/go/index.md" }
-	if err := v.now.Adopt(v.oldRoot, admit); err != nil {
+	if err := v.adopt(t, admit); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	for _, m := range listedMarks(t, v.now) {
+	held := v.inVault(t)
+	for _, m := range held {
 		if m.Path != "Notes/source.md" {
 			t.Errorf("a mark on %q came across", m.Path)
 		}
 	}
-	if got := len(listedMarks(t, v.now)); got != 3 {
+	if got := len(held); got != 3 {
 		t.Errorf("%d marks came across, want the 3 on the admitted note", got)
 	}
 	// Its course is admitted, but the note it points at is not, and a bookmark
@@ -299,8 +373,9 @@ func TestAdoptWithNoAdmitterBringsNothingAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
 	v.keepEverything(t)
-	if err := v.now.Adopt(v.oldRoot, nil); err != nil {
-		t.Fatalf("Adopt: %v", err)
+	marks, err := v.now.Adopt(v.oldRoot, nil)
+	if err != nil || len(marks) != 0 {
+		t.Fatalf("Adopt = %v, %v; want no marks", marks, err)
 	}
 	if held := directoryBytes(t, v.now.Dir()); len(held) != 0 {
 		t.Errorf("a refused adoption left %d files", len(held))
@@ -342,7 +417,7 @@ func TestAdoptRefusesWhatCannotBeAdoptedAndNamesNoPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := tt.store.Adopt(tt.path, admitEverything)
+			_, err := tt.store.Adopt(tt.path, admitEverything)
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Adopt(%q) = %v, want %v", tt.path, err, tt.want)
 			}
@@ -361,11 +436,8 @@ func TestAdoptFindsTheDirectoryOfAnyCleanSpellingOfThePath(t *testing.T) {
 	v.keepEverything(t)
 	spelled := v.oldRoot + string(filepath.Separator)
 	spelled = filepath.Join(spelled, "..", filepath.Base(v.oldRoot)) + string(filepath.Separator)
-	if err := v.now.Adopt(spelled, admitEverything); err != nil {
-		t.Fatalf("Adopt(%q): %v", spelled, err)
-	}
-	if len(listedMarks(t, v.now)) == 0 {
-		t.Error("nothing came across")
+	if marks, err := v.now.Adopt(spelled, admitEverything); err != nil || len(marks) == 0 {
+		t.Fatalf("Adopt(%q) = %v, %v; want the marks kept there", spelled, marks, err)
 	}
 }
 
@@ -377,10 +449,10 @@ func TestAdoptTakesADirectoryThatOnlyAnEarlierVersionWrote(t *testing.T) {
 	writeFile(t, filepath.Join(v.old.Dir(), "uncertainty.json"), `[{"path":"Notes/source.md","anchor":"section-one","time":"2026-09-22T10:00:00Z"}]`)
 	writeFile(t, filepath.Join(v.old.Dir(), "reader.json"), `{"version":1,"continuation":{"path":"Notes/source.md","anchor":"section-one","offset":3,"identity":"`+anIdentity+`","at":"2026-09-17T10:00:00Z"}}`)
 	before := directoryBytes(t, v.old.Dir())
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	if held := listedMarks(t, v.now); len(held) != 1 || held[0].Kind != machinemarks.Question {
+	if held := v.inVault(t); len(held) != 1 || held[0].Kind != machinemarks.Question {
 		t.Errorf("marks %+v came across, want the one question", held)
 	}
 	if got, found, err := v.now.Bookmark(mark.NoCourse); err != nil || !found || got.Offset != 3 {
@@ -391,29 +463,28 @@ func TestAdoptTakesADirectoryThatOnlyAnEarlierVersionWrote(t *testing.T) {
 	}
 }
 
-// A result the files could not hold is refused whole, and nothing is written.
-func TestAdoptThatWouldPassTheBoundWritesNothing(t *testing.T) {
+// Marks the vault could not hold beside its own are refused whole.
+func TestAdoptOfMarksThatWouldPassTheBoundTakesNoneIn(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
 	// An id that none of the full file's marks has, so that this mark is the one
 	// that does not fit.
 	question := aQuestion()
-	question.ID = markID(mark.MaxMarks + 1)
+	question.ID = markID(machinemarks.MaxLive + 1)
 	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *question))
 	if err := moveBookmark(v.old, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}
-	full := make([]string, mark.MaxMarks)
+	full := make([]string, machinemarks.MaxLive)
 	for i := range full {
 		full[i] = aStoredQuestion(i)
 	}
 	writeFile(t, marksPath(v.now), aMarksFile(full...))
-	before := directoryBytes(t, v.now.Dir())
-	if err := v.now.Adopt(v.oldRoot, admitEverything); !errors.Is(err, mark.ErrInvalid) {
+	if err := v.adopt(t, admitEverything); !errors.Is(err, mark.ErrInvalid) {
 		t.Fatalf("Adopt = %v, want ErrInvalid", err)
 	}
-	if diff := cmp.Diff(before, directoryBytes(t, v.now.Dir())); diff != "" {
-		t.Errorf("a refused adoption changed a file (-before +after):\n%s", diff)
+	if held := v.inVault(t); slices.ContainsFunc(held, func(m machinemarks.Mark) bool { return m.ID == question.ID }) {
+		t.Error("the mark that does not fit was taken in")
 	}
 }
 
@@ -426,7 +497,7 @@ func TestAdoptWithAnUnreadableFileReportsItAndWritesNothing(t *testing.T) {
 		v := movedVault(t)
 		v.keepEverything(t)
 		writeFile(t, marksPath(v.old), `{"version":9,"vault":"x","marks":[]}`)
-		if err := v.now.Adopt(v.oldRoot, admitEverything); !errors.Is(err, mark.ErrUnreadable) {
+		if _, err := v.now.Adopt(v.oldRoot, admitEverything); !errors.Is(err, mark.ErrUnreadable) {
 			t.Fatalf("Adopt = %v, want ErrUnreadable", err)
 		}
 		if held := directoryBytes(t, v.now.Dir()); len(held) != 0 {
@@ -439,7 +510,7 @@ func TestAdoptWithAnUnreadableFileReportsItAndWritesNothing(t *testing.T) {
 		v.keepEverything(t)
 		writeFile(t, progressPath(v.now), `not a file this wrote`)
 		before := directoryBytes(t, v.now.Dir())
-		if err := v.now.Adopt(v.oldRoot, admitEverything); !errors.Is(err, mark.ErrUnreadable) {
+		if _, err := v.now.Adopt(v.oldRoot, admitEverything); !errors.Is(err, mark.ErrUnreadable) {
 			t.Fatalf("Adopt = %v, want ErrUnreadable", err)
 		}
 		if diff := cmp.Diff(before, directoryBytes(t, v.now.Dir())); diff != "" {
@@ -454,19 +525,25 @@ func TestAdoptWritesFilesThatNameThisVaultAndKeepTheirTimes(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
 	v.keepEverything(t)
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.adopt(t, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	for _, path := range []string{marksPath(v.now), progressPath(v.now)} {
-		data, err := os.ReadFile(path) // #nosec G304 -- a file of this test's own temporary directory
-		if err != nil {
-			t.Fatal(err)
-		}
-		var head struct {
-			Vault string `json:"vault"`
-		}
-		if err = json.Unmarshal(data, &head); err != nil || head.Vault != v.newRoot {
-			t.Errorf("%s records the vault %q (%v), want %q", filepath.Base(path), head.Vault, err, v.newRoot)
+	data, err := os.ReadFile(progressPath(v.now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var head struct {
+		Vault string `json:"vault"`
+	}
+	if err = json.Unmarshal(data, &head); err != nil || head.Vault != v.newRoot {
+		t.Errorf("progress.json records the vault %q (%v), want %q", head.Vault, err, v.newRoot)
+	}
+	if _, err = os.Stat(marksPath(v.now)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("an adoption wrote marks.json, which is only read: %v", err)
+	}
+	for _, m := range v.inVault(t) {
+		if before := listedMarks(t, v.old); !slices.ContainsFunc(before, func(o machinemarks.Mark) bool { return o.ID == m.ID && o.At.Equal(m.At) }) {
+			t.Errorf("the mark %s came across made at %v, not when it was made", m.ID, m.At)
 		}
 	}
 	got, want := finishedFor(t, v.now), finishedFor(t, v.old)
@@ -519,7 +596,7 @@ func TestAdoptCarriesTheLedgerOfTheEarlierPath(t *testing.T) {
 	before := readOrEmpty(t, earlierFile)
 	now, nowFile := ledgerOf(t, v.config, v.newRoot)
 	for i := range 2 {
-		if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+		if _, err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
 			t.Fatalf("Adopt %d of an earlier path with only a ledger: %v", i+1, err)
 		}
 		if got := readOrEmpty(t, nowFile); got != before {
@@ -549,13 +626,14 @@ func TestAdoptKeepsTheLedgerThisVaultHas(t *testing.T) {
 		t.Fatal(err)
 	}
 	mine := readOrEmpty(t, nowFile)
-	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	marks, err := v.now.Adopt(v.oldRoot, admitEverything)
+	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 	if got := readOrEmpty(t, nowFile); got != mine {
 		t.Errorf("Adopt changed the ledger this vault has to %q, want %q", got, mine)
 	}
-	if got := len(listedMarks(t, v.now)); got != 3 {
-		t.Errorf("%d marks came across beside the kept ledger, want 3", got)
+	if len(marks) != 3 {
+		t.Errorf("Adopt answered %d marks beside the kept ledger, want 3", len(marks))
 	}
 }

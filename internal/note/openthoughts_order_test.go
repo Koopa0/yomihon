@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -35,10 +35,10 @@ func shelfVault() map[string]string {
 	}
 }
 
-func shelfMarks() []mark.Mark {
-	return []mark.Mark{
-		{Kind: mark.Question, RelPath: "Notes/Source.md", Anchor: "cancel", At: time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Notes/Other.md", Anchor: "part", At: time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC)},
+func shelfMarks() []machinemarks.Mark {
+	return []machinemarks.Mark{
+		{Kind: machinemarks.Question, Path: "Notes/Source.md", Anchor: "cancel", At: time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Notes/Other.md", Anchor: "part", At: time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC)},
 	}
 }
 
@@ -51,7 +51,7 @@ type shelfServer struct {
 	rebuild func(t *testing.T)
 }
 
-func newShelfServer(t *testing.T, files map[string]string, marks []mark.Mark) *shelfServer {
+func newShelfServer(t *testing.T, files map[string]string, marks []machinemarks.Mark) *shelfServer {
 	t.Helper()
 	root := writeNotes(t, files)
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
@@ -75,7 +75,7 @@ func newShelfServer(t *testing.T, files map[string]string, marks []mark.Mark) *s
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
 		Snapshot:  current.Load,
 		Bookmark:  noMark,
-		Questions: func() ([]mark.Mark, error) { return marks, nil },
+		Questions: func() ([]machinemarks.Mark, error) { return marks, nil },
 		Log:       log,
 	})
 	mux := http.NewServeMux()
@@ -228,9 +228,9 @@ func TestEachRowCarriesTheSentenceOfItsPlaceReadAsTheNoteIsNow(t *testing.T) {
 	t.Parallel()
 
 	marks := append(shelfMarks(),
-		mark.Mark{Kind: mark.Question, RelPath: "Notes/Source.md", Anchor: "wait", At: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
-		mark.Mark{Kind: mark.Question, RelPath: "Notes/Source.md", Anchor: "bare", At: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
-		mark.Mark{Kind: mark.Question, RelPath: "Notes/Source.md", At: time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/Source.md", Anchor: "wait", At: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/Source.md", Anchor: "bare", At: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Notes/Source.md", At: time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)},
 	)
 	shelf := newShelfServer(t, shelfVault(), marks)
 	want := map[string]string{

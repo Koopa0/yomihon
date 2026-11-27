@@ -95,10 +95,10 @@ func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			before := mkTree(t, r.root)
+			before := tree(t, r.root)
 			response := r.do(http.MethodPatch, "/mark/"+tt.from.ID, `{"seen":`+mkSeenJSON(t, tt.from.Seen)+","+tt.body+`}`)
 			mkStatus(t, response, http.StatusUnprocessableEntity)
-			if diff := cmp.Diff(before, mkTree(t, r.root)); diff != "" {
+			if diff := cmp.Diff(before, tree(t, r.root)); diff != "" {
 				t.Errorf("a refused change wrote:\n%s", diff)
 			}
 		})

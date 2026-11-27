@@ -122,10 +122,11 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 }
 
-// One mark of marks.json that does not fit a line (a body of quotes that is
-// within the store's bound and past the line's once escaped) does not keep every
-// later write from going through: it is skipped and counted, the rest are taken
-// in, and marks.json, which still holds it, is not touched.
+// A mark of marks.json that does not hold its shape (here a thought that says
+// nothing, as no version wrote) is treated as a line of another machine is: it
+// is left where it is and counted, and it does not keep the rest from being
+// taken in or any later write from going through. marks.json, which still
+// holds it, is not touched.
 func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
 	t.Parallel()
 	_, root, err := vault.ResolveRoot(t.TempDir())
@@ -134,9 +135,8 @@ func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
 	}
 	config := t.TempDir()
 	store := newStoreFor(t, config, root)
-	big := strings.Repeat(`\"`, 32<<10) // 32 KiB of quote characters, as JSON text
 	writeFile(t, marksPath(store), aMarksFile(
-		`{"id":"`+markID(1)+`","kind":"thought","path":"Notes/a.md","body":"`+big+`","at":"2026-09-22T11:00:00Z"}`,
+		`{"id":"`+markID(1)+`","kind":"thought","path":"Notes/a.md","at":"2026-09-22T11:00:00Z"}`,
 		`{"id":"`+markID(2)+`","kind":"thought","path":"Notes/a.md","body":"fine","at":"2026-09-22T12:00:00Z"}`,
 	))
 	before, err := os.ReadFile(marksPath(store))
@@ -161,35 +161,5 @@ func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
 	after, err := os.ReadFile(marksPath(store))
 	if err != nil || !bytes.Equal(after, before) {
 		t.Fatalf("marks.json changed: %v", err)
-	}
-}
-
-// A marks.json that cannot be read stops the first write, which is told what it
-// is, and nothing is made in the vault.
-func TestAMarksFileThatCannotBeReadStopsTheFirstWrite(t *testing.T) {
-	t.Parallel()
-	_, root, err := vault.ResolveRoot(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	config := t.TempDir()
-	store := newStoreFor(t, config, root)
-	writeFile(t, marksPath(store), `{"version":1,"marks":[`)
-	m := machineMarksOver(t, store, root, config)
-	mk := machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "a.md", Body: "x", At: time.Now()}
-	if _, err = m.Put(t.Context(), &mk, nil, nil); err == nil {
-		t.Fatal("a write went through over a marks.json that cannot be read")
-	}
-	if _, err = os.Stat(filepath.Join(root, "reader-notes")); err == nil {
-		t.Fatal("a refused write made the reader folder")
-	}
-}
-
-// The machine file's bound on the marks that are not deleted is the one the
-// marks file has.
-func TestTheMachineFileHasTheMarksFilesBound(t *testing.T) {
-	t.Parallel()
-	if machinemarks.MaxLive != mark.MaxMarks {
-		t.Fatalf("MaxLive = %d, MaxMarks = %d", machinemarks.MaxLive, mark.MaxMarks)
 	}
 }

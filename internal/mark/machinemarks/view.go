@@ -66,6 +66,23 @@ type view struct {
 	ledgerChanged int
 }
 
+// has says a line of some machine is a line of the mark id, a deletion among
+// them.
+func (v *view) has(id string) bool {
+	_, ok := v.byMark[id]
+	return ok
+}
+
+// holdsSame says a mark that is there and not deleted is the same act as m.
+func (v *view) holdsSame(m *Mark) bool {
+	for _, r := range v.byMark {
+		if head := &r.heads[0].Mark; !head.Deleted && SameAct(head, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // live is how many marks are not deleted.
 func (v *view) live() int {
 	n := 0

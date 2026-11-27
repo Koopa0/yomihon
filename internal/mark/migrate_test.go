@@ -289,7 +289,6 @@ func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 			"a question twice", "uncertainty.json", `[{"path":"a.md","anchor":"","time":"2026-09-22T10:00:00Z"},{"path":"a.md","anchor":"","time":"2026-09-23T10:00:00Z"}]`,
 			readMarks, writeMark,
 		},
-		{"a question the shape refuses", "uncertainty.json", `[{"path":"Source.md\nForged","anchor":"","time":"2026-09-22T10:00:00Z"}]`, readMarks, writeMark},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

@@ -15,13 +15,6 @@ import (
 // version still kept are included, as the file has them. A file that cannot be
 // read is ErrUnreadable, and the write that asked stops with it.
 func (s *Store) MachineMarks() ([]machinemarks.Mark, error) {
-	held, _, err := s.loadMarks()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]machinemarks.Mark, len(held))
-	for i := range held {
-		out[i] = toMachine(&held[i])
-	}
-	return out, nil
+	held, _, _, err := s.loadMarks()
+	return held, err
 }

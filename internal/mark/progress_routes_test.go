@@ -67,37 +67,6 @@ func writeJSON(t *testing.T, handler http.Handler, method, target, body string) 
 	return write(t, handler, method, target, "application/json", body)
 }
 
-// treeOf is every file and directory under dir, with each file's bytes.
-func treeOf(t *testing.T, dir string) map[string]string {
-	t.Helper()
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if closeErr := root.Close(); closeErr != nil {
-			t.Error(closeErr)
-		}
-	})
-	tree := map[string]string{}
-	err = fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			tree[path+"/"] = ""
-			return nil
-		}
-		data, err := fs.ReadFile(root.FS(), path)
-		tree[path] = string(data)
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tree
-}
-
 // aSchool is aVault with courses: each course path and what it walks.
 type aSchool struct {
 	aVault
@@ -640,7 +609,7 @@ func TestProgressRoutesWriteNothingIntoTheFolderBeingRead(t *testing.T) {
 	store := newStoreFor(t, configDir, vaultRoot)
 	mux := http.NewServeMux()
 	mark.NewHandler(store, newKept(t, store, vaultRoot), theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
-	before := treeOf(t, vaultRoot)
+	before := tree(t, vaultRoot)
 
 	first := decodeMoved(t, putBookmark(t, mux, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark
 	putBookmark(t, mux, aBookmarkBody(goCourse, "Notes/b.md"))
@@ -650,7 +619,7 @@ func TestProgressRoutesWriteNothingIntoTheFolderBeingRead(t *testing.T) {
 	finishing(t, mux, http.MethodDelete, "Notes/a.md", "")
 	finishing(t, mux, http.MethodPut, "Notes/b.md", "")
 
-	if diff := cmp.Diff(before, treeOf(t, vaultRoot)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, vaultRoot)); diff != "" {
 		t.Errorf("the routes changed the folder being read (-before +after):\n%s", diff)
 	}
 	if got := progressOf(t, store); got == "" || !strings.HasPrefix(progressPath(store), configDir) {

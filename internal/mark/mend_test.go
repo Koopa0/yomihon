@@ -82,10 +82,10 @@ func TestMendPutsBackWhatGitTookWithoutBeingAsked(t *testing.T) {
 func TestMendWritesNothingWhereNothingIsMissing(t *testing.T) {
 	t.Parallel()
 	root, kept, logged := aMendedVault(t)
-	before := mkTree(t, root)
+	before := tree(t, root)
 	kept.Mend()
 	kept.Mend()
-	if diff := cmp.Diff(before, mkTree(t, root)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, root)); diff != "" {
 		t.Errorf("a page that found nothing missing changed the vault (-before +after):\n%s", diff)
 	}
 	if logged.Len() != 0 {
@@ -105,9 +105,9 @@ func TestMendLeavesAFolderItCannotWriteToAsItFound(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "reader-notes"), []byte("not a folder"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	before := mkTree(t, root)
+	before := tree(t, root)
 	kept.Mend()
-	if diff := cmp.Diff(before, mkTree(t, root)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, root)); diff != "" {
 		t.Errorf("a mend over a folder it cannot write to changed the vault (-before +after):\n%s", diff)
 	}
 	if line := logged.String(); !strings.Contains(line, "level=WARN") {
@@ -124,14 +124,14 @@ func TestMendSaysAFileAnotherProgramChangedToTheLogOnce(t *testing.T) {
 	if err := os.WriteFile(foreign, []byte("{\"this\":\"is not a line\"}\nnot json at all\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	before := mkTree(t, root)
+	before := tree(t, root)
 	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
 	kept.SetClock(func() time.Time { return at })
 	for range 3 {
 		kept.Mend()
 		at = at.Add(time.Minute)
 	}
-	if diff := cmp.Diff(before, mkTree(t, root)); diff != "" {
+	if diff := cmp.Diff(before, tree(t, root)); diff != "" {
 		t.Errorf("a mend over a file it cannot use changed the vault (-before +after):\n%s", diff)
 	}
 	if n := strings.Count(logged.String(), "level=WARN"); n != 1 {

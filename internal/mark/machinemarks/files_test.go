@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
 	"github.com/koopa0/yomihon/internal/mark/sealedline"
@@ -241,19 +242,6 @@ func TestTheLimits(t *testing.T) {
 	if _, err := os.Stat(a.marksDir()); err == nil {
 		t.Fatal("a refused line made the folders")
 	}
-	for _, mark := range []Mark{
-		{ID: "short", Kind: Thought, Path: "a.md", At: thought(1, "").At},
-		{ID: mid(1), Kind: "idea", Path: "a.md", At: thought(1, "").At},
-		{ID: mid(1), Kind: Thought, Path: "", At: thought(1, "").At},
-		{ID: mid(1), Kind: Thought, Path: "a.md"},
-		{ID: mid(1), Kind: Thought, Path: "a.md", Body: "a\xffb", At: thought(1, "").At},
-		{ID: mid(1), Kind: Thought, Path: "a.md", Body: "a\x00b", At: thought(1, "").At},
-		{ID: mid(1), Kind: Thought, Path: "a.md", Before: "words before nothing", At: thought(1, "").At},
-	} {
-		if _, err := a.m.Put(t.Context(), &mark, nil, nil); !errors.Is(err, ErrInvalidMark) {
-			t.Errorf("Put(%+v) = %v, want ErrInvalidMark", mark, err)
-		}
-	}
 	if _, err := a.m.Put(t.Context(), nil, nil, nil); !errors.Is(err, ErrInvalidMark) {
 		t.Errorf("Put(nil) = %v", err)
 	}
@@ -300,57 +288,101 @@ func TestTheCountsAreBoundsOfAWriteAndNotOfARead(t *testing.T) {
 	}
 }
 
-// A mark is held to the shape the store of the earlier file holds it to, on the
-// way in and on the way out: the lines of other machines are untrusted, and a
-// line that carries what no page of this reader produces is not read.
-func TestAMarkIsHeldToTheShapeTheEarlierFileHolds(t *testing.T) {
+// Validate is the one rule of a mark's shape, which a page's request, a line of
+// any machine and a mark of the earlier file are held to.
+func TestValidate(t *testing.T) {
 	t.Parallel()
-	nfd := "Café/notes.md" // "e" and a combining accent: not NFC
-	for _, tc := range []struct {
+	for _, tt := range []struct {
 		name  string
 		shape func(*Mark)
+		ok    bool
 	}{
-		{"a path that leaves the vault", func(m *Mark) { m.Path = "../outside.md" }},
-		{"a rooted path", func(m *Mark) { m.Path = "/etc/passwd" }},
-		{"a path that is a dot", func(m *Mark) { m.Path = "." }},
-		{"a path with a dot dot inside", func(m *Mark) { m.Path = "a/../b.md" }},
-		{"a path with a line break", func(m *Mark) { m.Path = "a\nb.md" }},
-		{"a path with a line separator", func(m *Mark) { m.Path = "a\u2028b.md" }},
-		{"a path that is not NFC", func(m *Mark) { m.Path = nfd }},
-		{"an anchor with a fragment mark", func(m *Mark) { m.Anchor = "a#b" }},
-		{"an anchor with a space", func(m *Mark) { m.Anchor = "a b" }},
-		{"an anchor too long", func(m *Mark) { m.Anchor = strings.Repeat("a", 257) }},
-		{"a quote too long", func(m *Mark) { m.Quote = strings.Repeat("q", 8<<10+1) }},
-		{"words before too long", func(m *Mark) { m.Quote, m.Before = "q", strings.Repeat("b", 513) }},
-		{"words after too long", func(m *Mark) { m.Quote, m.After = "q", strings.Repeat("b", 513) }},
-		{"a body too long", func(m *Mark) { m.Body = strings.Repeat("b", 32<<10+1) }},
-		{"an identity that is not a content identity", func(m *Mark) { m.Identity = "abc" }},
+		{"a thought", func(*Mark) {}, true},
+		{"a question that says nothing", func(m *Mark) { m.Kind, m.Body = Question, "" }, true},
+		{"a highlight", func(m *Mark) { m.Kind, m.Body, m.Quote = Highlight, "", "q" }, true},
+		{"a deleted highlight of nothing", func(m *Mark) { m.Kind, m.Body, m.Deleted = Highlight, "", true }, true},
+		{"a deleted thought that says nothing", func(m *Mark) { m.Body, m.Deleted = "", true }, true},
+		{"a resolution kept through a change of state", func(m *Mark) { m.Resolved = m.At }, true},
+		{"a short id", func(m *Mark) { m.ID = "short" }, false},
+		{"an id in capitals", func(m *Mark) { m.ID = strings.Repeat("A", 32) }, false},
+		{"a kind that is none", func(m *Mark) { m.Kind = "idea" }, false},
+		{"no time", func(m *Mark) { m.At = time.Time{} }, false},
+		{"a highlight of nothing", func(m *Mark) { m.Kind, m.Body = Highlight, "" }, false},
+		{"a highlight with words of its own", func(m *Mark) { m.Kind, m.Quote = Highlight, "q" }, false},
+		{"a thought that says nothing", func(m *Mark) { m.Body = "" }, false},
+		{"words around nothing", func(m *Mark) { m.Before = "before" }, false},
+		{"words that are not text", func(m *Mark) { m.Body = "a\xffb" }, false},
+		{"words with a NUL", func(m *Mark) { m.Body = "a\x00b" }, false},
+		{"a quote too long", func(m *Mark) { m.Quote = strings.Repeat("q", 8<<10+1) }, false},
+		{"words before too long", func(m *Mark) { m.Quote, m.Before = "q", strings.Repeat("b", 513) }, false},
+		{"words after too long", func(m *Mark) { m.Quote, m.After = "q", strings.Repeat("b", 513) }, false},
+		{"a body too long", func(m *Mark) { m.Body = strings.Repeat("b", 32<<10+1) }, false},
+		{"an identity", func(m *Mark) { m.Identity = strings.Repeat("ab", 32) }, true},
+		{"an identity that is not one", func(m *Mark) { m.Identity = "abc" }, false},
+		{"an identity in capitals", func(m *Mark) { m.Identity = strings.Repeat("AB", 32) }, false},
+		{"no note", func(m *Mark) { m.Path = "" }, false},
+		{"a path too long", func(m *Mark) { m.Path = strings.Repeat("a", 1025) }, false},
+		{"a path that leaves the vault", func(m *Mark) { m.Path = "../outside.md" }, false},
+		{"a rooted path", func(m *Mark) { m.Path = "/etc/passwd" }, false},
+		{"a path that is a dot", func(m *Mark) { m.Path = "." }, false},
+		{"a path with a dot dot inside", func(m *Mark) { m.Path = "a/../b.md" }, false},
+		{"a path with a line break", func(m *Mark) { m.Path = "a\nb.md" }, false},
+		{"a path with an escape", func(m *Mark) { m.Path = "a\x1b[2J.md" }, false},
+		{"a path with a line separator", func(m *Mark) { m.Path = "a\u2028b.md" }, false},
+		{"a path that is not NFC", func(m *Mark) { m.Path = "Cafe\u0301/notes.md" }, false},
+		{"a path with a space", func(m *Mark) { m.Path = "Notes/A published note.md" }, true},
+		{"a path in Chinese", func(m *Mark) { m.Path = "Notes/go/提早返回的管線.md" }, true},
+		{"a path with an ideographic space", func(m *Mark) { m.Path = "Notes/日本\u3000語.md" }, true},
+		{"no anchor", func(m *Mark) { m.Anchor = "" }, true},
+		{"a block anchor", func(m *Mark) { m.Anchor = "^safe" }, true},
+		{"an anchor with an ampersand", func(m *Mark) { m.Anchor = "a&b" }, true},
+		{"an anchor with a C1 control", func(m *Mark) { m.Anchor = "a\u0085b" }, true},
+		{"an anchor of 256 bytes", func(m *Mark) { m.Anchor = strings.Repeat("a", 256) }, true},
+		{"an anchor too long", func(m *Mark) { m.Anchor = strings.Repeat("a", 257) }, false},
+		{"an anchor of 256 bytes in kanji", func(m *Mark) { m.Anchor = strings.Repeat("漢", 85) + "a" }, true},
+		{"an anchor too long in kanji", func(m *Mark) { m.Anchor = strings.Repeat("漢", 86) }, false},
+		{"an anchor that is not text", func(m *Mark) { m.Anchor = "\xff" }, false},
+		{"an anchor with DEL", func(m *Mark) { m.Anchor = "a\x7fb" }, false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			a := newClone(t, "A")
-			m := thought(1, "x")
-			tc.shape(&m)
-			if _, err := a.m.Put(t.Context(), &m, nil, nil); !errors.Is(err, ErrInvalidMark) {
-				t.Errorf("Put = %v, want ErrInvalidMark", err)
-			}
-			// The same shape in a line another machine wrote, whole and with its
-			// checksum right: it is not read.
-			line := Line{Fmt: Format, M: "22222222", Rev: 1, T: 1, Mark: m}
-			raw, err := line.encode()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err = os.MkdirAll(a.marksDir(), 0o750); err != nil {
-				t.Fatal(err)
-			}
-			if err = os.WriteFile(filepath.Join(a.marksDir(), "22222222.jsonl"), append(raw, '\n'), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if v := a.view(); len(v.Entries(open)) != 0 || v.Damaged() != 1 {
-				t.Errorf("%d marks read and %d damaged from a line that is not the shape of a mark, want none read and 1 damaged", len(v.Entries(open)), v.Damaged())
-			}
-		})
+		m := thought(1, "x")
+		tt.shape(&m)
+		if err := m.Validate(); (err == nil) != tt.ok || (err != nil && !errors.Is(err, ErrInvalidMark)) {
+			t.Errorf("%s: Validate = %v, want ok %v", tt.name, err, tt.ok)
+		}
+	}
+	for _, r := range "#?/\\\"'<> \t\n\x00\x1f" {
+		if err := CheckAnchor("a" + string(r) + "b"); err == nil {
+			t.Errorf("CheckAnchor accepted %U", r)
+		}
+	}
+}
+
+// A write is refused with ErrInvalidMark and writes nothing, and the same shape
+// in a line another machine wrote, whole and with its checksum right, is
+// counted as damaged and not read.
+func TestAMarkOutOfShapeIsRefusedOnTheWayInAndOut(t *testing.T) {
+	t.Parallel()
+	a := newClone(t, "A")
+	m := thought(1, "x")
+	m.Path = "../outside.md"
+	if _, err := a.m.Put(t.Context(), &m, nil, nil); !errors.Is(err, ErrInvalidMark) {
+		t.Errorf("Put = %v, want ErrInvalidMark", err)
+	}
+	if _, err := os.Stat(a.marksDir()); err == nil {
+		t.Fatal("a refused write made the folders")
+	}
+	raw, err := (&Line{Fmt: Format, M: "22222222", Rev: 1, T: 1, Mark: m}).encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(a.marksDir(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(a.marksDir(), "22222222.jsonl"), append(raw, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if v := a.view(); len(v.Entries(open)) != 0 || v.Damaged() != 1 {
+		t.Fatalf("another machine's line out of shape reads as %d marks, %d damaged; want none read and 1 counted", len(v.Entries(open)), v.Damaged())
 	}
 }
 

@@ -263,10 +263,7 @@ func validate(m *Mark, edit *Edit) error {
 	if err := validateEdit(edit); err != nil {
 		return err
 	}
-	if err := m.shape(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidMark, err)
-	}
-	return nil
+	return m.Validate()
 }
 
 func validateEdit(e *Edit) error {
@@ -280,19 +277,19 @@ func validateEdit(e *Edit) error {
 // conversion and a clone's retirement about, lets plan say what to write, and
 // writes it.
 func (m *Marks) change(ctx context.Context, plan func(*view) (*proposal, error)) (Result, error) {
-	return m.run(ctx, false, plan)
+	return m.run(ctx, nil, plan)
 }
 
-// run is change, and says whether the earlier file of marks is to be taken in
-// again whether or not it was, which is what an adoption asks for.
-func (m *Marks) run(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error)) (Result, error) {
+// run is change, with the marks an adoption brings from the vault's earlier
+// path, which are taken in before plan is asked.
+func (m *Marks) run(ctx context.Context, adopted []Mark, plan func(*view) (*proposal, error)) (Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	start := time.Now()
 	var res Result
 	err := confdir.Exclusive(ctx, m.dir, lockName, confdir.LockWait, func() error {
 		res.LockWait = time.Since(start)
-		return m.locked(ctx, takeIn, plan, &res)
+		return m.locked(ctx, adopted, plan, &res)
 	})
 	res.Total = time.Since(start)
 	if errors.Is(err, ErrNotInVault) {
@@ -307,7 +304,7 @@ func (m *Marks) run(ctx context.Context, takeIn bool, plan func(*view) (*proposa
 }
 
 // locked is change inside the lock.
-func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error), res *Result) error {
+func (m *Marks) locked(ctx context.Context, adopted []Mark, plan func(*view) (*proposal, error), res *Result) error {
 	ledgerTime := time.Duration(0)
 	record := func(e *ledger.Event) error {
 		began := time.Now()
@@ -329,7 +326,7 @@ func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*prop
 		// throw away what it holds: nothing is written until it can be read.
 		return fmt.Errorf("%w: %w", ErrOwnFileUnreadable, v.ownErr)
 	}
-	if v, err = m.settle(v, takeIn, record); err != nil {
+	if v, err = m.settle(v, adopted, record); err != nil {
 		return err
 	}
 	p, err := plan(v)
@@ -348,8 +345,9 @@ func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*prop
 
 // settle brings about what a write needs before the write: an id for this
 // machine, the retirement of an id another machine has a copy of, and the
-// taking in of the earlier file. It answers the view as it is after.
-func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (*view, error) {
+// taking in of the earlier file and of what an adoption brings. It answers the
+// view as it is after.
+func (m *Marks) settle(v *view, adopted []Mark, record func(*ledger.Event) error) (*view, error) {
 	// apply records events and reads again what they changed.
 	apply := func(events ...*ledger.Event) error {
 		for _, e := range events {
@@ -375,8 +373,20 @@ func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (
 			return nil, err
 		}
 	}
-	if m.legacy != nil && (takeIn || (!v.st.converted && !v.ownFound)) {
-		if err := m.convert(v, takeIn, record); err != nil {
+	if m.legacy != nil && !v.st.converted && !v.ownFound {
+		legacy, err := m.legacy()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrLegacy, err)
+		}
+		if err = m.convert(v, legacy, false, record); err != nil {
+			return nil, err
+		}
+		if err = apply(); err != nil {
+			return nil, err
+		}
+	}
+	if len(adopted) > 0 {
+		if err := m.convert(v, adopted, true, record); err != nil {
 			return nil, err
 		}
 		if err := apply(); err != nil {
@@ -386,39 +396,57 @@ func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (
 	return v, nil
 }
 
-// convert takes in the marks of the earlier file, once: as one line of the
-// ledger holding every line, so that a conversion is one commit and one sync
-// however many marks there are. The earlier file is only read.
+// convert takes in marks as one line of the ledger holding every line, so
+// that a conversion is one commit and one sync however many marks there are.
+// The files they come from are only read, and a mark that does not fit a line
+// stays there, is recorded as skipped and keeps no other from going through.
 //
-// takeIn is a conversion made after the first, which takes in only the marks of
-// the earlier file that no line of any machine and no earlier conversion has: a
-// mark that was taken in and then deleted has its deletion in the vault and is
-// not brought back, and one that was set aside as not fitting a line is not set
-// aside again.
-func (m *Marks) convert(v *view, takeIn bool, record func(*ledger.Event) error) error {
-	legacy, err := m.legacy()
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrLegacy, err)
+// The first conversion takes in this vault's earlier file. adopted is one of
+// the marks an adoption brings from the vault's earlier path, which takes in
+// only what no line of any machine has, by id, nor an earlier conversion
+// skipped, and what is not the same act as a mark that is there and not
+// deleted: a mark that was taken in and then deleted has its deletion in the
+// vault and is not brought back, and the reader's own mark in the same place
+// stays theirs. It is refused whole, with ErrLimit, when the marks that are not
+// deleted would pass the limit.
+func (m *Marks) convert(v *view, marks []Mark, adopted bool, record func(*ledger.Event) error) error {
+	type skipped struct {
+		mark Mark
+		why  error
 	}
-	var batch []byte
+	var (
+		batch []byte
+		skips []skipped
+		taken []*Mark
+		grows int
+	)
 	t := m.now().UnixMilli()
-	for i := range legacy {
-		mark := legacy[i]
-		if _, there := v.byMark[mark.ID]; there || (takeIn && v.st.skipped[mark.ID]) {
+	for i := range marks {
+		mark := &marks[i]
+		if v.has(mark.ID) || adopted && (v.st.skipped[mark.ID] || v.holdsSame(mark) ||
+			slices.ContainsFunc(taken, func(other *Mark) bool { return other.ID == mark.ID || SameAct(other, mark) })) {
 			continue
 		}
-		raw, why := m.legacyLine(v, &mark, t)
+		raw, why := m.legacyLine(v, mark, t)
 		if why != nil {
-			// It stays in the earlier file, which is never changed, and does
-			// not keep every later write from going through.
-			if err := skip(record, v, &mark, why); err != nil {
-				return err
-			}
+			skips = append(skips, skipped{*mark, why})
 			continue
 		}
 		batch = append(append(batch, raw...), '\n')
+		taken = append(taken, mark)
+		if !mark.Deleted {
+			grows++
+		}
 	}
-	if takeIn && len(batch) == 0 {
+	if adopted && grows > 0 && v.live()+grows > m.maxLive {
+		return fmt.Errorf("%w: %d marks are kept and %d would be brought across", ErrLimit, v.live(), grows)
+	}
+	for i := range skips {
+		if err := skip(record, v, &skips[i].mark, skips[i].why); err != nil {
+			return err
+		}
+	}
+	if adopted && len(batch) == 0 {
 		return nil
 	}
 	return record(&ledger.Event{Kind: kindConverted, Machine: v.st.id, Process: m.currentSession(), Content: batch})
@@ -443,7 +471,7 @@ func (m *Marks) legacyLine(v *view, mark *Mark, t int64) ([]byte, error) {
 // skip records that a mark of the earlier file was not taken in.
 func skip(record func(*ledger.Event) error, v *view, mark *Mark, why error) error {
 	content := []byte(mark.ID + " " + why.Error())
-	if !isID(mark.ID) {
+	if !ValidID(mark.ID) {
 		content = []byte(strings.Repeat("0", 32) + " " + why.Error())
 	}
 	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Content: content})

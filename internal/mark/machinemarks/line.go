@@ -148,18 +148,18 @@ func decode(raw []byte) (Line, verdict) {
 }
 
 // wellFormed says a line is one every writer here makes: ids and codes in
-// their shapes, a rev, and a mark of a kind there is.
+// their shapes, a rev, and a mark that holds its shape.
 func (l *Line) wellFormed() bool {
 	if !isMachine(l.M) || (l.S != "" && !isMachine(l.S)) || l.Rev == 0 {
 		return false
 	}
-	return l.Mark.shape() == nil
+	return l.Mark.Validate() == nil
 }
 
-// The bounds a mark is held to, the same as the file of marks that came before
-// this one holds a mark to: the size of the things themselves, so that a value
-// beyond them was not produced by a reading page. A line of another machine is
-// untrusted, and is held to them too.
+// The bounds a mark is held to: the size of the things themselves, so that a
+// value beyond them was not produced by a reading page. A line of another
+// machine, and a mark of the earlier file, is untrusted, and is held to them
+// too.
 const (
 	maxPathBytes    = 1024
 	maxAnchorBytes  = 256
@@ -169,34 +169,45 @@ const (
 	identityLength  = 2 * sha256.Size
 )
 
-// shape says whether a mark is one every writer here makes, and says what is
-// wrong when it is not.
+// Validate says m is a mark the machine files hold, and what is wrong with it
+// when it is not, wrapping ErrInvalidMark. It is the one rule of a mark's
+// shape, which a page's request, a line of any machine and a mark of the
+// earlier file are all held to: a highlight is a passage and carries no words
+// of its own, a thought says something, and every field is in its shape and
+// within its bound. A deleted mark keeps the words it had, and need not have
+// any.
+func (m *Mark) Validate() error {
+	if err := m.shape(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidMark, err)
+	}
+	return nil
+}
+
 func (m *Mark) shape() error {
 	switch {
-	case !isID(m.ID):
+	case !ValidID(m.ID):
 		return errors.New("the id is not 32 lowercase hex digits")
 	case !m.Kind.valid():
 		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
 	case m.At.IsZero():
 		return errors.New("the mark has no time")
+	case m.Kind == Highlight && m.Body != "":
+		return errors.New("a highlight carries no words of its own")
 	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
 		return errors.New("a highlight is a passage and has its words")
+	case m.Kind == Thought && m.Body == "" && !m.Deleted:
+		return errors.New("a thought says something")
 	case m.Quote == "" && (m.Before != "" || m.After != ""):
 		return errors.New("words around nothing")
-	case m.Identity != "" && !isHex(m.Identity, identityLength):
+	case m.Identity != "" && !ValidIdentity(m.Identity):
 		return errors.New("the identity is not a content identity")
 	}
 	if err := vault.CheckStoredPath(m.Path, maxPathBytes); err != nil {
 		return fmt.Errorf("the note path: %w", err)
 	}
-	if err := checkAnchor(m.Anchor); err != nil {
+	if err := CheckAnchor(m.Anchor); err != nil {
 		return err
 	}
-	return m.checkWords()
-}
-
-// checkWords holds the reader's words to their sizes and to being text.
-func (m *Mark) checkWords() error {
 	for _, f := range [...]struct {
 		name  string
 		value string
@@ -217,10 +228,10 @@ func (m *Mark) checkWords() error {
 	return nil
 }
 
-// checkAnchor says a is an anchor a mark may hold: an id a renderer wrote,
-// with no space, control character or character that ends the fragment of an
-// address.
-func checkAnchor(a string) error {
+// CheckAnchor says a is an anchor a mark or a bookmark may hold: empty, for the
+// note as a whole, or an id a renderer wrote, with no space, control character
+// or character that ends the fragment of an address.
+func CheckAnchor(a string) error {
 	switch {
 	case !utf8.ValidString(a):
 		return errors.New("the anchor is not valid UTF-8")
@@ -233,6 +244,13 @@ func checkAnchor(a string) error {
 	}
 	return nil
 }
+
+// ValidID says s is a mark's id: 32 lowercase hexadecimal digits.
+func ValidID(s string) bool { return isHex(s, 32) }
+
+// ValidIdentity says s is a content identity as a page stamps it: the SHA-256
+// of a note's bytes in lowercase hexadecimal.
+func ValidIdentity(s string) bool { return isHex(s, identityLength) }
 
 // conflictMarker says a line is one of git's conflict markers: a run of seven
 // or more '<', '>' or '|' alone or followed by a space, or a line of seven or
@@ -259,7 +277,6 @@ func conflictMarker(line []byte) bool {
 func (k Kind) valid() bool { return k == Highlight || k == Thought || k == Question }
 
 func isMachine(s string) bool { return isHex(s, 8) }
-func isID(s string) bool      { return isHex(s, 32) }
 
 func isHex(s string, n int) bool {
 	if len(s) != n {

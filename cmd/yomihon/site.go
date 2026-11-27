@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/approval"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -156,7 +157,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	keptPlace := func() (mark.Bookmark, bool) { return mark.Bookmark{}, false }
 	markAddress := ""
 	questionAddress := ""
-	var questions func() ([]mark.Mark, error)
+	var questions func() ([]machinemarks.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
 	var kept *mark.Kept
