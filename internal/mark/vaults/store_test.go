@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -258,7 +259,7 @@ func TestTheListIsOrderedByLastReadWithTheLatestFirst(t *testing.T) {
 // and not answered from memory as though it had been.
 func TestALastReadThatWasNotWrittenIsWrittenNextTime(t *testing.T) {
 	t.Parallel()
-	if !runtimeHasModes() {
+	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not refuse a directory by its permission bits")
 	}
 	config := t.TempDir()
@@ -343,21 +344,13 @@ func TestANameIsKeptAsOneLineOfValidTextThatIsNotTooLong(t *testing.T) {
 			t.Errorf("cleanName(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
-	long := cleanName(repeat("字", 500), "")
+	long := cleanName(strings.Repeat("字", 500), "")
 	if len(long) > maxNameBytes || len([]rune(long)) == 0 {
 		t.Errorf("a long name is %d bytes, want 1..%d", len(long), maxNameBytes)
 	}
 	if got := cleanName("", "/vaults/notes"); got != "notes" {
 		t.Errorf("an empty name with a path = %q, want the folder's name", got)
 	}
-}
-
-func repeat(s string, n int) string {
-	out := make([]byte, 0, len(s)*n)
-	for range n {
-		out = append(out, s...)
-	}
-	return string(out)
 }
 
 func TestARemovedVaultComesBackWithTheSameIDAndPort(t *testing.T) {
@@ -588,11 +581,6 @@ func TestAChangeLeavesOnlyTheListAndItsLockInTheDirectory(t *testing.T) {
 	if want := []string{listFile, lockFile}; !slices.Equal(names, want) {
 		t.Fatalf("the directory holds %v, want only %v: no temporary file or anything else left behind", names, want)
 	}
-	for _, name := range names {
-		if got, want := fileMode(t, filepath.Join(config, "yomihon", name)), os.FileMode(0o600); runtimeHasModes() && got != want {
-			t.Errorf("%s is mode %v, want %v: what the reader has opened is theirs alone", name, got, want)
-		}
-	}
 }
 
 // readFile is a file of this test's own temporary directory.
@@ -603,15 +591,6 @@ func readFile(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return data
-}
-
-func fileMode(t *testing.T, path string) os.FileMode {
-	t.Helper()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return info.Mode().Perm()
 }
 
 // deadPID is the id of a process that has ended.

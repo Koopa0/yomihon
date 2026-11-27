@@ -10,9 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
-// runtimeHasModes says whether file modes mean anything on this system.
-func runtimeHasModes() bool { return runtime.GOOS != "windows" }
-
 func TestARunningInstanceIsOneWhoseProcessIsStillThere(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
