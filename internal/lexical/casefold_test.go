@@ -62,31 +62,3 @@ func TestFoldRunePreservesSimpleOrbitsAndOneRune(t *testing.T) {
 		}
 	}
 }
-
-func TestSimpleCaseMatchesKeepOriginalEvidence(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, body, query string
-		want              []HitRun
-	}{
-		{name: "Greek body", body: "here ΟΔΟΣ there", query: "οδος", want: []HitRun{{Text: "here "}, {Text: "ΟΔΟΣ", Hit: true}, {Text: " there"}}},
-		{name: "shrinking prefix and hit", body: "ſſſſ ſtop tail", query: "stop", want: []HitRun{{Text: "ſſſſ "}, {Text: "ſtop", Hit: true}, {Text: " tail"}}},
-		{name: "symbol byte change", body: "before ϐ after", query: "β", want: []HitRun{{Text: "before "}, {Text: "ϐ", Hit: true}, {Text: " after"}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			idx := NewIndex([]Document{{RelPath: "Notes/case.md", Title: "Case", PlainText: tt.body}}, validArtifactPolicy(t))
-			a, err := idx.Search(Parse(tt.query), -1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(a.Results) != 1 {
-				t.Fatalf("Search(%q) results = %v, want one", tt.query, a.Results)
-			}
-			if diff := cmp.Diff(tt.want, MarkHits(a.Results[0].Snippet, Parse(tt.query).Tokens())); diff != "" {
-				t.Errorf("Search(%q) evidence (-want +got):\n%s", tt.query, diff)
-			}
-		})
-	}
-}

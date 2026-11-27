@@ -1,10 +1,12 @@
 package lexical
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -96,27 +98,15 @@ func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 	if doc.Title != title {
 		t.Fatalf("DocumentFromNote().Title = %q, want %q", doc.Title, title)
 	}
-	idx := NewIndex([]Document{doc}, validArtifactPolicy(t))
-	answer, err := idx.Search(Parse(title), 20)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if answer.Total != 1 || len(answer.Results) != 1 {
-		t.Fatalf("Search(%q) = %+v, want exactly one result", title, answer)
-	}
-	if answer.Results[0].RelPath != path {
-		t.Fatalf("Search(%q).RelPath = %q, want %q", title, answer.Results[0].RelPath, path)
-	}
-	t.Log("invoked: dropped title Search")
+	got := soleResult(t, NewIndex([]Document{doc}, validArtifactPolicy(t)), title)
 	want := Result{
 		RelPath:     path,
 		Title:       title,
-		Snippet:     "comment-before-title Opening words here.",
 		Landing:     title,
 		LandingBare: title,
 	}
-	if diff := cmp.Diff(want, answer.Results[0]); diff != "" {
-		t.Errorf("caught: dropped-title tuple (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(%q) mismatch (-want +got):\n%s", title, diff)
 	}
 }
 
@@ -176,5 +166,90 @@ func TestInsertionNFCMapping(t *testing.T) {
 				t.Errorf("remapInsertions(%q) barriers (-want +got):\n%s", tt.text, diff)
 			}
 		})
+	}
+}
+
+// TestALandingIsTheWholeMarkAtTheEarliestMatch holds a landing to the stretch
+// the page marks as one at the earliest match: every match of any term that
+// overlaps or touches it is part of it, the note's own spacing stands in it,
+// and a later copy of the same words is not taken for it.
+func TestALandingIsTheWholeMarkAtTheEarliestMatch(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, text, query, want string
+	}{
+		{"overlap", "The ledger holds lanthanum here.", `nthanu "nthanum here"`, "nthanum here"},
+		{"collapsed whitespace", "before\tlanthanum\n\t here after", `"nthanum here"`, "nthanum here"},
+		{"unicode space", "before\u3000lanthanum\u3000here after", `" lanthanum here "`, "lanthanum here"},
+		{"folded character", "\u017f\u017f before lanthanum here", "nthanum", "nthanum"},
+		{"repeated text", "unmatched before lanthanum here and lanthanum later", "nthanum", "nthanum"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := NewIndex([]Document{{RelPath: "Notes/n.md", Title: "n", PlainText: tt.text,
+				Blocks: []render.Block{{End: len(tt.text), Verbatim: true}}}}, validArtifactPolicy(t))
+			got := soleResult(t, idx, tt.query)
+			if got.Landing != tt.want {
+				t.Errorf("Landing = %q, want %q", got.Landing, tt.want)
+			}
+		})
+	}
+}
+
+// TestALandingHoldsTheMatchWhenTheFoldChangesLength holds the landing on the
+// hit when case folding before it does not preserve length: Ⱥ grows from two
+// bytes to three and ſ shrinks from two to one, so an offset found on the
+// folded copy and used as an index into the note's own bytes drifts one byte
+// per such character, into the middle of a character or clear of the term.
+func TestALandingHoldsTheMatchWhenTheFoldChangesLength(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, text, query string
+	}{
+		{"a fold that grows", strings.Repeat("\u023a", 120) + "needle " + strings.Repeat("x", 400), "needle"},
+		{"a fold that shrinks", strings.Repeat("\u017f", 400) + "needle " + strings.Repeat("x", 400), "needle"},
+		{"a shrinking fold before Han", "\u017f" + strings.Repeat("今天出門散步看見一隻貓在牆上睡覺，", 6) + "天氣很好，回家以後泡了一壺茶。", "天氣"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := NewIndex([]Document{{RelPath: "Notes/n.md", Title: "n", PlainText: tt.text,
+				Blocks: []render.Block{{End: len(tt.text), Verbatim: true}}}}, validArtifactPolicy(t))
+			if got := soleResult(t, idx, tt.query); got.Landing != tt.query {
+				t.Errorf("Landing = %q, want %q", got.Landing, tt.query)
+			}
+		})
+	}
+}
+
+// TestDocumentFromNoteDropsTheTitleHeadingWhereverItSits holds that the search
+// corpus stops vouching for the heading the page drops as its title, whether it
+// opens the body or follows other text, and keeps a heading the page keeps.
+func TestDocumentFromNoteDropsTheTitleHeadingWhereverItSits(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"opening":       "# Quorum reads\n\nbody text\n",
+		"after prose":   "An opening line.\n\n# Quorum reads\n\nbody text\n",
+		"after heading": "## Background\n\nan opening line\n\n# Quorum reads\n\nbody text\n",
+		"setext, later": "An opening line.\n\nQuorum reads\n============\n\nbody text\n",
+	} {
+		doc := DocumentFromNote(&vault.Note{RelPath: "Notes/q.md", Body: body})
+		start := 0
+		for _, block := range doc.Blocks {
+			if strings.TrimSpace(doc.PlainText[start:block.End]) == "Quorum reads" && block.Heading {
+				t.Errorf("%s: the title heading is still a heading block in the corpus", name)
+			}
+			start = block.End
+		}
+	}
+	kept := DocumentFromNote(&vault.Note{RelPath: "Notes/q.md", Body: "# Title\n\n## Quorum reads\n\nbody\n"})
+	headings := 0
+	for _, block := range kept.Blocks {
+		if block.Heading {
+			headings++
+		}
+	}
+	if headings != 1 {
+		t.Errorf("a section heading the page keeps: %d heading blocks, want 1", headings)
 	}
 }

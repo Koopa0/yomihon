@@ -81,7 +81,17 @@ func searchResults(tb testing.TB, idx *Index, q *Query) []Result {
 	return answer.Results
 }
 
-func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
+// soleResult is the one result a query is expected to find.
+func soleResult(tb testing.TB, idx *Index, query string) Result {
+	tb.Helper()
+	results := searchResults(tb, idx, Parse(query))
+	if len(results) != 1 {
+		tb.Fatalf("Search(%q) returned %d results, want 1", query, len(results))
+	}
+	return results[0]
+}
+
+func TestALeadAndALandingRequireBodyEvidence(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
@@ -94,16 +104,16 @@ func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
 	if len(text) != 2 {
 		t.Fatalf("text results = %+v", text)
 	}
-	if text[0].RelPath != "title-only.md" || text[0].Snippet != "" {
-		t.Errorf("title-only result = %+v, want the exact title first with no snippet", text[0])
+	if text[0].RelPath != "title-only.md" || text[0].Lead.Runs != nil || text[0].Landing != "" {
+		t.Errorf("title-only result = %+v, want the exact title first with no lead or landing", text[0])
 	}
-	if text[1].RelPath != "title-and-body.md" || text[1].Snippet == "" {
+	if text[1].RelPath != "title-and-body.md" || text[1].Lead.Runs == nil || text[1].Landing != "needle" {
 		t.Errorf("title+body result = %+v, want body evidence after the exact title", text[1])
 	}
 
 	filtered := searchResults(t, idx, Parse("type:concept"))
-	if len(filtered) != 1 || filtered[0].Snippet != "" {
-		t.Errorf("pure-filter result = %+v, want no snippet", filtered)
+	if len(filtered) != 1 || filtered[0].Lead.Runs != nil || filtered[0].Landing != "" {
+		t.Errorf("pure-filter result = %+v, want no lead or landing", filtered)
 	}
 }
 
@@ -1179,34 +1189,19 @@ func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
 		t.Fatalf("Search(%q) mismatch (-want +got):\n%s", `"semantic retrieval"`, diff)
 	}
 
-	// The hit is also shown, and the marks on it are cut from the note's own
-	// bytes: an offset located in the folded copy that is carried back wrong
-	// paints the highlight over the neighbouring words.
-	var wrapped, deep Result
+	// The hit is also shown, marked on the note's own bytes, and the lead
+	// of a long note opens near the phrase rather than at the top, where it
+	// would show filler and mark nothing.
 	for _, r := range got {
 		switch r.RelPath {
-		case "wrapped.md":
-			wrapped = r
-		case "deep.md":
-			deep = r
+		case "wrapped.md", "deep.md":
+			if mark := marked(r.Lead.Runs); mark != "semantic retrieval" {
+				t.Errorf("%s: lead marks %q, want the phrase on one line", r.RelPath, mark)
+			}
+			if r.Landing != "semantic retrieval" {
+				t.Errorf("%s: Landing = %q, want the phrase on one line", r.RelPath, r.Landing)
+			}
 		}
-	}
-	// A window opened at the top of a long note would show the reader filler
-	// and mark nothing, which reads as a hit on a note that does not contain
-	// the phrase.
-	if !strings.Contains(deep.Snippet, "semantic retrieval") {
-		t.Errorf("snippet of the long note = %q, want the window around the phrase", deep.Snippet)
-	}
-	if wrapped.Snippet != "daily semantic retrieval log" {
-		t.Errorf("snippet = %q, want the wrapped sentence on one line", wrapped.Snippet)
-	}
-	want := []HitRun{
-		{Text: "daily "},
-		{Text: "semantic retrieval", Hit: true},
-		{Text: " log"},
-	}
-	if diff := cmp.Diff(want, MarkHits(wrapped.Snippet, query.Tokens())); diff != "" {
-		t.Errorf("MarkHits over the wrapped hit mismatch (-want +got):\n%s", diff)
 	}
 }
 

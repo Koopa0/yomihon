@@ -7,6 +7,7 @@ package lexical
 
 import (
 	"errors"
+	"iter"
 	"slices"
 	"strings"
 	"unicode"
@@ -30,25 +31,30 @@ func Fold(s string) string {
 func fold(s string) string {
 	var out strings.Builder
 	out.Grow(len(s))
-	foldRunes(vault.NormalizeNFC(s), func(r rune, _ int) {
+	for _, r := range foldRunes(vault.NormalizeNFC(s)) {
 		out.WriteRune(r)
-	})
+	}
 	return out.String()
 }
 
-// foldRunes walks already-NFC text and hands the caller each rune the fold keeps,
+// foldRunes walks already-NFC text and yields each rune the fold keeps, folded,
 // with the byte offset in s it came from. It is the whole of what folding does, so
 // the folded string and the folded string mapped back to its source cannot
 // disagree about what a match is. A line break is dropped only when the characters
 // on both sides belong to scripts that do not divide their words with spaces.
-func foldRunes(s string, emit func(r rune, at int)) {
-	var prev rune
-	for i, r := range s {
-		if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
-			continue
+// Walking from any offset it yielded gives the rest of the same answer.
+func foldRunes(s string) iter.Seq2[int, rune] {
+	return func(yield func(int, rune) bool) {
+		var prev rune
+		for i, r := range s {
+			if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
+				continue
+			}
+			if !yield(i, foldRune(r)) {
+				return
+			}
+			prev = r
 		}
-		emit(foldRune(r), i)
-		prev = r
 	}
 }
 
@@ -506,13 +512,6 @@ func clampOff(off, n int) int {
 	return off
 }
 
-// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
-// through the one remap production uses.
-func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
-	_, fences := remapPlainOffsets(raw, nil, ranges)
-	return fences
-}
-
 // foldPlain folds already-NFC plain and maps fence spans onto that
 // folded copy in the same walk. A second foldRunes pass used to walk
 // the note again just for the bounds, and kept walking past the last one.
@@ -520,9 +519,9 @@ func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]in
 	var out strings.Builder
 	out.Grow(len(plain))
 	if len(ranges) == 0 {
-		foldRunes(plain, func(r rune, _ int) {
+		for _, r := range foldRunes(plain) {
 			out.WriteRune(r)
-		})
+		}
 		return out.String(), nil
 	}
 	type bound struct {
@@ -547,27 +546,19 @@ func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]in
 	})
 	mapped := make([]int, len(bounds))
 	next, foldPos := 0, 0
-	foldRunes(plain, func(r rune, at int) {
+	for at, r := range foldRunes(plain) {
 		for next < len(bounds) && bounds[next].src <= at {
 			mapped[bounds[next].i] = foldPos
 			next++
 		}
 		out.WriteRune(r)
 		foldPos += utf8.RuneLen(r)
-	})
+	}
 	for next < len(bounds) {
 		mapped[bounds[next].i] = foldPos
 		next++
 	}
 	return out.String(), pairedSpans(mapped)
-}
-
-// foldRanges maps source-space half-open spans onto the folded copy of
-// plain. Production records those spans on the foldPlain walk; this
-// keeps the same mapping for a snippet that was not built through NewIndex.
-func foldRanges(plain string, ranges [][2]int) [][2]int {
-	_, foldFences := foldPlain(plain, ranges)
-	return foldFences
 }
 
 func pairedSpans(offs []int) [][2]int {

@@ -18,51 +18,49 @@ func BenchmarkSearch(b *testing.B) {
 	q := Parse("kafka concept")
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = idx.Search(q, -1) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
-	}
-}
-
-// BenchmarkSearchResultMaterialization times building the 200-row page the
-// handler ships. Landing used to retabulate every character of every note;
-// the number is here so a fold-map coming back is visible as allocation,
-// not as a later review.
-func BenchmarkSearchResultMaterialization(b *testing.B) {
-	const notes = 200
-	body := "```d2\nneedle in a fence first\n```\n\n" +
-		strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
-		"needle sits here\n\nand more " + strings.Repeat("filler word ", 200)
-	text, blocks, fences := render.PlainBlocks(body)
-	docs := make([]Document, notes)
-	for i := range docs {
-		docs[i] = Document{
-			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
-			Title:       fmt.Sprintf("Note %03d", i),
-			PlainText:   text,
-			Blocks:      blocks,
-			FenceRanges: fences,
-		}
-	}
-	idx := NewIndex(docs, validArtifactPolicy(b))
-	q := Parse("needle")
-	b.ReportAllocs()
-	for b.Loop() {
-		if _, err := idx.Search(q, notes); err != nil {
+		if _, err := idx.Search(q, -1); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-// BenchmarkSearchLiveVaultSizedFences times the 200-row materialization the
-// handler ships, over 537 notes of about 8 KiB, each opening with a d2
-// fence that also holds the query. The queries are err and return.
-func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
-	idx := NewIndex(liveVaultSizedFenceDocs(), validArtifactPolicy(b))
+// BenchmarkSearchResultMaterialization times building every result of the
+// whole answer the search page asks for, over 537 notes of about 8 KiB that
+// open with a d2 fence also holding the query. The notes are projected the
+// way DocumentFromNote projects one, emphasis and links included, so a result
+// takes the path that skips what the page hides; that path once tabulated
+// every character of every note it measured.
+func BenchmarkSearchResultMaterialization(b *testing.B) {
+	const notes = 537
+	body := "# Pipeline\n\n" +
+		"```d2\n" +
+		"direction: right\n" +
+		"Source: \"source\\nowns jobs close\"\n" +
+		"err := work(); if err != nil { return err }\n" +
+		"```\n\n" +
+		strings.Repeat("The *filler* paragraph stays out of the [[way]].\n\n", 120) +
+		"A pipeline stage owns jobs and reports an err only after workers return.\n\n" +
+		strings.Repeat("and more filler word ", 200)
+	projection := render.PlainProjectionOfPage("Pipeline", body)
+	docs := make([]Document, notes)
+	for i := range docs {
+		docs[i] = Document{
+			RelPath:      fmt.Sprintf("Notes/n%03d.md", i),
+			Title:        fmt.Sprintf("Note %03d", i),
+			PlainText:    projection.Text,
+			Blocks:       projection.Blocks,
+			FenceRanges:  projection.FenceRanges,
+			DisplaySpans: projection.DisplaySpans,
+			Insertions:   projection.Insertions,
+		}
+	}
+	idx := NewIndex(docs, validArtifactPolicy(b))
 	for _, q := range []string{"err", "return"} {
 		b.Run(q, func(b *testing.B) {
 			query := Parse(q)
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := idx.Search(query, 200); err != nil {
+				if _, err := idx.Search(query, -1); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -80,34 +78,6 @@ func BenchmarkNewIndex(b *testing.B) {
 	for b.Loop() {
 		_ = NewIndex(docs, policy)
 	}
-}
-
-func liveVaultSizedFenceDocs() []Document {
-	const notes = 537
-	fence := "" +
-		"```d2\n" +
-		"direction: right\n" +
-		"Source: \"source\\nowns jobs close\"\n" +
-		"err := work(); if err != nil { return err }\n" +
-		"```\n"
-	prose := "A pipeline stage owns jobs and reports an err only after workers return.\n"
-	// ~8 KiB/note: fence spans are folded once at index time; leftover
-	// cost is the snippet and landing walks main already paid, and a
-	// short fixture cannot show that live-vault size.
-	body := fence + strings.Repeat("The filler paragraph stays out of the way.\n\n", 120) + prose +
-		strings.Repeat("and more filler word ", 200)
-	text, blocks, fences := render.PlainBlocks(body)
-	docs := make([]Document, notes)
-	for i := range docs {
-		docs[i] = Document{
-			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
-			Title:       fmt.Sprintf("Note %03d", i),
-			PlainText:   text,
-			Blocks:      blocks,
-			FenceRanges: fences,
-		}
-	}
-	return docs
 }
 
 // repeatedASCIIFenceDocs is the build-cost smoke corpus: 1226 notes,

@@ -9,21 +9,17 @@ import (
 )
 
 // Result is one search hit: the note's path, display title, whether it is a
-// draft, and a snippet centered on the earliest matched-token offset. Draft is
-// false when the hit is not metadata-capable.
+// draft, the passage shown under it, and where its link lands. Draft is false
+// when the hit is not metadata-capable.
 type Result struct {
 	RelPath string
 	Title   string
 	Draft   bool
-	Snippet string
 	// NoteType is the type the note declares, as written, for a page that
 	// names a result's kind. Empty for a note that declares none.
 	NoteType string
 	// Lead is the passage a result page shows under the title; see Lead.
 	Lead Lead
-	// SnippetRuns carries display effects and original query evidence when
-	// the corpus includes syntax the destination consumes.
-	SnippetRuns []ExcerptRun
 
 	// Alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, and empty otherwise. The row shows a title, so
@@ -34,8 +30,8 @@ type Result struct {
 	// in the author's spelling. Tag-only hits have no body excerpt or landing.
 	Tag string
 
-	// Landing is the selected first-block stretch, with its tail grown to
-	// a word boundary and whitespace collapsed the way a snippet is. Empty when
+	// Landing is the earliest body match in its first block, with whitespace
+	// collapsed and its tail grown to a word boundary. Empty when
 	// the row has no body match to point at, or when a crossing match has
 	// nothing locatable in its first block.
 	Landing string
@@ -67,7 +63,7 @@ type Result struct {
 	LandingEnd string
 
 	// LandingPrefix is the run of words the match follows inside the block
-	// its first stretch opens, collapsed the way a snippet is and cut to a
+	// its first stretch opens, with whitespace collapsed and cut to a
 	// few words. A browser looks for the term it is given by walking the
 	// whole page in order, so a start stretch of one common word is answered
 	// by the first copy anywhere on it — the reader's own navigation is drawn
@@ -92,9 +88,8 @@ type Result struct {
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
 
-	// FromFence reports that the deciding excerpt is a fenced block: the
-	// words live only there. The row names that the way it names an alias
-	// or a topic; the excerpt itself stays the fence's own lines.
+	// FromFence reports that the landing is in a fenced block: the words
+	// live only there. The row names that the way it names an alias.
 	FromFence bool
 
 	// Language is the note's own declared BCP 47 tag when the contract gave
@@ -104,12 +99,6 @@ type Result struct {
 }
 
 const (
-	// snippetBefore/snippetAfter bound the snippet window around the earliest
-	// matched-token offset, counted in characters the reader sees. A byte budget
-	// paid out by script, buying a reader of Chinese a third of the context.
-	snippetBefore = 40
-	snippetAfter  = 160
-
 	// landingPrefixWords and landingPrefixRunes bound the run of words named
 	// ahead of a match, in words and in characters the reader sees. The
 	// budget is small deliberately: the run is written for a browser to find
@@ -173,7 +162,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 
 // hit is one matched entry before its Result is built. Buckets hold hits
 // rather than Results so a bounded search can count every match while
-// building — snippet included — only the results it will return.
+// building — lead and landing included — only the results it will return.
 type hit struct {
 	entry        *entry
 	bodyEvidence bool
@@ -485,17 +474,15 @@ func withinFolder(relPath, folder string) bool {
 	return true
 }
 
-// result builds a Result for e, with a snippet centered on the earliest
-// matched-token offset.
+// result builds a Result for e. Only a hit with body evidence has a lead and
+// a landing.
 func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, tag string) Result {
 	draft := e.Draft && metadataAvailable && e.metadataCapable
-	var bodySnippet string
-	var bodyRuns []ExcerptRun
 	var terms landingTerms
 	var fromFence bool
 	var lead Lead
 	if bodyEvidence {
-		bodySnippet, bodyRuns, terms, fromFence = e.bodyExcerpt(tokens)
+		terms, fromFence = e.landing(tokens)
 		lead = e.lead(tokens)
 	}
 	noteType := ""
@@ -508,8 +495,6 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		NoteType:      noteType,
 		Lead:          lead,
 		Draft:         draft,
-		Snippet:       bodySnippet,
-		SnippetRuns:   bodyRuns,
 		Alias:         alias,
 		Tag:           tag,
 		Landing:       terms.first,
@@ -523,37 +508,56 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	}
 }
 
-func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []ExcerptRun, terms landingTerms, fromFence bool) {
+// landing places a result's link on its earliest body match: the earliest the
+// page shows, where the note carries text the page hides, and otherwise the
+// earliest prose match, or a fence's where the words live only there. A match
+// within its first block is taken together with every match of any term that
+// overlaps or touches it, which is the stretch the page marks as one.
+func (e *entry) landing(tokens []string) (terms landingTerms, fromFence bool) {
 	if len(e.displaySpans) > 0 {
 		centre := e.shownExcerptCentre(tokens)
-		start, end := snippetSourceBounds(e.PlainText, centre.start, centre.end, e.fenceRanges)
-		displayTokens := tokens
 		if !centre.found {
-			displayTokens = nil
+			return landingTerms{}, false
 		}
-		var first, last int
-		bodyRuns, first, last = e.displayedExcerpt(start, end, displayTokens)
-		var display strings.Builder
-		for _, run := range bodyRuns {
-			display.WriteString(run.Text)
-		}
-		if centre.found && first < last {
-			terms = e.landingAtSource(centre.start, centre.end)
-		}
-		return display.String(), bodyRuns, terms, centre.fromFence
+		return e.landingAtSource(centre.start, centre.end), centre.fromFence
 	}
-	var foldStart, foldEnd int
-	foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
-	bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
+	foldStart, foldEnd, fromFence := earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
+	if foldStart < 0 {
+		return landingTerms{}, false
+	}
 	terms = e.landingAt(foldStart, foldEnd)
 	if !terms.crossing {
-		start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		if first, last, ok := firstSnippetMatch(e.PlainText[start:end], tokens); ok {
-			terms = e.landingAtSource(start+first, start+last)
+		foldEnd = mergedMatchEnd(e.PlainFold, tokens, foldStart, foldEnd)
+		start, end := sourceOffsetOfFold(e.PlainText, foldStart), sourceEndOfFold(e.PlainText, foldEnd)
+		// A phrase quoted with white space at its ends matches that white
+		// space too, and the page marks the words, not the space around them.
+		matched := e.PlainText[start:end]
+		start += len(matched) - len(strings.TrimLeftFunc(matched, unicode.IsSpace))
+		end -= len(matched) - len(strings.TrimRightFunc(matched, unicode.IsSpace))
+		terms = e.landingAtSource(start, end)
+	}
+	return terms, fromFence
+}
+
+// mergedMatchEnd extends the folded match [start, end) over every match of any
+// token that begins inside it or where it ends, until none does.
+func mergedMatchEnd(fold string, tokens []string, start, end int) int {
+	for grown := true; grown; {
+		grown = false
+		for _, t := range tokens {
+			for at := start; t != "" && at <= end; {
+				i, stop := phraseIndex(fold, t, at)
+				if i < 0 || i > end {
+					break
+				}
+				if stop > end {
+					end, grown = stop, true
+				}
+				at = i + 1
+			}
 		}
 	}
-
-	return bodySnippet, bodyRuns, terms, fromFence
+	return end
 }
 
 // landingTerms is everything one body match gives a browser text directive:
@@ -576,8 +580,8 @@ type landingTerms struct {
 // landingAt is the terms one folded body match offers. The exclusive end is
 // the last matched rune plus its length: the next kept rune can sit in a later
 // block after a fold-dropped break, which is not itself a crossing. Without
-// recorded block ends there is nothing to tell a wrap from a paragraph, so the
-// row keeps the snippet's own words and does not claim a crossing.
+// recorded block ends there is nothing to tell a wrap from a paragraph, so it
+// offers nothing and does not claim a crossing.
 //
 // The preceding run is cut at the start of the match's own block, because a
 // directive may only name one where it sits beside the term it introduces. A
@@ -1080,110 +1084,9 @@ func runesAfter(s string, off, n int) int {
 	return off
 }
 
-// snippetAt returns a one-line window of plain around a folded match.
-// Lowercasing does not preserve length, so the offsets come back through the
-// fold's own mapping: used directly they drift until the window slides clear
-// of the term it was placed around.
-func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
-	start, end := snippetBounds(plain, foldStart, foldEnd, fences)
-	s := collapseFields(plain[start:end])
-	if start > 0 {
-		s = "…" + s
-	}
-	if end < len(plain) {
-		s += "…"
-	}
-	return s
-}
-
-// snippetBounds keeps the excerpt's source span available for landing selection.
-func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (start, end int) {
-	if foldStart < 0 {
-		foldStart, foldEnd = 0, 0
-	}
-	off := sourceOffsetOfFold(plain, foldStart)
-	matchEnd := sourceEndOfFold(plain, foldEnd)
-	return snippetSourceBounds(plain, off, matchEnd, fences)
-}
-
-func snippetSourceBounds(plain string, off, matchEnd int, fences [][2]int) (start, end int) {
-	matchEnd = max(matchEnd, off)
-	matchEnd = min(matchEnd, len(plain))
-	// Neither boundary may move past the match it was placed around: a match buried
-	// deep in one unbroken run can be stepped over by both at once, reversing the
-	// slice. The close is held at the match's exclusive end, not its first byte —
-	// clamping to off made the half-open window exclude the hit (plain "0Z"+184×"0",
-	// token "Z" → "0…"). The sentence-start reach runs first and the whole-word
-	// adjustment last, because the second has to hold whatever the first leaves.
-	// A fence hit skips the sentence reach: source is not a sentence, and walking
-	// back through a preceding paragraph would present it as one.
-	// A fence span is block-aligned, as render.PlainBlocks emits it.
-	opening := runesBefore(plain, off, snippetBefore)
-	inFence, fence := fenceAt(off, fences)
-	if !inFence {
-		opening = sentenceStart(plain, opening, off)
-	}
-	start = min(wholeWordStart(plain, opening), off)
-	end = max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
-	if inFence {
-		start = max(start, fence[0])
-		end = min(end, fence[1])
-		start = min(start, off)
-		end = max(end, matchEnd)
-	} else {
-		start, end = clipFencesFromProse(plain, start, end, off, matchEnd, fences)
-	}
-	start = clipLeadingRun(plain, start, end, off)
-
-	return start, end
-}
-
-// firstSnippetMatch maps the first merged excerpt mark back to source bytes.
-// The mapping keeps collapsed whitespace separate from authored text and never
-// treats the excerpt's added ellipses as part of a note.
-func firstSnippetMatch(plain string, tokens []string) (start, end int, found bool) {
-	var collapsed strings.Builder
-	var offsets []int
-	for at := 0; at < len(plain); {
-		at += whitespaceRun(plain, at)
-		if at == len(plain) {
-			break
-		}
-		if collapsed.Len() > 0 {
-			collapsed.WriteByte(' ')
-			offsets = append(offsets, at-1)
-		}
-		n := wordRun(plain, at)
-		collapsed.WriteString(plain[at : at+n])
-		for i := range n {
-			offsets = append(offsets, at+i)
-		}
-		at += n
-	}
-	at := 0
-	for _, run := range MarkHits(collapsed.String(), tokens) {
-		stop := at + len(run.Text)
-		if text := strings.TrimSpace(run.Text); run.Hit && text != "" {
-			at += strings.Index(run.Text, text)
-			return offsets[at], offsets[at+len(text)-1] + 1, true
-		}
-		at = stop
-	}
-	return 0, 0, false
-}
-
-func snippet(plain, plainFold string, tokens []string) string {
-	return snippetWithFences(plain, plainFold, tokens, nil)
-}
-
-func snippetWithFences(plain, plainFold string, tokens []string, fences [][2]int) string {
-	foldStart, foldEnd, _ := earliestOffset(plainFold, tokens, foldRanges(plain, fences))
-	return snippetAt(plain, foldStart, foldEnd, fences)
-}
-
-// earliestOffset returns the folded byte range of the token that should
-// centre the excerpt: the earliest prose hit when the note has one, otherwise
-// the earliest fence hit. start is < 0 when no token occurs. inFence is
+// earliestOffset returns the folded byte range of the token a result lands on:
+// the earliest prose hit when the note has one, otherwise the earliest fence
+// hit. start is < 0 when no token occurs. inFence is
 // true only when the words live only in a fence.
 func earliestOffset(fold string, tokens []string, foldFences [][2]int) (start, end int, inFence bool) {
 	proseStart, proseEnd := -1, 0
@@ -1241,61 +1144,13 @@ func fenceAt(off int, fences [][2]int) (found bool, span [2]int) {
 	return false, [2]int{}
 }
 
-// clipLeadingRun pulls the opening boundary forward when the collapsed
-// window — ellipses included — would exceed the character budget. The usual
-// cause is a sentence-start that opened onto a long unbroken run; the after
-// side is already bounded, so only the lead can overflow. The match stays
-// inside. A token longer than the after-window still occupies the snippet.
-func clipLeadingRun(plain string, start, end, off int) int {
-	budget := snippetBefore + snippetAfter + 2*wordEdgeBudget + 2
-	for start < off {
-		n := utf8.RuneCountInString(collapseFields(plain[start:end]))
-		if start > 0 {
-			n++
-		}
-		if end < len(plain) {
-			n++
-		}
-		if n <= budget {
-			return start
-		}
-		start = runesAfter(plain, start, n-budget)
-	}
-	return min(start, off)
-}
-
-// clipFencesFromProse keeps a prose window from swallowing a fence: a fence
-// that overlaps the opening side pushes start forward, and one that overlaps
-// the close pulls end back. The match itself stays inside.
-func clipFencesFromProse(plain string, start, end, off, matchEnd int, fences [][2]int) (clippedStart, clippedEnd int) {
-	for _, f := range fences {
-		if f[1] <= start || f[0] >= end {
-			continue
-		}
-		if f[1] <= off {
-			after := f[1]
-			if after < len(plain) && plain[after] == '\n' {
-				after++
-			}
-			if after > start {
-				start = after
-			}
-			continue
-		}
-		if f[0] >= matchEnd && f[0] < end {
-			end = f[0]
-		}
-	}
-	return min(start, off), max(end, matchEnd)
-}
-
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A
 // date or an identifier fits inside it; a run longer than this is not a word
 // anyone is reading as one, and the window matters more than it does.
 const wordEdgeBudget = 24
 
-// wholeWordStart moves a snippet's opening boundary back to the start of a word
-// the window cut into, so a date arrives as 2026-07-30 rather than 026-07-30. Only
+// wholeWordStart moves a passage's opening boundary back to the start of a word
+// the cut fell into, so a date arrives as 2026-07-30 rather than 026-07-30. Only
 // runs of ASCII letters and digits are treated this way, since CJK prose has no
 // word boundary to respect. It moves outward, since forward leaves a fragment.
 func wholeWordStart(s string, i int) int {
@@ -1348,114 +1203,32 @@ func isWordByte(b byte) bool {
 	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
 }
 
-// sentenceTerminators end a sentence in the scripts this corpus is written in; a
-// comma of either width is not among them. The unambiguous ones are a subset:
-// a full-width stop appears inside no token and ends a sentence wherever it
-// stands, while an ASCII stop is the character inside vault-schema.toml and
-// 3.14159, so it ends one only with white space or the end of the text after
-// it. The two sets are all that is needed — every terminator outside the
-// unambiguous set is by definition one of the ASCII ones, and lastSentenceEnd
-// asks for the white space there.
-const (
-	sentenceTerminators    = "。！？；.!?;\n"
-	unambiguousTerminators = "。！？；\n"
-)
-
-// snippetBeforeMax bounds the whole opening side of the window: the boundary may
-// travel back this far to reach the start of its sentence and no further, so a
-// note written without terminators cannot turn one result row into the note.
-const snippetBeforeMax = 120
-
-// sentenceStart moves a snippet's opening boundary back to the beginning of the
-// sentence it landed inside, when that beginning is within reach. The words a
-// sentence opens with decide what it means — 不得, 本段僅限, "this is not
-// recommended" — and cutting them leaves the predicate reading as the instruction.
-// Where no terminator is in reach the window is left where it was.
-func sentenceStart(plain string, start, off int) int {
-	if start <= 0 {
-		return start
-	}
-	limit := runesBefore(plain, off, snippetBeforeMax)
-	if limit >= start {
-		return start
-	}
-	i, ok := lastSentenceEnd(plain, limit, start)
-	if !ok {
-		return start
-	}
-	for i < start {
-		r, width := utf8.DecodeRuneInString(plain[i:])
-		if !unicode.IsSpace(r) {
-			break
-		}
-		i += width
-	}
-	return i
-}
-
-// lastSentenceEnd reports the byte just past the last sentence-ending punctuation
-// in plain[limit:start], and whether there was one. An ASCII stop counts only when
-// white space or the end of the text follows, which excludes a filename's dot.
-func lastSentenceEnd(plain string, limit, start int) (int, bool) {
-	for at := start; at > limit; {
-		j := strings.LastIndexAny(plain[limit:at], sentenceTerminators)
-		if j < 0 {
-			return 0, false
-		}
-		i := limit + j
-		r, size := utf8.DecodeRuneInString(plain[i:])
-		after := i + size
-		if strings.ContainsRune(unambiguousTerminators, r) {
-			return after, true
-		}
-		if after >= len(plain) {
-			return after, true
-		}
-		if next, _ := utf8.DecodeRuneInString(plain[after:]); unicode.IsSpace(next) {
-			return after, true
-		}
-		at = i
-	}
-	return 0, false
-}
-
 // foldWithSourceOffsets folds s and maps every byte position of the folded
 // copy, one past its end included, back to the byte offset in s of the character
 // it came from. It applies the walk half of the index's fold alone, which
-// reproduces that fold provided s is already NFC, as every snippet is.
+// reproduces that fold provided s is already NFC, as every indexed text is.
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
 	folded.Grow(len(s))
 	src = make([]int, 0, len(s)+1)
-	foldRunes(s, func(r rune, at int) {
+	for at, r := range foldRunes(s) {
 		n := folded.Len()
 		folded.WriteRune(r)
 		for ; n < folded.Len(); n++ {
 			src = append(src, at)
 		}
-	})
+	}
 	return folded.String(), append(src, len(s))
 }
 
 // sourceOffsetOfFold maps one byte offset in the folded copy of s back to the
-// byte offset in s of the character that produced it. It answers exactly what
-// foldWithSourceOffsets tabulates, walked to one position rather than materialized
-// because its caller measures a whole note. A test holds the two to one answer.
+// byte offset in s of the character that produced it, and len(s) past the end.
+// It answers exactly what foldWithSourceOffsets tabulates, walked to one
+// position rather than materialized because its caller measures a whole note.
+// A test holds the two to one answer.
 func sourceOffsetOfFold(s string, foldOff int) int {
-	folded, at := 0, len(s)
-	found := false
-	foldRunes(s, func(r rune, i int) {
-		if found {
-			return
-		}
-		next := folded + utf8.RuneLen(r)
-		if next > foldOff {
-			at, found = i, true
-			return
-		}
-		folded = next
-	})
-	return at
+	cursor := foldCursor{s: s}
+	return cursor.source(foldOff)
 }
 
 // sourceEndOfFold maps the exclusive end of a folded match back to the exclusive
@@ -1466,21 +1239,36 @@ func sourceEndOfFold(s string, foldEnd int) int {
 	if foldEnd <= 0 {
 		return 0
 	}
-	folded, end := 0, len(s)
-	found := false
-	foldRunes(s, func(r rune, i int) {
-		if found {
-			return
-		}
+	at := sourceOffsetOfFold(s, foldEnd-1)
+	_, size := utf8.DecodeRuneInString(s[at:])
+	return at + size
+}
+
+// foldCursor maps offsets in the folded copy of s back to s for offsets that
+// never decrease: each walk resumes on the character the last one stopped at,
+// so mapping every match of a term in a note walks the note once, and only as
+// far as the last match asked about.
+type foldCursor struct {
+	s string
+	// src is a character the fold keeps and fold the offset its folded form
+	// begins at; both are zero before the first walk.
+	src, fold int
+}
+
+// source answers sourceOffsetOfFold(c.s, foldOff) for a foldOff no smaller
+// than the last one asked.
+func (c *foldCursor) source(foldOff int) int {
+	folded := c.fold
+	for at, r := range foldRunes(c.s[c.src:]) {
 		next := folded + utf8.RuneLen(r)
-		if next >= foldEnd {
-			_, size := utf8.DecodeRuneInString(s[i:])
-			end, found = i+size, true
-			return
+		if next > foldOff {
+			c.src, c.fold = c.src+at, folded
+			return c.src
 		}
 		folded = next
-	})
-	return end
+	}
+	c.src, c.fold = len(c.s), folded
+	return c.src
 }
 
 // HitRun is one stretch of a piece of text and whether the query matched it.
@@ -1492,16 +1280,16 @@ type HitRun struct {
 }
 
 // MarkHits cuts a piece of text into the stretches that matched and those that did
-// not, so a page can show why a result is here. Nothing in it is particular to a
-// snippet: the same cut serves the body excerpt, the path, and any other name a
-// note can match by. Matching is done on the folded form while the runs carry
-// slices of the original text, and overlapping matches merge into one mark.
-func MarkHits(snippet string, tokens []string) []HitRun {
-	if snippet == "" || len(tokens) == 0 {
+// not, so a page can show why a result is here. The same cut serves the lead,
+// the title, the path, and any other name a note can match by. Matching is
+// done on the folded form while the runs carry slices of the original text,
+// and overlapping matches merge into one mark.
+func MarkHits(text string, tokens []string) []HitRun {
+	if text == "" || len(tokens) == 0 {
 		return nil
 	}
-	fold, src := foldWithSourceOffsets(snippet)
-	covered := make([]bool, len(snippet))
+	fold, src := foldWithSourceOffsets(text)
+	covered := make([]bool, len(text))
 	found := false
 	for _, t := range tokens {
 		if t == "" {
@@ -1524,11 +1312,11 @@ func MarkHits(snippet string, tokens []string) []HitRun {
 	}
 	var runs []HitRun
 	start := 0
-	for i := 1; i <= len(snippet); i++ {
-		if i < len(snippet) && covered[i] == covered[start] {
+	for i := 1; i <= len(text); i++ {
+		if i < len(text) && covered[i] == covered[start] {
 			continue
 		}
-		runs = append(runs, HitRun{Text: snippet[start:i], Hit: covered[start]})
+		runs = append(runs, HitRun{Text: text[start:i], Hit: covered[start]})
 		start = i
 	}
 	return runs

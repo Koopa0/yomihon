@@ -109,22 +109,6 @@ func excerptSourceHits(plain string, tokens []string) []bool {
 	return covered
 }
 
-func (e *entry) displayedExcerpt(start, end int, tokens []string) (runs []ExcerptRun, first, last int) {
-	atoms := collapseExcerptAtoms(e.excerptAtoms(start, end, tokens))
-	first, last = firstExcerptHit(atoms)
-	// Run assembly is independent of selecting the first landing occurrence.
-	if start > 0 {
-		appendExcerptRun(&runs, "…", false, false)
-	}
-	for _, atom := range atoms {
-		appendExcerptRun(&runs, atom.text, atom.hit, atom.deleted)
-	}
-	if end < len(e.PlainText) {
-		appendExcerptRun(&runs, "…", false, false)
-	}
-	return runs, first, last
-}
-
 func (e *entry) excerptAtoms(start, end int, tokens []string) []excerptAtom {
 	covered := excerptSourceHits(e.PlainText[start:end], tokens)
 	var atoms []excerptAtom
@@ -150,31 +134,6 @@ func (e *entry) excerptEffects(at, stop int) (hidden, deleted bool) {
 		deleted = deleted || span.Deleted
 	}
 	return hidden, deleted
-}
-
-func firstExcerptHit(atoms []excerptAtom) (first, last int) {
-	first, last = -1, -1
-	for _, atom := range atoms {
-		if !atom.hit {
-			if first >= 0 {
-				// Unmarked text ends the first shown occurrence.
-				break
-			}
-			continue
-		}
-		if first < 0 && strings.TrimSpace(atom.text) == "" {
-			continue
-		}
-		switch {
-		case first < 0:
-			first, last = atom.start, atom.end
-		case atom.start == last:
-			last = atom.end
-		default:
-			return first, last
-		}
-	}
-	return first, last
 }
 
 func anyExcerptHit(covered []bool, start, end int) bool {
@@ -294,16 +253,20 @@ func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIn
 	return shownOccurrence{}
 }
 
-func (e *entry) shownToken(token string, source []int, index *excerptDisplayIndex) (prose, fence shownOccurrence) {
+// shownToken is token's earliest match the page shows in prose, and its
+// earliest in a fence.
+func (e *entry) shownToken(token string, index *excerptDisplayIndex) (prose, fence shownOccurrence) {
+	cursor := foldCursor{s: e.PlainText}
 	for at := 0; at <= len(e.PlainFold); {
 		start, end := phraseIndex(e.PlainFold, token, at)
 		if start < 0 {
 			return prose, fence
 		}
 		at = max(end, start+1)
-		last := source[end-1]
+		from := cursor.source(start)
+		last := cursor.source(end - 1)
 		_, size := utf8.DecodeRuneInString(e.PlainText[last:])
-		shown := e.firstShown(source[start], last+size, token, index)
+		shown := e.firstShown(from, last+size, token, index)
 		if !shown.found {
 			continue
 		}
@@ -318,12 +281,17 @@ func (e *entry) shownToken(token string, source []int, index *excerptDisplayInde
 	return prose, fence
 }
 
+// shownExcerptCentre is the earliest match of any token the page shows, in
+// prose when there is one and otherwise in a fence; found is false when the
+// page shows none.
 func (e *entry) shownExcerptCentre(tokens []string) shownOccurrence {
 	index := e.displayIndex()
-	_, source := foldWithSourceOffsets(e.PlainText)
 	var prose, fence shownOccurrence
 	for _, token := range tokens {
-		shownProse, shownFence := e.shownToken(token, source, &index)
+		if token == "" {
+			continue
+		}
+		shownProse, shownFence := e.shownToken(token, &index)
 		if shownProse.found && (!prose.found || shownProse.start < prose.start) {
 			prose = shownProse
 		}
@@ -331,19 +299,8 @@ func (e *entry) shownExcerptCentre(tokens []string) shownOccurrence {
 			fence = shownFence
 		}
 	}
-
 	if prose.found {
 		return prose
 	}
-	if fence.found {
-		return fence
-	}
-	opening := e.firstShown(0, len(e.PlainText), "", &index)
-	// Preserve the whole opening when it already fits the initial window;
-	// a long hidden prefix alone must not leave that window empty.
-	if opening.start < runesAfter(e.PlainText, 0, snippetAfter) {
-		opening.start = 0
-	}
-	opening.found = false
-	return opening
+	return fence
 }
