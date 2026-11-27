@@ -26,8 +26,9 @@
 // is past 8 MiB and twice what a compaction would leave of it, the next Record
 // rewrites it whole, through confdir's Replace, keeping every line but the
 // mark lines a newer line of the same mark by the same machine supersedes, and
-// the changed lines it moves to ledger.damaged.jsonl. A compaction that cannot run is said in the
-// log and is not the failure of the Record that triggered it.
+// the changed lines it moves to ledger.damaged.jsonl. A compaction that cannot
+// run is said in the log and is not the failure of the Record that triggered
+// it.
 //
 // Nothing caps what the ledger keeps: the lines of the files a write replaced
 // are kept whole for ever. Past 1 GiB it is not read, and every Record fails.
@@ -249,10 +250,10 @@ func (l *Ledger) Record(ctx context.Context, e *Event) (uint64, error) {
 
 // Events is every whole line of the ledger, in the order of their seqs, and how
 // many lines were changed after they were written: those in the ledger now and
-// those compactions moved to ledger.damaged.jsonl. It takes no lock and waits for no writer, of
-// this process or another: a line being appended as it reads is a line cut
-// short to it, and is not there yet, and a compaction installs the ledger by
-// rename, so it is read whole before or after. The Content of each is shared
+// those compactions moved to ledger.damaged.jsonl. It takes no lock and waits
+// for no writer, of this process or another: a line being appended as it reads
+// is a line cut short to it, and is not there yet, and a compaction installs
+// the ledger by rename, so it is read whole before or after. The Content of each is shared
 // with what the ledger holds, and is not changed by the caller.
 func (l *Ledger) Events() (events []Event, changed int, err error) {
 	st, err := l.load()
@@ -565,12 +566,13 @@ func (l *Ledger) compactIfLong() {
 }
 
 // compact moves the lines that were changed to ledger.damaged.jsonl and
-// installs what compacted keeps. The caller holds the lock. What this process holds is let go only once
-// the new ledger is installed: until then a reader of this process is answered
-// from it and does not open the ledger the rename replaces, which on Windows
-// would refuse the rename. A look tells the new file from the old by its
-// identity, but on Windows it reads that identity by the name, so there letting
-// go is what says the old one is gone; Carry does the same.
+// installs what compacted keeps. The caller holds the lock. What this process
+// holds is let go only once the new ledger is installed: until then a reader of
+// this process is answered from it and does not open the ledger the rename
+// replaces, which on Windows would refuse the rename. A look tells the new file
+// from the old by its identity, but on Windows it reads that identity by the
+// name, so there letting go is what says the old one is gone; Carry does the
+// same.
 func (l *Ledger) compact() error {
 	st, err := l.load()
 	if err != nil {
@@ -593,10 +595,10 @@ func (l *Ledger) compact() error {
 // the ledger does not read, lines of the files a write replaced, a mark's line
 // that names no mark, and the newest line of every mark by every machine are
 // kept, and so the line with the highest seq is. A process whose every line is
-// dropped is kept as one process line, under the seq of the first of them. A line cut short is kept where it was: it
-// is almost always a crash's, but a hand's cannot be told from one, and nothing
-// that cannot be read is dropped. The changed lines are not here; compact moves
-// them out.
+// dropped is kept as one process line, under the seq of the first of them. A
+// line cut short is kept where it was: it is almost always a crash's, but a
+// hand's cannot be told from one, and nothing that cannot be read is dropped.
+// The changed lines are not here; compact moves them out.
 func compacted(st *state) []byte {
 	events, cuts := st.events, st.cuts
 	newest := map[[2]string]uint64{}

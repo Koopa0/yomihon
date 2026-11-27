@@ -46,8 +46,8 @@ func FuzzLineRoundTrip(f *testing.F) {
 	f.Add(uint64(1), "mark", "id", "writer", "s", []byte(`{"mark":{"id":"m1"}}`))
 	f.Add(uint64(1<<63), "k", "", "", "", []byte{0xc3, 0x28, '\n', '"', '\\'})
 	f.Add(uint64(42), "marks-replaced", "<&>", "\u2028", ",\"h\":\"", []byte(`,"h":"0123456789abcdef"}`))
-	f.Fuzz(func(t *testing.T, seq uint64, kind, id, writer, session string, content []byte) {
-		given := Event{Seq: seq, Time: time.UnixMilli(1795164060000), Kind: kind, ID: id, Machine: writer, Process: session, Content: content}
+	f.Fuzz(func(t *testing.T, seq uint64, kind, id, machine, process string, content []byte) {
+		given := Event{Seq: seq, Time: time.UnixMilli(1795164060000), Kind: kind, ID: id, Machine: machine, Process: process, Content: content}
 		if seq == 0 || given.check() != nil {
 			return // Record gives every line a seq, and refuses what check refuses
 		}

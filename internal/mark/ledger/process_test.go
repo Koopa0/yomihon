@@ -23,14 +23,14 @@ import (
 // again as one. These variables say which, and over which configuration
 // directory.
 const (
-	childModeVar   = "YOMIHON_TEST_LEDGER_MODE"
-	childConfigVar = "YOMIHON_TEST_LEDGER_CONFIG"
-	childWriterVar = "YOMIHON_TEST_LEDGER_WRITER"
+	childModeVar    = "YOMIHON_TEST_LEDGER_MODE"
+	childConfigVar  = "YOMIHON_TEST_LEDGER_CONFIG"
+	childProcessVar = "YOMIHON_TEST_LEDGER_PROCESS"
 )
 
 func TestMain(m *testing.M) {
 	if mode := os.Getenv(childModeVar); mode != "" {
-		if err := runChild(mode, os.Getenv(childConfigVar), os.Getenv(childWriterVar)); err != nil {
+		if err := runChild(mode, os.Getenv(childConfigVar), os.Getenv(childProcessVar)); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -74,7 +74,7 @@ func childLine(mode string, i int) *Event {
 // number it was given, or for ever if it is to be killed, saying each as it
 // begins, which is once its line is made and Record is about to be called, and
 // once Record has answered.
-func runChild(mode, config, writer string) error {
+func runChild(mode, config, process string) error {
 	dir, err := confdir.VaultDir(confdir.At(config), "/vaults/notes")
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func runChild(mode, config, writer string) error {
 	case "together":
 		l.compactAt = 4 << 10
 		for i := range togetherLines {
-			if _, err = recordCrowded(context.Background(), l, togetherEvent(writer, i)); err != nil {
+			if _, err = recordCrowded(context.Background(), l, togetherEvent(process, i)); err != nil {
 				return err
 			}
 		}
@@ -116,10 +116,10 @@ func runChild(mode, config, writer string) error {
 }
 
 // startChild runs this test binary again as a writer of mode over config.
-func startChild(t *testing.T, mode, config, writer string) *childtest.Child {
+func startChild(t *testing.T, mode, config, process string) *childtest.Child {
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // #nosec G204 G702 -- this test binary, run again as the writer
-	cmd.Env = append(os.Environ(), childModeVar+"="+mode, childConfigVar+"="+config, childWriterVar+"="+writer)
+	cmd.Env = append(os.Environ(), childModeVar+"="+mode, childConfigVar+"="+config, childProcessVar+"="+process)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -347,9 +347,9 @@ func TestTwoProcessesRecordAtOnceAndLoseNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cmds []*exec.Cmd
-	for _, writer := range []string{"one", "two"} {
+	for _, process := range []string{"one", "two"} {
 		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // #nosec G204 G702 -- this test binary, run again as a writer
-		cmd.Env = append(os.Environ(), childModeVar+"=together", childConfigVar+"="+config, childWriterVar+"="+writer)
+		cmd.Env = append(os.Environ(), childModeVar+"=together", childConfigVar+"="+config, childProcessVar+"="+process)
 		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 		if err = cmd.Start(); err != nil {
 			t.Fatal(err)
