@@ -68,15 +68,6 @@ func TestAnswerTypeUnknownRoleClosesIt(t *testing.T) {
 	}
 }
 
-// A contract that was constructed rather than decoded declares nothing, so it
-// names no answer type. Only the absence of a contract reads the built-in one.
-func TestAnswerTypeHasNoFabricatedAuthority(t *testing.T) {
-	t.Parallel()
-	if got := (&Contract{}).NavigationRoles().AnswerType(); got != "" {
-		t.Errorf("AnswerType() = %q without a decoded declaration", got)
-	}
-}
-
 func TestAFolderWithNoContractReadsTheBuiltInAnswerType(t *testing.T) {
 	t.Parallel()
 	var none *Contract

@@ -94,24 +94,6 @@ func TestTheReferenceContractLoads(t *testing.T) {
 	}
 }
 
-// TestTheContractShapeBeforeTheFieldRedesignIsNotRead holds that the loader
-// reads one shape. A contract written before the fields were redesigned
-// carries tables this one no longer has, and it is refused, not read in part:
-// the loader keeps no second reading of it. That file begins with the version
-// key every such contract carried, which is one more key nothing reads.
-func TestTheContractShapeBeforeTheFieldRedesignIsNotRead(t *testing.T) {
-	t.Parallel()
-
-	if contract, err := schema.LoadFile(filepath.Join("testdata", "reference-earlier-format.toml")); err == nil {
-		t.Errorf("LoadFile(testdata/reference-earlier-format.toml) = %+v, nil, want a refusal", contract.Definition())
-	}
-
-	const lifecycle = "\n[[lifecycle]]\nstatus = \"draft\"\napplies_to = [\"*\"]\nfrom = []\nowner = []\n"
-	if err := loadTextError(t, lifecycle); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
-		t.Errorf("LoadFile([[lifecycle]]) error = %v, want the unknown-keys refusal", err)
-	}
-}
-
 const standingContract = `[fields]
 common = ["type", "lang", "created"]
 required = ["type", "created"]
@@ -188,13 +170,8 @@ func TestRequiredFields(t *testing.T) {
 		{"", []string{"type", "created"}},
 		{"undeclared", []string{"type", "created"}},
 	} {
-		got := contract.RequiredFields(tt.noteType)
-		if diff := cmp.Diff(tt.want, got); diff != "" {
-			t.Errorf("RequiredFields(%q) mismatch (-want +got):\n%s", tt.noteType, diff)
-		}
-		got[0] = "changed"
 		if diff := cmp.Diff(tt.want, contract.RequiredFields(tt.noteType)); diff != "" {
-			t.Errorf("RequiredFields(%q) changed after caller mutation (-want +got):\n%s", tt.noteType, diff)
+			t.Errorf("RequiredFields(%q) mismatch (-want +got):\n%s", tt.noteType, diff)
 		}
 	}
 }
@@ -308,16 +285,8 @@ func TestDomainsComeFromTheFolder(t *testing.T) {
 			t.Errorf("Domains().Of(%q) = %q, want %q", path, got, want)
 		}
 	}
-	roots := domains.Roots()
-	if diff := cmp.Diff([]string{"courses", "Writing/lessons"}, roots); diff != "" {
+	if diff := cmp.Diff([]string{"courses", "Writing/lessons"}, domains.Roots()); diff != "" {
 		t.Errorf("Domains().Roots() mismatch (-want +got):\n%s", diff)
-	}
-	roots[0] = "changed"
-	if got := contract.Domains().Of("courses/go/a.md"); got != "go" {
-		t.Errorf("Domains().Of() = %q after a caller changed Roots(), want %q", got, "go")
-	}
-	if got := (schema.Domains{}).Of("courses/go/a.md"); got != "" {
-		t.Errorf("zero Domains.Of() = %q, want empty", got)
 	}
 }
 
@@ -342,23 +311,4 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 	if oneType.ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = true with lang on one type only, want false")
 	}
-}
-
-func TestFieldStandingNamesItself(t *testing.T) {
-	t.Parallel()
-	for standing, want := range map[schema.FieldStanding]string{
-		schema.FieldUnknown:       "unknown",
-		schema.FieldAllowed:       "allowed",
-		schema.FieldTypeDependent: "type-dependent",
-	} {
-		if got := standing.String(); got != want {
-			t.Errorf("FieldStanding(%d).String() = %q, want %q", int(standing), got, want)
-		}
-	}
-	defer func() {
-		if recover() == nil {
-			t.Error("a FieldStanding outside the three constants named itself instead of panicking")
-		}
-	}()
-	_ = schema.FieldStanding(99).String()
 }

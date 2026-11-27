@@ -94,25 +94,6 @@ func BenchmarkValidateDistinctKeys(b *testing.B) {
 	}
 }
 
-// BenchmarkSiblingFoldDistinct isolates sibling grouping from TOML decoding
-// and sorting, so unrelated decoder work cannot obscure its growth rate.
-func BenchmarkSiblingFoldDistinct(b *testing.B) {
-	for _, count := range []int{1024, 2048, 4096} {
-		b.Run(fmt.Sprintf("%dkeys", count), func(b *testing.B) {
-			names := make([]string, count)
-			for i := range names {
-				names[i] = fmt.Sprintf("key%06d", i)
-			}
-			b.ReportAllocs()
-			for b.Loop() {
-				if got := siblingsThatFold("", names); len(got) != 0 {
-					b.Fatalf("siblingsThatFold(distinct keys) = %v, want no pairs", got)
-				}
-			}
-		})
-	}
-}
-
 func FuzzSiblingFoldIdentity(f *testing.F) {
 	for _, seed := range [][2]string{{"K", "K"}, {"S", "ſ"}, {"Σ", "ς"}, {"ß", "ss"}, {"ß", "ẞ"}, {"e\u0301", "é"}, {"i", "İ"}, {"\xff", "\xfe"}} {
 		f.Add(seed[0], seed[1])

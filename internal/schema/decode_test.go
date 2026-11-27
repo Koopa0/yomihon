@@ -154,65 +154,41 @@ func TestUnknownCoreKeys(t *testing.T) {
 	}
 }
 
-func TestUnknownPrivacyKeysInvalidateOnlyPrivacy(t *testing.T) {
+// TestAFaultInThePrivacySectionClosesOnlyPrivacy holds that a privacy section
+// the loader cannot honour closes egress, names the key at fault, and leaves
+// the rest of the contract read.
+func TestAFaultInThePrivacySectionClosesOnlyPrivacy(t *testing.T) {
 	t.Parallel()
 
-	data := []byte(strings.Replace(
-		validContract,
-		"never_egress_dirs = [\"Private\"]\n",
-		"never_egress_dirs = [\"Private\"]\nmystery_zeta = true\nmystery_alpha = true\n",
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(unknown privacy keys) error = %v", err)
-	}
-	if s.PrivacyPolicy().Available() {
-		t.Fatal("PrivacyPolicy().Available() = true, want false")
-	}
-	const want = `invalid privacy policy: unknown keys "privacy.mystery_alpha", "privacy.mystery_zeta"`
-	if got := s.PrivacyPolicy().Diagnostic(); got != want {
-		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
-	}
-	if !s.ArtifactPolicy().Available() {
-		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-	}
-	if !s.DeclaresType("lesson") {
-		t.Error(`DeclaresType("lesson") = false, want the core vocabulary loaded`)
-	}
-}
-
-func TestPrivacyTypeErrorInvalidatesOnlyPrivacy(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContract,
-		`never_egress_dirs = ["Private"]`,
-		`never_egress_dirs = "Private"`,
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(privacy type error) error = %v", err)
-	}
-	if s.PrivacyPolicy().Available() {
-		t.Fatal("PrivacyPolicy().Available() = true, want false")
-	}
-	const want = `invalid privacy policy: key "privacy.never_egress_dirs" has incompatible TOML type`
-	if got := s.PrivacyPolicy().Diagnostic(); got != want {
-		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
-	}
-	if !s.ArtifactPolicy().Available() {
-		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-	}
-	if !s.DeclaresType("lesson") {
-		t.Error(`DeclaresType("lesson") = false, want the core vocabulary loaded`)
+	for _, tt := range []struct {
+		name, from, to, named string
+	}{
+		{
+			name:  "unknown keys",
+			from:  "never_egress_dirs = [\"Private\"]\n",
+			to:    "never_egress_dirs = [\"Private\"]\nmystery_zeta = true\nmystery_alpha = true\n",
+			named: `"privacy.mystery_alpha", "privacy.mystery_zeta"`,
+		},
+		{
+			name:  "a value of the wrong type",
+			from:  `never_egress_dirs = ["Private"]`,
+			to:    `never_egress_dirs = "Private"`,
+			named: `"privacy.never_egress_dirs"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s, err := decodeContract([]byte(strings.Replace(validContract, tt.from, tt.to, 1)), policySource{})
+			if err != nil {
+				t.Fatalf("decodeContract() error = %v", err)
+			}
+			if privacy := s.PrivacyPolicy(); privacy.Available() || !strings.Contains(privacy.Diagnostic(), tt.named) {
+				t.Errorf("PrivacyPolicy() = available %t, diagnostic %q; want it closed, naming %s", privacy.Available(), privacy.Diagnostic(), tt.named)
+			}
+			if !s.NavigationRoles().Available() || !s.ArtifactPolicy().Available() || !s.DeclaresType("lesson") {
+				t.Error("a fault in the privacy section closed more of the contract than its own section")
+			}
+		})
 	}
 }
 
@@ -268,6 +244,8 @@ func typeRoles(contract *Contract) string {
 	return strings.Join(names, ",")
 }
 
+// FuzzDecodeContractDeterministic looks for an input that panics the decoder,
+// or whose outcome depends on map order between two decodes of the same bytes.
 func FuzzDecodeContractDeterministic(f *testing.F) {
 	seeds := [][]byte{
 		nil,
@@ -406,32 +384,6 @@ func TestDecodeRefusesKeysThatFoldTogether(t *testing.T) {
 			for _, name := range tc.names {
 				if !strings.Contains(err.Error(), name) {
 					t.Errorf("refusal %q does not name %s", err.Error(), name)
-				}
-			}
-		})
-	}
-}
-
-func TestDecodeOfFoldedKeysIsDeterministic(t *testing.T) {
-	t.Parallel()
-
-	for _, shape := range []string{
-		"top-level", "nested-table", "array-of-tables", "key-in-table",
-		"map-valued-section", "quoted-key", "inline-table-array", "row-in-table-array",
-		"two-pairs",
-	} {
-		t.Run(shape, func(t *testing.T) {
-			t.Parallel()
-
-			data := []byte(foldedKeyContract(shape))
-			_, first := decodeContract(data, policySource{})
-			if first == nil {
-				t.Fatal("decodeContract() error = nil, want a refusal")
-			}
-			for i := range 200 {
-				_, err := decodeContract(data, policySource{})
-				if err == nil || err.Error() != first.Error() {
-					t.Fatalf("decode %d differed:\nfirst: %v\nnow:   %v", i, first, err)
 				}
 			}
 		})

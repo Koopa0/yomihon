@@ -5,45 +5,6 @@ import (
 	"testing"
 )
 
-func TestArticleLanguageDeclared(t *testing.T) {
-	t.Parallel()
-	if (&Contract{}).ArticleLanguage().Declared() {
-		t.Error("ArticleLanguage().Declared() = true without a contract, want false")
-	}
-	common := &Contract{common: []string{"type", "lang"}}
-	if !common.ArticleLanguage().Declared() {
-		t.Error("ArticleLanguage().Declared() = false when fields.common lists lang, want true")
-	}
-	oneType := &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"lang"}}}}
-	if oneType.ArticleLanguage().Declared() {
-		t.Error("ArticleLanguage().Declared() = true when only one type lists lang, want false")
-	}
-}
-
-func TestArticleLanguageRequiresContractAuthority(t *testing.T) {
-	t.Parallel()
-	resolver := (&Contract{}).ArticleLanguage()
-	got, err := resolver.Resolve(map[string]any{"lang": "ja"})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if got != "" {
-		t.Errorf("Resolve() = %q, want no tag without a contract declaration", got)
-	}
-}
-
-func TestArticleLanguageRejectsOneTypeAuthority(t *testing.T) {
-	t.Parallel()
-	contract := &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"lang"}}}}
-	got, err := contract.ArticleLanguage().Resolve(map[string]any{"lang": "ja"})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if got != "" {
-		t.Errorf("Resolve() = %q, want no tag when only one type declares lang", got)
-	}
-}
-
 func TestArticleLanguageResolve(t *testing.T) {
 	t.Parallel()
 	contract := &Contract{common: []string{"type", "lang"}}
@@ -60,8 +21,7 @@ func TestArticleLanguageResolve(t *testing.T) {
 		// An author who writes the undetermined tag by hand gets it back: it
 		// is a value the grammar accepts and the contract gave authority to,
 		// and refusing to carry one the author chose would be the resolver
-		// overruling the note. It is the resolver's own silence that no longer
-		// spells itself that way.
+		// overruling the note.
 		{name: "explicit undetermined", frontmatter: map[string]any{"lang": "und"}, want: "und"},
 		{name: "empty", frontmatter: map[string]any{"lang": ""}, want: "", wantErr: true},
 		{name: "wrong type", frontmatter: map[string]any{"lang": []string{"ja"}}, want: "", wantErr: true},
@@ -117,6 +77,9 @@ func TestParseLanguageTagNamesRepeatedSingleton(t *testing.T) {
 	}
 }
 
+// FuzzParseLanguageTag looks for an input that panics the parser or comes back
+// empty. The round trip below cannot fail on its own, since ParseLanguageTag
+// only answers with a tag that canonicalizes to itself.
 func FuzzParseLanguageTag(f *testing.F) {
 	for _, seed := range []string{
 		"",

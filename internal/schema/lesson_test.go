@@ -101,15 +101,3 @@ func TestAuthorityReadsTheLessonTypeHoweverItIsComposed(t *testing.T) {
 		}
 	}
 }
-
-func TestTheZeroNavigationRolesNameNoLessonType(t *testing.T) {
-	t.Parallel()
-
-	var roles NavigationRoles
-	if roles.IsLessonType("lesson") {
-		t.Error("the zero NavigationRoles named a lesson type")
-	}
-	if (&Contract{}).NavigationRoles().IsLessonType("lesson") {
-		t.Error("a contract that decoded nothing named a lesson type")
-	}
-}

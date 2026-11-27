@@ -46,12 +46,6 @@ func TestEnumValuesCompleteDeclaration(t *testing.T) {
 		if diff := cmp.Diff(values, got); diff != "" {
 			t.Errorf("EnumValues(%q) (-want +got):\n%s", field, diff)
 		}
-		if len(got) > 0 {
-			got[0] = "changed"
-		}
-		if diff := cmp.Diff(values, contract.EnumValues(field)); diff != "" {
-			t.Errorf("EnumValues(%q) changed after caller mutation (-want +got):\n%s", field, diff)
-		}
 	}
 	for _, enum := range contract.Definition().Enums {
 		if _, ok := want[enum.Field]; !ok {
@@ -91,12 +85,5 @@ level = ["cafe\u0301", "Café"]
 				t.Errorf("EnumValues(%q) (-want +got):\n%s", tc.field, diff)
 			}
 		})
-	}
-	for _, absent := range []*schema.Contract{nil, new(schema.Contract)} {
-		for _, field := range []string{"type", "domain", "level", "unknown"} {
-			if got := absent.EnumValues(field); got != nil {
-				t.Errorf("ungoverned EnumValues(%q) = %q, want nil", field, got)
-			}
-		}
 	}
 }

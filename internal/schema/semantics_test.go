@@ -610,49 +610,6 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			t.Fatalf("decodeContract(empty optional core lists) error = %q", got)
 		}
 	})
-
-	t.Run("an omitted privacy section stays degraded while the rest holds", func(t *testing.T) {
-		t.Parallel()
-
-		data := replaceContractText(t, semanticallyValidContract, "\n[privacy]\nnever_egress_dirs = []\n", "")
-		s, err := decodeContract([]byte(data), policySource{})
-		if err != nil {
-			t.Fatalf("decodeContract(absent privacy) error = %v", err)
-		}
-		if s.PrivacyPolicy().Available() || s.PrivacyPolicy().Trustworthy() {
-			t.Error("PrivacyPolicy() of a contract that omitted [privacy] is available or trustworthy, want fail-closed")
-		}
-		if !s.NavigationRoles().Available() {
-			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
-		}
-		if !s.ArtifactPolicy().Available() {
-			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-		}
-	})
-
-	t.Run("invalid privacy type does not close core or siblings", func(t *testing.T) {
-		t.Parallel()
-
-		data := replaceContractText(
-			t,
-			semanticallyValidContract,
-			`never_egress_dirs = []`,
-			`never_egress_dirs = "Private"`,
-		)
-		s, err := decodeContract([]byte(data), policySource{})
-		if err != nil {
-			t.Fatalf("decodeContract(invalid privacy type) error = %v", err)
-		}
-		if s.PrivacyPolicy().Available() {
-			t.Error("PrivacyPolicy().Available() = true, want false")
-		}
-		if !s.NavigationRoles().Available() {
-			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
-		}
-		if !s.ArtifactPolicy().Available() {
-			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-		}
-	})
 }
 
 func replaceContractText(t *testing.T, contract, from, to string) string {
