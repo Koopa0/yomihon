@@ -5,35 +5,6 @@ import (
 	"time"
 )
 
-func TestAuthoredDateField(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		contract *Contract
-		want     string
-	}{
-		{name: "no contract", contract: nil, want: ""},
-		{name: "common without created", contract: &Contract{common: []string{"type"}}, want: ""},
-		{name: "common declares created", contract: &Contract{common: []string{"type", "created"}}, want: "created"},
-		// A declaration on one type cannot describe every note, and a report
-		// is not a lesson.
-		{name: "created on one type only", contract: &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"created"}}}}, want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			dated := tt.contract.AuthoredDate()
-			if got := dated.Field(); got != tt.want {
-				t.Errorf("AuthoredDate().Field() = %q, want %q", got, tt.want)
-			}
-			if got := dated.Declared(); got != (tt.want != "") {
-				t.Errorf("AuthoredDate().Declared() = %v, want %v", got, tt.want != "")
-			}
-		})
-	}
-}
-
 func TestAuthoredDateRequiresContractAuthority(t *testing.T) {
 	t.Parallel()
 	got, err := (&Contract{}).AuthoredDate().Resolve(map[string]any{"created": "2026-08-31"})
@@ -96,6 +67,6 @@ func TestAuthoredDateReadsOnlyTheDeclaredField(t *testing.T) {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 	if got != "" {
-		t.Errorf("Resolve() = %q, want no day: this contract dates a note by %q", got, dated.Field())
+		t.Errorf("Resolve() = %q, want no day: this contract dates a note by created", got)
 	}
 }

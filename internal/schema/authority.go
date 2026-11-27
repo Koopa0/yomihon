@@ -53,11 +53,6 @@ func (a Authority) Diagnostic() string {
 	return a.Claim().Diagnostic()
 }
 
-// Policy is the artifact policy this view captured.
-func (a Authority) Policy() ArtifactPolicy {
-	return a.policy
-}
-
 // IsLessonType reports whether noteType is the type this vault files its
 // course members as. The name comes from the contract layer, which spells it
 // once; whether this folder declares the type is deliberately not asked, since

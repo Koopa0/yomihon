@@ -199,7 +199,7 @@ func TestRequiredFields(t *testing.T) {
 	}
 }
 
-func TestSlugPatternAndTypeRole(t *testing.T) {
+func TestSlugPattern(t *testing.T) {
 	t.Parallel()
 
 	contract := loadText(t, standingContract)
@@ -215,17 +215,6 @@ func TestSlugPatternAndTypeRole(t *testing.T) {
 	for _, noteType := range []string{"note", "study-path", "undeclared", ""} {
 		if pattern, ok := contract.SlugPattern(noteType); ok || pattern != nil {
 			t.Errorf("SlugPattern(%q) = (%v, %t), want (nil, false)", noteType, pattern, ok)
-		}
-	}
-
-	for noteType, want := range map[string]schema.Role{
-		"lesson":     schema.RoleLesson,
-		"study-path": schema.RoleCourse,
-		"note":       "",
-		"undeclared": "",
-	} {
-		if got := contract.TypeRole(noteType); got != want {
-			t.Errorf("TypeRole(%q) = %q, want %q", noteType, got, want)
 		}
 	}
 }
@@ -339,8 +328,8 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 	t.Parallel()
 
 	common := loadText(t, "[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
-	if got := common.AuthoredDate().Field(); got != "created" {
-		t.Errorf("AuthoredDate().Field() = %q with created in fields.common, want %q", got, "created")
+	if !common.AuthoredDate().Declared() {
+		t.Error("AuthoredDate().Declared() = false with created in fields.common, want true")
 	}
 	if !common.ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = false with lang in fields.common, want true")
@@ -348,7 +337,7 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 
 	oneType := loadText(t, "[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
 	if oneType.AuthoredDate().Declared() {
-		t.Errorf("AuthoredDate() = %q with created on one type only, want no field", oneType.AuthoredDate().Field())
+		t.Error("AuthoredDate().Declared() = true with created on one type only, want false")
 	}
 	if oneType.ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = true with lang on one type only, want false")

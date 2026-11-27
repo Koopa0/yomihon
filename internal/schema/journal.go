@@ -24,19 +24,6 @@ func (j JournalDir) Available() bool {
 	return j.claim.held()
 }
 
-// Trustworthy reports whether a projection over the journal directory may be
-// answered: true when it was read cleanly or never declared, false when a
-// declaration was made and could not be honoured.
-func (j JournalDir) Trustworthy() bool {
-	return j.claim.Trustworthy()
-}
-
-// Diagnostic explains why the journal directory could not be honoured. It is
-// empty when the directory was read cleanly and empty when nothing declared one.
-func (j JournalDir) Diagnostic() string {
-	return j.claim.Diagnostic()
-}
-
 // Contains reports whether rel is equal to or below the declared journal
 // directory, comparing whole components through the folded identity every vault
 // directory scope shares. An unclaimed or unresolved directory contains

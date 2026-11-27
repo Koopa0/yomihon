@@ -14,11 +14,6 @@ type KnowledgeScope struct {
 	claim Claim
 }
 
-// Claim reports how far the scan declaration got.
-func (s KnowledgeScope) Claim() Claim {
-	return s.claim
-}
-
 // Available reports whether the contract declared a knowledge layer.
 func (s KnowledgeScope) Available() bool {
 	return s.claim.held()
@@ -45,15 +40,12 @@ func (s KnowledgeScope) Declared() []string {
 }
 
 // deriveKnowledgeScope reads the declared knowledge layer. A contract that
-// declares none leaves the scope unresolved rather than empty, because an empty
-// one would match no directory and hide the whole vault; an unresolved scope
+// declares none leaves the scope unclaimed rather than empty, because an empty
+// one would match no directory and hide the whole vault; an unclaimed scope
 // includes everything until a contract narrows it.
-//
-// Unclaimed is this package's word for the opposite state — nothing was ever
-// asserted — and it is not what happens here.
 func deriveKnowledgeScope(dirs []string) KnowledgeScope {
 	if len(dirs) == 0 {
-		return KnowledgeScope{claim: Rejected("")}
+		return KnowledgeScope{}
 	}
 	return KnowledgeScope{dirs: slices.Clone(dirs), claim: heldClaim()}
 }

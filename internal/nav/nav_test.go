@@ -2261,8 +2261,8 @@ func TestNoteDay(t *testing.T) {
 	t.Parallel()
 
 	dated := testContract(t).AuthoredDate()
-	if dated.Field() != "created" {
-		t.Fatalf("test contract dates a note by %q, want created", dated.Field())
+	if !dated.Declared() {
+		t.Fatal("test contract dates no note, want it dated by created")
 	}
 
 	tests := []struct {

@@ -168,9 +168,6 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	if got := contract.RequiredFields("lesson"); got != nil {
 		t.Errorf(`RequiredFields("lesson") = %v, want nil`, got)
 	}
-	if got := contract.TypeRole("lesson"); got != "" {
-		t.Errorf(`TypeRole("lesson") = %q, want empty`, got)
-	}
 	if contract.NavigationRoles().Available() {
 		t.Error("NavigationRoles() on zero Contract is available")
 	}
@@ -286,7 +283,7 @@ never_egress_dirs = ["Private"]
 
 	roles := s.NavigationRoles()
 	if !roles.Available() {
-		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Claim().Diagnostic())
 	}
 	if !roles.IsPathType("study-path") {
 		t.Error("NavigationRoles().IsPathType(\"study-path\") = false, want true")
@@ -697,7 +694,7 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if !roles.Available() || !roles.Trustworthy() {
 		t.Fatalf("NavigationRoles() of a contract with no roles: available %t, trustworthy %t, want both", roles.Available(), roles.Trustworthy())
 	}
-	if got := roles.Diagnostic(); got != "" {
+	if got := roles.Claim().Diagnostic(); got != "" {
 		t.Errorf("NavigationRoles().Diagnostic() = %q, want empty", got)
 	}
 	if roles.IsPathType("study-path") || roles.IsMapType("moc") || roles.AnswerType() != "" {
@@ -745,7 +742,7 @@ func TestZeroCapabilitiesAreSilentAndFailClosed(t *testing.T) {
 		name string
 		got  string
 	}{
-		{"NavigationRoles", roles.Diagnostic()},
+		{"NavigationRoles", roles.Claim().Diagnostic()},
 		{"ArtifactPolicy", policy.Diagnostic()},
 		{"PrivacyPolicy", privacy.Diagnostic()},
 	} {
@@ -949,7 +946,7 @@ func TestNavigationRolesRejectRoleAnomalies(t *testing.T) {
 				t.Fatalf("NavigationRoles(): available %t, trustworthy %t, want neither", roles.Available(), roles.Trustworthy())
 			}
 			for _, name := range tt.named {
-				if got := roles.Diagnostic(); !strings.Contains(got, name) {
+				if got := roles.Claim().Diagnostic(); !strings.Contains(got, name) {
 					t.Errorf("NavigationRoles().Diagnostic() = %q, want %s named", got, name)
 				}
 			}
@@ -974,14 +971,14 @@ func TestJournalDirIsUnclaimedWhenUndeclared(t *testing.T) {
 	if journal.Available() {
 		t.Fatal("JournalDir().Available() = true, want false")
 	}
-	if !journal.Trustworthy() {
+	if !journal.Claim().Trustworthy() {
 		t.Error("an undeclared journal is untrustworthy; empty is the true answer")
 	}
 	if journal.Contains("Diary/today.md") {
 		t.Error("JournalDir().Contains() = true with no journal, want empty projection")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after optional journal omitted, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after optional journal omitted, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -991,7 +988,7 @@ func TestJournalDirProjectsTheDeclaredDirectory(t *testing.T) {
 	s := loadContractText(t, `journal = "Diary"`)
 	journal := s.JournalDir()
 	if !journal.Available() {
-		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Diagnostic())
+		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Claim().Diagnostic())
 	}
 	if !journal.Contains("Diary/today.md") {
 		t.Error("JournalDir().Contains(Diary/today.md) = false, want true")
@@ -1009,14 +1006,14 @@ func TestJournalDirRejectsInvalidDirectory(t *testing.T) {
 	if journal.Available() {
 		t.Fatal("JournalDir().Available() = true, want false")
 	}
-	if got := journal.Diagnostic(); !strings.Contains(got, `../Diary`) {
+	if got := journal.Claim().Diagnostic(); !strings.Contains(got, `../Diary`) {
 		t.Errorf("JournalDir().Diagnostic() = %q, want offending value named", got)
 	}
 	if journal.Contains("Diary/today.md") {
 		t.Error("a rejected journal directory still contains a path")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after invalid journal, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after invalid journal, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -1032,7 +1029,7 @@ func TestArtifactPolicyRejectsEmptyDirectory(t *testing.T) {
 		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending empty value named", got)
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after invalid artifact policy, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after invalid artifact policy, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -1436,9 +1433,9 @@ func TestCapabilitiesAllowEmptyLists(t *testing.T) {
 	s := loadText(t, contractText(`templates = []`, "\n[types.note]\n", ""))
 	roles := s.NavigationRoles()
 	if !roles.Available() {
-		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Claim().Diagnostic())
 	}
-	if got := roles.Diagnostic(); got != "" {
+	if got := roles.Claim().Diagnostic(); got != "" {
 		t.Errorf("NavigationRoles().Diagnostic() = %q with no role given, want empty", got)
 	}
 	if roles.IsPathType("note") || roles.IsMapType("note") || roles.IsLessonType("note") {
@@ -1468,9 +1465,6 @@ func TestNavigationRolesRemainDerivedAfterDefinitionMutation(t *testing.T) {
 	roles := s.NavigationRoles()
 	if !roles.IsPathType("study-path") || !roles.IsMapType("moc") {
 		t.Error("NavigationRoles() changed after mutating Definition.Types, want load-time derived membership")
-	}
-	if got := s.TypeRole("study-path"); got != schema.RoleCourse {
-		t.Errorf("TypeRole(study-path) = %q after mutating Definition.Types, want %q", got, schema.RoleCourse)
 	}
 }
 
@@ -1629,12 +1623,6 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
-		"TypeRole": func() string {
-			if got := c.TypeRole("lesson"); got != "" {
-				return fmt.Sprintf("TypeRole(lesson) = %q, want empty", got)
-			}
-			return ""
-		},
 		"Domains": func() string {
 			domains := c.Domains()
 			if got := domains.Of("Concepts/golang/a.md"); got != "" || domains.Roots() != nil {
@@ -1688,7 +1676,7 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			for name, claim := range map[string]schema.Claim{
 				"Navigation": caps.Navigation.Claim(), "Artifacts": caps.Artifacts.Claim(),
-				"Knowledge": caps.Knowledge.Claim(), "Journal": caps.Journal.Claim(),
+				"Journal": caps.Journal.Claim(),
 			} {
 				if claim.Diagnostic() != "" || !claim.Trustworthy() {
 					return fmt.Sprintf("Capabilities().%s reports a withheld declaration where none was ever made", name)
@@ -1764,9 +1752,9 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"AuthoredDate": func() string {
 			dated := c.AuthoredDate()
 			day, err := dated.Resolve(map[string]any{"created": "2026-08-31"})
-			if dated.Declared() || dated.Field() != "" || day != "" || err != nil {
-				return fmt.Sprintf("AuthoredDate() = %q and resolves (%q, %v), want no field and no day: no contract dates a note here",
-					dated.Field(), day, err)
+			if dated.Declared() || day != "" || err != nil {
+				return fmt.Sprintf("AuthoredDate() declared %t and resolves (%q, %v), want no field and no day: no contract dates a note here",
+					dated.Declared(), day, err)
 			}
 			return ""
 		},

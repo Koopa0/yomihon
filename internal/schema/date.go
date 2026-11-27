@@ -28,13 +28,6 @@ func (c *Contract) AuthoredDate() AuthoredDate {
 	return AuthoredDate{field: createdField}
 }
 
-// Field names the frontmatter field this contract dates a note by, and is empty
-// where the contract declared none. A surface that has to say how it knows a
-// day asks here rather than re-reading fields.common for the same word.
-func (d AuthoredDate) Field() string {
-	return d.field
-}
-
 // Declared reports whether the contract gave a date field authority.
 func (d AuthoredDate) Declared() bool {
 	return d.field != ""

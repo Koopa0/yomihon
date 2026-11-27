@@ -166,10 +166,6 @@ func unreadableDiagnostic(err error) string {
 	return sentence + ": " + err.Error()
 }
 
-// Reason names why the contract could not be honoured, empty of meaning unless
-// this vault claimed governance and failed to deliver it.
-func (g Governance) Reason() Reason { return g.claim.reason }
-
 // Governance reports what this contract asserts. A nil contract governs nothing.
 func (c *Contract) Governance() Governance {
 	if c == nil {

@@ -165,18 +165,6 @@ func (c *Contract) SlugPattern(noteType string) (*regexp.Regexp, bool) {
 	return c.types[index].slugPattern, true
 }
 
-// TypeRole returns the role the contract gives noteType, empty for a plain
-// type and for one the contract does not declare.
-func (c *Contract) TypeRole(noteType string) Role {
-	if c == nil {
-		return ""
-	}
-	if index, ok := c.typeByName[NormalizeWord(noteType)]; ok {
-		return c.types[index].role
-	}
-	return ""
-}
-
 func validateFieldLists(contract *Contract) error {
 	if err := checkFieldNames("fields.common", contract.common, nil); err != nil {
 		return err

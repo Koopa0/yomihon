@@ -624,7 +624,7 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			t.Error("PrivacyPolicy() of a contract that omitted [privacy] is available or trustworthy, want fail-closed")
 		}
 		if !s.NavigationRoles().Available() {
-			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
+			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 		}
 		if !s.ArtifactPolicy().Available() {
 			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
@@ -648,7 +648,7 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			t.Error("PrivacyPolicy().Available() = true, want false")
 		}
 		if !s.NavigationRoles().Available() {
-			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
+			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 		}
 		if !s.ArtifactPolicy().Available() {
 			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())

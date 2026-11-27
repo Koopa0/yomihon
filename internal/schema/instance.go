@@ -46,12 +46,6 @@ func (r NavigationRoles) Trustworthy() bool {
 	return r.claim.Trustworthy()
 }
 
-// Diagnostic explains why navigation roles could not be honoured. It is empty
-// when they were read cleanly and empty when nothing declared them.
-func (r NavigationRoles) Diagnostic() string {
-	return r.claim.Diagnostic()
-}
-
 // IsPathType reports whether noteType is declared as an ordered study path.
 func (r NavigationRoles) IsPathType(noteType string) bool {
 	if !r.Trustworthy() {

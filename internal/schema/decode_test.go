@@ -191,7 +191,7 @@ func TestUnknownPrivacyKeysInvalidateOnlyPrivacy(t *testing.T) {
 		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, want)
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 	if !s.ArtifactPolicy().Available() {
 		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
@@ -222,7 +222,7 @@ func TestPrivacyTypeErrorInvalidatesOnlyPrivacy(t *testing.T) {
 		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, want)
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 	if !s.ArtifactPolicy().Available() {
 		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
@@ -262,13 +262,13 @@ func classifyDecode(data []byte) decodeClassification {
 	return decodeClassification{
 		typeRoles:            typeRoles(s),
 		navigationAvailable:  s.NavigationRoles().Available(),
-		navigationDiagnostic: s.NavigationRoles().Diagnostic(),
+		navigationDiagnostic: s.NavigationRoles().Claim().Diagnostic(),
 		artifactAvailable:    s.ArtifactPolicy().Available(),
 		artifactDiagnostic:   s.ArtifactPolicy().Diagnostic(),
 		privacyAvailable:     s.PrivacyPolicy().Available(),
 		privacyDiagnostic:    s.PrivacyPolicy().Diagnostic(),
 		journalAvailable:     s.JournalDir().Available(),
-		journalDiagnostic:    s.JournalDir().Diagnostic(),
+		journalDiagnostic:    s.JournalDir().Claim().Diagnostic(),
 	}
 }
 

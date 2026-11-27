@@ -208,7 +208,6 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 		claim schema.Claim
 	}{
 		{"NavigationRoles", roles.Claim()},
-		{"KnowledgeScope", scope.Claim()},
 		{"ArtifactPolicy", artifact.Claim()},
 		{"PrivacyPolicy", privacy.Claim()},
 		{"JournalDir", journal.Claim()},
