@@ -18,7 +18,7 @@ type Backlinks struct {
 // newBacklinks inverts one generation's citations. A citation counts only when
 // it resolves to exactly one other note, so an ambiguous name records nothing.
 // links is what each note cites, by path, as it was read when the note was.
-func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Index) *Backlinks {
+func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Index, titles titleFunc) *Backlinks {
 	b := &Backlinks{byTarget: make(map[string][]nav.NoteRef)}
 	if idx == nil {
 		return b
@@ -35,7 +35,7 @@ func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Ind
 			}
 			seen[res.RelPath] = true
 			b.byTarget[res.RelPath] = append(b.byTarget[res.RelPath], nav.NoteRef{
-				Name:    graph.TitleOf(n),
+				Name:    titles(n.RelPath),
 				RelPath: n.RelPath,
 			})
 		}

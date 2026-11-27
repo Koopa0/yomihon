@@ -176,9 +176,9 @@ type Generation struct {
 	// domainRoots is the detached declaration used by this generation's findings.
 	domainRoots []string
 
-	// titles maps each declared title to every note declaring it, for the question
-	// the resolver is built not to answer.
-	titles map[string][]nav.NoteRef
+	// titledBy maps each title an author wrote to every note writing it, for
+	// the question the resolver is built not to answer.
+	titledBy map[string][]nav.NoteRef
 
 	// parsed, products and sidecars are what a later build falls back on for a
 	// source it can no longer read; the projections already hold most of it, so
@@ -264,7 +264,7 @@ func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
 	if g == nil {
 		return nil
 	}
-	return projectBasedOn(g.parsed[relPath], g.graph, g.pathTitle)
+	return projectBasedOn(g.parsed[relPath], g.graph, titlesIn(g.notes))
 }
 
 // BasedOnBy returns the notes that declared relPath in their own based_on, by
@@ -1074,7 +1074,7 @@ func buildGeneration(
 
 	progress.reached(len(entries), "")
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
-	titles := titlesByName(g.ordered)
+	titledBy := titlesByName(g.readings)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
@@ -1088,8 +1088,9 @@ func buildGeneration(
 
 	planned := g.plannedSet()
 	links := g.linkTargets()
-	backlinks := newBacklinks(g.ordered, links, graphIndex)
-	sources := newBasedOnBy(g.ordered, graphIndex)
+	titles := titlesIn(g.readings)
+	backlinks := newBacklinks(g.ordered, links, graphIndex, titles)
+	sources := newBasedOnBy(g.ordered, graphIndex, titles)
 	// What the schema said is gathered here, with the rest of the whole-folder
 	// view, because every page's rail now states how many findings stand
 	// against the folder and a walk over every note is not a thing to do on
@@ -1099,7 +1100,7 @@ func buildGeneration(
 	if hasConceptType {
 		coverage.conceptType = schema.NormalizeWord(conceptType)
 	}
-	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation, &coverage)
+	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titledBy, capabilities.Navigation, &coverage)
 	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
@@ -1119,7 +1120,7 @@ func buildGeneration(
 		notes:          g.readings,
 		schemaFindings: g.findings,
 		domainRoots:    contract.Domains().Roots(),
-		titles:         titles,
+		titledBy:       titledBy,
 		parsed:         g.parsed,
 		products:       g.products,
 		sidecars:       g.sidecars,

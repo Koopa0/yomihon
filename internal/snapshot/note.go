@@ -14,8 +14,11 @@ import (
 // reference, so returning it by value cannot mutate a published generation.
 type Reading struct {
 	RelPath string
-	Title   string
-	Body    string
+	// Title is what the note is read by: the title its author wrote, or else
+	// its file name. Titled is whether the author wrote it.
+	Title  string
+	Titled bool
+	Body   string
 	// BodyLine is the line of the file Body begins on, counted from 1, so a
 	// line of Body can be named as the line of the file an editor shows.
 	BodyLine int
@@ -60,9 +63,14 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 	if err != nil {
 		diagnostic = err.Error()
 	}
+	title, titled := graph.WrittenTitle(parsed)
+	if !titled {
+		title = graph.FileStem(parsed.RelPath)
+	}
 	return Reading{
 		RelPath:            parsed.RelPath,
-		Title:              graph.TitleOf(parsed),
+		Title:              title,
+		Titled:             titled,
 		Body:               parsed.Body,
 		BodyLine:           parsed.BodyLine,
 		Type:               parsed.Type(),

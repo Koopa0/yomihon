@@ -59,11 +59,10 @@ func (g *Generation) VaultTitle(folder string) string {
 // frontmatter title, empty when it has neither. A reading's Title falls back to
 // the file name, which is a path rather than a title.
 func (g *Generation) DeclaredTitle(rel string) string {
-	if g == nil || g.parsed[rel] == nil {
+	if g == nil || !g.notes[rel].Titled {
 		return ""
 	}
-	title, _ := graph.WrittenTitle(g.parsed[rel])
-	return title
+	return g.notes[rel].Title
 }
 
 // NotText reports whether rel's frontmatter writes key with a value that is

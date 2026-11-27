@@ -35,7 +35,7 @@ func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]Decla
 	seen := make(map[string]bool)
 	rendered := make(map[string]render.Result)
 	for _, value := range basedOnValues(g.parsed[relPath]) {
-		ref, ok := declaredSource(g.graph, g.pathTitle, value)
+		ref, ok := declaredSource(g.graph, titlesIn(g.notes), value)
 		if !ok {
 			continue
 		}
@@ -96,9 +96,8 @@ type basedOnBy struct {
 // that placed exactly one note is inverted: one left as the author's own text
 // names nothing to hang a reverse answer on, and a note naming itself is not a
 // pair.
-func newBasedOnBy(notes []*vault.Note, idx *graph.Index) *basedOnBy {
+func newBasedOnBy(notes []*vault.Note, idx *graph.Index, titles titleFunc) *basedOnBy {
 	b := &basedOnBy{bySource: make(map[string][]nav.NoteRef)}
-	titles := titlesOf(notes)
 	for _, n := range notes {
 		if n == nil {
 			continue
@@ -177,7 +176,7 @@ func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
 	var out []nav.NoteRef
 	seen := make(map[string]bool)
 	for _, value := range values {
-		ref, ok := declaredSource(g.graph, g.pathTitle, value)
+		ref, ok := declaredSource(g.graph, titlesIn(g.notes), value)
 		if !ok || (ref.RelPath != "" && ref.RelPath == relPath) {
 			continue
 		}
@@ -223,34 +222,6 @@ func basedOnValues(n *vault.Note) []string {
 		return nil
 	}
 	return n.ListOrText("based_on")
-}
-
-// titleFunc names the note at a path by its title, and a path that holds none
-// by its file name.
-type titleFunc func(relPath string) string
-
-// titlesOf names each of notes by its title.
-func titlesOf(notes []*vault.Note) titleFunc {
-	byPath := make(map[string]string, len(notes))
-	for _, n := range notes {
-		if n != nil {
-			byPath[n.RelPath] = graph.TitleOf(n)
-		}
-	}
-	return func(relPath string) string {
-		if title, ok := byPath[relPath]; ok {
-			return title
-		}
-		return nav.Label(relPath)
-	}
-}
-
-// pathTitle is titlesOf over the notes this generation holds.
-func (g *Generation) pathTitle(relPath string) string {
-	if n := g.parsed[relPath]; n != nil {
-		return graph.TitleOf(n)
-	}
-	return nav.Label(relPath)
 }
 
 func declaredSource(idx *graph.Index, titles titleFunc, value string) (nav.NoteRef, bool) {

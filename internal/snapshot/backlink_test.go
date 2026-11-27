@@ -29,7 +29,7 @@ func TestBacklinks(t *testing.T) {
 		parse(t, "B/twin.md", "two\n"),
 	}
 	idx := graph.New(notes, nil)
-	b := newBacklinks(notes, linksOf(notes), idx)
+	b := newBacklinks(notes, linksOf(notes), idx, titlesIn(readingsOf(notes)))
 
 	tests := []struct {
 		name    string
@@ -83,7 +83,7 @@ func TestBacklinksNameACitingNoteByItsTitle(t *testing.T) {
 		parse(t, "Concepts/a-file.md", "---\ntitle: Z title\n---\nsee [[target]]\n"),
 		parse(t, "Concepts/m-file.md", "see [[target]]\n"),
 	}
-	b := newBacklinks(notes, linksOf(notes), graph.New(notes, nil))
+	b := newBacklinks(notes, linksOf(notes), graph.New(notes, nil), titlesIn(readingsOf(notes)))
 	want := []nav.NoteRef{
 		{Name: "A title", RelPath: "Concepts/z-file.md"},
 		{Name: "m-file", RelPath: "Concepts/m-file.md"},

@@ -190,9 +190,10 @@ func TestDeclaredTitleIsWhatTheAuthorWrote(t *testing.T) {
 	}
 }
 
-// TestTitlesAreKeyedByTheDerivedTitle pins the key the title table files a
-// note under: its first heading, else its frontmatter title, else its file name.
-func TestTitlesAreKeyedByTheDerivedTitle(t *testing.T) {
+// TestTitlesAreKeyedByTheWrittenTitle pins the key the title table files a
+// note under: its first heading, else its frontmatter title. A note that wrote
+// neither is reached by its file name and is not filed.
+func TestTitlesAreKeyedByTheWrittenTitle(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
@@ -200,10 +201,9 @@ func TestTitlesAreKeyedByTheDerivedTitle(t *testing.T) {
 		parse(t, "B/Shared Name.md", "body\n"),
 		parse(t, "C/written.md", "---\ntitle: Shared Name\n---\nbody\n"),
 	}
-	got := titlesByName(notes)
+	got := titlesByName(readingsOf(notes))
 	want := []nav.NoteRef{
 		{Name: "headed", RelPath: "A/headed.md"},
-		{Name: "Shared Name", RelPath: "B/Shared Name.md"},
 		{Name: "written", RelPath: "C/written.md"},
 	}
 	if diff := cmp.Diff(want, got[graph.NormalizeKey("Shared Name")]); diff != "" {

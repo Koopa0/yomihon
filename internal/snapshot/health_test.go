@@ -28,6 +28,25 @@ func noteBodies(notes []*vault.Note) iter.Seq[string] {
 	}
 }
 
+// readingsOf is the reading a build takes of each note, by path.
+func readingsOf(notes []*vault.Note) map[string]Reading {
+	readings := make(map[string]Reading, len(notes))
+	for _, n := range notes {
+		readings[n.RelPath] = newReading(n, nil, schema.ArticleLanguage{})
+	}
+	return readings
+}
+
+// healthOf is the whole-folder view a build of notes and resources gathers in
+// a folder that declares nothing.
+func healthOf(notes []*vault.Note, resources []string) Health {
+	idx := graph.New(notes, resources)
+	links := linksOf(notes)
+	readings := readingsOf(notes)
+	back := newBacklinks(notes, links, idx, titlesIn(readings))
+	return newHealth(notes, links, idx, judge.NewPlanned(noteBodies(notes), nil), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
+}
+
 // linksOf is what each note cites, by path, read through the same extractor a
 // build reads a note's body with when it reads the note.
 func linksOf(notes []*vault.Note) map[string][]string {
@@ -59,9 +78,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 		parse(t, "B/twin.md", "# Shared Title\n\ntwo\n"),
 		parse(t, "Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
 	}
-	idx := graph.New(notes, nil)
-	planned := judge.NewPlanned(noteBodies(notes), nil)
-	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, nil)
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "Cites Title", RelPath: "Concepts/cites title.md"},
@@ -95,8 +112,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "Writing/essay.md", "d\n"),
 		parse(t, "root.md", "e\n"),
 	}
-	idx := graph.New(notes, nil)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, nil)
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -149,8 +165,7 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 			if tt.targetFirst {
 				notes = []*vault.Note{target, citer}
 			}
-			idx := graph.New(notes, nil)
-			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+			h := healthOf(notes, nil)
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -216,8 +231,7 @@ func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 		parse(t, "Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
 	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
-	idx := graph.New(notes, resources)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, resources)
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads

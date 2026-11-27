@@ -107,7 +107,7 @@ func TestBasedOnDoesNotCountAsABodyBacklink(t *testing.T) {
 		parse(t, "Concepts/derived.md", "---\nbased_on: \"[[source]]\"\n---\n\nno body link\n"),
 	}
 	idx := graph.New(notes, nil)
-	if refs := newBacklinks(notes, linksOf(notes), idx).To("Concepts/source.md"); len(refs) != 0 {
+	if refs := newBacklinks(notes, linksOf(notes), idx, titlesIn(readingsOf(notes))).To("Concepts/source.md"); len(refs) != 0 {
 		t.Errorf("a based_on declaration counted as a body citation: %v", refs)
 	}
 }
@@ -191,14 +191,14 @@ func TestBasedOnNamesNotesByTheirTitle(t *testing.T) {
 		parse(t, "Concepts/a-orphan.md", "---\nbased_on: \"[[nothing here]]\"\n---\nbody\n"),
 	}
 	idx := graph.New(notes, nil)
-	titles := titlesOf(notes)
+	titles := titlesIn(readingsOf(notes))
 
 	wantSources := []nav.NoteRef{{Name: "The Source", RelPath: "Concepts/source.md"}}
 	if diff := cmp.Diff(wantSources, projectBasedOn(notes[1], idx, titles)); diff != "" {
 		t.Errorf("projectBasedOn() (-want +got):\n%s", diff)
 	}
 	wantDeclaring := []nav.NoteRef{{Name: "Derived Note", RelPath: "Concepts/z-derived.md"}}
-	if diff := cmp.Diff(wantDeclaring, newBasedOnBy(notes, idx).of("Concepts/source.md")); diff != "" {
+	if diff := cmp.Diff(wantDeclaring, newBasedOnBy(notes, idx, titles).of("Concepts/source.md")); diff != "" {
 		t.Errorf("of() (-want +got):\n%s", diff)
 	}
 	if got := projectBasedOn(notes[2], idx, titles); len(got) != 1 || got[0].RelPath != "" || got[0].Name != "[[nothing here]]" {
