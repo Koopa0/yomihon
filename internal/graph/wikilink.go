@@ -120,11 +120,7 @@ func EscapedWikilinkAt(text string, open int) bool {
 	if open > 0 && text[open-1] == '!' {
 		open--
 	}
-	n := 0
-	for i := open - 1; i >= 0 && text[i] == '\\'; i-- {
-		n++
-	}
-	return n%2 == 1
+	return escapedAt(text, open)
 }
 
 // ParseWikilink splits inner into its target, display text, and fragments,

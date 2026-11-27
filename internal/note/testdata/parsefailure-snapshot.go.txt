@@ -2,24 +2,30 @@ package snapshot
 
 import (
 	"context"
+	"log/slog"
 	"strings"
-	"testing"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// InstallParseFailureHTTPFixture poisons only the marked fixture, delegating
-// other files to the actual parser. The child runs no background scanner.
-func InstallParseFailureHTTPFixture(t testing.TB) {
-	t.Helper()
-	original := parsers
-	t.Cleanup(func() { parsers = original })
-	parsers.note = func(rel string, data []byte) *vault.Note {
+// NewParseFailureHTTPFixture is New for a folder with no rules file, over a
+// parser that panics on the marked fixture in every build, the first included,
+// and delegates other files to the actual parser. The child runs no
+// background scanner.
+func NewParseFailureHTTPFixture(ctx context.Context, source Source, log *slog.Logger) (*Store, error) {
+	store := newStore(source, log, nil, schema.Ungoverned())
+	original := store.parsers.note
+	store.parsers.note = func(rel string, data []byte) *vault.Note {
 		if strings.Contains(string(data), "PARSE_FAILURE_HTTP_POISON") {
 			panic("<script>alert(1)</script> & parser token")
 		}
-		return original.note(rel, data)
+		return original(rel, data)
 	}
+	if err := store.buildFirst(ctx, nil); err != nil {
+		return nil, err
+	}
+	return store, nil
 }
 
 // RescanParseFailureHTTPFixture rebuilds the captured fixture synchronously.

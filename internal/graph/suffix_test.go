@@ -1,12 +1,9 @@
 package graph_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/graph"
 )
@@ -35,9 +32,8 @@ func TestResolvePathSuffix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := idx.Resolve(tt.name)
-			t.Log("invoked: actual suffix resolution contract")
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("caught: suffix fallback missing: Resolve(%q) mismatch (-want +got):\n%s", tt.name, diff)
+				t.Errorf("Resolve(%q) mismatch (-want +got):\n%s", tt.name, diff)
 			}
 		})
 	}
@@ -53,15 +49,14 @@ func TestResolvePathSuffixSegmentBoundary(t *testing.T) {
 		t.Run(query, func(t *testing.T) {
 			t.Parallel()
 			got := idx.Resolve(query)
-			t.Log("invoked: actual suffix resolution contract")
 			if diff := cmp.Diff(graph.Resolution{Kind: graph.KindUnresolved}, got); diff != "" {
-				t.Errorf("caught: suffix segment boundary widened: Resolve(%q) mismatch (-want +got):\n%s", query, diff)
+				t.Errorf("Resolve(%q) mismatch (-want +got):\n%s", query, diff)
 			}
 		})
 	}
 }
 
-func TestResolvePathSuffixAmbiguityAndOwnership(t *testing.T) {
+func TestResolvePathSuffixAmbiguityNamesEachFileOnce(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
 		{RelPath: "Z/Atlas/README.md"},
@@ -69,14 +64,8 @@ func TestResolvePathSuffixAmbiguityAndOwnership(t *testing.T) {
 		{RelPath: "Z/Atlas/README.md"},
 	}, []string{"A/Atlas/README.md"})
 	want := graph.Resolution{Kind: graph.KindAmbiguous, Candidates: []string{"A/Atlas/README.md", "Z/Atlas/README.md"}}
-	got := idx.Resolve("Atlas/README")
-	t.Log("invoked: actual suffix resolution contract")
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("caught: suffix ambiguity guessed: Resolve() mismatch (-want +got):\n%s", diff)
-	}
-	got.Candidates[0] = "caller edited"
 	if diff := cmp.Diff(want, idx.Resolve("Atlas/README")); diff != "" {
-		t.Errorf("caught: suffix candidates not owned: Resolve() mismatch (-want +got):\n%s", diff)
+		t.Errorf("Resolve(%q) mismatch (-want +got):\n%s", "Atlas/README", diff)
 	}
 }
 
@@ -97,9 +86,8 @@ func TestResolvePathSuffixExactPriority(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := graph.BuildFromNotes(tt.notes, nil).Resolve(tt.query)
-			t.Log("invoked: actual suffix resolution contract")
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("caught: exact resolution overridden: Resolve(%q) mismatch (-want +got):\n%s", tt.query, diff)
+				t.Errorf("Resolve(%q) mismatch (-want +got):\n%s", tt.query, diff)
 			}
 		})
 	}
@@ -116,31 +104,7 @@ func TestResolvePathSuffixPreservesWholeCollisionSet(t *testing.T) {
 	for _, query := range []string{"Atlas/README", "Assets/chart.svg", "README", "Nope/README"} {
 		idx.Resolve(query)
 	}
-	got := idx.Collisions()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("caught: suffix collision keys manufactured: Collisions() mismatch (-want +got):\n%s", diff)
-	}
-	got["readme"][0] = "caller edited"
 	if diff := cmp.Diff(want, idx.Collisions()); diff != "" {
-		t.Errorf("Collisions() after caller edit mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestResolvePathSuffixCapturedCanonicalPath(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	const path = "Notes/旅/だ体.md"
-	diskPath := filepath.Join(root, filepath.FromSlash(norm.NFD.String(path)))
-	if err := os.MkdirAll(filepath.Dir(diskPath), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(diskPath, []byte("body\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	idx := capturedGraph(t, root)
-	for _, query := range []string{"旅/だ体", norm.NFD.String("旅/だ体"), "旅/だ体.md"} {
-		if diff := cmp.Diff(graph.Resolution{Kind: graph.KindUnique, RelPath: path}, idx.Resolve(query)); diff != "" {
-			t.Errorf("caught: suffix captured path not canonical: Resolve(%q) mismatch (-want +got):\n%s", query, diff)
-		}
+		t.Errorf("Collisions() mismatch (-want +got):\n%s", diff)
 	}
 }

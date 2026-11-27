@@ -13,9 +13,6 @@ import (
 // not hold, both answer with nothing. The slice is the caller's own; the
 // findings in it point into what the generation holds and are read-only.
 func (g *Generation) SchemaFindings(relPath string) []judge.Finding {
-	if g == nil {
-		return nil
-	}
 	return slices.Clone(g.schemaFindings[relPath])
 }
 
@@ -24,8 +21,5 @@ func (g *Generation) SchemaFindings(relPath string) []judge.Finding {
 // generation's schema findings. A nil generation, an unmatched path, and a file
 // directly below a root return ("", false).
 func (g *Generation) DomainFolder(relPath string) (string, bool) {
-	if g == nil {
-		return "", false
-	}
 	return schema.DomainFolder(g.domainRoots, relPath)
 }

@@ -1,45 +1,35 @@
 # Representative snapshot benchmarks
 
-The default snapshot benchmark retains its small fixed vault. Representative
-runs require `-snapshot-bench`; ordinary tests exercise an eight-note fixture and
-one bounded 100-note command check limited to `initial|rebuild`. Lightweight
-controls use eight-note fixtures without timing or GC heap measurements. Disabled
-execution registers and skips all 15 leaves before benchmark fixture setup;
-ordinary tests never run `idle`, `overlap`, or `visible` measurements.
+The default snapshot benchmark keeps its small fixed vault. Representative runs
+require `-snapshot-bench`; without it all 15 cases skip before any fixture is
+built, and no ordinary test runs them.
 
 Each representative fixture contains 100, 1,000, or 5,000 Markdown notes,
 including one study path and one topic map, plus the existing test schema file.
 Concepts contain CJK and Latin paragraphs, a heading, a Go code block, provenance,
-and two wikilinks to declared concept targets. The path and map each declare two
-links. This produces exactly N notes, N+1 files, and 2N links. Concepts use the
-fixture schema's `seedling` lifecycle; the path and map use its valid `archived`
-state. The benchmark does not change that schema or model an all-ready vault.
+and two wikilinks to concept targets. The path and map each declare two links.
+This produces exactly N notes, N+1 files, and 2N links. Concepts use the fixture
+schema's `seedling` lifecycle; the path and map use its valid `archived` state.
+The benchmark does not change that schema or model an all-ready vault.
 
-Before timing and after each operation, the benchmark reads the complete source
-set and verifies the published generation: file bytes and membership, note bodies,
-frontmatter/schema health, resolved link targets, search membership, path items,
-topic-map items, and complete scan state. Fixture creation, source writes, and
-these checks are outside the timed interval, except for the body write included
-in `visible` as described below.
+Every case builds a generation before it times anything, so all five read
+through a warm filesystem cache; no cache flush or cold-process behavior is
+claimed. After the last operation, the published generation must still count N
+notes and find the measured concept by a word in its body, or the run fails.
+Fixture creation and source writes are outside the timed interval, except for
+the body write included in `visible` as described below.
 
 `initial` calls the real snapshot constructor. `rebuild` calls the server's
-synchronous reconciliation method after a small edit to one concept and requires
-a replacement published generation. The edit alternates two different-length
-suffixes to make every iteration observable; writing the edit is not timed.
-Neither includes HTTP delivery or the scanner's scheduling delay.
+synchronous reconciliation method after a small edit to one concept. Every case
+that edits alternates two different-length suffixes, so each edit is visible to
+the scan; writing the edit is not timed. Neither includes HTTP delivery or the
+scanner's scheduling delay.
 
-`idle` times the real synchronous reconciliation scan of an unchanged vault and
-requires the same published generation afterward. A benchmark-local wrapper of
-the existing rooted source delegates all operations and records whether
-`ScanAvailable` completed and whether it returned an error. A refused scan cannot
-count as unchanged success. The timed boundary includes this wrapper's scan
-dispatch and outcome recording; the complete post-operation receipt is excluded.
+`idle` times the synchronous reconciliation scan of an unchanged vault.
 
-`overlap` times reconciliation after a different-size body edit and requires a
-replacement generation with the expected content identity. Writes, identity
-preparation, receipts, forced GC, and statistics reads are outside `ns/op`,
-`B/op`, and `allocs/op`. Four additional byte metrics describe process-wide
-post-GC `runtime.MemStats.HeapAlloc`:
+`overlap` times reconciliation after a different-size body edit. Writes, forced
+GC and statistics reads are outside `ns/op`, `B/op`, and `allocs/op`. Four
+additional byte metrics describe process-wide post-GC `runtime.MemStats.HeapAlloc`:
 
 | Metric | Retained owners at the statistics read |
 |---|---|
@@ -48,45 +38,29 @@ post-GC `runtime.MemStats.HeapAlloc`:
 | `released-heap-B` | Fixture, Store and replacement current generation after the old-reference helper returns |
 | `reclaimed-B` | `two-heap-B` minus `released-heap-B` |
 
-Every sample performs a real GC followed by ReadMemStats and then KeepAlive for
-every promised owner. The old generation exists in a non-inlined helper frame
-that returns only numeric samples; release does not depend on assigning nil to a
-variable inside `b.Loop`. Fixture and Store overhead remain in all observations.
-These are heap observations, not allocation totals, RSS, or isolated object
-sizes. The released heap must be closer to the one-generation observation than
-to the two-generation observation; a contradictory observation fails with all
-three byte values. No equality with the original heap, percentage tolerance,
-or capacity ceiling is imposed.
+Every sample performs a real GC followed by ReadMemStats. The old generation is
+held in a non-inlined helper frame that returns only numeric samples, so its
+release does not depend on assigning nil to a variable inside `b.Loop`. Fixture
+and Store overhead remain in all observations. These are heap observations, not
+allocation totals, RSS, or isolated object sizes.
 
-`visible` starts one owned `Store.Run` using the real two-second reconciliation
-ticker. A cancellable random delay in `[0, 2s)` samples the edit's position in
-the cadence and is excluded from timing. The timed operation starts before the
-body-write helper and ends when sparse 10 ms polling of `Current().Note(...)`
-observes the exact prepared content identity. It includes directory checking,
-the actual write, scanner scheduling and rebuild, polling resolution and
-observation overhead. The edit changes body content and size; a status-only edit
-would not change the content identity. An arbitrary replacement pointer or other
-changed identity does not satisfy the observation.
+`visible` starts one `Store.Run` using the real two-second reconciliation
+ticker. A random delay in `[0, 2s)` samples the edit's position in the cadence
+and is excluded from timing. The timed operation starts before the body write
+and ends when 10 ms polling of `Current().Note(...)` observes the edit's content
+identity. It includes the actual write, scanner scheduling and rebuild, and
+polling resolution. Each visible iteration uses a fresh Store and starts Run
+once; construction, the pre-edit wait and stopping the loop are excluded. A
+ten-second context from scanner startup ends a sample that never sees its edit;
+it is a failure bound, not a performance target. There is no HTTP delivery in
+this measurement.
 
-Each visible iteration uses a fresh Store and starts Run once. Fixture/Store
-construction, complete pre/post receipts, identity preparation, random pre-edit
-wait, and cancellation/join are excluded. A ten-second context from scanner
-startup is an operational failure bound, not a performance target. Timeout,
-cancellation and unexpected scanner exit refuse the sample. Deferred cancellation
-and joining run before rooted-reader cleanup, including write failures; the
-successful path also joins before the complete final receipt. No synchronous
-rescan races with this Run owner. There is no HTTP delivery in this measurement.
-
-Setup constructs and validates a generation first, so all five cases use warm
-filesystem-cache measurements; no cache flush or cold-process behavior is
-claimed.
-
-Each row reports `ns/op`, `B/op`, and `allocs/op`, plus the observed starting
-`notes`, `files`, `links`, and `source-B`. The source byte count includes the
-schema and describes the original fixture before any body edit. Allocation totals
-describe Go allocations during the measured boundary, not process RSS or a
-capacity limit. Visible allocation totals include work performed by its scanner
-goroutine during that boundary.
+Each row reports `ns/op`, `B/op`, and `allocs/op`, plus the starting `notes`,
+`files`, `links`, and `source-B`. The source byte count includes the schema and
+describes the fixture before any body edit. Allocation totals describe Go
+allocations during the measured boundary, not process RSS or a capacity limit.
+Visible allocation totals include work performed by its scanner goroutine during
+that boundary.
 
 Run only this package with the explicit opt-in and ten independent samples:
 

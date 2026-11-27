@@ -13,10 +13,6 @@ const (
 	warningPanic   = "panic"
 )
 
-type sidecarSource string
-
-func (s sidecarSource) String() string { return string(s) }
-
 type warningKey struct {
 	path     string
 	kind     string
@@ -39,9 +35,6 @@ func newWarningAttempt(reported map[warningKey]struct{}) *warningAttempt {
 // record keeps a suppressed warning in this observation and remembers a new
 // report immediately, so cancellation cannot cause its next attempt to repeat.
 func (a *warningAttempt) record(entry vault.Entry, kind, message string) bool {
-	if a == nil {
-		return true
-	}
 	key := warningKey{
 		path:     entry.Path(),
 		kind:     kind,

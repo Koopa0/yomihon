@@ -27,6 +27,10 @@ func TestTitleOf(t *testing.T) {
 		{"a link and a wikilink name their words", "Notes/a.md", "# [Docs](https://example.com) and [[Other|alias]]\n", "Docs and alias"},
 		{"an escaped mark is the character it escapes", "Notes/a.md", "# Cost \\*not bold\\*\n", "Cost *not bold*"},
 		{"an underlined heading over two lines is one title", "Notes/a.md", "First line\nsecond line\n===\n", "First line second line"},
+		{"a CRLF file's underlined heading is the title", "Notes/a.md", "Underlined\r\n=====\r\n\r\nBody.\r\n", "Underlined"},
+		{"an inline footnote is not part of the title", "Notes/a.md", "# Title^[inline footnote]\n", "Title"},
+		{"a footnote reference is not part of the title", "Notes/a.md", "# Title[^1]\n\n[^1]: The note.\n", "Title"},
+		{"a reference to no footnote is the text it was typed", "Notes/a.md", "# Title[^1]\n", "Title[^1]"},
 		{"only the last closing run is marks", "Notes/a.md", "# a b #  #\n", "a b #"},
 		{"a run that is the whole of the words is text", "Notes/a.md", "# #\n", "#"},
 		{"an indented marked heading is read", "Notes/a.md", "   # Indented\n", "Indented"},
@@ -136,20 +140,6 @@ func TestTitleSkipsWhatTheReaderNeverSees(t *testing.T) {
 				t.Errorf("TitleOf(%q) = %q, want %q", tt.body, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestFirstH1ReportsWhetherTheBodyHasOne(t *testing.T) {
-	t.Parallel()
-
-	if got, ok := FirstH1("## only a lesser heading\n"); ok || got != "" {
-		t.Errorf("FirstH1(lesser heading) = %q, %v, want no heading", got, ok)
-	}
-	if got, ok := FirstH1("# Found\n"); !ok || got != "Found" {
-		t.Errorf("FirstH1(level one) = %q, %v, want Found", got, ok)
-	}
-	if got, ok := FirstH1("%%\n# hidden\n%%\n"); ok || got != "" {
-		t.Errorf("FirstH1(a heading only inside a comment) = %q, %v, want no heading", got, ok)
 	}
 }
 

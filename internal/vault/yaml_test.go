@@ -28,11 +28,11 @@ func TestParseKeepsNonScalarYAMLEvidence(t *testing.T) {
 			t.Parallel()
 			got := vault.Parse("Writing/Bad.md", []byte("---\n"+tc.content+"---\nReadable body.\n"))
 			want := &vault.Note{
-				RelPath:        "Writing/Bad.md",
-				HasFrontmatter: true,
-				FMDiagnostic:   "frontmatter is not valid YAML: yaml: invalid map key: []interface {}{1}",
-				Body:           "Readable body.\n",
-				BodyLine:       strings.Count(tc.content, "\n") + 3,
+				RelPath:               "Writing/Bad.md",
+				HasFrontmatter:        true,
+				FrontmatterDiagnostic: "frontmatter is not valid YAML: yaml: invalid map key: []interface {}{1}",
+				Body:                  "Readable body.\n",
+				BodyLine:              strings.Count(tc.content, "\n") + 3,
 			}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: Parse(%q) mismatch (-want +got):\n%s", tc.content, diff)
@@ -48,11 +48,11 @@ func TestParsePreservesDuplicateYAMLError(t *testing.T) {
 	content := "---\nbase: &b {x: 1}\nduplicate: 1\nduplicate: 2\nunsupported:\n  <<: *b\n  ? [1]\n  : 2\n---\nReadable body.\n"
 	got := vault.Parse("Writing/Bad.md", []byte(content))
 	want := &vault.Note{
-		RelPath:        "Writing/Bad.md",
-		HasFrontmatter: true,
-		FMDiagnostic:   "frontmatter is not valid YAML: yaml: unmarshal errors:\n  line 4: mapping key \"duplicate\" already defined at line 3",
-		Body:           "Readable body.\n",
-		BodyLine:       10,
+		RelPath:               "Writing/Bad.md",
+		HasFrontmatter:        true,
+		FrontmatterDiagnostic: "frontmatter is not valid YAML: yaml: unmarshal errors:\n  line 4: mapping key \"duplicate\" already defined at line 3",
+		Body:                  "Readable body.\n",
+		BodyLine:              10,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("caught: Parse(duplicate YAML key) mismatch (-want +got):\n%s", diff)

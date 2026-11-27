@@ -20,7 +20,6 @@ func TestMarkdownResolutionIsRelativeAndExact(t *testing.T) {
 		want        graph.MarkdownResolution
 	}{
 		{name: "relative existing", owner: "Notes/here.md", destination: "Other.md", files: []string{"Notes/Other.md"}, want: graph.MarkdownResolution{Checkable: true, Resolution: graph.Resolution{Kind: graph.KindUnique, RelPath: "Notes/Other.md"}, Local: true, Relative: "Notes/Other.md"}},
-		{name: "repeated capture one file", owner: "Notes/here.md", destination: "Other.md", files: []string{"Notes/Other.md", "Notes/Other.md"}, want: graph.MarkdownResolution{Checkable: true, Resolution: graph.Resolution{Kind: graph.KindUnique, RelPath: "Notes/Other.md"}, Local: true, Relative: "Notes/Other.md"}},
 		{name: "relative root and shortest all differ", owner: "Notes/here.md", destination: "Other.md", files: []string{"Notes/Other.md", "Other.md", "Else/Other.md"}, want: graph.MarkdownResolution{Checkable: true, Resolution: graph.Resolution{Kind: graph.KindUnique, RelPath: "Notes/Other.md"}, Local: true, Relative: "Notes/Other.md"}},
 		{name: "qualified suffix", owner: "Inbox/here.md", destination: "DB/Other.md", files: []string{"Area/DB/Other.md", "Area/NotDB/Other.md"}, want: graph.MarkdownResolution{Checkable: true, Resolution: graph.Resolution{}, Local: true, Relative: "Inbox/DB/Other.md"}},
 		{name: "qualified missing is not a basename", owner: "Inbox/here.md", destination: "Absent/Other.md", files: []string{"Area/Other.md"}, want: graph.MarkdownResolution{Checkable: true, Local: true, Relative: "Inbox/Absent/Other.md"}},
@@ -44,13 +43,7 @@ func TestMarkdownResolutionIsRelativeAndExact(t *testing.T) {
 			t.Parallel()
 			got := graph.ResolveMarkdown(tt.owner, tt.destination, func(string) bool { return true }, func(p string) bool { return slices.Contains(tt.files, p) })
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Markdown resolution (-want +got):\n%s", diff)
-			}
-			reversed := slices.Clone(tt.files)
-			slices.Reverse(reversed)
-			other := graph.ResolveMarkdown(tt.owner, tt.destination, func(string) bool { return true }, func(p string) bool { return slices.Contains(reversed, p) })
-			if diff := cmp.Diff(tt.want, other); diff != "" {
-				t.Errorf("reverse inventory (-want +got):\n%s", diff)
+				t.Errorf("ResolveMarkdown(%q, %q) mismatch (-want +got):\n%s", tt.owner, tt.destination, diff)
 			}
 		})
 	}

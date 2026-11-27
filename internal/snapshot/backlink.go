@@ -18,15 +18,9 @@ type Backlinks struct {
 // newBacklinks inverts one generation's citations. A citation counts only when
 // it resolves to exactly one other note, so an ambiguous name records nothing.
 // links is what each note cites, by path, as it was read when the note was.
-func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Index) *Backlinks {
+func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Index, titles titleFunc) *Backlinks {
 	b := &Backlinks{byTarget: make(map[string][]nav.NoteRef)}
-	if idx == nil {
-		return b
-	}
 	for _, n := range notes {
-		if n == nil {
-			continue
-		}
 		seen := make(map[string]bool)
 		for _, target := range links[n.RelPath] {
 			res := idx.Resolve(target)
@@ -35,7 +29,7 @@ func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Ind
 			}
 			seen[res.RelPath] = true
 			b.byTarget[res.RelPath] = append(b.byTarget[res.RelPath], nav.NoteRef{
-				Name:    graph.TitleOf(n),
+				Name:    titles(n.RelPath),
 				RelPath: n.RelPath,
 			})
 		}
@@ -51,16 +45,10 @@ func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Ind
 // To returns the notes citing relPath, sorted by the name each shows, and nil
 // when nothing cites it, which is an answer rather than a gap.
 func (b *Backlinks) To(relPath string) []nav.NoteRef {
-	if b == nil {
-		return nil
-	}
 	return slices.Clone(b.byTarget[relPath])
 }
 
 // Citing reports how many notes cite relPath.
 func (b *Backlinks) Citing(relPath string) int {
-	if b == nil {
-		return 0
-	}
 	return len(b.byTarget[relPath])
 }

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -32,11 +31,15 @@ func FirstTitleHeading(body string) (TitleHeading, bool) {
 
 func titleHeadingIn(shown string) (TitleHeading, bool) {
 	lines := strings.Split(shown, "\n")
+	definitions, read := "", false
 	for _, heading := range Headings(shown, LineSkipZones(shown)) {
 		if heading.Level != 1 {
 			continue
 		}
-		words := PlainHeadingWords(heading.Text)
+		if !read && strings.Contains(heading.Text, "[^") {
+			definitions, read = footnoteDefinitions(shown), true
+		}
+		words := headingWords(heading.Text, definitions)
 		if words == "" {
 			continue
 		}
@@ -81,11 +84,7 @@ func TitleOf(n *vault.Note) string {
 // FileStem is a note's file name without its directory and its .md extension,
 // the title a note with neither heading nor declared title is read by.
 func FileStem(relPath string) string {
-	base := relPath
-	if _, after, found := strings.CutLast(relPath, "/"); found {
-		base = after
-	}
-	return strings.TrimSuffix(base, ".md")
+	return strings.TrimSuffix(filename(relPath), ".md")
 }
 
 // withoutHiddenText is body with its %% and HTML comments and its $$ math
@@ -97,7 +96,7 @@ func withoutHiddenText(body string) string {
 	if !strings.Contains(body, "%%") && !strings.Contains(body, "<!--") && !strings.Contains(body, "$$") {
 		return body
 	}
-	code := codeZones(body)
+	code := CodeZones(ParseCommonMark(body))
 	comments := CommentZones(body, code)
 	hidden := slices.Concat(comments, mathZones(body, slices.Concat(code, comments)))
 	slices.SortFunc(hidden, func(a, b Span) int { return a.Start - b.Start })
@@ -118,10 +117,9 @@ func withoutHiddenText(body string) string {
 	return b.String()
 }
 
-// codeZones are the code blocks and code spans of body as the Markdown parser
-// reads them: the places a comment or math marker is displayed text.
-func codeZones(body string) []Span {
-	doc := commentParser.Parse(text.NewReader([]byte(body)))
+// CodeZones are the code blocks and code spans of a parsed body: the places a
+// comment, math or link marker is displayed text.
+func CodeZones(doc ast.Node) []Span {
 	var zones []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
 		if entering {
@@ -194,7 +192,8 @@ func mathZones(body string, skip []Span) []Span {
 	}
 }
 
-// escapedAt reports whether the byte at off follows an odd run of backslashes.
+// escapedAt reports whether the byte at off follows an odd run of
+// backslashes, the CommonMark escape.
 func escapedAt(body string, off int) bool {
 	escapes := 0
 	for i := off - 1; i >= 0 && body[i] == '\\'; i-- {

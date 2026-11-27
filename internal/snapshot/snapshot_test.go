@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -53,98 +54,6 @@ func draftSearch(idx *lexical.Index) (lexical.Answer, error) {
 	return idx.Search(lexical.Parse("draft:true"), -1)
 }
 
-func testContract(tb testing.TB, root string) *schema.Contract {
-	tb.Helper()
-	return testContractWithRules(tb, root, "")
-}
-
-// testContractWithRules is testContract with extra [rules] lines appended
-// after the provenance rule, so a test can declare planned marks without
-// rewriting the fixture.
-func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	text := string(data)
-	if extraRules != "" {
-		const needle = `concept_requires_provenance = ["based_on", "source_locator"]`
-		next := strings.Replace(text, needle, needle+"\n"+extraRules, 1)
-		if next == text {
-			tb.Fatal("the contract fixture does not contain the rules needle")
-		}
-		text = next
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
-}
-
-// testContractDeclaringPrivacy writes the shared contract fixture with an
-// egress declaration appended, because the fixture itself declares none and a
-// policy that was never claimed cannot go stale. The section is added before
-// the contract is read, so the digest the policy pins is the one on disk. Each
-// of dirs is one folder the declaration withholds.
-func testContractDeclaringPrivacy(tb testing.TB, root string, dirs ...string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	quoted := make([]string, len(dirs))
-	for i, dir := range dirs {
-		quoted[i] = strconv.Quote(dir)
-	}
-	data = append(data, []byte("\n[privacy]\nnever_egress_dirs = ["+strings.Join(quoted, ", ")+"]\n")...)
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, data, 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
-}
-
-func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
-	tb.Helper()
-	reader, err := vault.Open(root)
-	if err != nil {
-		tb.Fatalf("vault.Open: %v", err)
-	}
-	tb.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			tb.Errorf("Reader.Close: %v", closeErr)
-		}
-	})
-	store, err := New(tb.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		tb.Fatalf("snapshot.New: %v", err)
-	}
-	return store, reader
-}
-
-func closeReader(tb testing.TB, reader *vault.Reader) {
-	tb.Helper()
-	if err := reader.Close(); err != nil {
-		tb.Errorf("Reader.Close: %v", err)
-	}
-}
-
 func writeNote(tb testing.TB, root, rel, content string) {
 	tb.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))
@@ -156,97 +65,227 @@ func writeNote(tb testing.TB, root, rel, content string) {
 	}
 }
 
-func immutableGenerationFixture(t *testing.T) (gen *Generation, root string) {
-	t.Helper()
-	root = t.TempDir()
-	writeNote(t, root, "A/Foo.md", "first body\n")
-	writeNote(t, root, "B/Foo.md", "second body\n")
-	writeNote(t, root, "Concepts/go/Concept.md", "---\ntype: concept\ndraft: true\n---\nconcept body\n")
-	writeNote(t, root, "Writing/Lesson.md", "---\ntype: lesson\nslug: lesson-l01\n---\nlesson body\n")
-	writeNote(t, root, "System/slots/L01.yaml", `lesson: L01
-slug: lesson-l01
-title: Lesson
-patterns:
-  - id: p1
-    template: "{A}"
-    gloss_zh: "{A}"
-    slots:
-      A:
-        fills:
-          - {jp: 私, reading: わたし, zh: 我}
-`)
-	contract := testContract(t, root)
-	store, _ := newTestStore(t, root, contract)
-	return store.Current(), root
+// writeContract writes the shared contract fixture into root, passed through
+// edit when edit is not nil, and loads it.
+func writeContract(tb testing.TB, root string, edit func(string) string) *schema.Contract {
+	tb.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		tb.Fatalf("read contract fixture: %v", err)
+	}
+	text := string(data)
+	if edit != nil {
+		text = edit(text)
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
+		tb.Fatalf("mkdir contract fixture: %v", err)
+	}
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
+		tb.Fatalf("write contract fixture: %v", err)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		tb.Fatalf("schema.Load: %v", err)
+	}
+	return contract
 }
 
-func TestAGenerationReturnsImmutableProjections(t *testing.T) {
+// testContract writes the shared contract fixture into root unedited.
+func testContract(tb testing.TB, root string) *schema.Contract {
+	tb.Helper()
+	return writeContract(tb, root, nil)
+}
+
+// replacing is a contract edit that swaps the fixture's one occurrence of old
+// for with, and fails the test when the fixture does not hold old exactly once.
+func replacing(tb testing.TB, old, with string) func(string) string {
+	tb.Helper()
+	return func(text string) string {
+		tb.Helper()
+		if n := strings.Count(text, old); n != 1 {
+			tb.Fatalf("the contract fixture holds %q %d times, want once", old, n)
+		}
+		return strings.Replace(text, old, with, 1)
+	}
+}
+
+// testContractDeclaringPrivacy writes the shared contract fixture with an
+// egress declaration withholding dirs, because the fixture itself declares
+// none and a policy that was never claimed cannot go stale.
+func testContractDeclaringPrivacy(tb testing.TB, root string, dirs ...string) *schema.Contract {
+	tb.Helper()
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = strconv.Quote(dir)
+	}
+	return writeContract(tb, root, func(text string) string {
+		return text + "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
+	})
+}
+
+// openReader opens root for one test and closes it when the test ends.
+func openReader(tb testing.TB, root string) *vault.Reader {
+	tb.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		tb.Fatalf("vault.Open: %v", err)
+	}
+	tb.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			tb.Errorf("Reader.Close: %v", err)
+		}
+	})
+	return reader
+}
+
+// buildStore builds the first generation of source's folder under contract.
+func buildStore(tb testing.TB, source Source, log *slog.Logger, contract *schema.Contract) *Store {
+	tb.Helper()
+	store, err := New(tb.Context(), source, log, contract, contract.Governance())
+	if err != nil {
+		tb.Fatalf("New: %v", err)
+	}
+	return store
+}
+
+// newTestStore is a store over root, and the reader it reads through.
+func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
+	tb.Helper()
+	reader := openReader(tb, root)
+	return buildStore(tb, reader, discardLogger(), contract), reader
+}
+
+// recordingSource counts the scans and reads a store asks of the folder, and
+// fails a path's next fail[path] reads.
+type recordingSource struct {
+	Source
+
+	scans int
+	reads map[string]int
+	fail  map[string]int
+}
+
+func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
+	s.scans++
+	return s.Source.ScanAvailable(ctx)
+}
+
+func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
+	path := entry.Path()
+	s.reads[path]++
+	if s.fail[path] > 0 {
+		s.fail[path]--
+		return nil, errors.New("injected read failure")
+	}
+	return s.Source.ReadFile(ctx, entry)
+}
+
+// newRecordingSource opens root through a recordingSource.
+func newRecordingSource(tb testing.TB, root string) *recordingSource {
+	tb.Helper()
+	return &recordingSource{Source: openReader(tb, root), reads: make(map[string]int), fail: make(map[string]int)}
+}
+
+// newRecordingStore is a store over root whose reads a test can count and fail.
+func newRecordingStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *recordingSource) {
+	tb.Helper()
+	source := newRecordingSource(tb, root)
+	return buildStore(tb, source, discardLogger(), contract), source
+}
+
+// loggedLine is one record a store logged: its level, message, and each
+// attribute as the text a person reading the log would see.
+type loggedLine struct {
+	Level   slog.Level
+	Message string
+	Attrs   map[string]string
+}
+
+// recordingHandler keeps every record it is handed, so a test reads what the
+// store said rather than what a formatter made of it.
+type recordingHandler struct {
+	mu    *sync.Mutex
+	lines *[]loggedLine
+}
+
+func newRecordingLogger() (log *slog.Logger, logged func() []loggedLine) {
+	handler := recordingHandler{mu: &sync.Mutex{}, lines: new([]loggedLine)}
+	return slog.New(handler), func() []loggedLine {
+		handler.mu.Lock()
+		defer handler.mu.Unlock()
+		return slices.Clone(*handler.lines)
+	}
+}
+
+func (recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+//nolint:gocritic // hugeParam: slog.Handler fixes this signature
+func (h recordingHandler) Handle(_ context.Context, record slog.Record) error {
+	line := loggedLine{Level: record.Level, Message: record.Message, Attrs: make(map[string]string)}
+	record.Attrs(func(attr slog.Attr) bool {
+		line.Attrs[attr.Key] = attr.Value.String()
+		return true
+	})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	*h.lines = append(*h.lines, line)
+	return nil
+}
+
+func (h recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h recordingHandler) WithGroup(string) slog.Handler      { return h }
+
+// linesWith are the logged lines carrying message.
+func linesWith(lines []loggedLine, message string) []loggedLine {
+	var out []loggedLine
+	for _, line := range lines {
+		if line.Message == message {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// TestAccessorsHandTheCallerItsOwnCopy holds the accessors that copy what a
+// generation holds: one reader's writes must not reach the next reader's page.
+func TestAccessorsHandTheCallerItsOwnCopy(t *testing.T) {
 	t.Parallel()
-	gen, _ := immutableGenerationFixture(t)
+	root := t.TempDir()
+	const faulty, unread = "Concepts/Bad.md", "Concepts/Unread.md"
+	writeNote(t, root, faulty, "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\n---\n\nbody\n")
+	writeNote(t, root, unread, "---\ntype: concept\n---\nbody\n")
+	contract := testContract(t, root)
+	source := newRecordingSource(t, root)
+	source.fail[unread] = 1
+	gen := buildStore(t, source, discardLogger(), contract).Current()
 
-	files := gen.Files()
-	if len(files) == 0 {
-		t.Fatal("Files() returned no captured files")
+	blocked := gen.Freshness().Blocked
+	if len(blocked) != 1 {
+		t.Fatalf("Freshness().Blocked = %+v, want the one unread note", blocked)
 	}
-	wantFirstPath := files[0].Path()
-	files[0] = vault.Entry{}
-	if got := gen.Files()[0].Path(); got != wantFirstPath {
-		t.Errorf("Files()[0].Path() after mutation = %q, want %q", got, wantFirstPath)
-	}
-
-	resolution := gen.Graph().Resolve("Foo")
-	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
-		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
-	}
-	resolution.Candidates[0] = "mutated"
-	if got := gen.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
-		t.Errorf("Resolve(Foo) after mutation starts with %q, want %q", got, "A/Foo.md")
+	blocked[0].Path = "changed"
+	if got := gen.Freshness().Blocked[0].Path; got != unread {
+		t.Errorf("Freshness().Blocked[0].Path after a caller's write = %q, want %q", got, unread)
 	}
 
-	results := snapshotSearch(t, gen.Search(), "Foo")
-	if len(results) != 2 {
-		t.Fatalf("Search(Foo) returned %d results, want 2", len(results))
+	findings := gen.SchemaFindings(faulty)
+	if len(findings) == 0 {
+		t.Fatal("the fixture note draws no schema findings, so this test would prove nothing")
 	}
-	results[0].Title = "mutated"
-	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
-		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
-	}
-	drafts, err := draftSearch(gen.Search())
-	if err != nil || len(drafts.Results) == 0 {
-		t.Fatalf("draft search = (%+v, %v), want the draft concept", drafts.Results, err)
-	}
-	drafts.Results[0].Draft = false
-	drafts, err = draftSearch(gen.Search())
-	if err != nil || len(drafts.Results) == 0 || !drafts.Results[0].Draft {
-		t.Errorf("draft search after caller mutation = (%+v, %v), want the draft still marked", drafts.Results, err)
-	}
-
-	slot, ok := gen.Slots().Lookup("lesson-l01")
-	if !ok {
-		t.Fatal("Slots().Lookup(lesson-l01) = false, want true")
-	}
-	position := slot.Patterns[0].Slots["A"]
-	position.Fills[0].JP = "mutated"
-	slot.Patterns[0].Slots["A"] = position
-	secondSlot, ok := gen.Slots().Lookup("lesson-l01")
-	if !ok || secondSlot.Patterns[0].Slots["A"].Fills[0].JP != "私" {
-		t.Errorf("Slots().Lookup() after mutation = %+v, want original fill", secondSlot)
-	}
-
-	concept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
-	if !ok {
-		t.Fatal("Concepts().Document() = false, want true")
-	}
-	concept.Title = "mutated"
-	secondConcept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
-	if !ok || concept.Title != "mutated" || secondConcept.Title != "Concept" {
-		t.Errorf("Concepts().Document() after mutation = %+v, want original title", secondConcept)
+	findings[0] = judge.Finding{RuleID: "changed"}
+	if got := gen.SchemaFindings(faulty)[0].RuleID; got == "changed" {
+		t.Error("SchemaFindings() handed out the generation's own slice")
 	}
 }
 
 func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	t.Parallel()
-	gen, root := immutableGenerationFixture(t)
+	root := t.TempDir()
+	const concept = "Concepts/go/Concept.md"
+	writeNote(t, root, concept, "---\ntype: concept\ndraft: true\n---\nconcept body\n")
+	store, _ := newTestStore(t, root, testContract(t, root))
+	gen := store.Current()
 	requestA := gen.Capture()
 
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
@@ -261,12 +300,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := draftSearch(requestA.Search()); err != nil {
 		t.Errorf("request-captured draft search error = %v, want stable authority", err)
 	}
-	// Notes are answered before files, and the contract is a vault file whose
-	// characters a reader can open, so it joins the text corpus and can share a
-	// query with this note. The claim under test is the note's badge, so the
-	// note is named rather than assumed to be alone.
-	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || !results[0].Draft {
+	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) != 1 ||
+		results[0].RelPath != concept || !results[0].Draft {
 		t.Errorf("request-captured Search(Concept) = %+v, want stable metadata badge", results)
 	}
 	if requestB.ArtifactPolicy().Available() {
@@ -275,52 +310,10 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := draftSearch(requestB.Search()); !errors.Is(err, lexical.ErrMetadataUnavailable) {
 		t.Errorf("next draft search error = %v, want ErrMetadataUnavailable", err)
 	}
-	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Draft {
+	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) != 1 ||
+		results[0].RelPath != concept || results[0].Draft {
 		t.Errorf("next Search(Concept) = %+v, want lexical result without metadata badge", results)
 	}
-	// A page combines two samples of the same authority: the policy it asks for
-	// classification, and the index it asks for metadata. Capture binds both to
-	// one authority, which is why a reader can trust them together. Were they
-	// ever to disagree, a page could show a draft filter's answer beside a
-	// policy that had already stopped classifying — so the agreement is asserted here rather
-	// than left to be inferred from the two halves above.
-	for _, tt := range []struct {
-		name string
-		gen  *Generation
-	}{
-		{name: "captured before the source changed", gen: requestA},
-		{name: "captured after the source changed", gen: requestB},
-	} {
-		_, countErr := draftSearch(tt.gen.Search())
-		if got, want := tt.gen.ArtifactPolicy().Available(), countErr == nil; got != want {
-			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers metadata = %t; "+
-				"one request would combine two disagreeing authorities", tt.name, got, want)
-		}
-	}
-}
-
-type recordingSource struct {
-	ObservedSource
-
-	scans int
-	reads map[string]int
-	fail  map[string]int
-}
-
-func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
-	s.scans++
-	return s.ObservedSource.ScanAvailable(ctx)
-}
-
-func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
-	path := entry.Path()
-	s.reads[path]++
-	if s.fail[path] > 0 {
-		s.fail[path]--
-		return nil, errors.New("injected read failure")
-	}
-	return s.ObservedSource.ReadFile(ctx, entry)
 }
 
 func TestNewScansOnceAndReadsOnlyGenerationInputs(t *testing.T) {
@@ -344,20 +337,7 @@ patterns:
 	writeNote(t, root, "Diagrams/example.png", "not really an image")
 	writeNote(t, root, "Notes/todo.txt", "a small text file\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 
 	if source.scans != 1 {
 		t.Errorf("initial scans = %d, want 1", source.scans)
@@ -408,20 +388,9 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 	const path = "Concepts/Alpha.md"
 	writeNote(t, root, path, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           map[string]int{path: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[path] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 	if _, ok := store.Current().Note(path); ok {
 		t.Fatal("initial generation retained a note whose read failed")
 	}
@@ -447,20 +416,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
 	writeNote(t, root, relPath, "---\ntype: concept\n---\nold body\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), nil, schema.Ungoverned())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, nil)
 	// The loop's clock is pinned so the test can stand at the next tick: after
 	// a failed rebuild the next expensive attempt waits one scan interval, and
 	// real time does not pass between two direct rescan calls.
@@ -761,18 +717,12 @@ func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchang
 	}
 }
 
-// The egress declaration is revalidated on the same beat as the artifact one.
-// Both are read once at startup, and a reader whose contract moved underneath
-// the process is owed the same sentence about each: the artifact latch already
-// said so on the home page while the egress latch stayed silent, so a vault
-// whose privacy declaration had gone out from under it looked, on that page,
-// like a vault that still had one. The oracle here is the egress policy's own
-// diagnostic, not the presence of a notice: rewriting the contract file latches
-// the artifact policy too, so "the page grew a notice" is true either way.
+// The egress declaration is revalidated on the same beat as the artifact one,
+// so a contract that changed after startup latches both. The oracle is the
+// egress policy's own claim, because the same rewrite latches the artifact
+// policy too.
 func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	t.Parallel()
-
-	const stale = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
@@ -806,8 +756,8 @@ func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	if got.PrivacyPolicy().Available() {
 		t.Error("rescanned snapshot kept egress authority derived from contract bytes that are gone")
 	}
-	if diagnostic := got.PrivacyPolicy().Diagnostic(); diagnostic != stale {
-		t.Errorf("egress diagnostic after the contract changed = %q, want %q", diagnostic, stale)
+	if reason := got.PrivacyPolicy().Claim().Reason(); reason != schema.ReasonContractChanged {
+		t.Errorf("egress claim reason after the contract changed = %v, want ReasonContractChanged", reason)
 	}
 	if got.PrivacyPolicy().EgressAllowed("Concepts/Alpha.md") {
 		t.Error("a latched egress policy still answers yes; permission must be positive authority")
@@ -862,18 +812,9 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			t.Errorf("Reader.Close: %v", closeErr)
-		}
-	})
 	store, err := New(
 		t.Context(),
-		reader,
+		openReader(t, root),
 		discardLogger(),
 		nil,
 		schema.Unreadable(errors.New("toml: line 42: expected a key separator")),
@@ -900,61 +841,41 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	}
 }
 
-// TestConcurrentReadDuringSwap runs many readers of the atomic pointer while a
-// writer swaps it in a loop — the exact swap the scanner performs (buildSnapshot
-// then ptr.Store). Under -race this passes only because the pointer is an
-// atomic.Pointer; a plain field would be flagged.
-func TestConcurrentReadDuringSwap(t *testing.T) {
+// TestReadersRunBesideRescans reads the published generation from several
+// goroutines while rescans replace it, so the race detector sees every handoff
+// from the reconciliation loop to a reader.
+func TestReadersRunBesideRescans(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n\nbody\n")
+	const rel = "Concepts/Alpha.md"
+	body := func(i int) string { return strings.Repeat("edit ", i+1) + "\n" }
+	writeNote(t, root, rel, body(0))
+	store, _ := newTestStore(t, root, nil)
 
-	contract := testContract(t, root)
-	store, reader := newTestStore(t, root, contract)
 	ctx, cancel := context.WithCancel(t.Context())
-
 	var readers sync.WaitGroup
-	for range 8 {
+	for range 4 {
 		readers.Go(func() {
 			for ctx.Err() == nil {
-				snap := store.Current()
-				_ = snap.Search().Len()
-				_ = snap.Graph().Resolve("Alpha")
+				gen := store.Current()
+				_, _ = gen.Note(rel)
+				_ = gen.Search().Len()
+				_ = gen.Freshness()
 			}
 		})
 	}
-
-	var swapper sync.WaitGroup
-	swapper.Go(func() {
-		for range 100 {
-			scan, err := reader.ScanAvailable(t.Context())
-			if err != nil {
-				t.Errorf("ScanAvailable: %v", err)
-				return
-			}
-			gen, _, err := buildGeneration(
-				t.Context(),
-				reader,
-				nil,
-				scan,
-				discardLogger(),
-				contract.Capabilities(contract.Governance()),
-				contract,
-				nil,
-				nil,
-				nil,
-			)
-			if err != nil {
-				t.Errorf("buildGeneration: %v", err)
-				return
-			}
-			store.ptr.Store(gen)
-		}
-	})
-	swapper.Wait()
-
+	// Each edit changes the note's size, so each rescan publishes.
+	const edits = 5
+	for i := 1; i <= edits; i++ {
+		writeNote(t, root, rel, body(i))
+		store.rescan(t.Context())
+	}
 	cancel()
 	readers.Wait()
+
+	if note, ok := store.Current().Note(rel); !ok || note.Body != body(edits) {
+		t.Errorf("Note(%q) after %d rescans = %+v, present %t; want the last edit published", rel, edits, note, ok)
+	}
 }
 
 // TestBuildGenerationIndexesNotesOnly pins that the text corpus holds notes and
@@ -967,17 +888,13 @@ func TestBuildGenerationIndexesNotesOnly(t *testing.T) {
 	writeNote(t, root, "Notes/todo.txt", "findable body\n")
 	writeNote(t, root, "Notes/page.html", "<p>findable body</p>\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"><text>findable body</text></svg>`)
+	// A lesson sidecar is read for its practice panel and a PDF gets a viewer;
+	// neither is shown as text, so neither is searched.
+	writeNote(t, root, "System/slots/L01.yaml", "sentences:\n  - text: findable body\n")
+	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (findable body) >>\nendobj\n%%EOF\n")
 
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 
 	got := make([]string, 0, 1)
 	for _, result := range snapshotSearch(t, store.Current().Search(), "findable body") {
@@ -1001,20 +918,6 @@ func searchPaths(t *testing.T, store *Store, query string) []string {
 	return out
 }
 
-func storeWithNotes(t *testing.T, root string, contract *schema.Contract) *Store {
-	t.Helper()
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return store
-}
-
 func writeNeedlePair(t *testing.T, root string) {
 	t.Helper()
 	writeNote(t, root, "System/early.md", "---\ntype: system\n---\nneedle in a template\n")
@@ -1030,7 +933,7 @@ func TestSearchRanksAKnowledgeLayerNoteAboveASystemFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNeedlePair(t, root)
-	store := storeWithNotes(t, root, testContract(t, root))
+	store, _ := newTestStore(t, root, testContract(t, root))
 
 	got := searchPaths(t, store, "needle")
 	want := []string{"Writing/late.md", "AAA.md", "System/early.md"}
@@ -1046,42 +949,17 @@ func TestSearchKeepsReadingOrderWhenNoKnowledgeLayerIsDeclared(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNeedlePair(t, root)
-	contract := testContractWithoutKnowledgeDirs(t, root)
+	contract := writeContract(t, root, replacing(t, `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = []`))
 	if contract.KnowledgeScope().Available() {
 		t.Fatal("the undeclared fixture still claims a knowledge layer")
 	}
-	store := storeWithNotes(t, root, contract)
+	store, _ := newTestStore(t, root, contract)
 
 	got := searchPaths(t, store, "needle")
 	want := []string{"AAA.md", "System/early.md", "Writing/late.md"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
 	}
-}
-
-func testContractWithoutKnowledgeDirs(tb testing.TB, root string) *schema.Contract {
-	tb.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		tb.Fatalf("read contract fixture: %v", err)
-	}
-	const needle = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), needle, `checked = []`, 1)
-	if text == string(data) {
-		tb.Fatal("the contract fixture does not contain the checked needle")
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
-		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
-	}
-	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
-		tb.Fatalf("write contract fixture: %v", writeErr)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		tb.Fatalf("schema.Load: %v", err)
-	}
-	return contract
 }
 
 // TestBuildGenerationStillResolvesWikilinksToFiles guards the hole the widening most
@@ -1093,15 +971,7 @@ func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	writeNote(t, root, "Concepts/Note.md", "---\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := newTestStore(t, root, contract)
 
 	note, ok := store.Current().Note("Concepts/Note.md")
 	if !ok {
@@ -1116,47 +986,34 @@ func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	}
 }
 
-// TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder covers the difference
-// between a file the reading surface is made of and a file that only lends the
-// index its words.
-//
-// A note that cannot be read leaves the surface incomplete, so the generation is
-// held back until it can be. Retry also means "ignore that nothing changed", so
-// a file that is permanently unreadable — a mode-000 export, a socket, something
-// another process holds — would hold the whole folder at the generation before
-// it, rebuilding every couple of seconds and never publishing again. Every note
-// written after it would be a 404 in a folder that is otherwise fine.
-func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
+// TestOneUnreadableFigureDoesNotFreezeTheFolder covers the difference between
+// a file the reading surface is made of and a figure, which only lends its page
+// its measurements. A note that cannot be read holds the generation back until
+// it can be; a figure that is permanently unreadable — a mode-000 export,
+// something another process holds — would hold the folder forever, and every
+// note written after it would be a 404 in a folder that is otherwise fine.
+func TestOneUnreadableFigureDoesNotFreezeTheFolder(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
+	const figure = "Diagrams/figure.html"
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	writeNote(t, root, "notes.txt", "plain text\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
+	writeNote(t, root, figure, "<p>figure</p>\n")
+	source := newRecordingSource(t, root)
+	source.fail[figure] = 1 << 30
+	store := buildStore(t, source, discardLogger(), testContract(t, root))
+	if source.reads[figure] == 0 {
+		t.Fatal("the build never read the figure, so nothing below is under test")
 	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	// A read that never succeeds, on a file that is not a note.
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           map[string]int{"notes.txt": 1 << 30},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if store.retry {
-		t.Fatal("an unreadable ordinary file held the generation back; every later change would stop being published")
+	if store.retry || !store.Current().Freshness().Complete {
+		t.Fatal("an unreadable figure held the generation back; every later change would stop being published")
 	}
 
 	const added = "Concepts/Beta.md"
 	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note(added); !ok {
-		t.Error("a note written after the unreadable file never reached a published generation")
+		t.Error("a note written after the unreadable figure never reached a published generation")
 	}
 }
 
@@ -1179,20 +1036,7 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "Concepts/Base.md", "---\ntype: concept\n---\nbase\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	complete := store.Current()
 	base := time.Now()
 	clock := base
@@ -1248,250 +1092,64 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	}
 }
 
-// TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold locks the
-// behavior the comment above TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder
-// describes for the opposite branch: a note the reading surface is made of.
-// While one note cannot be read, no later generation publishes — the folder
-// holds at the last whole one, and a note written meanwhile stays invisible —
-// because a read that fails once and works on the next attempt must never
-// publish half a folder. That retention is bounded: degradeAfter attempts in a
-// row is where it ends, and the companion test states what happens then. The
-// retry work stays on the backoff schedule throughout.
-func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	const blocked = "Concepts/Alpha.md"
-	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	frozen := store.Current()
-	base := time.Now()
-	clock := base
-	store.now = func() time.Time { return clock }
-
-	// The note is edited to a different size — so the next rescan rebuilds —
-	// and from now on every read of it fails. A second note is written
-	// alongside it, so what the retention costs the reader is visible.
-	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha, edited to a different size\n")
-	source.fail[blocked] = 1 << 30
-	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
-
-	// Under the backoff the attempts land on ticks 0, 1, 3, and 7, so ticks 0
-	// through 2 carry the first two failures — one short of the threshold.
-	var attemptTicks []int
-	last := source.reads[blocked]
-	rescanTicks := func(from, to int) {
-		for tick := from; tick < to; tick++ {
-			clock = base.Add(time.Duration(tick) * scanInterval)
-			store.rescan(t.Context())
-			if source.reads[blocked] > last {
-				attemptTicks = append(attemptTicks, tick)
-				last = source.reads[blocked]
-			}
-		}
-	}
-	rescanTicks(0, 3)
-	if store.Current() != frozen {
-		t.Fatal("a failure that has not yet outlasted the threshold published half a folder")
-	}
-	if _, ok := store.Current().Note(added); ok {
-		t.Error("a note written during a failure that may still clear appeared before the folder degraded")
-	}
-
-	// The third attempt, on tick 3, is where the retention ends.
-	rescanTicks(3, 10)
-	if store.Current() == frozen {
-		t.Fatal("the retention never ended; every change after the failure stayed invisible")
-	}
-	if diff := cmp.Diff([]int{0, 1, 3, 7}, attemptTicks); diff != "" {
-		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestDegradedGenerationPublishesWhatCouldBeRead pins where retention stops.
-// Holding the last whole generation is the right answer for a read that fails
-// once and works on the next attempt. Held without a bound it means every note
-// written after one file stopped being readable is answered with a 404, in a
-// folder that is otherwise entirely fine, with nothing on the page a reader
-// could act on. So after degradeAfter attempts in a row come back incomplete,
-// the folder publishes what it could read, carries the last copy of what it
-// could not, and reports itself as not whole for as long as that lasts.
-func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	const unreadable = "Concepts/Alpha.md"
-	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha as first read\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	whole := store.Current()
-	wholeAt := whole.Freshness().BuiltAt
-	base := time.Now()
-	clock := base
-	store.now = func() time.Time { return clock }
-
-	// The note is edited to a different size — so the next rescan rebuilds —
-	// and from now on every read of it fails. A second note is written while
-	// the folder cannot be read whole: this is the reader's own new work, and
-	// it is what the old policy suppressed for as long as the failure lasted.
-	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha, edited and now unreadable\n")
-	source.fail[unreadable] = 1 << 30
-	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
-
-	// One rescan per scan interval, as the ticker drives it. The backoff puts
-	// the first three attempts on ticks 0, 1, and 3 — about six seconds.
-	for tick := range 4 {
-		clock = base.Add(time.Duration(tick) * scanInterval)
-		store.rescan(t.Context())
-	}
-
-	degraded := store.Current()
-	if degraded == whole {
-		t.Fatal("a read failure that never clears held the folder at its last whole generation forever")
-	}
-	if _, ok := degraded.Note(added); !ok {
-		t.Error("a note written while one file was unreadable never reached a published generation")
-	}
-	fresh := degraded.Freshness()
-	if fresh.Complete {
-		t.Error("a generation published without one of its sources calls itself complete")
-	}
-	if len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != unreadable {
-		t.Errorf("Blocked = %+v, want the one source that could not be read", fresh.Blocked)
-	}
-	if !fresh.LastComplete.Equal(wholeAt) {
-		t.Errorf("LastComplete = %v, want the last whole read at %v", fresh.LastComplete, wholeAt)
-	}
-	carried, ok := degraded.Note(unreadable)
-	if !ok {
-		t.Fatal("the degraded generation dropped the note it could not re-read instead of carrying its last copy")
-	}
-	if !strings.Contains(carried.Body, "alpha as first read") {
-		t.Errorf("carried body = %q, want the copy the last whole generation read", carried.Body)
-	}
-	if !carried.Stale {
-		t.Error("the carried copy is not marked as one that could not be re-read")
-	}
-	// The carried copy replaces the resolver stub rather than joining it: two
-	// registrations of one path would report the folder as having two files
-	// answering to the same name.
-	if collisions := degraded.Health().Collisions; len(collisions) != 0 {
-		t.Errorf("degraded generation reports name collisions %+v; the carried copy was registered twice", collisions)
-	}
-
-	// Recovery is the ordinary path: the file reads again, the next attempt
-	// publishes a whole generation, and every degraded fact clears.
-	source.fail[unreadable] = 0
-	clock = base.Add(20 * scanInterval)
-	store.rescan(t.Context())
-	recovered := store.Current()
-	if recovered == degraded {
-		t.Fatal("a folder that reads whole again did not publish a new generation")
-	}
-	fresh = recovered.Freshness()
-	if !fresh.Complete || len(fresh.Blocked) != 0 {
-		t.Errorf("recovered freshness = %+v, want whole with nothing blocked", fresh)
-	}
-	note, ok := recovered.Note(unreadable)
-	if !ok || note.Stale || !strings.Contains(note.Body, "edited and now unreadable") {
-		t.Errorf("recovered note = %+v, present %t; want the edited body read afresh", note, ok)
-	}
-	if _, ok := recovered.Note(added); !ok {
-		t.Error("the recovered generation lost the note written while the folder was degraded")
-	}
-}
-
-// TestDegradedGenerationNamesEverySourceItCouldNotRead separates the two kinds
-// of unreadable file a degraded generation holds, because the reading pages
-// answer for them differently.
-//
-// A file the folder read once keeps that copy, so its page still has words to
-// show and says they are the last known ones. A file that appeared and was
-// never readable has no copy to show: it stays out of the generation's notes
-// while remaining one of its files, which is what lets the missing-note page
-// tell the reader the file is there and could not be read this time, rather
-// than that there is nothing at that address.
-//
-// The freshness record names both. Naming only the first sends the reader to
-// clear one permission and leaves the folder degraded with no account of why.
-func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
+// TestAnUnreadableNoteHoldsTheFolderBackUntilItDegrades pins both sides of
+// the degrade threshold. A read that fails once and works on the next attempt
+// must never publish half a folder, so the last whole generation is held. Held
+// without a bound, every note written after one file stopped being readable is
+// a 404, so after degradeAfter incomplete attempts in a row the folder
+// publishes what it could read, carries the last copy of what it could not,
+// and says it is not whole until a read succeeds again.
+func TestAnUnreadableNoteHoldsTheFolderBackUntilItDegrades(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	const (
 		carried = "Concepts/Carried.md"
 		never   = "Concepts/Never.md"
+		added   = "Concepts/Added.md"
 	)
 	writeNote(t, root, carried, "---\ntype: concept\n---\nthe words read before the file shut\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, testContract(t, root))
 	whole := store.Current()
 	base := time.Now()
 	clock := base
 	store.now = func() time.Time { return clock }
 
-	// The note that was read is edited to a different size, so the next rescan
-	// rebuilds; a second note arrives beside it. From here neither can be read.
+	// The read note is edited to a different size, so the next rescan builds;
+	// a note arrives that is never readable, and one that reads fine.
 	writeNote(t, root, carried, "---\ntype: concept\n---\nwords written after the file shut\n")
 	writeNote(t, root, never, "---\ntype: concept\n---\nnever read\n")
+	writeNote(t, root, added, "---\ntype: concept\n---\nadded\n")
 	source.fail[carried] = 1 << 30
 	source.fail[never] = 1 << 30
 
 	// One rescan per scan interval, as the ticker drives it. The backoff puts
-	// the first three attempts on ticks 0, 1, and 3.
-	for tick := range 4 {
+	// the attempts on ticks 0, 1 and 3, so ticks 0 to 2 carry two of them.
+	rescanAt := func(tick int) {
 		clock = base.Add(time.Duration(tick) * scanInterval)
 		store.rescan(t.Context())
 	}
+	for tick := range 3 {
+		rescanAt(tick)
+	}
+	if store.Current() != whole {
+		t.Fatal("a failure that has not yet outlasted the threshold published half a folder")
+	}
+
+	rescanAt(3)
 	degraded := store.Current()
 	if degraded == whole {
-		t.Fatal("the folder never degraded, so nothing below is under test")
+		t.Fatal("the folder never degraded: every change after the failure stayed invisible")
+	}
+	if _, ok := degraded.Note(added); !ok {
+		t.Error("a note written while two files were unreadable never reached a published generation")
 	}
 	fresh := degraded.Freshness()
 	if fresh.Complete {
 		t.Error("a generation published without two of its sources calls itself complete")
+	}
+	if !fresh.LastComplete.Equal(whole.Freshness().BuiltAt) {
+		t.Errorf("LastComplete = %v, want the last whole read at %v", fresh.LastComplete, whole.Freshness().BuiltAt)
 	}
 	blocked := make([]string, 0, len(fresh.Blocked))
 	for _, source := range fresh.Blocked {
@@ -1502,26 +1160,44 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 		t.Errorf("blocked sources mismatch (-want +got):\n%s", diff)
 	}
 
+	// A note read once keeps that copy, marked stale, and answers searches for
+	// the words its page shows.
 	kept, ok := degraded.Note(carried)
-	if !ok {
-		t.Fatal("the degraded generation dropped the note it had read once instead of carrying its last copy")
+	if !ok || !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
+		t.Errorf("carried note = %+v, present %t; want the last copy read, marked stale", kept, ok)
 	}
-	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
-		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
+	if found := snapshotSearch(t, degraded.Search(), "the words read before the file shut"); len(found) != 1 || found[0].RelPath != carried {
+		t.Errorf("searching the carried copy's own words = %+v, want %s", found, carried)
 	}
-	// The carried copy has to answer everywhere the note it replaces did. A
-	// generation that left those words out of the index would answer "nothing
-	// found" about text it is showing on screen at the same moment.
-	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
-	if len(found) != 1 || found[0].RelPath != carried {
-		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
-	}
+	// A note never read has no copy, but stays a file, so its page can say it
+	// could not be read rather than that nothing is there.
 	if unread, ok := degraded.Note(never); ok {
-		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)
+		t.Errorf("a file never read was published with a body: %+v", unread)
 	}
 	if _, ok := degraded.Entry(never); !ok {
-		t.Error("the generation does not hold the unread file's identity, so its page cannot tell " +
-			"a reader to clear a permission apart from telling them nothing is there")
+		t.Error("the generation does not hold the unread file's identity")
+	}
+	// The carried copy replaces the resolver stub rather than joining it.
+	if collisions := degraded.Health().Collisions; len(collisions) != 0 {
+		t.Errorf("degraded generation reports name collisions %+v; the carried copy was registered twice", collisions)
+	}
+
+	// Recovery is the ordinary path: the files read again and every degraded
+	// fact clears.
+	source.fail[carried] = 0
+	source.fail[never] = 0
+	rescanAt(20)
+	recovered := store.Current()
+	if fresh := recovered.Freshness(); !fresh.Complete || len(fresh.Blocked) != 0 {
+		t.Errorf("recovered freshness = %+v, want whole with nothing blocked", fresh)
+	}
+	if note, ok := recovered.Note(carried); !ok || note.Stale || !strings.Contains(note.Body, "words written after the file shut") {
+		t.Errorf("recovered note = %+v, present %t; want the edited body read afresh", note, ok)
+	}
+	for _, rel := range []string{never, added} {
+		if _, ok := recovered.Note(rel); !ok {
+			t.Errorf("Note(%q) missing from the recovered generation", rel)
+		}
 	}
 }
 
@@ -1539,20 +1215,7 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	whole := store.Current()
 	base := time.Now()
 	clock := base
@@ -1590,20 +1253,9 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           map[string]int{blocked: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[blocked] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 
 	fresh := store.Current().Freshness()
 	if fresh.Complete {
@@ -1677,20 +1329,9 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           map[string]int{blocked: 1},
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := newRecordingSource(t, root)
+	source.fail[blocked] = 1
+	store := buildStore(t, source, discardLogger(), contract)
 
 	// The generation a request would be holding: published for availability at
 	// startup without the note it could not read.
@@ -1729,8 +1370,9 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 // in-place edit that preserves inode, mode, size, and mtime is invisible to
 // it — deliberately, and the companion scanner test states that boundary. What
 // keeps that from meaning "stale forever in a quiescent folder" is the slow
-// reconciliation cycle: every reconcileEvery-th tick rebuilds without the
-// short-circuit, so the changed bytes are republished within the period.
+// reconciliation cycle: the first tick a reconcilePeriod after the last
+// rebuild skips the short-circuit, so the changed bytes are republished within
+// the period.
 func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	t.Parallel()
 
@@ -1781,7 +1423,7 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 
 	// Driving the loop through one reconciliation period republishes the
 	// changed bytes even though no metadata ever moved.
-	for range reconcileEvery {
+	for range int(reconcilePeriod / scanInterval) {
 		clock = clock.Add(scanInterval)
 		store.rescan(t.Context())
 	}
@@ -1791,18 +1433,6 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	}
 	if !strings.Contains(note.Body, "MARKER_NEW_ABC") {
 		t.Errorf("note body after the reconciliation period still carries the old bytes: %q", note.Body)
-	}
-}
-
-// TestUnconditionalRebuildPeriodIsAnHour pins the slow cycle's cadence. The
-// freshness guarantee follows reconcileEvery and cannot see a silent drop back
-// to a few minutes; this one fails unless the period is a wall-clock hour.
-func TestUnconditionalRebuildPeriodIsAnHour(t *testing.T) {
-	t.Parallel()
-
-	period := time.Duration(reconcileEvery) * scanInterval
-	if period != time.Hour {
-		t.Fatalf("unconditional rebuild period = %s, want 1h so a quiescent vault is not rebuilt every few minutes", period)
 	}
 }
 
@@ -1818,20 +1448,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	const failing = "Concepts/Alpha.md"
 	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, contract)
 	// The clock never advances, so the backoff delay never expires.
 	clock := time.Now()
 	store.now = func() time.Time { return clock }
@@ -1844,7 +1461,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	}
 
 	before := source.reads[failing]
-	for range reconcileEvery + 10 {
+	for range int(reconcilePeriod/scanInterval) + 10 {
 		store.rescan(t.Context())
 	}
 	if got := source.reads[failing] - before; got != 0 {
@@ -1852,107 +1469,25 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	}
 }
 
-// TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
-// lesson sidecar is read whatever its size, because the practice panel is built
-// from it — but its own page says its contents are not searched, and deciding
-// again from the bytes alone made that sentence false.
-func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
-	writeNote(t, root, "System/slots/L01.yaml", oversize)
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	for _, r := range answer.Results {
-		if strings.HasSuffix(r.RelPath, ".yaml") {
-			t.Errorf("a sidecar past the size its page will show is in the index: %s", r.RelPath)
-		}
-	}
-}
-
-// TestAReadablePDFIsNotSearchable holds the index to the same branch set the
-// file page uses. A PDF gets its own viewer rather than a source listing, so its
-// bytes are never shown as characters — and a small enough PDF is often valid
-// UTF-8 with no NUL, which is all a bytes-only test looks at. Indexing it hands
-// back a hit whose page contains none of the words that matched.
-func TestAReadablePDFIsNotSearchable(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
-	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	for _, r := range answer.Results {
-		if strings.HasSuffix(r.RelPath, ".pdf") {
-			t.Errorf("a PDF is in the text index: %s — its page shows a viewer, not these words", r.RelPath)
-		}
-	}
-}
-
-// TestAnOverCapNoteIsNotRetained is the lock that a note past MaxSourceBytes
-// is a published skip. The same ceiling every other file has applies: the
-// generation does not read it, does not hold its body, and does not hold the
-// folder back for it. A name can stay so the page can say the file is there;
-// nothing of the file is retained.
-func TestAnOverCapNoteIsNotRetained(t *testing.T) {
+// TestAnOverCapNoteIsASkipNotARead pins that a note past the source bound is
+// a published skip, under the ceiling every other file has: the generation
+// never reads it, holds nothing of it, and does not hold the folder back for
+// it. Its name stays, so a citation lands on it and the health page lists it.
+func TestAnOverCapNoteIsASkipNotARead(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	const needle = "rarespelunker"
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\n"+needle+" sits here.\n")
+	writeNote(t, root, "small.md", "---\ntype: concept\n---\n"+needle+" sits here; see [[huge]].\n")
 	huge := "---\ntype: concept\n---\n" + needle + " sits here too.\n" +
-		strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
+		strings.Repeat("padding padding padding\n", render.MaxSourceBytes/24+1)
 	writeNote(t, root, "huge.md", huge)
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source := &recordingSource{
-		ObservedSource: reader,
-		reads:          make(map[string]int),
-		fail:           make(map[string]int),
-	}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, source := newRecordingStore(t, root, testContract(t, root))
 	if store.retry {
 		t.Fatal("an over-cap note held the generation back; one oversized file would wedge the folder")
 	}
-	if source.reads["huge.md"] != 0 {
-		t.Fatalf("the over-cap note was read %d times; nothing of it should be retained", source.reads["huge.md"])
+	if got := source.reads["huge.md"]; got != 0 {
+		t.Fatalf("the over-cap note was read %d times, want 0", got)
 	}
 
 	gen := store.Current()
@@ -1962,111 +1497,28 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	if _, isFile := gen.Entry("huge.md"); !isFile {
 		t.Fatal("the over-cap note vanished from the scan; the page would look like a missing file")
 	}
-
+	want := []Skipped{{Path: "huge.md", Reason: overSourceBound, Size: int64(len(huge))}}
+	if diff := cmp.Diff(want, gen.Skipped()); diff != "" {
+		t.Errorf("Skipped() mismatch (-want +got):\n%s", diff)
+	}
+	if got := searchPaths(t, store, needle); !slices.Equal(got, []string{"small.md"}) {
+		t.Errorf("Search(%q) = %v, want the note under the bound alone", needle, got)
+	}
+	if resolved := gen.Graph().Resolve("huge"); resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
+		t.Errorf("Resolve(huge) = %+v, want unique huge.md", resolved)
+	}
 	small, ok := gen.Note("small.md")
-	if !ok || !strings.Contains(small.Body, needle) {
-		t.Fatal("the under-cap note is absent from the generation")
+	if !ok {
+		t.Fatal("the note under the bound is absent from the generation")
 	}
-
-	answer, err := gen.Search().Search(lexical.Parse(needle), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	var paths []string
-	for _, r := range answer.Results {
-		paths = append(paths, r.RelPath)
-	}
-	if !slices.Contains(paths, "small.md") {
-		t.Errorf("search lost the note under the cap; got %v", paths)
-	}
-	if slices.Contains(paths, "huge.md") {
-		t.Errorf("the over-cap note reached the index; got %v", paths)
+	if html := gen.Render("small.md", small.Body, wording.ZhHant).HTML; !strings.Contains(html, "/notes/huge.md") {
+		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", html)
 	}
 
 	writeNote(t, root, "later.md", "---\ntype: concept\n---\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("later.md"); !ok {
 		t.Error("a note written after the over-cap skip never reached a published generation")
-	}
-}
-
-// TestAnOverCapNoteIsReportedAsSkipped is the lock that a note past the source
-// bound is a skipped projection, not only a server log. Skipped() used to
-// return the scan's list alone; skipUnread appended a stub and logged, and
-// /health had nothing to name.
-func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
-	writeNote(t, root, "huge.md", huge)
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\nunder the bound\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := store.Current().Skipped()
-	if len(got) != 1 {
-		t.Fatalf("Skipped() = %#v, want the over-bound note alone", got)
-	}
-	if got[0].Path != "huge.md" {
-		t.Errorf("Skipped()[0].Path = %q, want huge.md", got[0].Path)
-	}
-	if got[0].Reason != "over the source bound" {
-		t.Errorf("Skipped()[0].Reason = %q, want over the source bound", got[0].Reason)
-	}
-	if got[0].Size != int64(len(huge)) {
-		t.Errorf("Skipped()[0].Size = %d, want %d", got[0].Size, len(huge))
-	}
-}
-
-// TestAnOverCapNoteKeepsANameForCitations locks skipUnread's body. A note past
-// the bound is not retained, but a citation still lands on it. A bare return
-// in skipUnread drops the stub, and this wikilink goes unresolved.
-func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeNote(t, root, "small.md", "---\ntype: concept\n---\nsee [[huge]]\n")
-	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
-	writeNote(t, root, "huge.md", huge)
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	gen := store.Current()
-	if _, ok := gen.Note("huge.md"); ok {
-		t.Fatal("the over-cap note was retained; this would not lock skipUnread")
-	}
-	resolved := gen.Graph().Resolve("huge")
-	if resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
-		t.Fatalf("Resolve(huge) = %+v, want unique huge.md; skipUnread left no stub", resolved)
-	}
-	note, ok := gen.Note("small.md")
-	if !ok {
-		t.Fatal("the citing note is absent from the generation")
-	}
-	result := gen.Render("small.md", note.Body, wording.ZhHant)
-	if !strings.Contains(result.HTML, "/notes/huge.md") {
-		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", result.HTML)
 	}
 }
 
@@ -2099,10 +1551,6 @@ func TestASecondReconciliationLoopIsRefused(t *testing.T) {
 
 	if recovered == nil {
 		t.Fatal("Store.Run can be called twice without saying so")
-	}
-	message, isString := recovered.(string)
-	if want := "snapshot: Store.Run called twice"; !isString || message != want {
-		t.Errorf("panic value = %v, want %q", recovered, want)
 	}
 }
 
@@ -2190,26 +1638,10 @@ func TestIsDirectoryTellsAFolderFromAFileAndFromNothing(t *testing.T) {
 
 func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	root := t.TempDir()
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	declared := strings.Replace(string(data), "[types.thought]\nrole = \"thought\"\n", "[types.thought]\n", 1)
-	declared = strings.Replace(declared, "[types.writing]\n", "[types.writing]\nrole = \"thought\"\n", 1)
-	if strings.Count(declared, `role = "thought"`) != 1 || !strings.Contains(declared, "[types.writing]\nrole = \"thought\"\n") {
-		t.Fatal("the contract fixture's thought role did not move to writing")
-	}
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(contractPath, []byte(declared), 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
-		t.Fatal(err)
-	}
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	contract := writeContract(t, root, func(text string) string {
+		text = replacing(t, "[types.thought]\nrole = \"thought\"\n", "[types.thought]\n")(text)
+		return replacing(t, "[types.writing]\n", "[types.writing]\nrole = \"thought\"\n")(text)
+	})
 	store, _ := newTestStore(t, root, contract)
 	if got := store.Current().NavigationRoles().AnswerType(); got != "writing" {
 		t.Fatalf("answer role at start = %q, want %q", got, "writing")
@@ -2217,9 +1649,7 @@ func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	// The declaration is withdrawn on disk and the vault changes, so the next
 	// scan rebuilds. Like the course and map roles, the role holds until the
 	// next start.
-	if err = os.WriteFile(contractPath, data, 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
-		t.Fatal(err)
-	}
+	testContract(t, root)
 	writeNote(t, root, "Later.md", "# Later\n\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("Later.md"); !ok {

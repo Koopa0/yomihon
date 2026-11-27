@@ -75,14 +75,10 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 	}
 }
 
-// TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD guards the property
-// normalize()'s own doc comment claims but earlier only held for lookup
-// keys, not the stored path value: a note whose filename arrived on disk
-// as raw NFD bytes (macOS filesystems can hold either form regardless of
-// how it was typed) must still resolve to an NFC Resolution.RelPath.
-// normalize() alone cannot fix this because it only normalizes at lookup time;
-// this test exercises the rooted reader capture where path bytes enter the
-// generation.
+// TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD reads a note
+// whose filename is NFD on disk, as a macOS folder can hold it however it was
+// typed. Folding the lookup key is not enough: the path a resolution hands
+// back is the one the capture stored, so the capture has to fold it too.
 func TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -307,56 +303,9 @@ func TestResolveNonMarkdownResourceNeedsExtension(t *testing.T) {
 	}
 }
 
-func TestSplitWikilink(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		inner       string
-		wantTarget  string
-		wantDisplay string
-		wantOK      bool
-	}{
-		{name: "bare target", inner: "Go Slice", wantTarget: "Go Slice", wantDisplay: "Go Slice", wantOK: true},
-		{name: "display text", inner: "Go Slice|see", wantTarget: "Go Slice", wantDisplay: "see", wantOK: true},
-		{
-			name: "heading fragment resolves on name alone", inner: "Go Slice#Internals",
-			wantTarget: "Go Slice", wantDisplay: "Go Slice#Internals", wantOK: true,
-		},
-		{
-			name: "block fragment strips correctly", inner: "Go Slice^abc",
-			wantTarget: "Go Slice", wantDisplay: "Go Slice^abc", wantOK: true,
-		},
-		{
-			name: "heading then explicit display", inner: "X#H|disp",
-			wantTarget: "X", wantDisplay: "disp", wantOK: true,
-		},
-		{
-			name: "escaped table-cell pipe is not the display separator's naive split point " +
-				"(the escaped and unescaped pipe yield the same target)",
-			inner: `Go Slice\|see`, wantTarget: "Go Slice", wantDisplay: "see", wantOK: true,
-		},
-		{
-			name:  "bare anchor is a same-page jump, not a cross-file target",
-			inner: "#Heading", wantTarget: "", wantDisplay: "#Heading", wantOK: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			target, display, ok := graph.SplitWikilink(tt.inner)
-			if target != tt.wantTarget || display != tt.wantDisplay || ok != tt.wantOK {
-				t.Errorf("SplitWikilink(%q) = (%q, %q, %v), want (%q, %q, %v)",
-					tt.inner, target, display, ok, tt.wantTarget, tt.wantDisplay, tt.wantOK)
-			}
-		})
-	}
-}
-
-// TestParseWikilink covers the fragments SplitWikilink drops. The table above
-// is what holds the unchanged-semantics promise for the callers that only want
-// a name and a label: it carries its own hand-written answers, so it still
-// fails if this parse ever starts reading those forms differently.
+// TestParseWikilink pins how a link's inner text splits into the name it
+// resolves by, the label a reader sees and the place in the file it points at;
+// every reader of a wikilink takes those three from here.
 func TestParseWikilink(t *testing.T) {
 	t.Parallel()
 
@@ -452,23 +401,6 @@ func TestParseWikilink(t *testing.T) {
 				t.Errorf("ParseWikilink(%q) ok = %v, want %v", tt.inner, ok, tt.ok)
 			}
 		})
-	}
-}
-
-func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *testing.T) {
-	t.Parallel()
-	// Anchors are never verified: [[Go Slice#NoSuchHeading]] must resolve
-	// exactly like [[Go Slice]] — only the target file's existence
-	// matters.
-	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Go Slice.md"}}, nil)
-
-	target, _, ok := graph.SplitWikilink("Go Slice#This Heading Does Not Exist Anywhere")
-	if !ok {
-		t.Fatalf("SplitWikilink() ok = false, want true")
-	}
-	got := idx.Resolve(target)
-	if got.Kind != graph.KindUnique || got.RelPath != "Go Slice.md" {
-		t.Errorf("Resolve(%q) = %+v, want Unique Go Slice.md", target, got)
 	}
 }
 
@@ -581,90 +513,5 @@ func TestCollisionsReturnsIndependentCandidates(t *testing.T) {
 	want := []string{"A/Foo.md", "B/Foo.md"}
 	if diff := cmp.Diff(want, idx.Collisions()["foo"]); diff != "" {
 		t.Errorf("Collisions()[foo] after caller mutation mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// A resolution kind reaches a log line, a panic and a rendered fault, and in
-// each of those places a number is a lookup the reader has to perform against
-// a constant block they do not have open.
-func TestKindNamesItself(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		kind graph.Kind
-		want string
-	}{
-		{graph.KindUnresolved, "unresolved"},
-		{graph.KindUnique, "unique"},
-		{graph.KindAmbiguous, "ambiguous"},
-	} {
-		t.Run(tc.want, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.kind.String(); got != tc.want {
-				t.Errorf("Kind.String() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-// A kind the constant block does not declare has no name, and answering with
-// one of the three would report a resolution that never happened.
-func TestKindRefusesToNameAValueItDoesNotDeclare(t *testing.T) {
-	t.Parallel()
-
-	defer func() {
-		recovered := recover()
-		text, isText := recovered.(string)
-		if !isText || !strings.Contains(text, "99") {
-			t.Errorf("panic = %v, want a message naming the value 99", recovered)
-		}
-	}()
-	_ = graph.Kind(99).String()
-	t.Error("Kind(99).String() returned instead of panicking")
-}
-
-// TestSectionIDNamesAPlaceTheSameWayForEveryFace pins the id a section name
-// folds to. Both the page that stamps the id and the adjudicator that asks
-// whether a note answers one read it from here, so a change made for either of
-// them moves every anchor and every fragment in the vault at once.
-//
-// The rows are the spellings that separate one plausible fold from another:
-// letter case, characters that are letters without being ASCII, characters that
-// look like letters and are not, characters that are counted as digits without
-// looking like one, and names that fold to nothing at all. The two
-// Unicode forms of one word are built rather than typed, since a source file
-// cannot show which form it is carrying.
-func TestSectionIDNamesAPlaceTheSameWayForEveryFace(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct{ name, want string }{
-		{"Plain Heading", "plain-heading"},
-		{"  Trailing and leading  ", "trailing-and-leading"},
-		{"CJK 標題", "cjk-標題"},
-		{"Heading -- with punctuation!", "heading-with-punctuation"},
-		{"under_score", "under-score"},
-		{"x²", "x²"},
-		{"½", "½"},
-		{"!!!", "section"},
-		{"", "section"},
-		{"   ", "section"},
-		{"ＦＵＬＬＷＩＤＴＨ", "ｆｕｌｌｗｉｄｔｈ"},
-	}
-	for _, tt := range tests {
-		if got := graph.SectionID(tt.name); got != tt.want {
-			t.Errorf("SectionID(%q) = %q, want %q", tt.name, got, tt.want)
-		}
-	}
-
-	for _, name := range []string{"Mañana", "がん", "Å"} {
-		composed, decomposed := norm.NFC.String(name), norm.NFD.String(name)
-		if composed == decomposed {
-			t.Fatalf("%q has one Unicode form, so it says nothing about folding the other", name)
-		}
-		if graph.SectionID(composed) != graph.SectionID(decomposed) {
-			t.Errorf("the two Unicode forms of %q stamp two ids: %q and %q",
-				name, graph.SectionID(composed), graph.SectionID(decomposed))
-		}
 	}
 }

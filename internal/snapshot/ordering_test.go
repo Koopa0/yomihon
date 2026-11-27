@@ -6,9 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -24,11 +22,10 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes inside one island group", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Sources/course/第10課.md", "a\n"),
-			parse(t, "Sources/course/第9課.md", "b\n"),
+			parse("Sources/course/第10課.md", "a\n"),
+			parse("Sources/course/第9課.md", "b\n"),
 		}
-		idx := graph.New(notes, nil)
-		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+		h := healthOf(notes, nil)
 
 		want := []nav.NoteRef{
 			{Name: "第9課", RelPath: "Sources/course/第9課.md"},
@@ -45,9 +42,9 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes citing one note", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Concepts/target.md", "the cited note\n"),
-			parse(t, "Writing/第10課.md", "see [[target]]\n"),
-			parse(t, "Writing/第9課.md", "see [[target]]\n"),
+			parse("Concepts/target.md", "the cited note\n"),
+			parse("Writing/第10課.md", "see [[target]]\n"),
+			parse("Writing/第9課.md", "see [[target]]\n"),
 		}
 		idx := graph.New(notes, nil)
 
@@ -55,7 +52,7 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 			{Name: "第9課", RelPath: "Writing/第9課.md"},
 			{Name: "第10課", RelPath: "Writing/第10課.md"},
 		}
-		if diff := cmp.Diff(want, newBacklinks(notes, linksOf(notes), idx).To("Concepts/target.md")); diff != "" {
+		if diff := cmp.Diff(want, newBacklinks(notes, linksOf(notes), idx, titlesIn(readingsOf(notes))).To("Concepts/target.md")); diff != "" {
 			t.Errorf("backlink order mismatch (-want +got):\n%s", diff)
 		}
 	})
@@ -63,11 +60,10 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the citations that land nowhere", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "see [[no such name]]\n"),
-			parse(t, "Writing/第9課.md", "see [[no such name]]\n"),
+			parse("Writing/第10課.md", "see [[no such name]]\n"),
+			parse("Writing/第9課.md", "see [[no such name]]\n"),
 		}
-		idx := graph.New(notes, nil)
-		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+		h := healthOf(notes, nil)
 
 		want := []string{"Writing/第9課.md", "Writing/第10課.md"}
 		got := make([]string, 0, len(h.Unwritten))
@@ -82,15 +78,15 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 	t.Run("the notes sharing one title", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "# 課\n\na\n"),
-			parse(t, "Writing/第9課.md", "# 課\n\nb\n"),
+			parse("Writing/第10課.md", "# 課\n\na\n"),
+			parse("Writing/第9課.md", "# 課\n\nb\n"),
 		}
 
 		want := []nav.NoteRef{
 			{Name: "第9課", RelPath: "Writing/第9課.md"},
 			{Name: "第10課", RelPath: "Writing/第10課.md"},
 		}
-		if diff := cmp.Diff(want, titlesByName(notes)[graph.NormalizeKey("課")]); diff != "" {
+		if diff := cmp.Diff(want, titlesByName(readingsOf(notes))[graph.NormalizeKey("課")]); diff != "" {
 			t.Errorf("title holder order mismatch (-want +got):\n%s", diff)
 		}
 	})

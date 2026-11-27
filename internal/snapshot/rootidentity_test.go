@@ -1,9 +1,7 @@
 package snapshot
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -12,9 +10,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // TestRootObservationCauseStaysInWarning keeps the scanner's original cause
@@ -23,16 +18,9 @@ func TestRootObservationCauseStaysInWarning(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "vault")
 	writeNote(t, root, "Existing.md", "old object\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	var logged bytes.Buffer
-	store, err := New(t.Context(), reader, slog.New(slog.NewJSONHandler(&logged, nil)), nil, schema.Governance{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	reader := openReader(t, root)
+	log, logged := newRecordingLogger()
+	store := buildStore(t, reader, log, nil)
 	if err := os.Rename(root, root+".old"); err != nil {
 		t.Fatal(err)
 	}
@@ -40,41 +28,18 @@ func TestRootObservationCauseStaysInWarning(t *testing.T) {
 	if observeErr == nil {
 		t.Fatal("missing selected path did not return its cause")
 	}
-	logged.Reset()
 	for range 3 {
 		store.rescan(t.Context())
 	}
-	t.Log("invoked: root scanner WARN cause")
-	var warnings []map[string]string
-	decoder := json.NewDecoder(&logged)
-	for decoder.More() {
-		var line struct {
-			Message        string `json:"msg"`
-			Level          string `json:"level"`
-			SelectedPath   string `json:"selected_path"`
-			OpenedRootName string `json:"opened_root_name"`
-			Error          string `json:"error"`
-		}
-		if err := decoder.Decode(&line); err != nil {
-			t.Fatal(err)
-		}
-		if line.Message == "vault root identity unconfirmed; restore access or restart" {
-			warnings = append(warnings, map[string]string{
-				"level": line.Level, "selected_path": line.SelectedPath,
-				"opened_root_name": line.OpenedRootName, "error": line.Error,
-			})
-		}
-	}
-	want := []map[string]string{{
-		"level": "WARN", "selected_path": root,
-		"opened_root_name": reader.Name(), "error": observeErr.Error(),
-	}}
-	if diff := cmp.Diff(want, warnings); diff != "" {
-		t.Fatalf("caught: scanner root WARN cause (-want +got):\n%s", diff)
+	want := []loggedLine{{Level: slog.LevelWarn, Message: logRootUnconfirmed, Attrs: map[string]string{
+		"selected_path": root, "opened_root_name": reader.Name(), "error": observeErr.Error(),
+	}}}
+	if diff := cmp.Diff(want, linesWith(logged(), logRootUnconfirmed)); diff != "" {
+		t.Fatalf("scanner root WARN cause (-want +got):\n%s", diff)
 	}
 	public := &RootNotice{SelectedPath: root, OpenedName: reader.Name(), Unconfirmed: true}
 	if diff := cmp.Diff(public, store.Current().Freshness().Root); diff != "" {
-		t.Fatalf("caught: unconfirmed root state (-want +got):\n%s", diff)
+		t.Fatalf("unconfirmed root state (-want +got):\n%s", diff)
 	}
 }
 
@@ -82,16 +47,9 @@ func TestRootReplacementWarnsOnceEvenWhenPinnedFilesAreUnchanged(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "vault")
 	writeNote(t, root, "Notes/Existing.md", "old object\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	var logged bytes.Buffer
-	store, err := New(t.Context(), reader, slog.New(slog.NewJSONHandler(&logged, nil)), nil, schema.Governance{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	reader := openReader(t, root)
+	log, logged := newRecordingLogger()
+	store := buildStore(t, reader, log, nil)
 	before := store.Current()
 	if err := os.Rename(root, root+".old"); err != nil {
 		t.Fatal(err)
@@ -103,29 +61,10 @@ func TestRootReplacementWarnsOnceEvenWhenPinnedFilesAreUnchanged(t *testing.T) {
 	if store.Current() != before {
 		t.Fatal("unchanged pinned files unexpectedly rebuilt")
 	}
-	var warnings []map[string]string
-	decoder := json.NewDecoder(&logged)
-	for decoder.More() {
-		var line struct {
-			Message        string `json:"msg"`
-			Level          string `json:"level"`
-			SelectedPath   string `json:"selected_path"`
-			OpenedRootName string `json:"opened_root_name"`
-		}
-		if err := decoder.Decode(&line); err != nil {
-			t.Fatal(err)
-		}
-		if line.Message == "vault root identity changed; restart required" {
-			warnings = append(warnings, map[string]string{
-				"level":            line.Level,
-				"selected_path":    line.SelectedPath,
-				"opened_root_name": line.OpenedRootName,
-			})
-		}
-	}
-	want := []map[string]string{{"level": "WARN", "selected_path": root, "opened_root_name": reader.Name()}}
-	if diff := cmp.Diff(want, warnings); diff != "" {
-		t.Fatalf("root replacement warning (-want +got):\n%s", diff)
+	lines := linesWith(logged(), logRootChanged)
+	if len(lines) != 1 || lines[0].Level != slog.LevelWarn ||
+		lines[0].Attrs["selected_path"] != root || lines[0].Attrs["opened_root_name"] != reader.Name() {
+		t.Fatalf("root replacement warnings = %+v, want one WARN naming %s and %s", lines, root, reader.Name())
 	}
 }
 
@@ -133,16 +72,9 @@ func TestRootNoticeTracksRecoveryAcrossRetainedAndRebuiltCaptures(t *testing.T) 
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "vault")
 	writeNote(t, root, "Existing.md", "old object\n")
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	reader := openReader(t, root)
 	log, logged := newRecordingLogger()
-	store, err := New(t.Context(), reader, log, nil, schema.Governance{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := buildStore(t, reader, log, nil)
 	retained := store.Current().Capture()
 	if retained.Freshness().Root != nil {
 		t.Fatal("unchanged startup root reported a problem")
@@ -203,11 +135,11 @@ func TestRootNoticeTracksRecoveryAcrossRetainedAndRebuiltCaptures(t *testing.T) 
 	store.rescan(t.Context())
 	var episodes []string
 	for _, line := range logged() {
-		if line.message == "vault root identity changed; restart required" || line.message == "vault root identity unconfirmed; restore access or restart" {
-			episodes = append(episodes, line.message)
+		if line.Message == logRootChanged || line.Message == logRootUnconfirmed {
+			episodes = append(episodes, line.Message)
 		}
 	}
-	if diff := cmp.Diff([]string{"vault root identity changed; restart required", "vault root identity unconfirmed; restore access or restart", "vault root identity changed; restart required"}, episodes); diff != "" {
+	if diff := cmp.Diff([]string{logRootChanged, logRootUnconfirmed, logRootChanged}, episodes); diff != "" {
 		t.Fatalf("root warning episodes (-want +got):\n%s", diff)
 	}
 }
@@ -219,16 +151,9 @@ func TestRootNoticeSurvivesScanRefusalBackoffAndDegradedPublication(t *testing.T
 			t.Parallel()
 			root := filepath.Join(t.TempDir(), "vault")
 			writeNote(t, root, "Existing.md", "old object\n")
-			reader, err := vault.Open(root)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { closeReader(t, reader) })
-			source := &recordingSource{ObservedSource: reader, reads: make(map[string]int), fail: make(map[string]int)}
-			store, err := New(t.Context(), source, discardLogger(), nil, schema.Governance{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			reader := openReader(t, root)
+			source := &recordingSource{Source: reader, reads: make(map[string]int), fail: make(map[string]int)}
+			store := buildStore(t, source, discardLogger(), nil)
 			retained := store.Current().Capture()
 			clock := time.Now()
 			store.now = func() time.Time { return clock }
@@ -243,9 +168,9 @@ func TestRootNoticeSurvivesScanRefusalBackoffAndDegradedPublication(t *testing.T
 			writeNote(t, root, "Replacement.md", "replacement\n")
 			switch outcome {
 			case "collision":
-				store.source = &refusingSource{ObservedSource: reader, refusal: refusedForTheCollision()}
+				store.source = &refusingSource{Source: reader, refusal: refusedForTheCollision()}
 			case "scan error":
-				store.source = &refusingSource{ObservedSource: reader, refusal: errors.New("refused scan")}
+				store.source = &refusingSource{Source: reader, refusal: errors.New("refused scan")}
 			}
 			want := &RootNotice{SelectedPath: root, OpenedName: reader.Name()}
 			store.rescan(t.Context())

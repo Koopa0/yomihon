@@ -48,8 +48,8 @@ func TestShippedFailureAliasesHaveOneOwner(t *testing.T) {
 			t.Fatal(readErr)
 		}
 		n := vault.Parse(entry.Path(), data)
-		if n.FMDiagnostic != "" {
-			t.Fatalf("parse %q: %v", entry.Path(), n.FMDiagnostic)
+		if n.FrontmatterDiagnostic != "" {
+			t.Fatalf("parse %q: %v", entry.Path(), n.FrontmatterDiagnostic)
 		}
 		aliases[entry.Path()] = n.Aliases()
 		for _, alias := range n.Aliases() {

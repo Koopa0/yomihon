@@ -14,20 +14,20 @@ func TestProjectBasedOn(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Book notes.md", "the notebook\n"),
-		parse(t, "Concepts/Source model.md", "---\nbased_on: \"[[Book notes]]\"\n---\n\nno body link\n"),
-		parse(t, "Concepts/Bare name.md", "---\nbased_on:\n  - Book notes\n---\n\nno body link\n"),
-		parse(t, "Concepts/Ambiguous.md", "---\nbased_on: \"[[twin]]\"\n---\n\nno body link\n"),
-		parse(t, "A/twin.md", "one\n"),
-		parse(t, "B/twin.md", "two\n"),
-		parse(t, "Concepts/Missing.md", "---\nbased_on: \"[[nowhere]]\"\n---\n\nno body link\n"),
-		parse(t, "Concepts/Display.md", "---\nbased_on: \"[[Book notes#heading|shown]]\"\n---\n\nno body link\n"),
-		parse(t, "Zebra.md", "z\n"),
-		parse(t, "Apple.md", "a\n"),
-		parse(t, "Middle.md", "m\n"),
-		parse(t, "Concepts/Order.md", "---\nbased_on:\n  - Zebra\n  - Apple\n  - Middle\n---\n\nno body link\n"),
-		parse(t, "Concepts/Repeat.md", "---\nbased_on:\n  - Book notes\n  - \"[[Book notes]]\"\n  - Book notes\n---\n\nno body link\n"),
-		parse(t, "Concepts/Empty.md", "---\nbased_on:\n  - \"\"\n  - Book notes\n---\n\nno body link\n"),
+		parse("Book notes.md", "the notebook\n"),
+		parse("Concepts/Source model.md", "---\nbased_on: \"[[Book notes]]\"\n---\n\nno body link\n"),
+		parse("Concepts/Bare name.md", "---\nbased_on:\n  - Book notes\n---\n\nno body link\n"),
+		parse("Concepts/Ambiguous.md", "---\nbased_on: \"[[twin]]\"\n---\n\nno body link\n"),
+		parse("A/twin.md", "one\n"),
+		parse("B/twin.md", "two\n"),
+		parse("Concepts/Missing.md", "---\nbased_on: \"[[nowhere]]\"\n---\n\nno body link\n"),
+		parse("Concepts/Display.md", "---\nbased_on: \"[[Book notes#heading|shown]]\"\n---\n\nno body link\n"),
+		parse("Zebra.md", "z\n"),
+		parse("Apple.md", "a\n"),
+		parse("Middle.md", "m\n"),
+		parse("Concepts/Order.md", "---\nbased_on:\n  - Zebra\n  - Apple\n  - Middle\n---\n\nno body link\n"),
+		parse("Concepts/Repeat.md", "---\nbased_on:\n  - Book notes\n  - \"[[Book notes]]\"\n  - Book notes\n---\n\nno body link\n"),
+		parse("Concepts/Empty.md", "---\nbased_on:\n  - \"\"\n  - Book notes\n---\n\nno body link\n"),
 	}
 	byPath := make(map[string]*vault.Note, len(notes))
 	for _, n := range notes {
@@ -103,20 +103,18 @@ func TestProjectBasedOn(t *testing.T) {
 func TestBasedOnDoesNotCountAsABodyBacklink(t *testing.T) {
 	t.Parallel()
 	notes := []*vault.Note{
-		parse(t, "Concepts/source.md", "the source\n"),
-		parse(t, "Concepts/derived.md", "---\nbased_on: \"[[source]]\"\n---\n\nno body link\n"),
+		parse("Concepts/source.md", "the source\n"),
+		parse("Concepts/derived.md", "---\nbased_on: \"[[source]]\"\n---\n\nno body link\n"),
 	}
 	idx := graph.New(notes, nil)
-	if refs := newBacklinks(notes, linksOf(notes), idx).To("Concepts/source.md"); len(refs) != 0 {
+	if refs := newBacklinks(notes, linksOf(notes), idx, titlesIn(readingsOf(notes))).To("Concepts/source.md"); len(refs) != 0 {
 		t.Errorf("a based_on declaration counted as a body citation: %v", refs)
 	}
 }
 
-// TestGenerationBasedOnKeepsDeclarationOrder holds the contract on
-// Generation.BasedOn itself: the sources come back in the order the author
-// wrote them. projectBasedOn already answers for the list; this call is the
-// published method, so a wrapper that sorted, reversed, or returned nothing
-// would stay green against that helper alone.
+// TestGenerationBasedOnKeepsDeclarationOrder holds the published method to
+// the projection TestProjectBasedOn pins: the sources in the order the author
+// wrote them.
 func TestGenerationBasedOnKeepsDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -133,19 +131,6 @@ func TestGenerationBasedOnKeepsDeclarationOrder(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("BasedOn(Writing/Order.md) mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestGenerationBasedOnReadsALoneString(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeNote(t, root, "Sources/Book notes.md", "the notebook\n")
-	writeNote(t, root, "Writing/Scalar.md", "---\nbased_on: \"[[Book notes]]\"\n---\n\nno body link\n")
-	store, _ := newTestStore(t, root, testContract(t, root))
-	got := store.Current().BasedOn("Writing/Scalar.md")
-	want := []nav.NoteRef{{Name: "Book notes", RelPath: "Sources/Book notes.md"}}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("BasedOn(Writing/Scalar.md) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -186,19 +171,19 @@ func TestBasedOnNamesNotesByTheirTitle(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Concepts/source.md", "# The Source\n\nbody\n"),
-		parse(t, "Concepts/z-derived.md", "---\nbased_on: \"[[source]]\"\ntitle: Derived Note\n---\nbody\n"),
-		parse(t, "Concepts/a-orphan.md", "---\nbased_on: \"[[nothing here]]\"\n---\nbody\n"),
+		parse("Concepts/source.md", "# The Source\n\nbody\n"),
+		parse("Concepts/z-derived.md", "---\nbased_on: \"[[source]]\"\ntitle: Derived Note\n---\nbody\n"),
+		parse("Concepts/a-orphan.md", "---\nbased_on: \"[[nothing here]]\"\n---\nbody\n"),
 	}
 	idx := graph.New(notes, nil)
-	titles := titlesOf(notes)
+	titles := titlesIn(readingsOf(notes))
 
 	wantSources := []nav.NoteRef{{Name: "The Source", RelPath: "Concepts/source.md"}}
 	if diff := cmp.Diff(wantSources, projectBasedOn(notes[1], idx, titles)); diff != "" {
 		t.Errorf("projectBasedOn() (-want +got):\n%s", diff)
 	}
 	wantDeclaring := []nav.NoteRef{{Name: "Derived Note", RelPath: "Concepts/z-derived.md"}}
-	if diff := cmp.Diff(wantDeclaring, newBasedOnBy(notes, idx).of("Concepts/source.md")); diff != "" {
+	if diff := cmp.Diff(wantDeclaring, newBasedOnBy(notes, idx, titles).of("Concepts/source.md")); diff != "" {
 		t.Errorf("of() (-want +got):\n%s", diff)
 	}
 	if got := projectBasedOn(notes[2], idx, titles); len(got) != 1 || got[0].RelPath != "" || got[0].Name != "[[nothing here]]" {

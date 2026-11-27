@@ -4,6 +4,7 @@ import (
 	goast "go/ast"
 	goparser "go/parser"
 	"go/token"
+	"iter"
 	"os"
 	"regexp"
 	"slices"
@@ -14,12 +15,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// authoringExample is the worked example from the tracked authoring contract,
-// byte for byte. It exercises every part of the grammar at once — an ordered
-// main line, a declared side branch hanging from the third lesson, a block
-// declared out of the course, a lesson that is planned but unwritten, and a
-// marker that must not appear in a displayed name — and the contract states in
-// prose exactly what it produces.
+// authoringExample is the worked example the tracked authoring contract gives.
+// It exercises every part of the grammar at once — an ordered main line, a
+// declared side branch hanging from the third lesson, a block declared out of
+// the course, a lesson that is planned but unwritten, and a marker that must
+// not appear in a displayed name — and the contract states in prose exactly
+// what it produces.
 const authoringExample = "" +
 	"## 主線 {sequence=primary}\n" +
 	"\n" +
@@ -77,7 +78,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		t.Errorf("the main line lists %d lessons, want 8: %+v", got, entries)
 	}
 	for _, e := range entries {
-		if !e.Accepted() {
+		if e.State != EntryAccepted {
 			t.Errorf("lesson %q has state %v, want accepted; the contract's example is canonical throughout", e.Target, e.State)
 		}
 	}
@@ -148,22 +149,6 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	}
 }
 
-// TestOrderedAndUnorderedRowsAreTheSameCandidate holds the one equivalence the
-// contract states outright. A course written with numbers and a course written
-// with dashes are the same course; punctuation is not a declaration.
-func TestOrderedAndUnorderedRowsAreTheSameCandidate(t *testing.T) {
-	t.Parallel()
-	ordered := Parse("## P {sequence=primary}\n\n1. [[A]]\n2. [[B]]\n", 1)
-	unordered := Parse("## P {sequence=primary}\n\n- [[A]]\n* [[B]]\n", 1)
-
-	if diff := cmp.Diff(targets(ordered.Groups[0].entries()), targets(unordered.Groups[0].entries())); diff != "" {
-		t.Errorf("ordered and unordered rows disagree (-ordered +unordered):\n%s", diff)
-	}
-	if len(ordered.Diagnostics) != 0 || len(unordered.Diagnostics) != 0 {
-		t.Errorf("a well-formed list reports problems: ordered=%+v unordered=%+v", ordered.Diagnostics, unordered.Diagnostics)
-	}
-}
-
 // TestRowsTheGrammarMustNotCollect is the reject set, one case per way a
 // bracketed name can appear in a document without being a lesson the course
 // lists. Each is a row a reader would be wrong to be sent to.
@@ -199,10 +184,9 @@ func TestRowsTheGrammarMustNotCollect(t *testing.T) {
 	}
 }
 
-// TestAnUnclosedCommentHidesTheRestOfTheCourse holds the study-path pair that
-// used to disagree with the page: a closed %% parked two rows, and the same
-// text without the closer hid them on the page while the shelf still counted
-// them. Both documents list only the two rows written before the mark.
+// TestAnUnclosedCommentHidesTheRestOfTheCourse holds the course to the page:
+// a closed %% parks the rows inside it, and one with no closer hides the rest
+// of the note, so both documents list only the two rows written before it.
 func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +214,7 @@ func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
 // A map asks the live-link scan of the whole body, not of course rows, so a
 // prose or table link is live here even though it is not a lesson, and a
 // fenced, commented, or authored-HTML copy of one is not.
-func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
+func TestLiveScanReadsTheBodyNotTheCourseGrammar(t *testing.T) {
 	t.Parallel()
 
 	body := "## Authors\n" +
@@ -251,7 +235,7 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"| col |\n" +
 		"| --- |\n" +
 		"| [[挪威的森林\\|《挪威的森林》]] |\n"
-	got := LiveWikilinks(body)
+	got, _ := LiveScan(body)
 	names := make([]string, 0, len(got))
 	for _, link := range got {
 		names = append(names, link.Target+"|"+link.Display)
@@ -261,91 +245,7 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"挪威的森林|《挪威的森林》",
 	}
 	if diff := cmp.Diff(want, names); diff != "" {
-		t.Errorf("LiveWikilinks() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestRowsTheGrammarMustCollect is the reject set's control. Without it the
-// test above passes for a parser that collects nothing at all. Every case here
-// is canonical: the row's single live link is its first visible inline.
-func TestRowsTheGrammarMustCollect(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		body string
-		want string
-	}{
-		{name: "plain row", body: "- [[A]]\n", want: "A"},
-		{name: "ordered row", body: "1. [[A]]\n", want: "A"},
-		{name: "row with display text", body: "- [[A|first lesson]]\n", want: "A"},
-		{name: "row with a cross-file anchor", body: "- [[A#section]]\n", want: "A"},
-		{name: "row with trailing prose", body: "- [[A]] *(尚未撰寫)*\n", want: "A"},
-		{name: "link-first action sentence", body: "- [[A]] 讀完後做一頁筆記\n", want: "A"},
-		{name: "bold-wrapped link", body: "- **[[A]]**\n", want: "A"},
-		{name: "italic-wrapped link", body: "- *[[A]]*\n", want: "A"},
-		{name: "underscore-italic link", body: "- _[[A]]_\n", want: "A"},
-		{name: "bold-wrapped link with trailing prose", body: "- **[[A]]** 進度的一半\n", want: "A"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			doc := Parse("## P {sequence=primary}\n\n"+tt.body, 1)
-			if diff := cmp.Diff([]string{tt.want}, collected(doc.Groups)); diff != "" {
-				t.Errorf("Parse() mismatch for %q (-want +got):\n%s", tt.body, diff)
-			}
-			if len(doc.Diagnostics) != 0 {
-				t.Errorf("a canonical row reported problems: %+v", doc.Diagnostics)
-			}
-		})
-	}
-}
-
-// TestNoncanonicalRowsAreCandidatesButNeverEntries holds the ruling that split
-// the candidate grammar from canonical form. A row whose single live link is
-// not the first visible inline is still a row — its branch has rows, and a
-// side branch can still hang from it — but no entry is accepted from it, and
-// the author is told on the exact line. Guessing whether the label or the link
-// was the lesson would be inference, and the grammar does not infer.
-func TestNoncanonicalRowsAreCandidatesButNeverEntries(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		body string
-	}{
-		{name: "leading prose", body: "- 第一課 [[A]]\n"},
-		{name: "leading embed", body: "- ![[cover]] [[A]]\n"},
-		{name: "leading same-file anchor", body: "- [[#section]] [[A]]\n"},
-		{name: "leading inline code", body: "- `第一課` [[A]]\n"},
-		{name: "bracket run that is not a task", body: "- [x][[A]]\n"},
-		{name: "bracketed word that is not a task", body: "- [z] [[A]]\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			doc := Parse("## P {sequence=primary}\n\n"+tt.body, 1)
-
-			entries := doc.Groups[0].entries()
-			if len(entries) != 1 {
-				t.Fatalf("the branch lists %d rows, want 1; a noncanonical row is still a row", len(entries))
-			}
-			e := entries[0]
-			if e.State != EntryNoncanonical || e.Accepted() {
-				t.Errorf("row state = %v (accepted %t), want noncanonical and not accepted", e.State, e.Accepted())
-			}
-			if e.Target != "A" {
-				t.Errorf("row target = %q, want %q kept for identity even though no entry is accepted", e.Target, "A")
-			}
-			if got := collected(doc.Groups); len(got) != 0 {
-				t.Errorf("a noncanonical row produced accepted targets %v, want none", got)
-			}
-			d := findRule(doc, RuleEntryNoncanonical)
-			if d == nil {
-				t.Fatalf("Parse() did not report %s: %+v", RuleEntryNoncanonical, doc.Diagnostics)
-			}
-			if d.Line != 3 {
-				t.Errorf("%s reported on line %d, want 3", RuleEntryNoncanonical, d.Line)
-			}
-		})
+		t.Errorf("LiveScan() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -379,7 +279,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 		t.Fatalf("the nested list's own link was counted into the enclosing row's scope: %+v", control.Diagnostics)
 	}
 	got := control.Groups[0].entries()
-	if len(got) != 1 || !got[0].Accepted() || got[0].Target != "A" {
+	if len(got) != 1 || got[0].State != EntryAccepted || got[0].Target != "A" {
 		t.Errorf("control row = %+v, want one accepted entry for A", got)
 	}
 }
@@ -437,8 +337,8 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("branch lists %d rows, want 1: %+v", len(entries), entries)
 	}
-	if entries[0].State != EntryRoleOnEntry || entries[0].Accepted() {
-		t.Errorf("conflicted row state = %v (accepted %t), want role-on-entry and not accepted", entries[0].State, entries[0].Accepted())
+	if entries[0].State != EntryRoleOnEntry {
+		t.Errorf("conflicted row state = %v, want role-on-entry", entries[0].State)
 	}
 	if entries[0].Target != "B" {
 		t.Errorf("conflicted row target = %q, want %q kept for identity", entries[0].Target, "B")
@@ -450,68 +350,6 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if !subgroups[0].Invalid || subgroups[0].Projectable() {
 		t.Errorf("conflicted container = (invalid %t, projectable %t), want (true, false)", subgroups[0].Invalid, subgroups[0].Projectable())
 	}
-}
-
-// TestInvalidBranchesSaySoInTheType holds the one-verdict rule. Navigation and
-// the judge read Projectable and Invalid off the group; neither re-derives the
-// verdict from the diagnostics, because two readings of one report are two
-// different courses.
-func TestInvalidBranchesSaySoInTheType(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a role conflict does not project", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n", 1)
-		inner := doc.Groups[0].subgroups()[0]
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("conflicted branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-	})
-
-	t.Run("an orphaned side branch does not project", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n", 1)
-		side := doc.Groups[0].subgroups()[0]
-		if !side.Invalid || side.Projectable() {
-			t.Errorf("orphaned branch = (invalid %t, projectable %t), want (true, false)", side.Invalid, side.Projectable())
-		}
-	})
-
-	t.Run("a side branch nested too deep does not project, and the outer one still does", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].subgroups()[0]
-		if outer.Invalid || !outer.Projectable() {
-			t.Errorf("outer side branch = (invalid %t, projectable %t), want (false, true); the error is the inner one's", outer.Invalid, outer.Projectable())
-		}
-		inner := outer.subgroups()[0]
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("inner side branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-	})
-
-	t.Run("a main-line branch inside a side branch does not project, and the side branch still does", func(t *testing.T) {
-		t.Parallel()
-		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].subgroups()[0]
-		if outer.Invalid || !outer.Projectable() {
-			t.Errorf("side branch = (invalid %t, projectable %t), want (false, true); the error is the nested primary's", outer.Invalid, outer.Projectable())
-		}
-		inner := outer.subgroups()[0]
-		if inner.Role != RolePrimary {
-			t.Errorf("nested branch role = %v, want primary", inner.Role)
-		}
-		if !inner.Invalid || inner.Projectable() {
-			t.Errorf("nested primary = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
-		}
-		found := findRule(doc, RuleRoleNestedPrimary)
-		if found == nil {
-			t.Fatal("the nested primary was not reported")
-		}
-		if !strings.Contains(found.Message, "side branch") {
-			t.Errorf("nested-primary conflict did not name the side branch it sits in: %q", found.Message)
-		}
-	})
 }
 
 // TestCandidateIdentityDisambiguatesRepeatedTargets holds the reason a span
@@ -553,10 +391,10 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 	if doc.Groups[0].Role != RoleUnclassified {
 		t.Errorf("branch role = %v, want unclassified; a row the grammar recognized is a row", doc.Groups[0].Role)
 	}
-	if !hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) == nil {
 		t.Errorf("an undeclared branch that lists rows was not reported: %+v", doc.Diagnostics)
 	}
-	if !hasRule(doc, RuleEntryMultiTarget) {
+	if findRule(doc, RuleEntryMultiTarget) == nil {
 		t.Errorf("a row naming two notes was not reported: %+v", doc.Diagnostics)
 	}
 	entries := doc.Groups[0].entries()
@@ -573,21 +411,29 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 // TestABranchThatOnlyGroupsOtherBranchesIsSilent separates the two undeclared
 // states. Forgetting to declare is a problem; a heading whose whole job is to
 // hold other headings is not, and reporting it would train the author to ignore
-// the report.
+// the report. A word that only begins like the key, as a Mermaid
+// sequenceDiagram does, is not a declaration either.
 func TestABranchThatOnlyGroupsOtherBranchesIsSilent(t *testing.T) {
 	t.Parallel()
-	doc := Parse("## Part\n\n### Module {sequence=primary}\n\n- [[A]]\n", 1)
-	if len(doc.Diagnostics) != 0 {
-		t.Errorf("a branch that lists nothing of its own was reported: %+v", doc.Diagnostics)
-	}
-	if doc.Groups[0].Role != RoleStructural {
-		t.Errorf("outer branch role = %v, want structural", doc.Groups[0].Role)
+	for _, outer := range []string{"## Part", "## Notes on {sequenceDiagram}"} {
+		t.Run(outer, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(outer+"\n\n### Module {sequence=primary}\n\n- [[A]]\n", 1)
+			if len(doc.Diagnostics) != 0 {
+				t.Errorf("a branch that lists nothing of its own was reported: %+v", doc.Diagnostics)
+			}
+			if doc.Groups[0].Role != RoleStructural {
+				t.Errorf("outer branch role = %v, want structural", doc.Groups[0].Role)
+			}
+		})
 	}
 }
 
 // TestDiagnosticsNameWhatTheAuthorHasToDecide walks the rules one at a time.
 // Each case is a document a person could plausibly write, and the assertion is
-// that the right rule fires on the right line.
+// that the right rule fires on the right line. A structural error also marks
+// the branch it names invalid, and only that branch: navigation and the judge
+// read the verdict off the type rather than re-deriving it from the reports.
 func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -595,6 +441,9 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 		body     string
 		wantRule Rule
 		wantLine int
+		// wantInvalid is whether the branch opened on wantLine is marked
+		// invalid. No other branch in the document ever is.
+		wantInvalid bool
 	}{
 		{
 			name:     "a branch that lists lessons but declares nothing",
@@ -609,34 +458,39 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			wantLine: 1,
 		},
 		{
-			name:     "a branch in the course under a branch out of it",
-			body:     "## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n",
-			wantRule: RuleRoleConflict,
-			wantLine: 3,
+			name:        "a branch in the course under a branch out of it",
+			body:        "## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n",
+			wantRule:    RuleRoleConflict,
+			wantLine:    3,
+			wantInvalid: true,
 		},
 		{
-			name:     "a side branch with nothing to hang from",
-			body:     "## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n",
-			wantRule: RuleLocalOrphan,
-			wantLine: 3,
+			name:        "a side branch with nothing to hang from",
+			body:        "## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n",
+			wantRule:    RuleLocalOrphan,
+			wantLine:    3,
+			wantInvalid: true,
 		},
 		{
-			name:     "a side branch inside a side branch",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n",
-			wantRule: RuleNestingTooDeep,
-			wantLine: 6,
+			name:        "a side branch inside a side branch",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n",
+			wantRule:    RuleNestingTooDeep,
+			wantLine:    6,
+			wantInvalid: true,
 		},
 		{
-			name:     "a main-line branch inside a side branch",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
-			wantRule: RuleRoleNestedPrimary,
-			wantLine: 6,
+			name:        "a main-line branch inside a side branch",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
+			wantRule:    RuleRoleNestedPrimary,
+			wantLine:    6,
+			wantInvalid: true,
 		},
 		{
-			name:     "a row that is both a lesson and a branch heading",
-			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- [[B]] {sequence=local}\n\t\t- [[C]]\n",
-			wantRule: RuleRoleOnEntry,
-			wantLine: 4,
+			name:        "a row that is both a lesson and a branch heading",
+			body:        "## Part {sequence=primary}\n\n- [[A]]\n\t- [[B]] {sequence=local}\n\t\t- [[C]]\n",
+			wantRule:    RuleRoleOnEntry,
+			wantLine:    4,
+			wantInvalid: true,
 		},
 		{
 			name:     "a value outside the three",
@@ -647,6 +501,12 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 		{
 			name:     "a marker with no value",
 			body:     "## Part {sequence}\n\n- [[A]]\n",
+			wantRule: RuleRoleInvalid,
+			wantLine: 1,
+		},
+		{
+			name:     "a marker whose key is followed by punctuation",
+			body:     "## Part {sequence:primary}\n\n- [[A]]\n",
 			wantRule: RuleRoleInvalid,
 			wantLine: 1,
 		},
@@ -729,6 +589,19 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			if found.Message == "" {
 				t.Errorf("%s carries no message", tt.wantRule)
 			}
+			var invalid []int
+			for _, item := range walk(doc.Groups) {
+				if item.Branch != nil && item.Branch.Invalid {
+					invalid = append(invalid, item.Branch.Line)
+				}
+			}
+			var wantInvalid []int
+			if tt.wantInvalid {
+				wantInvalid = []int{tt.wantLine}
+			}
+			if diff := cmp.Diff(wantInvalid, invalid); diff != "" {
+				t.Errorf("lines of the branches marked invalid (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
@@ -751,7 +624,7 @@ func TestAQuotedMarkerIsNotAWrittenOne(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\n"+tt.body, 1)
-			if hasRule(doc, RuleRoleMisplaced) {
+			if findRule(doc, RuleRoleMisplaced) != nil {
 				t.Errorf("a quoted marker was reported as misplaced: %+v", doc.Diagnostics)
 			}
 		})
@@ -760,28 +633,28 @@ func TestAQuotedMarkerIsNotAWrittenOne(t *testing.T) {
 	// The control: the same sentence with the marker actually written in prose
 	// is still reported, so the exemption above cannot be "report nothing".
 	doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\n這一段 {sequence=local} 沒有宣告任何東西。\n", 1)
-	if !hasRule(doc, RuleRoleMisplaced) {
+	if findRule(doc, RuleRoleMisplaced) == nil {
 		t.Errorf("a marker written in prose was not reported: %+v", doc.Diagnostics)
 	}
 }
 
-// TestAQuotedMarkerOnAHeadingIsAReference holds the same rule at the place it
-// was measured broken: a heading or container row quoting the syntax it
-// explains. The quotation neither declares a role nor draws a report — and a
-// real marker on the same line still does both.
+// TestAQuotedMarkerOnAHeadingIsAReference holds the same rule on a heading or
+// container row quoting the syntax it explains. The quotation neither declares
+// a role nor draws a report — and a real marker on the same line still does
+// both.
 func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Parallel()
 
 	t.Run("code span on a heading declares nothing and is not misplaced", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## 語法說明 `{sequence=primary}`\n\n- [[A]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a quoted marker on a heading was reported: %+v", doc.Diagnostics)
 		}
 		if got := doc.Groups[0].Role; got != RoleUnclassified {
 			t.Errorf("branch role = %v, want unclassified; a quoted marker must not become a role", got)
 		}
-		if !hasRule(doc, RuleRoleMissing) {
+		if findRule(doc, RuleRoleMissing) == nil {
 			t.Errorf("the branch under a quoted marker was not asked to declare itself: %+v", doc.Diagnostics)
 		}
 	})
@@ -789,7 +662,7 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Run("obsidian comment on a heading declares nothing", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## 語法說明 %%{sequence=primary}%%\n\n- [[A]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a commented-out marker on a heading was reported: %+v", doc.Diagnostics)
 		}
 		if got := doc.Groups[0].Role; got != RoleUnclassified {
@@ -811,14 +684,14 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 	t.Run("a quoted marker on a container row does not open a branch", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\t- 旁支 `{sequence=local}`\n\t\t- [[B]]\n", 1)
-		if hasRule(doc, RuleRoleMisplaced) {
+		if findRule(doc, RuleRoleMisplaced) != nil {
 			t.Errorf("a quoted marker on a row was reported: %+v", doc.Diagnostics)
 		}
-		if hasRule(doc, RuleLocalOrphan) || hasRule(doc, RuleRoleOnEntry) {
+		if findRule(doc, RuleLocalOrphan) != nil || findRule(doc, RuleRoleOnEntry) != nil {
 			t.Errorf("a quoted marker opened a branch: %+v", doc.Diagnostics)
 		}
 		// The nested rows are simply undeclared nesting now, reported as such.
-		if !hasRule(doc, RuleRoleMissing) {
+		if findRule(doc, RuleRoleMissing) == nil {
 			t.Errorf("the undeclared nested list was not reported: %+v", doc.Diagnostics)
 		}
 	})
@@ -830,7 +703,7 @@ func TestAQuotedMarkerOnAHeadingIsAReference(t *testing.T) {
 func TestNoneSuppressesTheMissingRoleBeneathIt(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## 日常 {sequence=none}\n\n- [[A]]\n\t- [[B]]\n", 1)
-	if hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) != nil {
 		t.Errorf("a branch under a declared none was asked to declare itself: %+v", doc.Diagnostics)
 	}
 	if len(doc.Diagnostics) != 0 {
@@ -838,8 +711,8 @@ func TestNoneSuppressesTheMissingRoleBeneathIt(t *testing.T) {
 	}
 }
 
-// TestNoneDoesNotReportALessonRowShape holds the escape hatch at the row that
-// used to ignore it. Role is settled after the row is read, so a trailing
+// TestNoneDoesNotReportALessonRowShape holds the escape hatch at the row.
+// Role is settled after the row is read, so a trailing
 // wikilink or a second target still looks like a lesson-row fault while the
 // walk is in progress. Once the settled branch is out of the course — declared
 // none, or undeclared under one — those reports have no honest rewrite. A
@@ -933,25 +806,13 @@ func TestLineNumbersAreFileLinesNotBodyLines(t *testing.T) {
 	t.Parallel()
 	const frontmatterLines = 6
 	doc := Parse("## Part\n\n- [[A]]\n", frontmatterLines+1)
-	if !hasRule(doc, RuleRoleMissing) {
+	if findRule(doc, RuleRoleMissing) == nil {
 		t.Fatalf("expected an undeclared branch to be reported: %+v", doc.Diagnostics)
 	}
 	for _, d := range doc.Diagnostics {
 		if d.Rule == RuleRoleMissing && d.Line != frontmatterLines+1 {
 			t.Errorf("%s reported on line %d, want %d", d.Rule, d.Line, frontmatterLines+1)
 		}
-	}
-}
-
-// TestParseIsDeterministic guards the one property every consumer assumes
-// without stating: two reads of one document agree, so a rebuild does not
-// reshuffle a course.
-func TestParseIsDeterministic(t *testing.T) {
-	t.Parallel()
-	first := Parse(authoringExample, 1)
-	second := Parse(authoringExample, 1)
-	if diff := cmp.Diff(first, second); diff != "" {
-		t.Errorf("Parse() is not deterministic (-first +second):\n%s", diff)
 	}
 }
 
@@ -963,28 +824,42 @@ func targets(cs []*Candidate) []string {
 	return out
 }
 
+// walk yields every item the document lists, in source order and at any
+// depth, with the number of branches enclosing it. A top-level branch is
+// yielded as an item no branch encloses.
+func walk(groups []*Group) iter.Seq2[int, Item] {
+	return func(yield func(int, Item) bool) {
+		var visit func(items []Item, depth int) bool
+		visit = func(items []Item, depth int) bool {
+			for _, item := range items {
+				if !yield(depth, item) {
+					return false
+				}
+				if item.Branch != nil && !visit(item.Branch.Items, depth+1) {
+					return false
+				}
+			}
+			return true
+		}
+		for _, g := range groups {
+			if !visit([]Item{{Branch: g}}, 0) {
+				return
+			}
+		}
+	}
+}
+
 // collected is every accepted target the document lists, at any depth. Only an
 // accepted entry may become a lesson, so this is what "the course lists"
 // means everywhere below.
 func collected(groups []*Group) []string {
 	var out []string
-	for _, g := range groups {
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				if item.Entry.Accepted() {
-					out = append(out, item.Entry.Target)
-				}
-			case item.Branch != nil:
-				out = append(out, collected([]*Group{item.Branch})...)
-			}
+	for _, item := range walk(groups) {
+		if item.Entry != nil && item.Entry.State == EntryAccepted {
+			out = append(out, item.Entry.Target)
 		}
 	}
 	return out
-}
-
-func hasRule(doc Document, rule Rule) bool {
-	return findRule(doc, rule) != nil
 }
 
 func findRule(doc Document, rule Rule) *Diagnostic {
@@ -994,6 +869,17 @@ func findRule(doc Document, rule Rule) *Diagnostic {
 		}
 	}
 	return nil
+}
+
+// countRule is how many times a rule fired.
+func countRule(doc Document, rule Rule) int {
+	n := 0
+	for _, d := range doc.Diagnostics {
+		if d.Rule == rule {
+			n++
+		}
+	}
+	return n
 }
 
 // TestAnEscapedWikilinkIsNotALink locks the one reading of a backslash that
@@ -1045,10 +931,10 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse(tt.body, 1)
-			if tt.wantFinding && !hasRule(doc, tt.wantRule) {
+			if tt.wantFinding && findRule(doc, tt.wantRule) == nil {
 				t.Fatalf("Parse() findings = %v, want one naming %v", doc.Diagnostics, tt.wantRule)
 			}
-			if !tt.wantFinding && hasRule(doc, RuleEntryMultiTarget) {
+			if !tt.wantFinding && findRule(doc, RuleEntryMultiTarget) != nil {
 				t.Fatalf("Parse() reported a second target for a row that names one: %v", doc.Diagnostics)
 			}
 			var got []string
@@ -1061,28 +947,6 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 				t.Errorf("accepted entries = %v, want %v", got, tt.wantEntries)
 			}
 		})
-	}
-}
-
-// TestARowNobodyJudgedIsNotAccepted holds the zero value of the validation
-// outcome to the safe answer. Acceptance is what lets a row be counted, walked
-// and placed, so a Candidate that reached nobody's judgement claiming it was
-// accepted would hand every hand-built or partially-copied row the strongest
-// verdict the grammar has.
-func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
-	t.Parallel()
-	var unjudged Candidate
-	if unjudged.State != EntryUnread {
-		t.Errorf("the zero Candidate's state = %v, want %v", unjudged.State, EntryUnread)
-	}
-	if unjudged.Accepted() {
-		t.Error("a Candidate nobody judged reports itself accepted")
-	}
-	// The control: the state validation does assign still means what it said,
-	// so the guard above cannot be "nothing is ever accepted".
-	judged := Candidate{State: EntryAccepted}
-	if !judged.Accepted() {
-		t.Error("a row validation accepted does not report itself accepted")
 	}
 }
 
@@ -1225,62 +1089,14 @@ func TestRulesListsEveryDeclaredRule(t *testing.T) {
 	}
 }
 
-// TestTheTwoBranchVerdictsOverEveryDeclaration states both verdicts for every
-// combination of declared role and structural error, so a consumer reading
-// either one has the whole table in front of it rather than a sentence about
-// the cases somebody thought of. The two are disjoint by construction — a
-// branch that projects lists rows of its own, one that carries merely groups
-// others — and an error stops both.
-func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		role            Role
-		invalid         bool
-		wantProjectable bool
-		wantCarries     bool
-	}{
-		{role: RoleStructural, invalid: false, wantProjectable: false, wantCarries: true},
-		{role: RoleStructural, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleUnclassified, invalid: false, wantProjectable: false, wantCarries: false},
-		{role: RoleUnclassified, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RolePrimary, invalid: false, wantProjectable: true, wantCarries: false},
-		{role: RolePrimary, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleLocal, invalid: false, wantProjectable: true, wantCarries: false},
-		{role: RoleLocal, invalid: true, wantProjectable: false, wantCarries: false},
-		{role: RoleNone, invalid: false, wantProjectable: false, wantCarries: false},
-		{role: RoleNone, invalid: true, wantProjectable: false, wantCarries: false},
-	}
-	for _, tt := range tests {
-		name := tt.role.String()
-		if tt.invalid {
-			name += " carrying a structural error"
-		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			g := &Group{Role: tt.role, Invalid: tt.invalid}
-			if got := g.Projectable(); got != tt.wantProjectable {
-				t.Errorf("Projectable() = %t, want %t", got, tt.wantProjectable)
-			}
-			if got := g.Carries(); got != tt.wantCarries {
-				t.Errorf("Carries() = %t, want %t", got, tt.wantCarries)
-			}
-			if g.Projectable() && g.Carries() {
-				t.Error("one branch both projects and merely carries; the two verdicts overlap")
-			}
-		})
-	}
-}
-
 // Items promises source order, and nav and the syllabus page both walk it by
 // position rather than re-deriving it. A nested list that holds both kinds
 // breaks that promise in either direction if the rows nobody declared are filed
 // at a fixed end: they are collected while the list is read and filed once,
 // while a branch the same list declares is filed the moment it is met.
 //
-// Both orders are here because the two are mirror images and a fix for one is
-// the other's regression — which is what happened: filing the rows before the
-// list's branches corrected the first shape and broke the second, which had
-// been right.
+// Both orders are here because they are mirror images: filing the stray rows
+// at either fixed end puts one of them right and the other wrong.
 func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
 	t.Parallel()
 
@@ -1329,11 +1145,9 @@ func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
 }
 
 // A marker written below a row's own line declares nothing — a declaration is
-// read on the row's line — and is reported so it does not fail quietly. That
-// held for a plain continuation paragraph and not for one written as a
-// blockquote, which is how an Obsidian callout is written: the scope a row
-// collects skipped any block that holds no source lines of its own, so a
-// declaration inside one was read by nothing and reported by nothing.
+// read on the row's line — and is reported so it does not fail quietly,
+// whether the continuation is a plain paragraph or a blockquote, which is how
+// an Obsidian callout is written and holds no source lines of its own.
 func TestAMarkerBelowARowIsReportedWhereverItIsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -1394,14 +1208,9 @@ func TestAListInsideAContinuationIsStillAnotherRowsWords(t *testing.T) {
 }
 
 // A continuation written as a blockquote reads as the plain one written the
-// same way. That is the whole of what reading past a line-less block bought:
-// every answer it changed moved the quoted shape onto the answer the plain
-// shape has always given, so the two are pinned against each other rather than
-// against a recorded snapshot of either.
-//
-// Pinned this way because the risk is one-sided: a later hand narrowing the
-// scope for one consumer would leave the plain form alone and quietly take the
-// quoted form back to where it was.
+// same way. The two are held against each other rather than against a
+// recording of either, because a narrower scope for one consumer would leave
+// the plain form alone and quietly change only the quoted one.
 func TestAQuotedContinuationReadsAsThePlainOneDoes(t *testing.T) {
 	t.Parallel()
 

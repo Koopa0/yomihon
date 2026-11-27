@@ -11,9 +11,28 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-func TestSectionIDKeepsTheMarksWrittenOnALetter(t *testing.T) {
+// TestSectionID pins the id a section name folds to. The page that stamps an
+// id and every face that follows one read it from here, so a change made for
+// one of them moves every anchor in the vault at once. Decomposed forms are
+// written as escapes, since a source file cannot show which form it carries.
+func TestSectionID(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, heading, id string }{
+		{"plain words", "Plain Heading", "plain-heading"},
+		{"surrounding space", "  Trailing and leading  ", "trailing-and-leading"},
+		{"CJK letters", "CJK 標題", "cjk-標題"},
+		{"a punctuation run is one separator", "Heading -- with punctuation!", "heading-with-punctuation"},
+		{"an apostrophe separates", "What's new?", "what-s-new"},
+		{"underscore separates", "under_score", "under-score"},
+		{"superscript digit", "x²", "x²"},
+		{"vulgar fraction", "½", "½"},
+		{"only punctuation", "!!!", "section"},
+		{"empty", "", "section"},
+		{"only spaces", "   ", "section"},
+		{"fullwidth letters", "ＦＵＬＬＷＩＤＴＨ", "ｆｕｌｌｗｉｄｔｈ"},
+		{"decomposed Latin", "Man\u0303ana", "ma\u00f1ana"},
+		{"decomposed kana", "\u304b\u3099\u3093", "\u304c\u3093"},
+		{"decomposed capital", "A\u030a", "\u00e5"},
 		{"Hindi short vowel", "कि", "कि"},
 		{"Hindi long vowel", "की", "की"},
 		{"Hindi word", "हिन्दी", "हिन्दी"},
@@ -93,10 +112,10 @@ func TestFragmentNormalizationReturnsCanonicalIDs(t *testing.T) {
 			} {
 				got := owner.fold(tt.input)
 				if got != tt.want || !norm.NFC.IsNormalString(got) {
-					t.Errorf("caught: fragment-normalization %s(%q) = %q, want NFC %q", owner.name, tt.input, got, tt.want)
+					t.Errorf("%s(%q) = %q, want NFC %q", owner.name, tt.input, got, tt.want)
 				}
 				if rebuilt := owner.fold(got); rebuilt != got {
-					t.Errorf("caught: fragment-normalization %s reread(%q) = %q, want unchanged", owner.name, got, rebuilt)
+					t.Errorf("%s(%q) = %q, want it unchanged", owner.name, got, rebuilt)
 				}
 			}
 		})
@@ -119,17 +138,17 @@ func TestFragmentNormalizationPreservesPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := graph.FoldFragment(tt.input); got != tt.fold {
-				t.Errorf("caught: fragment-normalization FoldFragment(%q) = %q, want %q", tt.input, got, tt.fold)
+				t.Errorf("FoldFragment(%q) = %q, want %q", tt.input, got, tt.fold)
 			}
 			if got := graph.SectionID(tt.input); got != tt.section {
-				t.Errorf("caught: fragment-normalization SectionID(%q) = %q, want %q", tt.input, got, tt.section)
+				t.Errorf("SectionID(%q) = %q, want %q", tt.input, got, tt.section)
 			}
 		})
 	}
 	t.Run("pure caret transform", func(t *testing.T) {
 		t.Parallel()
 		if got := graph.FoldFragment("^Y\u030a-1"); got != "^\u1e99-1" {
-			t.Errorf("caught: fragment-normalization FoldFragment caret string = %q, want %q", got, "^\u1e99-1")
+			t.Errorf("FoldFragment(%q) = %q, want %q", "^Y\u030a-1", got, "^\u1e99-1")
 		}
 	})
 }

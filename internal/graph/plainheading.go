@@ -8,18 +8,18 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
 
 // headingInline reads a heading's source with the page's own inline grammar, so
-// the marks the page hides around bold, code and links are not in the words.
-var headingInline = goldmark.New(goldmark.WithExtensions(extension.Strikethrough, cjkfriendly.CJKFriendlyEmphasis)).Parser()
+// the marks the page hides around bold, code, links and footnote references
+// are not in the words.
+var headingInline = goldmark.New(goldmark.WithExtensions(extension.Strikethrough, extension.Footnote, cjkfriendly.CJKFriendlyEmphasis)).Parser()
 
 var (
 	trailingHashRun = regexp.MustCompile(`(^|[ \t])(#+)$`)
-
-	wikilinkInHeading = regexp.MustCompile(`!?\[\[[^\[\]]+\]\]`)
 
 	// A ruby reading is spoken over the base text and is not part of the words,
 	// as the page's own heading reduction treats it.
@@ -30,17 +30,23 @@ var (
 	inertTagInHeading = regexp.MustCompile(`(?i)^</?(b|i|u|s|em|strong|mark|sub|sup|small|kbd|code|del|ins|span|ruby|br)(\s[^>]*)?/?>$`)
 )
 
-// PlainHeadingWords is the words a reader sees in a heading's source: emphasis
-// and code marks, link brackets and wikilink brackets are gone and what they
-// wrapped stays, with white space folded. A title shown in a list or over a
-// page is these words, never the source.
-func PlainHeadingWords(raw string) string {
-	source := wikilinkInHeading.ReplaceAllStringFunc(WithoutBlockAddresses(raw), func(token string) string {
-		token = strings.TrimPrefix(token, "!")
-		_, display, _ := SplitWikilink(token[2 : len(token)-2])
-		return display
-	})
-	source = rubyReadingInHeading.ReplaceAllString(source, "")
+// headingWords is the words a reader sees in a heading's source: emphasis and
+// code marks, link and wikilink brackets, footnotes and a block address are
+// gone and what they wrapped stays, with white space folded. A title shown in
+// a list or over a page is these words, never the source. definitions are the
+// footnoteDefinitions of the body the heading stands in.
+func headingWords(raw, definitions string) string {
+	source := HeadingSource(raw)
+	var displayed strings.Builder
+	last := 0
+	for _, token := range WikilinkTokens(source) {
+		displayed.WriteString(source[last:token.Start])
+		_, display, _ := SplitWikilink(token.Inner)
+		displayed.WriteString(display)
+		last = token.End
+	}
+	displayed.WriteString(source[last:])
+	source = rubyReadingInHeading.ReplaceAllString(displayed.String(), "")
 	// The words are read as the inside of the heading they came from, so a tag
 	// opening them is inline markup and not an HTML block of its own. An
 	// underlined heading's words run over several lines and take their
@@ -53,10 +59,13 @@ func PlainHeadingWords(raw string) string {
 		// it would be taken off a second time.
 		source = "# " + trailingHashRun.ReplaceAllString(source, `$1\$2`)
 	}
-	src := []byte(source)
+	src := []byte(source + definitions)
 	doc := headingInline.Parse(text.NewReader(src))
 	var b strings.Builder
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
+		if n.Kind() == east.KindFootnoteList {
+			return ast.WalkSkipChildren, nil
+		}
 		if entering {
 			writeHeadingNode(&b, n, src)
 		}

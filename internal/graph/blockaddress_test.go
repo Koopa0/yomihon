@@ -46,9 +46,8 @@ func TestBlockAddressExtractsOnlySupportedAuthoredTokens(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Logf("hit: BlockAddress literal case %s", tt.name)
 			if got := BlockAddress(tt.line); got != tt.want {
-				t.Errorf("caught: shared block grammar changed: BlockAddress(%q) = %q, want %q", tt.line, got, tt.want)
+				t.Errorf("BlockAddress(%q) = %q, want %q", tt.line, got, tt.want)
 			}
 		})
 	}
@@ -83,7 +82,7 @@ func TestAHeadingOfOnlyTheTokenKeepsItAsItsWords(t *testing.T) {
 			t.Errorf("%s: WithoutBlockAddresses(%q) = %q, want %q", tt.name, tt.text, got, tt.want)
 		}
 	}
-	if got := PlainHeadingWords("^0"); got != "^0" {
-		t.Errorf("PlainHeadingWords(%q) = %q, want the token", "^0", got)
+	if got := headingWords("^0", ""); got != "^0" {
+		t.Errorf("headingWords(%q) = %q, want the token", "^0", got)
 	}
 }

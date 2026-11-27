@@ -28,6 +28,25 @@ func noteBodies(notes []*vault.Note) iter.Seq[string] {
 	}
 }
 
+// readingsOf is the reading a build takes of each note, by path.
+func readingsOf(notes []*vault.Note) map[string]Reading {
+	readings := make(map[string]Reading, len(notes))
+	for _, n := range notes {
+		readings[n.RelPath] = newReading(n, nil, schema.ArticleLanguage{})
+	}
+	return readings
+}
+
+// healthOf is the whole-folder view a build of notes and resources gathers in
+// a folder that declares nothing.
+func healthOf(notes []*vault.Note, resources []string) Health {
+	idx := graph.New(notes, resources)
+	links := linksOf(notes)
+	readings := readingsOf(notes)
+	back := newBacklinks(notes, links, idx, titlesIn(readings))
+	return newHealth(notes, links, idx, judge.NewPlanned(noteBodies(notes), nil), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
+}
+
 // linksOf is what each note cites, by path, read through the same extractor a
 // build reads a note's body with when it reads the note.
 func linksOf(notes []*vault.Note) map[string][]string {
@@ -47,21 +66,19 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Concepts/written.md", "# A Written Note\n\nI exist\n"),
-		parse(t, "Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
-		parse(t, "Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
-		parse(t, "Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
-		parse(t, "Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
+		parse("Concepts/written.md", "# A Written Note\n\nI exist\n"),
+		parse("Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
+		parse("Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
+		parse("Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
+		parse("Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
 		// Two notes declaring one title: naming either of them would be the
 		// guess the resolver refuses to make, so this citation stays unwritten
 		// rather than being pointed at one of them.
-		parse(t, "A/twin.md", "# Shared Title\n\none\n"),
-		parse(t, "B/twin.md", "# Shared Title\n\ntwo\n"),
-		parse(t, "Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
+		parse("A/twin.md", "# Shared Title\n\none\n"),
+		parse("B/twin.md", "# Shared Title\n\ntwo\n"),
+		parse("Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
 	}
-	idx := graph.New(notes, nil)
-	planned := judge.NewPlanned(noteBodies(notes), nil)
-	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, nil)
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "Cites Title", RelPath: "Concepts/cites title.md"},
@@ -89,14 +106,13 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Sources/course/one.md", "a\n"),
-		parse(t, "Sources/course/two.md", "b\n"),
-		parse(t, "Sources/course/three.md", "c\n"),
-		parse(t, "Writing/essay.md", "d\n"),
-		parse(t, "root.md", "e\n"),
+		parse("Sources/course/one.md", "a\n"),
+		parse("Sources/course/two.md", "b\n"),
+		parse("Sources/course/three.md", "c\n"),
+		parse("Writing/essay.md", "d\n"),
+		parse("root.md", "e\n"),
 	}
-	idx := graph.New(notes, nil)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, nil)
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -110,22 +126,11 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	if diff := cmp.Diff(want, h.Islands); diff != "" {
 		t.Errorf("Islands mismatch (-want +got):\n%s", diff)
 	}
-
-	total := 0
-	for _, g := range h.Islands {
-		total += len(g.Notes)
-	}
-	if total != len(notes) {
-		t.Errorf("grouping lost rows: %d notes in, %d out", len(notes), total)
-	}
 }
 
-// A note reached only by its title is spared the island list, and the order the
-// folder happened to be scanned in is no part of that. The answer used to be
-// read out of a table the same pass was still filling, so a note escaped only
-// when the note writing its name down sorted ahead of it: rename either file
-// and the same vault reported a note as reaching nothing, sending its reader
-// to write a link that is already written.
+// A note reached only by its title is spared the island list whichever order
+// the folder is scanned in, so renaming either file cannot send its reader to
+// write a link that is already written.
 func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -143,14 +148,13 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			target := parse(t, tt.targetPath, "# Target Note\n\nbody\n")
-			citer := parse(t, tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
+			target := parse(tt.targetPath, "# Target Note\n\nbody\n")
+			citer := parse(tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
 			notes := []*vault.Note{citer, target}
 			if tt.targetFirst {
 				notes = []*vault.Note{target, citer}
 			}
-			idx := graph.New(notes, nil)
-			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+			h := healthOf(notes, nil)
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -205,19 +209,18 @@ func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 
 	notes := []*vault.Note{
 		// Nothing anywhere cites "quiet", so nothing is broken by the pair.
-		parse(t, "A/quiet.md", "# Quiet A\n\none\n"),
-		parse(t, "B/quiet.md", "# Quiet B\n\ntwo\n"),
+		parse("A/quiet.md", "# Quiet A\n\none\n"),
+		parse("B/quiet.md", "# Quiet B\n\ntwo\n"),
 		// The control: a shared name a real note does cite. An empty answer
 		// cannot pass this test.
-		parse(t, "A/cited.md", "# Cited A\n\nthree\n"),
-		parse(t, "B/cited.md", "# Cited B\n\nfour\n"),
+		parse("A/cited.md", "# Cited A\n\nthree\n"),
+		parse("B/cited.md", "# Cited B\n\nfour\n"),
 		// A shared resource name is cited by an embed, and its twin by path
 		// only, which resolves by path and breaks nothing.
-		parse(t, "Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
+		parse("Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
 	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
-	idx := graph.New(notes, resources)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
+	h := healthOf(notes, resources)
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads
@@ -242,7 +245,7 @@ func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
 	root := t.TempDir()
 	writeNote(t, root, "Maps/ledger.md", "# Ledger\n\n## Gaps\n- Ghost\n")
 	writeNote(t, root, "Concepts/citer.md", "# Citer\n\nSee [[Ghost]] and [[Nowhere]].\n")
-	contract := testContractWithRules(t, root, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
+	contract := writeContract(t, root, replacing(t, "[rules]\n", "[rules]\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []\n"))
 	store, _ := newTestStore(t, root, contract)
 	h := store.Current().health
 
@@ -274,9 +277,6 @@ func TestHealthNavigationFaultsBelongToCaller(t *testing.T) {
 	health.NavigationFaults[0].Reason = "changed"
 	if diff := cmp.Diff([]nav.CoreFault{fault}, generation.Health().NavigationFaults); diff != "" {
 		t.Errorf("captured fault changed (-want +got):\n%s", diff)
-	}
-	if (*Generation)(nil).Health().NavigationFaults != nil {
-		t.Error("absent generation carries faults")
 	}
 }
 

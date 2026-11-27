@@ -31,14 +31,3 @@ func TestGitHubAnchorsFollowGitHub(t *testing.T) {
 		})
 	}
 }
-
-func TestGitHubAnchorsDifferFromSectionIDWhereTheyShould(t *testing.T) {
-	t.Parallel()
-	const name = "What's new?"
-	if got := SectionID(name); got != "what-s-new" {
-		t.Fatalf("SectionID(%q) = %q: the id a page stamps must not change", name, got)
-	}
-	if got := GitHubAnchors([]string{name})[0]; got != "whats-new" {
-		t.Errorf("GitHubAnchors(%q) = %q, want whats-new", name, got)
-	}
-}

@@ -95,11 +95,9 @@ func TestAHeadingThatIsOnlyADeclarationKeepsItsLine(t *testing.T) {
 	}
 }
 
-// A branch's name ends with the author's last word. The space they left in
-// front of the declaration is spacing, and a name carrying it would fold to
-// the same id anyway while every report quoting it showed the gap. Until now
-// only a reading-page test noticed the trim, and the page is not where the
-// rule lives.
+// A branch's name ends with the author's last word. Space in front of the
+// declaration, or on either side of its "=", is spacing: it is neither part of
+// the name nor a reason to refuse the value.
 func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +106,8 @@ func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 		"基本觀念   {sequence=primary}",
 		"基本觀念\t{sequence=primary}",
 		"基本觀念 \t {sequence=primary}",
+		"基本觀念 {sequence =primary}",
+		"基本觀念 {sequence = primary}",
 	}
 	for _, heading := range headings {
 		t.Run(heading, func(t *testing.T) {
@@ -119,19 +119,21 @@ func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 	}
 }
 
-// One vocabulary, written and read. The syllabus shows an author the three
-// declarations it will accept, and this package spells them; the parser reads
-// a declaration back off a line. A round trip holds the two halves together,
-// because a page offering a marker the parser rejects would be teaching the
-// author to write a fault.
+// One vocabulary, written and read. A page shows an author each declaration
+// to copy, spelled by Marker, beside the bare value, spelled by Role.String,
+// and the parser reads the declaration back off a line. A page offering a
+// marker or a value the parser rejects would be teaching the author to write
+// a fault.
 func TestAMarkerThisPackageWritesIsOneItReads(t *testing.T) {
 	t.Parallel()
 
 	for _, role := range []Role{RolePrimary, RoleLocal, RoleNone} {
 		marker := Marker(role)
-		got, ok := markerValue(marker)
-		if !ok || got != role {
-			t.Errorf("markerValue(Marker(%v)) = %v, %t, want %v, true", role, got, ok, role)
+		if want := "{sequence=" + role.String() + "}"; marker != want {
+			t.Errorf("Marker(%v) = %q, want %q, the value shown beside it", role, marker, want)
+		}
+		if got, ok := markerValue(marker); !ok || got != role {
+			t.Errorf("markerValue(%q) = %v, %t, want %v, true", marker, got, ok, role)
 		}
 		heading := "標題 " + marker
 		if name := HeadingName(heading, 2); name != "標題" {
@@ -143,42 +145,6 @@ func TestAMarkerThisPackageWritesIsOneItReads(t *testing.T) {
 	for _, role := range []Role{RoleStructural, RoleUnclassified} {
 		if got := Marker(role); got != "" {
 			t.Errorf("Marker(%v) = %q, want no marker at all", role, got)
-		}
-	}
-}
-
-// The three values an author may write are the parser's own, and they are shown
-// to a reader twice on the same page: once as the whole declaration to copy,
-// built from those values, and once as the bare value, taken from Role.String()
-// — which wrote them out again by hand. Changing one spelling left the other
-// teaching the reader a value this parser rejects, and nothing in this package
-// noticed: only a handful of display-string assertions in other packages did,
-// which is the wrong place to hear it.
-func TestADeclarableRoleSpellsItselfTheWayTheParserReadsIt(t *testing.T) {
-	t.Parallel()
-
-	declarable := []Role{RolePrimary, RoleLocal, RoleNone}
-	for _, role := range declarable {
-		marker := Marker(role)
-		if marker == "" {
-			t.Errorf("%v is declarable and has no marker to write", role)
-			continue
-		}
-		read, ok := markerValue(marker)
-		if !ok || read != role {
-			t.Errorf("the parser reads %q as (%v, %v), want (%v, true)", marker, read, ok, role)
-		}
-		inner := strings.TrimSuffix(strings.TrimPrefix(marker, markerOpen+"="), markerClose)
-		if name := role.String(); name != inner {
-			t.Errorf("%v is shown as %q and read as %q; a reader shown one and parsed by the other cannot write a marker that works", role, name, inner)
-		}
-	}
-
-	// The two a branch is left with when it declared nothing have no spelling,
-	// so their names answer to nobody and are free to read as they like.
-	for _, role := range []Role{RoleStructural, RoleUnclassified} {
-		if marker := Marker(role); marker != "" {
-			t.Errorf("%v cannot be declared and offers the marker %q", role, marker)
 		}
 	}
 }

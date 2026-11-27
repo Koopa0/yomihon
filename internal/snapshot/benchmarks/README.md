@@ -12,9 +12,9 @@ Go source. Regeneration and comparison instructions are in
 - Toolchain: Go 1.27.1, darwin/arm64; Apple M1, Darwin 25.6.0.
 - Settings: `GOMAXPROCS=2`, `GOFLAGS='-trimpath -p=2'`, `-benchtime=1x`, `-count=10`.
 - Cache: warm local filesystem; source files were written and an initial
-  generation validated before each timed operation. No cache flush.
+  generation built before each timed operation. No cache flush.
 - Each of six cases has ten samples and one operation per sample. Fixture
-  creation, edit writes and complete source/generation checks are excluded.
+  creation and edit writes are excluded.
 - Original source bytes are 35,908 for 100 notes; 337,408 for 1,000 notes;
   1,677,408 for 5,000 notes. Files are N+1 and links are 2N in every sample.
 - The command and benchstat both exited 0. The run took about 91 seconds locally.
@@ -48,7 +48,7 @@ no measured line was changed. The original `baseline.txt` remains unchanged.
 - Settings: `GOMAXPROCS=2`, empty `GOFLAGS`, `-benchtime=1x`, `-count=10`.
 - Sample policy: five cases (`initial`, `rebuild`, `idle`, `overlap`, `visible`)
   at 100, 1,000 and 5,000 notes; ten samples per case, one operation per sample.
-- Cache: warm after fixture construction and complete receipt; no cache flush.
+- Cache: warm after fixture construction and a first build; no cache flush.
 - Original source bytes: 35,908 / 337,408 / 1,677,408 for the three sizes.
   Each fixture has N+1 files and 2N links.
 - Exit status: 0. Package duration: 169.234 seconds.

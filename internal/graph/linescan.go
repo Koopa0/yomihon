@@ -2,14 +2,14 @@ package graph
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
 // The line shapes the page and the check both read when they walk a note:
 // which lines are headings, which cannot be the prose an underline turns into
 // one, and which open an authored HTML block whose contents reach the reader
-// as written. They lived twice, once on each face, and then they were not
-// the same scan; every face that asks these questions reads them from here.
+// as written. Every face asks them here, so no two faces walk a note apart.
 
 var (
 	// ATXHeading matches an ATX heading the way goldmark reads it: up to three
@@ -42,31 +42,13 @@ var (
 	// it is not continuing a paragraph.
 	IndentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
 
-	// HTMLBlockElement matches a CommonMark type-6 HTML block opening: a
+	// htmlBlockElement matches a CommonMark type-6 HTML block opening: a
 	// known tag at up to three spaces of indent. A block opened by one of
 	// these hands its lines over as written, so a '#' line inside one is
 	// text and not a heading. The type-7 complete-tag condition is omitted
 	// because it cannot interrupt a paragraph, and telling those readings
 	// apart needs paragraph state a line scan does not keep.
-	HTMLBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
-
-	// HTMLBlockRawEnd closes any of the four raw-text HTML elements.
-	HTMLBlockRawEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
-
-	// The four raw-text HTML openings, each recognising a self-closing form
-	// (`<pre/>`) as well as the ordinary tag. A self-closing pre is still an
-	// opening: CommonMark does not close a type-1 block on `/>`, so the lines
-	// after it are raw text until a matching end tag, and a heading-shaped
-	// one of them is not a heading.
-	HTMLBlockRawPre      = regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`)
-	HTMLBlockRawScript   = regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`)
-	HTMLBlockRawStyle    = regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`)
-	HTMLBlockRawTextarea = regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`)
-
-	HTMLBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
-	HTMLBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
-	HTMLBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
-	HTMLBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
+	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
 
 	// QuotePrefix matches the single leading quote marker a line scan peels
 	// before asking whether a fence opened or a row begins with a pipe.
@@ -139,21 +121,60 @@ func FenceCloses(line string, marker byte, openerLen int) bool {
 	return len(t) >= openerLen && strings.Count(t, string(marker)) == len(t)
 }
 
-// LineScan carries the running state a line-by-line walk needs to tell a
+// HTMLBlockKind is one of the HTML blocks CommonMark ends at a marker rather
+// than at a blank line.
+type HTMLBlockKind struct {
+	// Opens matches the line that opens the block.
+	Opens *regexp.Regexp
+	// Ends matches the text that closes it, which may stand on the opening
+	// line itself. The four raw-text elements share one: a block opened by any
+	// of them is closed by any of their closing tags, as the Markdown parser
+	// closes them.
+	Ends *regexp.Regexp
+	// Closing is the kind's own end, the text a scan stopped inside one writes
+	// to close it.
+	Closing string
+}
+
+// rawTextEnd closes any of the four raw-text HTML elements.
+var rawTextEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
+
+// htmlBlockKinds are the HTML blocks a blank line does not end, in the order a
+// line is asked: CDATA before a declaration, since both begin "<!". Each
+// raw-text opening also takes its self-closing form (`<pre/>`): CommonMark does
+// not close a raw-text block on "/>", so the lines after it are raw text until
+// an end tag, and a heading-shaped one of them is not a heading.
+var htmlBlockKinds = []HTMLBlockKind{
+	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`), rawTextEnd, "</pre>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`), rawTextEnd, "</script>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`), rawTextEnd, "</style>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`), rawTextEnd, "</textarea>"},
+	{regexp.MustCompile(`^ {0,3}<!--`), regexp.MustCompile(`-->`), "-->"},
+	{regexp.MustCompile(`^ {0,3}<\?`), regexp.MustCompile(`\?>`), "?>"},
+	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), regexp.MustCompile(`\]\]>`), "]]>"},
+	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), regexp.MustCompile(`>`), ">"},
+}
+
+// HTMLBlockKinds are the HTML blocks a blank line does not end, in the order a
+// line is asked. The slice is the caller's own; the patterns in it are shared
+// and safe to use from any goroutine.
+func HTMLBlockKinds() []HTMLBlockKind { return slices.Clone(htmlBlockKinds) }
+
+// lineScan carries the running state a line-by-line walk needs to tell a
 // heading from a heading-shaped line inside fenced code or an authored HTML
 // block, whose contents reach the reader as written. The zero value starts a
 // scan.
-type LineScan struct {
+type lineScan struct {
 	inFence    bool
 	fenceByte  byte
 	fenceLen   int
 	htmlCloses func(string) bool
 }
 
-// Skip advances the scan by one line and reports whether that line belongs to
+// skip advances the scan by one line and reports whether that line belongs to
 // a fenced code block or an authored HTML block, the lines that open and close
 // one included.
-func (s *LineScan) Skip(line string) bool {
+func (s *lineScan) skip(line string) bool {
 	switch {
 	case s.inFence:
 		if FenceCloses(line, s.fenceByte, s.fenceLen) {
@@ -170,7 +191,7 @@ func (s *LineScan) Skip(line string) bool {
 		s.inFence, s.fenceByte, s.fenceLen = true, marker, n
 		return true
 	}
-	if closes, ok := HTMLBlockOpens(line); ok {
+	if closes, ok := htmlBlockOpens(line); ok {
 		if !closes(line) {
 			s.htmlCloses = closes
 		}
@@ -179,7 +200,7 @@ func (s *LineScan) Skip(line string) bool {
 	return false
 }
 
-// LineSkipZones are the body ranges Skip hides: fenced code and authored
+// LineSkipZones are the body ranges a line walk hides: fenced code and authored
 // HTML blocks, the lines that open and close one included. The map's link
 // scan reads them so a bracket sitting where a heading walk already refused
 // cannot stay live.
@@ -187,13 +208,13 @@ func LineSkipZones(body string) []Span {
 	if body == "" {
 		return nil
 	}
-	var scan LineScan
+	var scan lineScan
 	var zones []Span
 	var start int
 	in := false
 	offset := 0
 	for line := range strings.SplitSeq(body, "\n") {
-		if scan.Skip(line) {
+		if scan.skip(line) {
 			if !in {
 				in, start = true, offset
 			}
@@ -244,13 +265,15 @@ func Headings(body string, zones []Span) []Heading {
 	for i, line := range lines {
 		start := offset
 		offset = start + len(line) + 1
+		// A CRLF file's carriage return is a line end, not part of a line's
+		// shape or of a heading's words; offsets still count it.
+		line = strings.TrimSuffix(line, "\r")
+		lines[i] = line
 		if In(zones, start) {
 			paragraph = -1
 			continue
 		}
-		// A line may end in the carriage return of a CRLF file; it is a line
-		// end and not part of the heading's words or of the closing marks.
-		if m := ATXHeading.FindStringSubmatch(strings.TrimSuffix(line, "\r")); m != nil {
+		if m := ATXHeading.FindStringSubmatch(line); m != nil {
 			out = append(out, Heading{Line: i, Start: start, Level: len(m[1]), Text: m[2]})
 			paragraph = -1
 			continue
@@ -275,32 +298,18 @@ func Headings(body string, zones []Span) []Heading {
 	return out
 }
 
-// HTMLBlockOpens reports whether a line opens an authored HTML block, and
-// returns the test for the line that closes it. The raw-text, comment,
-// instruction, CDATA, and declaration blocks close on their own end marker,
-// which may sit on the opening line itself; an element block runs to the next
-// blank line. CDATA is asked before a declaration because both begin `<!`.
-func HTMLBlockOpens(line string) (closes func(string) bool, ok bool) {
-	switch {
-	case HTMLBlockRawPre.MatchString(line),
-		HTMLBlockRawScript.MatchString(line),
-		HTMLBlockRawStyle.MatchString(line),
-		HTMLBlockRawTextarea.MatchString(line):
-		return HTMLBlockRawEnd.MatchString, true
-	case HTMLBlockComment.MatchString(line):
-		return lineContains("-->"), true
-	case HTMLBlockInstr.MatchString(line):
-		return lineContains("?>"), true
-	case HTMLBlockCDATA.MatchString(line):
-		return lineContains("]]>"), true
-	case HTMLBlockDecl.MatchString(line):
-		return lineContains(">"), true
-	case HTMLBlockElement.MatchString(line):
+// htmlBlockOpens reports whether a line opens an authored HTML block, and
+// returns the test for the line that closes it. A kind in htmlBlockKinds closes
+// on its own end marker, which may sit on the opening line itself; an element
+// block runs to the next blank line.
+func htmlBlockOpens(line string) (closes func(string) bool, ok bool) {
+	for i := range htmlBlockKinds {
+		if htmlBlockKinds[i].Opens.MatchString(line) {
+			return htmlBlockKinds[i].Ends.MatchString, true
+		}
+	}
+	if htmlBlockElement.MatchString(line) {
 		return BlankLine, true
 	}
 	return nil, false
-}
-
-func lineContains(marker string) func(string) bool {
-	return func(line string) bool { return strings.Contains(line, marker) }
 }

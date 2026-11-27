@@ -51,25 +51,8 @@ func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
 	if !got.HasFrontmatter {
 		t.Fatal("malformed frontmatter dropped the block that produced the diagnostic")
 	}
-	if got.FMDiagnostic == "" {
+	if got.FrontmatterDiagnostic == "" {
 		t.Fatal("malformed frontmatter diagnostic was dropped")
-	}
-}
-
-// TestCaptureNoteKeepsEmptyBlockApartFromAbsent holds the projection to the
-// split's own answer: an empty fence pair is a present block, and a file with
-// no delimiters is not. Deriving the flag from a nil field map collapses them.
-func TestCaptureNoteKeepsEmptyBlockApartFromAbsent(t *testing.T) {
-	t.Parallel()
-
-	empty := []byte("---\n---\nbody\n")
-	if got := newReading(vault.Parse("Empty.md", empty), empty, schema.ArticleLanguage{}); !got.HasFrontmatter {
-		t.Fatal("empty frontmatter block was projected as absent")
-	}
-
-	absent := []byte("body\n")
-	if got := newReading(vault.Parse("Absent.md", absent), absent, schema.ArticleLanguage{}); got.HasFrontmatter {
-		t.Fatal("a file with no delimiters was projected as a frontmatter block")
 	}
 }
 
@@ -88,7 +71,7 @@ func TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent(t *testing.T) {
 		wantUnclosed bool
 	}{
 		{name: "the closing fence lost a dash", content: "---\ntype: note\n--\n\n# Body\n", wantUnclosed: true},
-		{name: "a block that closes", content: "---\n---\nbody\n", wantBlock: true},
+		{name: "a block that closes", content: "---\ntype: note\n---\n\n# Body\n", wantBlock: true},
 		{name: "an empty fence pair", content: "---\n---\nbody\n", wantBlock: true},
 		{name: "a thematic break and prose", content: "---\n\nbody\n"},
 		{name: "no delimiters", content: "body\n"},
@@ -190,20 +173,20 @@ func TestDeclaredTitleIsWhatTheAuthorWrote(t *testing.T) {
 	}
 }
 
-// TestTitlesAreKeyedByTheDerivedTitle pins the key the title table files a
-// note under: its first heading, else its frontmatter title, else its file name.
-func TestTitlesAreKeyedByTheDerivedTitle(t *testing.T) {
+// TestTitlesAreKeyedByTheWrittenTitle pins the key the title table files a
+// note under: its first heading, else its frontmatter title. A note that wrote
+// neither is reached by its file name and is not filed.
+func TestTitlesAreKeyedByTheWrittenTitle(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "A/headed.md", "# Shared Name\n\nbody\n"),
-		parse(t, "B/Shared Name.md", "body\n"),
-		parse(t, "C/written.md", "---\ntitle: Shared Name\n---\nbody\n"),
+		parse("A/headed.md", "# Shared Name\n\nbody\n"),
+		parse("B/Shared Name.md", "body\n"),
+		parse("C/written.md", "---\ntitle: Shared Name\n---\nbody\n"),
 	}
-	got := titlesByName(notes)
+	got := titlesByName(readingsOf(notes))
 	want := []nav.NoteRef{
 		{Name: "headed", RelPath: "A/headed.md"},
-		{Name: "Shared Name", RelPath: "B/Shared Name.md"},
 		{Name: "written", RelPath: "C/written.md"},
 	}
 	if diff := cmp.Diff(want, got[graph.NormalizeKey("Shared Name")]); diff != "" {

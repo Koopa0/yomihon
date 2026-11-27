@@ -8,7 +8,14 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-var commentParser = goldmark.New().Parser()
+// commonMark is plain CommonMark with no extension, the dialect a body's
+// comments, code and course rows are read in.
+var commonMark = goldmark.New().Parser()
+
+// ParseCommonMark parses body as plain CommonMark.
+func ParseCommonMark(body string) ast.Node {
+	return commonMark.Parse(text.NewReader([]byte(body)))
+}
 
 // Span is a half-open byte range [Start, Stop) into a body. Comment pairing,
 // the course's skip zones, and a row's source identity all use this one type
@@ -38,14 +45,7 @@ func In(zones []Span, off int) bool {
 // comment closes at its first -->, including CommonMark's short empty forms.
 // An unclosed one owns the rest of the body; closed distinguishes that case.
 func HTMLCommentSpan(body string, open int) (span Span, closed bool) {
-	if open < 0 || open > len(body) || !strings.HasPrefix(body[open:], "<!--") {
-		return Span{}, false
-	}
-	escapes := 0
-	for i := open - 1; i >= 0 && body[i] == '\\'; i-- {
-		escapes++
-	}
-	if escapes%2 == 1 {
+	if open < 0 || open > len(body) || !strings.HasPrefix(body[open:], "<!--") || escapedAt(body, open) {
 		return Span{}, false
 	}
 	rest := body[open+4:]
@@ -68,8 +68,7 @@ func HTMLCommentLimits(body string) map[int]int {
 	if !strings.Contains(body, "<!--") {
 		return nil
 	}
-	src := []byte(body)
-	doc := commentParser.Parse(text.NewReader(src))
+	doc := ParseCommonMark(body)
 	limits := make(map[int]int)
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
 		block, ok := n.(*ast.HTMLBlock)

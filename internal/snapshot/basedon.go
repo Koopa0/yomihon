@@ -26,16 +26,13 @@ type DeclaredSource struct {
 // same as BasedOn; location identity additionally includes the authored address.
 // All resolution and destination rendering use this immutable generation.
 func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]DeclaredSource, []render.Diagnostic) {
-	if g == nil {
-		return nil, nil
-	}
 	var groups []DeclaredSource
 	var diagnostics []render.Diagnostic
 	positions := make(map[string]int)
 	seen := make(map[string]bool)
 	rendered := make(map[string]render.Result)
 	for _, value := range basedOnValues(g.parsed[relPath]) {
-		ref, ok := declaredSource(g.graph, g.pathTitle, value)
+		ref, ok := declaredSource(g.graph, titlesIn(g.notes), value)
 		if !ok {
 			continue
 		}
@@ -96,13 +93,9 @@ type basedOnBy struct {
 // that placed exactly one note is inverted: one left as the author's own text
 // names nothing to hang a reverse answer on, and a note naming itself is not a
 // pair.
-func newBasedOnBy(notes []*vault.Note, idx *graph.Index) *basedOnBy {
+func newBasedOnBy(notes []*vault.Note, idx *graph.Index, titles titleFunc) *basedOnBy {
 	b := &basedOnBy{bySource: make(map[string][]nav.NoteRef)}
-	titles := titlesOf(notes)
 	for _, n := range notes {
-		if n == nil {
-			continue
-		}
 		for _, ref := range projectBasedOn(n, idx, titles) {
 			if ref.RelPath == "" || ref.RelPath == n.RelPath {
 				continue
@@ -124,9 +117,6 @@ func newBasedOnBy(notes []*vault.Note, idx *graph.Index) *basedOnBy {
 // of returns the notes declaring relPath as their source, sorted by the name
 // each shows, and nil when none does. The caller receives its own copy.
 func (b *basedOnBy) of(relPath string) []nav.NoteRef {
-	if b == nil {
-		return nil
-	}
 	return slices.Clone(b.bySource[relPath])
 }
 
@@ -161,9 +151,6 @@ func projectBasedOn(n *vault.Note, idx *graph.Index, titles titleFunc) []nav.Not
 // places the note itself is not a prerequisite of it and is left out. A repeat of
 // a note or of a text already listed is kept only the first time.
 func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
-	if g == nil {
-		return nil
-	}
 	n := g.parsed[relPath]
 	if n == nil {
 		return nil
@@ -177,7 +164,7 @@ func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
 	var out []nav.NoteRef
 	seen := make(map[string]bool)
 	for _, value := range values {
-		ref, ok := declaredSource(g.graph, g.pathTitle, value)
+		ref, ok := declaredSource(g.graph, titlesIn(g.notes), value)
 		if !ok || (ref.RelPath != "" && ref.RelPath == relPath) {
 			continue
 		}
@@ -225,41 +212,13 @@ func basedOnValues(n *vault.Note) []string {
 	return n.ListOrText("based_on")
 }
 
-// titleFunc names the note at a path by its title, and a path that holds none
-// by its file name.
-type titleFunc func(relPath string) string
-
-// titlesOf names each of notes by its title.
-func titlesOf(notes []*vault.Note) titleFunc {
-	byPath := make(map[string]string, len(notes))
-	for _, n := range notes {
-		if n != nil {
-			byPath[n.RelPath] = graph.TitleOf(n)
-		}
-	}
-	return func(relPath string) string {
-		if title, ok := byPath[relPath]; ok {
-			return title
-		}
-		return nav.Label(relPath)
-	}
-}
-
-// pathTitle is titlesOf over the notes this generation holds.
-func (g *Generation) pathTitle(relPath string) string {
-	if n := g.parsed[relPath]; n != nil {
-		return graph.TitleOf(n)
-	}
-	return nav.Label(relPath)
-}
-
 func declaredSource(idx *graph.Index, titles titleFunc, value string) (nav.NoteRef, bool) {
 	written := strings.TrimSpace(value)
 	if written == "" {
 		return nav.NoteRef{}, false
 	}
 	target, ok := basedOnTarget(written)
-	if !ok || idx == nil {
+	if !ok {
 		return nav.NoteRef{Name: written}, true
 	}
 	res := idx.Resolve(target)
@@ -292,4 +251,39 @@ func declaredSourceKey(ref nav.NoteRef) string {
 		return ref.RelPath
 	}
 	return "\x00" + ref.Name
+}
+
+// NameWithin reports whether every note or file the wikilink target name
+// could reach in this generation is a path allowed accepts: the one it
+// resolves to, every candidate when it is ambiguous, and the name itself,
+// read as a path with and without the note extension, when it resolves to
+// nothing. A name a reader cannot tell apart from forbidden ground is not
+// within, so a caller can withhold words that would describe that ground.
+func (g *Generation) NameWithin(target string, allowed func(string) bool) bool {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return true
+	}
+	resolved := g.graph.Resolve(target)
+	switch resolved.Kind {
+	case graph.KindUnique:
+		return allowed(resolved.RelPath)
+	case graph.KindAmbiguous:
+		return !slices.ContainsFunc(resolved.Candidates, func(candidate string) bool { return !allowed(candidate) })
+	default:
+		name := vault.NormalizeNFC(target)
+		return allowed(name) && allowed(name+".md")
+	}
+}
+
+// BasedOnWithin reports whether every source rel declares in based_on names
+// only ground allowed accepts, as NameWithin reads a name. A declaration that
+// carries no name at all names no ground.
+func (g *Generation) BasedOnWithin(rel string, allowed func(string) bool) bool {
+	for _, value := range basedOnValues(g.parsed[rel]) {
+		if target, ok := basedOnTarget(strings.TrimSpace(value)); ok && !g.NameWithin(target, allowed) {
+			return false
+		}
+	}
+	return true
 }

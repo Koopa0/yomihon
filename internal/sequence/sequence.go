@@ -14,9 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 )
@@ -163,10 +161,6 @@ type Candidate struct {
 	State      EntryState
 }
 
-// Accepted reports whether this row passed canonical validation. Every other
-// state still makes the row a row for the purpose of its branch's state.
-func (c *Candidate) Accepted() bool { return c.State == EntryAccepted }
-
 // Group is one branch of a study path: a heading, or a nested list container
 // the author marked with a role. Name is the author's text with a recognized
 // marker removed; the source bytes are untouched.
@@ -297,21 +291,24 @@ type Document struct {
 	Diagnostics []Diagnostic
 }
 
-// mdParser is plain CommonMark, the same dialect the rest of the vault's
-// tooling reads. Task list items are deliberately not enabled: the checkbox is
-// recognized from the row's own text, so "[x]" means one thing everywhere.
-var mdParser = goldmark.New().Parser()
-
 // Parse reads one study path body into its declared structure. bodyStartLine
 // is the file line the body begins on, so a note with frontmatter reports the
 // lines an editor shows.
+//
+// The body is read as plain CommonMark, the dialect the rest of the vault's
+// tooling reads. Task list items are deliberately not enabled: the checkbox is
+// recognized from the row's own text, so "[x]" means one thing everywhere.
 func Parse(body string, bodyStartLine int) Document {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+	doc := graph.ParseCommonMark(body)
 
 	p := &parser{
 		body:          body,
 		bodyStartLine: bodyStartLine,
+	}
+	for i := range len(body) {
+		if body[i] == '\n' {
+			p.newlines = append(p.newlines, i)
+		}
 	}
 	p.zones = skipZones(doc, body)
 	p.openers = emphasisOpeners(doc)
@@ -345,7 +342,10 @@ func Parse(body string, bodyStartLine int) Document {
 type parser struct {
 	body          string
 	bodyStartLine int
-	zones         []Span
+	// newlines are the offsets of every newline in body, in order, so a
+	// line number is one search rather than a count from the top.
+	newlines []int
+	zones    []Span
 	// openers are the opening delimiter runs of the emphasis Markdown actually
 	// paired, so an unpaired run is known to be printed rather than markup.
 	openers []Span
@@ -376,7 +376,8 @@ func (p *parser) line(offset int) int {
 	if offset < 0 || offset > len(p.body) {
 		return p.bodyStartLine
 	}
-	return p.bodyStartLine + strings.Count(p.body[:offset], "\n")
+	before, _ := slices.BinarySearch(p.newlines, offset)
+	return p.bodyStartLine + before
 }
 
 // walkBlocks visits the document's top-level blocks in order, descending only
@@ -438,46 +439,58 @@ func (p *parser) topLevelList(node *ast.List) {
 // scope carries a live wikilink. localDepth counts the local containers
 // already enclosing the row, so one nested inside another is reported.
 func (p *parser) listItem(item *ast.ListItem, group *Group, localDepth int) {
-	spans := p.ownSpans(item)
+	r := &row{item: item, spans: ownSpans(item), line: p.bodyStartLine}
 	child := childList(item)
 
-	own := ""
 	head := ""
-	line := p.bodyStartLine
 	abs := 0
-	if len(spans) > 0 {
-		abs = spans[0].Start
-		own = p.body[spans[0].Start:spans[0].Stop]
-		head = firstSourceLine(own)
-		line = p.line(abs)
-	} else if r, ok := linesRange(item); ok {
-		line = p.line(r.Start)
+	if len(r.spans) > 0 {
+		abs = r.spans[0].Start
+		r.own = p.body[r.spans[0].Start:r.spans[0].Stop]
+		head = firstSourceLine(r.own)
+		r.line = p.line(abs)
+	} else if rng, ok := linesRange(item); ok {
+		r.line = p.line(rng.Start)
 	}
 
 	// A declaration is read on the row's own line; a marker further down names
 	// a branch nothing opens, so it is reported rather than obeyed.
-	name, role, declared := p.declaration(head, abs, line)
-	p.reportContinuationMarkers(spans)
-	var hits []linkHit
-	if !isTaskRow(own) {
-		hits = p.liveWikilinks(spans)
+	name, role, declared := p.declaration(head, abs, r.line)
+	r.name = name
+	p.reportContinuationMarkers(r.spans)
+	if !isTaskRow(r.own) {
+		r.hits = p.liveWikilinks(r.spans)
 	}
 
 	switch {
 	case declared && child == nil:
-		p.report(RuleRoleMisplaced, line,
+		p.report(RuleRoleMisplaced, r.line,
 			"a sequence marker on a row with no list beneath it declares nothing; a container declares the child list it opens",
-			strings.TrimSpace(own))
-		p.plainRow(item, hits, spans, name, line, own, group)
+			strings.TrimSpace(r.own))
+		p.plainRow(r, group)
 	case declared:
-		p.container(item, child, group, name, role, hits, spans, line, own, localDepth)
+		p.container(r, child, group, role, localDepth)
 	case child != nil:
 		// The row's own entry comes first, in the order the author wrote them.
-		p.plainRow(item, hits, spans, name, line, own, group)
+		p.plainRow(r, group)
 		p.undeclaredChildList(item, child, group, localDepth)
 	default:
-		p.plainRow(item, hits, spans, name, line, own, group)
+		p.plainRow(r, group)
 	}
+}
+
+// row is one list item as listItem read it, handed whole to whichever of
+// plainRow and container files it.
+type row struct {
+	item *ast.ListItem
+	// spans are the row's own text blocks, and own is the first one's text.
+	spans []Span
+	own   string
+	// name is the row's own line with a recognized marker removed.
+	name string
+	line int
+	// hits are the live links in the row's target scope.
+	hits []linkHit
 }
 
 // reportContinuationMarkers names a visible marker written in a row's
@@ -504,47 +517,36 @@ func (p *parser) reportContinuationMarkers(spans []Span) {
 
 // container opens a branch from a nested list row. A valid local container is
 // a structural edge: not a row of the course, and its rows belong to it alone.
-func (p *parser) container(
-	item *ast.ListItem,
-	child *ast.List,
-	group *Group,
-	name string,
-	role Role,
-	hits []linkHit,
-	spans []Span,
-	line int,
-	own string,
-	localDepth int,
-) {
+func (p *parser) container(r *row, child *ast.List, group *Group, role Role, localDepth int) {
 	invalid := false
-	if len(hits) > 0 {
-		p.report(RuleRoleOnEntry, line,
+	if len(r.hits) > 0 {
+		p.report(RuleRoleOnEntry, r.line,
 			"a row cannot be both a unit and a branch heading; give the branch its own row above the list it opens",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		invalid = true
 		// The row is still a row the branch lists, but neither the entry nor
 		// the branch it opens projects until the author splits them.
 		if group != nil {
 			entry := &Candidate{
-				Text:  strings.TrimSpace(name),
-				Line:  line,
-				Span:  spans[0],
+				Text:  strings.TrimSpace(r.name),
+				Line:  r.line,
+				Span:  r.spans[0],
 				State: EntryRoleOnEntry,
 			}
 			// A row naming several notes resolves to none: picking one would
 			// be the guess the grammar refuses.
-			if len(hits) == 1 {
-				entry.Target = hits[0].target
-				entry.TargetSpan = hits[0].span()
+			if len(r.hits) == 1 {
+				entry.Target = r.hits[0].target
+				entry.TargetSpan = r.hits[0].span()
 			}
-			p.rows[spans[0].Start] = entry
+			p.rows[r.spans[0].Start] = entry
 			group.Items = append(group.Items, Item{Entry: entry})
 		}
 	}
 	if role == RoleLocal && localDepth > 0 {
-		p.report(RuleNestingTooDeep, line,
+		p.report(RuleNestingTooDeep, r.line,
 			"a side branch inside a side branch has no place in the course order; keep it to one level below what it hangs from",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		invalid = true
 	}
 	if role == RolePrimary && localDepth > 0 {
@@ -553,19 +555,19 @@ func (p *parser) container(
 		// the other conflict. Reporting it here keeps the branch where the
 		// author wrote it; marking it invalid is what stops the page drawing
 		// it as a counted module the walk never reaches.
-		p.report(RuleRoleNestedPrimary, line,
+		p.report(RuleRoleNestedPrimary, r.line,
 			"a branch cannot take part in the course as the main line while it sits inside a side branch",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		invalid = true
 	}
 	anchor := ""
 	var anchorSpan Span
 	if role == RoleLocal {
-		target, span, ok := p.anchorTarget(item)
+		target, span, ok := p.anchorTarget(r.item)
 		if !ok {
-			p.report(RuleLocalOrphan, line,
+			p.report(RuleLocalOrphan, r.line,
 				"a side branch has nothing to hang from; nest it under the unit it belongs to",
-				strings.TrimSpace(own))
+				strings.TrimSpace(r.own))
 			invalid = true
 		} else {
 			anchor, anchorSpan = target, span
@@ -573,8 +575,8 @@ func (p *parser) container(
 	}
 
 	opened := &Group{
-		Name:         strings.TrimSpace(name),
-		Line:         line,
+		Name:         strings.TrimSpace(r.name),
+		Line:         r.line,
 		Role:         role,
 		Container:    true,
 		AnchorTarget: anchor,
@@ -587,9 +589,9 @@ func (p *parser) container(
 	}
 	p.readChildren(child, opened, nextDepth)
 	if group == nil {
-		p.report(RuleEntryOutsideBranch, line,
+		p.report(RuleEntryOutsideBranch, r.line,
 			"a branch declared before the first level-2 heading belongs to no part of the course",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		return
 	}
 	group.Items = append(group.Items, Item{Branch: opened})
@@ -656,7 +658,7 @@ func (p *parser) undeclaredChildList(
 // declaresContainer reports whether a row opens a branch of its own: a readable
 // marker with a list beneath it.
 func (p *parser) declaresContainer(item *ast.ListItem) bool {
-	spans := p.ownSpans(item)
+	spans := ownSpans(item)
 	if len(spans) == 0 {
 		return false
 	}
@@ -703,45 +705,42 @@ func (p *parser) readChildren(child *ast.List, into *Group, localDepth int) {
 // plainRow records an ordinary row against its branch. Every row with a live
 // link in its target scope is a candidate, but only a canonical one is
 // accepted: choosing for the author would be a guess.
-func (p *parser) plainRow(item *ast.ListItem, hits []linkHit, spans []Span, name string, line int, own string, group *Group) {
-	if len(hits) == 0 {
+func (p *parser) plainRow(r *row, group *Group) {
+	if len(r.hits) == 0 {
 		return
 	}
 	if group == nil {
-		p.report(RuleEntryOutsideBranch, line,
+		p.report(RuleEntryOutsideBranch, r.line,
 			"a unit listed before the first level-2 heading belongs to no part of the course",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		return
 	}
-	entry := &Candidate{Line: line, Span: spans[0]}
-	switch {
-	case len(hits) > 1:
-		p.report(RuleEntryMultiTarget, line,
+	entry := &Candidate{Line: r.line, Span: r.spans[0]}
+	if len(r.hits) > 1 {
+		p.report(RuleEntryMultiTarget, r.line,
 			"a row naming more than one note does not say which unit it is; give each unit its own row",
-			strings.TrimSpace(own))
+			strings.TrimSpace(r.own))
 		// Recorded with no target rather than dropped: the branch still has a row.
-		entry.Text = strings.TrimSpace(name)
+		entry.Text = strings.TrimSpace(r.name)
 		entry.State = EntryMultiTarget
-	case !p.linkFirst(hits[0], spans[0]):
-		p.report(RuleEntryNoncanonical, line,
-			"a unit row opens with its link; move the link to the front, or take the row out of the course",
-			strings.TrimSpace(own))
-		entry.Text = hits[0].display
-		entry.Aliased = hits[0].aliased
-		entry.Fragment = hits[0].fragment
-		entry.Target = hits[0].target
-		entry.TargetSpan = hits[0].span()
-		entry.State = EntryNoncanonical
-	default:
-		entry.Text = hits[0].display
-		entry.Aliased = hits[0].aliased
-		entry.Fragment = hits[0].fragment
-		entry.Target = hits[0].target
-		entry.TargetSpan = hits[0].span()
-		entry.State = EntryAccepted
-		entry.Gloss = p.gloss(item, hits[0].stop)
+	} else {
+		hit := r.hits[0]
+		entry.Text = hit.display
+		entry.Aliased = hit.aliased
+		entry.Fragment = hit.fragment
+		entry.Target = hit.target
+		entry.TargetSpan = hit.span()
+		if p.linkFirst(hit, r.spans[0]) {
+			entry.State = EntryAccepted
+			entry.Gloss = p.gloss(r.item, hit.stop)
+		} else {
+			p.report(RuleEntryNoncanonical, r.line,
+				"a unit row opens with its link; move the link to the front, or take the row out of the course",
+				strings.TrimSpace(r.own))
+			entry.State = EntryNoncanonical
+		}
 	}
-	p.rows[spans[0].Start] = entry
+	p.rows[r.spans[0].Start] = entry
 	group.Items = append(group.Items, Item{Entry: entry})
 }
 
@@ -894,7 +893,7 @@ func (p *parser) anchorTarget(item *ast.ListItem) (target string, span Span, ok 
 // one. A row the grammar refused is not a lesson however it reads, so a branch
 // beneath it hangs from nothing rather than from something outside the course.
 func (p *parser) anchorOwnTarget(item *ast.ListItem) (target string, span Span, ok bool) {
-	spans := p.ownSpans(item)
+	spans := ownSpans(item)
 	if len(spans) == 0 {
 		return "", Span{}, false
 	}
@@ -1055,24 +1054,15 @@ func (p *parser) declaration(raw string, abs, line int) (name string, role Role,
 	return name, role, decl == declValid
 }
 
-// ownSpans is a list row's own text — every block it says itself — as source
-// ranges in order, skipping any list nested beneath it. The scope continues
-// past a nested list: a loose item's later paragraph is still the row's words.
-func (p *parser) ownSpans(item *ast.ListItem) []Span {
-	return p.spansUnder(item)
-}
-
-// spansUnder collects, in order, the source ranges of everything under a node
-// that counts as the row's own words. A nested list is another row's words
-// wherever it appears, so it is left out here and inside anything below.
+// ownSpans is a list row's own text, every block it says itself, as source
+// ranges in order. A nested list is another row's words wherever it appears,
+// so it is left out at any depth, and the scope continues past it: a loose
+// item's later paragraph is still the row's words.
 //
-// A block that holds no source lines of its own is descended into rather than
-// passed over. A blockquote is one — so is the callout written as one — and
-// what it holds is still text the author wrote under this row. Passing over it
-// meant a marker written inside was in no scope at all: not read as a
-// declaration, which is right, and not reported either, which left the one
-// shape of this mistake that says nothing.
-func (p *parser) spansUnder(node ast.Node) []Span {
+// A block that holds no source lines of its own, such as a blockquote or the
+// callout written as one, is descended into: what it holds is still text the
+// author wrote under this row, so a marker there is reported like any other.
+func ownSpans(node ast.Node) []Span {
 	var spans []Span
 	for c := node.FirstChild(); c != nil; c = c.NextSibling() {
 		if _, nested := c.(*ast.List); nested {
@@ -1082,7 +1072,7 @@ func (p *parser) spansUnder(node ast.Node) []Span {
 			spans = append(spans, r)
 			continue
 		}
-		spans = append(spans, p.spansUnder(c)...)
+		spans = append(spans, ownSpans(c)...)
 	}
 	return spans
 }
@@ -1104,25 +1094,14 @@ type linkHit struct {
 // span is where this link is written, as the occurrence identity a row keeps.
 func (h linkHit) span() Span { return Span{Start: h.start, Stop: h.stop} }
 
-// LiveWikilinks are the live wikilinks in body, in document order. It is the
-// same scan a study path's rows already use, so a link written inside a
-// fence, a code span, an authored HTML block, or an Obsidian comment is
-// not live here either.
-func LiveWikilinks(body string) []Link {
-	links, _ := LiveScan(body)
-	return links
-}
-
-// LiveScan is the live wikilinks in body together with the skip zones that
-// filtered them. A map's heading walk reads these same zones so a line
-// skipped for a link is skipped for a heading.
+// LiveScan is the live wikilinks in body, in document order, together with the
+// skip zones that filtered them. A map's heading walk reads these same zones
+// so a line skipped for a link is skipped for a heading.
 func LiveScan(body string) (links []Link, zones []Span) {
 	if body == "" {
 		return nil, nil
 	}
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
-	zones = skipZones(doc, body)
+	zones = skipZones(graph.ParseCommonMark(body), body)
 	p := &parser{body: body, zones: zones}
 	hits := p.linksIn(Span{Start: 0, Stop: len(body)})
 	if len(hits) == 0 {
@@ -1187,26 +1166,10 @@ func childList(item *ast.ListItem) *ast.List {
 
 // skipZones are the byte ranges whose brackets are not live links: code
 // blocks and code spans, Obsidian comments, and the authored HTML blocks
-// LineScan already hides. It reads the tree the caller already has, because
+// LineSkipZones already hides. It reads the tree the caller already has, because
 // a second parse is a second answer to what the document is.
 func skipZones(doc ast.Node, body string) []Span {
-	var code []Span
-	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch node := n.(type) {
-		case *ast.FencedCodeBlock, *ast.CodeBlock:
-			if r, ok := linesRange(node); ok {
-				code = append(code, r)
-			}
-		case *ast.CodeSpan:
-			if r, ok := inlineRange(node); ok {
-				code = append(code, r)
-			}
-		}
-		return ast.WalkContinue, nil
-	})
+	code := graph.CodeZones(doc)
 	code = append(code, graph.CommentZones(body, code)...)
 	return append(code, graph.LineSkipZones(body)...)
 }
@@ -1332,7 +1295,7 @@ func firstSourceLine(block string) string {
 
 // rowLine is the file line a list row starts on.
 func (p *parser) rowLine(item *ast.ListItem) int {
-	if spans := p.ownSpans(item); len(spans) > 0 {
+	if spans := ownSpans(item); len(spans) > 0 {
 		return p.line(spans[0].Start)
 	}
 	if r, ok := linesRange(item); ok {

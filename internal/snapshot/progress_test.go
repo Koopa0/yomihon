@@ -13,7 +13,7 @@ import (
 // readWatcher says how far the build has got each time it reads a file, which
 // is the moment another goroutine would be asking.
 type readWatcher struct {
-	*vault.Reader
+	Source
 
 	progress *Progress
 	seen     [][2]int
@@ -26,7 +26,7 @@ func (w *readWatcher) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, 
 	w.seen = append(w.seen, [2]int{done, total})
 	w.paths = append(w.paths, entry.Path())
 	w.folders = append(w.folders, w.progress.Folder())
-	return w.Reader.ReadFile(ctx, entry)
+	return w.Source.ReadFile(ctx, entry)
 }
 
 // TestProgressCountsTheFilesOfTheFirstBuild checks what a page that is waiting
@@ -38,18 +38,14 @@ func TestProgressCountsTheFilesOfTheFirstBuild(t *testing.T) {
 	for _, name := range []string{"A.md", "B.md", "C.md"} {
 		writeNote(t, root, name, "# "+name+"\n")
 	}
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	reader := openReader(t, root)
 
 	progress := new(Progress)
 	if done, total := progress.Files(); done != 0 || total != 0 {
 		t.Fatalf("before the build, Files() = %d, %d, want 0, 0", done, total)
 	}
-	watcher := &readWatcher{Reader: reader, progress: progress}
-	if _, err = New(t.Context(), watcher, discardLogger(), nil, schema.Ungoverned(), WithProgress(progress)); err != nil {
+	watcher := &readWatcher{Source: reader, progress: progress}
+	if _, err := New(t.Context(), watcher, discardLogger(), nil, schema.Ungoverned(), WithProgress(progress)); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
@@ -72,18 +68,14 @@ func TestProgressNamesTheFolderBeingRead(t *testing.T) {
 	for _, name := range []string{"Top.md", "courses/go/One.md", "courses/go/Two.md", "courses/design/deep/Three.md"} {
 		writeNote(t, root, name, "# "+name+"\n")
 	}
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
+	reader := openReader(t, root)
 
 	progress := new(Progress)
 	if folder := progress.Folder(); folder != "" {
 		t.Fatalf("before the build, Folder() = %q, want none", folder)
 	}
-	watcher := &readWatcher{Reader: reader, progress: progress}
-	if _, err = New(t.Context(), watcher, discardLogger(), nil, schema.Ungoverned(), WithProgress(progress)); err != nil {
+	watcher := &readWatcher{Source: reader, progress: progress}
+	if _, err := New(t.Context(), watcher, discardLogger(), nil, schema.Ungoverned(), WithProgress(progress)); err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
@@ -102,10 +94,6 @@ func TestProgressNamesTheFolderBeingRead(t *testing.T) {
 	if folder := progress.Folder(); folder != "" {
 		t.Errorf("after the build, Folder() = %q, want none: nothing is being read", folder)
 	}
-	var nilProgress *Progress
-	if folder := nilProgress.Folder(); folder != "" {
-		t.Errorf("a build nobody watches names the folder %q", folder)
-	}
 }
 
 // TestNilProgressIsAnUnwatchedBuild keeps the commands and every later rescan,
@@ -115,6 +103,9 @@ func TestNilProgressIsAnUnwatchedBuild(t *testing.T) {
 	var progress *Progress
 	if done, total := progress.Files(); done != 0 || total != 0 {
 		t.Errorf("a nil Progress reports %d, %d, want 0, 0", done, total)
+	}
+	if folder := progress.Folder(); folder != "" {
+		t.Errorf("a nil Progress names the folder %q", folder)
 	}
 	progress.begin(5)
 	progress.reached(2, "")
