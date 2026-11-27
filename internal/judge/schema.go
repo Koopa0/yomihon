@@ -71,50 +71,38 @@ func unmatchedKnowledgeDir(dir string) Finding {
 	}
 }
 
-// lintRun is one contract resolved into everything the frontmatter rules read,
-// held together for the length of one scan. Every field is derived from the
-// contract exactly once, and they travel together because they have to agree:
-// passed separately, a caller could mix them from two different contracts.
+// lintRun is one contract and the values the frontmatter rules read from it
+// that cost a copy or a search to ask for, resolved once for a scan.
 type lintRun struct {
-	contract            *schema.Contract
-	scope               schema.KnowledgeScope
-	skip                []string
-	requiresFrontmatter bool
-	conceptType         string
-	conceptDeclared     bool
-	unitType            string
-	provenance          []string
-	enums               []schema.EnumDefinition
-	domains             schema.Domains
+	contract   *schema.Contract
+	unitType   string
+	provenance []string
+	enums      []schema.EnumDefinition
+	domains    schema.Domains
 }
 
 // newLintRun resolves a contract into the run the rules read from.
 func newLintRun(contract *schema.Contract) *lintRun {
 	definition := contract.Definition()
-	run := &lintRun{
-		contract:            contract,
-		scope:               contract.KnowledgeScope(),
-		skip:                contract.SkipBasenames(),
-		requiresFrontmatter: contract.RequiresFrontmatter(),
-		provenance:          definition.Rules.ConceptRequiresProvenance,
-		enums:               definition.Enums,
-		domains:             contract.Domains(),
+	unitType, _ := contract.LessonType()
+	return &lintRun{
+		contract:   contract,
+		unitType:   unitType,
+		provenance: definition.Rules.ConceptRequiresProvenance,
+		enums:      definition.Enums,
+		domains:    contract.Domains(),
 	}
-	run.conceptType, run.conceptDeclared = contract.ConceptType()
-	run.unitType, _ = contract.LessonType()
-	return run
 }
 
 // check returns the frontmatter findings of every note the run's contract
 // governs: those inside its knowledge scope whose file name its scan does not
 // skip.
 func (r *lintRun) check(notes []note) []Finding {
+	scope := r.contract.KnowledgeScope()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		seg := strings.Split(n.path, "/")
-		skipped := slices.Contains(r.skip, seg[len(seg)-1])
-		if r.scope.Includes(n.path) && !skipped {
+		if scope.Includes(n.path) && !r.contract.SkipsBasename(n.path) {
 			out = append(out, r.note(n)...)
 		}
 	}
@@ -135,7 +123,7 @@ func (r *lintRun) note(n *note) []Finding {
 		if n.unclosedFrontmatter {
 			return []Finding{unclosedFrontmatterFinding(n)}
 		}
-		if r.requiresFrontmatter {
+		if r.contract.RequiresFrontmatter() {
 			return []Finding{schemaFinding(n, RuleSchemaFrontmatter, "", "", "is missing")}
 		}
 		return nil
@@ -180,7 +168,7 @@ func (r *lintRun) referenceNestedSequences(n *note) []Finding {
 			Message:         field.name + " contains a nested YAML list instead of a reference",
 			Evidence:        "a reference item was read as a YAML sequence",
 			SuggestedAction: "quote the reference, for example " + field.name + ": [\"[[Note]]\"] or " + field.name + ": [\"Note\"]",
-			SourceRule:      field.sourceRule,
+			SourceRule:      sourceYomihon,
 			Fingerprint:     fingerprint(RuleSchemaReferenceNestedSequence, n.path, field.name+"\x1f"),
 		})
 	}
@@ -309,7 +297,7 @@ func (r *lintRun) structural(n *note) []Finding {
 	// Which type holds the corpus of distilled ideas, and whether this vault
 	// keeps one at all, is the contract's to say; a vault declaring none has
 	// nothing for this rule to be about.
-	if r.conceptDeclared && n.noteType == r.conceptType &&
+	if conceptType, declared := r.contract.ConceptType(); declared && n.noteType == conceptType &&
 		!hasProvenance(n.frontmatter, r.provenance) {
 		return []Finding{schemaFinding(n, RuleSchemaProvenance, "", "", "concept has neither based_on nor source_locator")}
 	}

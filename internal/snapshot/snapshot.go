@@ -633,7 +633,7 @@ func newStore(source Source, log *slog.Logger, contract *schema.Contract, govern
 		parsers: noteParsers{
 			note:     vault.Parse,
 			document: lexical.DocumentFromNote,
-			planned:  plannedNames,
+			planned:  judge.NewPlanned,
 			links:    judge.Citations,
 		},
 		capabilities:     contract.Capabilities(governance),
@@ -1186,11 +1186,6 @@ type noteParsers struct {
 	document func(*vault.Note) lexical.Document
 	planned  func(body string, contract *schema.Contract) judge.Planned
 	links    func(body string, contract *schema.Contract) []judge.Citation
-}
-
-// plannedNames harvests the concept names one body declares it still owes.
-func plannedNames(body string, contract *schema.Contract) judge.Planned {
-	return judge.NewPlanned(slices.Values([]string{body}), contract)
 }
 
 // noteProducts is what the folder-wide projections read out of one note's body,

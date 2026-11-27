@@ -3,7 +3,6 @@ package judge
 import (
 	"encoding/json"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -175,50 +174,6 @@ func TestCheckDoesNotInspectOrReportEgressDeniedPathTargets(t *testing.T) {
 	}
 }
 
-func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeTestContract(t, root, []string{"Restricted"})
-	authority := loadTestAuthority(t, root)
-	source := note{path: "Notes/public.md"}
-	refs := []pathRef{
-		{target: "../Restricted/secret.md"},
-		{target: "Restricted/secret.md", code: true},
-	}
-	for _, ref := range refs {
-		inspected := false
-		contains := func(string) bool {
-			inspected = true
-			return true
-		}
-		if finding, ok := classifyCapturedPathRef(
-			&source,
-			"Notes",
-			ref,
-			diskRefContext{authority: authority, contains: contains},
-		); ok {
-			t.Errorf("classifyCapturedPathRef(%+v) = %+v, want no private finding", ref, finding)
-		}
-		if inspected {
-			t.Errorf("classifyCapturedPathRef(%+v) inspected membership before the privacy gate", ref)
-		}
-	}
-	inspected := false
-	finding, found := classifyCapturedPathRef(&source, "Notes", pathRef{target: "existing.md"}, diskRefContext{
-		authority: authority, contains: func(p string) bool {
-			inspected = true
-			if p != "Notes/existing.md" {
-				t.Errorf("authorized membership observed %q, want Notes/existing.md", p)
-			}
-			return true
-		},
-	})
-	if found || !inspected {
-		t.Errorf("authorized existing target: inspected=%t finding=%+v, want membership observed without a finding", inspected, finding)
-	}
-}
-
 // coverageOf runs the coverage report over root and parses it back into the
 // Coverage value the assertions read.
 func coverageOf(t *testing.T, root string) coverageReport {
@@ -267,56 +222,32 @@ func findingByRuleAndPath(findings []Finding, ruleID RuleID, path string) (Findi
 	return Finding{}, false
 }
 
-// TestClassifyPathRefStaysSilentOutsideTheScan locks the difference between
-// looking and finding nothing, and never looking. The scan skips hidden paths,
-// so a link into one produced "does not exist in the vault" about a file that
-// was sitting right there — the judge reporting its own boundary as a fault in
-// the vault. The second half matters as much: a link that really is broken must
-// still be reported, or this fix would trade a false positive for a false
-// silence.
-func TestClassifyPathRefStaysSilentOutsideTheScan(t *testing.T) {
+// TestALinkIntoWhatTheScanLeavesOutIsNotBroken asserts a link to a file the
+// scan does not look at, under a hidden name, is not reported as missing while
+// a link to a file that really is missing still is, in prose and in code.
+func TestALinkIntoWhatTheScanLeavesOutIsNotBroken(t *testing.T) {
 	t.Parallel()
-
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
-	authority := loadTestAuthority(t, root)
-	source := note{path: "Writing/README.md"}
-	// Nothing is in the scan, so only the boundary decides.
-	contains := func(string) bool { return false }
-
-	tests := []struct {
-		name        string
-		target      string
-		code        bool
-		wantFinding bool
-	}{
-		{name: "hidden directory", target: "../.claude/skills/share-rewrite/SKILL.md"},
-		{name: "hidden directory beside the note", target: ".config/notes.md"},
-		{name: "hidden file", target: "../.hidden.md"},
-		{name: "ordinary missing file is still reported", target: "../Notes/gone.md", wantFinding: true},
-		{name: "missing file beside the note is still reported", target: "gone.md", wantFinding: true},
-		// A reference written in code resolves against the vault root as well
-		// as the note, and takes its own branch — the boundary has to hold on
-		// both or the quieter one keeps reporting a file that is really there.
-		{name: "hidden directory in code", target: ".claude/skills/share-rewrite/SKILL.md", code: true},
-		{name: "hidden file in code", target: ".hidden.md", code: true},
-		{name: "ordinary missing file in code is still reported", target: "Notes/gone.md", code: true, wantFinding: true},
+	for _, rel := range []string{".claude/skills/share/SKILL.md", "Writing/.config/notes.md", ".hidden.md"} {
+		write(t, root, rel, "# hidden\n")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			finding, ok := classifyCapturedPathRef(
-				&source, "Writing", pathRef{target: tt.target, code: tt.code},
-				diskRefContext{authority: authority, contains: contains},
-			)
-			if ok != tt.wantFinding {
-				t.Fatalf("classifyCapturedPathRef(%q) reported %t, want %t (finding = %+v)",
-					tt.target, ok, tt.wantFinding, finding)
-			}
-			if ok && !strings.Contains(finding.Evidence, "does not exist") {
-				t.Errorf("classifyCapturedPathRef(%q) evidence = %q, want it to state the absence",
-					tt.target, finding.Evidence)
-			}
-		})
+	write(t, root, "Writing/Guide.md", "# Guide\n\n"+
+		"[a](../.claude/skills/share/SKILL.md) [b](.config/notes.md) [c](../.hidden.md)\n"+
+		"`.claude/skills/share/SKILL.md` `.hidden.md`\n"+
+		"[d](../Notes/gone.md) [e](gone.md) `Notes/gone.md`\n")
+	findings, err := runCheckAction(t.Context(), root, nil, true)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	var got []string
+	for _, f := range findings {
+		if f.RuleID == RuleLinkBrokenPath {
+			got = append(got, *f.Target)
+		}
+	}
+	want := []string{"../Notes/gone.md", "gone.md", "Notes/gone.md"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("link.broken.path targets mismatch (-want +got):\n%s", diff)
 	}
 }

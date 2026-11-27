@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"iter"
 	"maps"
 
 	"github.com/koopa0/yomihon/internal/egress"
@@ -29,26 +28,21 @@ type Planned struct {
 	names map[string]bool
 }
 
-// NewPlanned harvests the declared-but-unwritten concept names from every note
-// body in bodies, against the heading and inline marks the contract declared.
-// A nil contract harvests against today's dialect defaults. Which bodies to
-// feed it is the caller's decision: the adjudicator harvests only from notes
-// the contract allows to egress, since a name planned in a private note must
-// not soften a public broken link, while the reading page harvests from all
-// of them.
-func NewPlanned(bodies iter.Seq[string], contract *schema.Contract) Planned {
-	marks := plannedMarksFrom(contract)
+// NewPlanned harvests the concept names one note body declares it still owes,
+// against the heading and inline marks the contract declares; a nil contract
+// harvests against the default marks. A caller harvests note by note, so a
+// note a parser cannot survive costs that note, and joins the sets with
+// MergePlanned. Which notes to harvest is the caller's decision: the check
+// harvests only from notes the rules file lets out, since a name planned in a
+// private note must not soften a public broken link, while the reading page
+// harvests from all of them.
+func NewPlanned(body string, contract *schema.Contract) Planned {
 	set := Planned{names: make(map[string]bool)}
-	for body := range bodies {
-		set.add(extractPlannedNamesWith(body, marks))
-	}
+	set.add(extractPlannedNamesWith(body, plannedMarksFrom(contract)))
 	return set
 }
 
-// MergePlanned is the union of sets: what NewPlanned would have harvested from
-// every body the sets were harvested from, one note at a time. It exists so a
-// caller that has to attribute a harvesting failure to one note can harvest
-// note by note and still end with the corpus's one set.
+// MergePlanned is the union of sets: the names every one of them declared.
 func MergePlanned(sets ...Planned) Planned {
 	merged := Planned{names: make(map[string]bool)}
 	for _, set := range sets {

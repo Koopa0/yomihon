@@ -241,3 +241,14 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 	facts := inspectBody(body, nil)
 	return anchorSurfaceFrom(body, facts.comments)
 }
+
+// parseNote reads one note against the default marks.
+func parseNote(rel string, data []byte) note {
+	return parseNoteWithMarks(rel, data, defaultPlannedMarks())
+}
+
+// extractPlannedNames harvests one body's planned names against the default
+// marks.
+func extractPlannedNames(body string) []string {
+	return extractPlannedNamesWith(body, defaultPlannedMarks())
+}

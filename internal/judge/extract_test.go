@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -462,7 +461,7 @@ func TestThePlannedSetIsOnlyEnteredThroughTheHarvest(t *testing.T) {
 		t.Error("a set nobody harvested reports a name as planned; the zero value means a corpus that declared nothing")
 	}
 
-	set := NewPlanned(slices.Values([]string{"接下來 [[Consistent Hashing]] 待整理。\n"}), nil)
+	set := NewPlanned("接下來 [[Consistent Hashing]] 待整理。\n", nil)
 	if !set.Has("consistent hashing") {
 		t.Error("NewPlanned did not fold the harvested name the way the resolver folds a link to it")
 	}
@@ -471,34 +470,18 @@ func TestThePlannedSetIsOnlyEnteredThroughTheHarvest(t *testing.T) {
 	}
 }
 
-// TestMergingTheNotesOwnPlannedSetsAnswersAsOneHarvestOfTheCorpus holds the
-// union to what a single harvest over every body would have produced, because a
-// caller that harvests note by note is standing in for that one harvest and the
-// two must not disagree about which names a corpus has declared.
-func TestMergingTheNotesOwnPlannedSetsAnswersAsOneHarvestOfTheCorpus(t *testing.T) {
+// TestMergedPlannedSetsHoldEveryNotesNames asserts the union of the notes' own
+// sets answers for every name any of them declared, and invents none.
+func TestMergedPlannedSetsHoldEveryNotesNames(t *testing.T) {
 	t.Parallel()
-
-	bodies := []string{
-		"接下來 [[Consistent Hashing]] 待整理。\n",
-		"接下來 [[Bloom Filter]] 待整理。\n",
-		"沒有宣告任何待寫的名字。\n",
-	}
-	whole := NewPlanned(slices.Values(bodies), nil)
-	var parts []Planned
-	for _, body := range bodies {
-		parts = append(parts, NewPlanned(slices.Values([]string{body}), nil))
-	}
-	merged := MergePlanned(parts...)
-	for _, name := range []string{"consistent hashing", "bloom filter", "skip list", "一致性雜湊"} {
-		if got, want := merged.Has(name), whole.Has(name); got != want {
-			t.Errorf("merged.Has(%q) = %t, a single harvest says %t", name, got, want)
+	merged := MergePlanned(
+		NewPlanned("接下來 [[Consistent Hashing]] 待整理。\n", nil),
+		NewPlanned("接下來 [[Bloom Filter]] 待整理。\n", nil),
+		Planned{},
+	)
+	for name, want := range map[string]bool{"consistent hashing": true, "bloom filter": true, "skip list": false} {
+		if got := merged.Has(name); got != want {
+			t.Errorf("merged.Has(%q) = %t, want %t", name, got, want)
 		}
-	}
-	if !merged.Has("bloom filter") {
-		t.Error("the merged set lost a name the second note declared")
-	}
-	var empty Planned
-	if MergePlanned(empty).Has("consistent hashing") {
-		t.Error("merging the zero set invented a planned name")
 	}
 }

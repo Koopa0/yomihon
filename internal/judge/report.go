@@ -164,13 +164,7 @@ func scoreboard(findings []Finding, roots domainRoots) []scoreRow {
 // targets more than one reference names. A target is planned only when every
 // reference to it is planned. The result is ordered by fan-in, then by target.
 func leverage(findings []Finding, roots domainRoots) []leverageEntry {
-	type agg struct {
-		target  string
-		count   int
-		planned bool
-		domains []string
-	}
-	byTarget := make(map[string]*agg)
+	byTarget := make(map[string]*leverageEntry)
 	for i := range findings {
 		f := &findings[i]
 		if f.RuleID != RuleLinkBroken && f.RuleID != RuleLinkTitleNotAlias {
@@ -180,25 +174,25 @@ func leverage(findings []Finding, roots domainRoots) []leverageEntry {
 			continue
 		}
 		key := graph.NormalizeKey(*f.Target)
-		a := byTarget[key]
-		if a == nil {
-			a = &agg{target: *f.Target, planned: true}
-			byTarget[key] = a
+		e := byTarget[key]
+		if e == nil {
+			e = &leverageEntry{target: *f.Target, planned: true}
+			byTarget[key] = e
 		}
-		a.count++
-		a.planned = a.planned && f.Severity == SeverityInfo
-		if d := roots.of(f.Path); !slices.Contains(a.domains, d) {
-			a.domains = append(a.domains, d)
+		e.count++
+		e.planned = e.planned && f.Severity == SeverityInfo
+		if d := roots.of(f.Path); !slices.Contains(e.domains, d) {
+			e.domains = append(e.domains, d)
 		}
 	}
 	var out []leverageEntry
 	for _, key := range slices.Sorted(maps.Keys(byTarget)) {
-		a := byTarget[key]
-		if a.count <= 1 {
+		e := byTarget[key]
+		if e.count <= 1 {
 			continue
 		}
-		slices.Sort(a.domains)
-		out = append(out, leverageEntry{target: a.target, count: a.count, planned: a.planned, domains: a.domains})
+		slices.Sort(e.domains)
+		out = append(out, *e)
 	}
 	slices.SortStableFunc(out, func(a, b leverageEntry) int {
 		if c := cmp.Compare(b.count, a.count); c != 0 {

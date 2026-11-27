@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"iter"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -15,16 +14,14 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// noteBodies iterates the parsed bodies of notes, for a test that harvests the
-// planned names of the corpus it built in one pass.
-func noteBodies(notes []*vault.Note) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for _, n := range notes {
-			if !yield(n.Body) {
-				return
-			}
-		}
+// plannedOf is the planned names every note declares, harvested note by note
+// as a build harvests them.
+func plannedOf(notes []*vault.Note) judge.Planned {
+	sets := make([]judge.Planned, 0, len(notes))
+	for _, n := range notes {
+		sets = append(sets, judge.NewPlanned(n.Body, nil))
 	}
+	return judge.MergePlanned(sets...)
 }
 
 // readingsOf is the reading a build takes of each note, by path.
@@ -43,7 +40,7 @@ func healthOf(notes []*vault.Note, resources []string) Health {
 	links := linksOf(notes)
 	readings := readingsOf(notes)
 	back := newBacklinks(notes, links, idx, titlesIn(readings))
-	return newHealth(notes, citationsOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
+	return newHealth(notes, citationsOf(notes), idx, plannedOf(notes), back, schema.ArtifactPolicy{}, titlesByName(readings), schema.NavigationRoles{}, &mapCoverage{})
 }
 
 // citationsOf is what each note cites, by path, read through the same

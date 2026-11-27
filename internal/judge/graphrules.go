@@ -163,10 +163,7 @@ func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 		f.CollisionMembers = targetNotes
 		return f
 	}
-	targetNote := ""
-	if len(targetNotes) > 0 {
-		targetNote = targetNotes[0]
-	}
+	targetNote := targetNotes[0]
 	f.Evidence = "the target is the title of " + targetNote + " but not one of its aliases"
 	f.SuggestedAction = "add the title to " + targetNote + "'s aliases, or link an existing filename/alias"
 	return f
@@ -334,14 +331,10 @@ func nameCollisionFinding(name string, members []string) Finding {
 // smallest member, and the fingerprint keys on the alias alone — not a member
 // path — so a new note joining the collision does not read as a new finding.
 func collisionFinding(alias string, members []string) Finding {
-	path := ""
-	if len(members) > 0 {
-		path = members[0]
-	}
 	return Finding{
 		RuleID:           RuleCollisionAlias,
 		Severity:         SeverityWarn,
-		Path:             path,
+		Path:             members[0],
 		Field:            new("aliases"),
 		Message:          "alias \"" + alias + "\" is declared by " + strconv.Itoa(len(members)) + " notes, so [[" + alias + "]] cannot resolve deterministically",
 		Evidence:         "shared alias across: " + strings.Join(members, ", "),
@@ -354,9 +347,8 @@ func collisionFinding(alias string, members []string) Finding {
 }
 
 type referenceField struct {
-	name       string
-	values     []string
-	sourceRule string
+	name   string
+	values []string
 }
 
 // provenanceUnresolved reports provenance references that resolve to no note.
@@ -373,7 +365,7 @@ func provenanceUnresolved(
 		for _, field := range noteReferenceFields(n) {
 			for _, value := range field.values {
 				if !provenanceResolves(idx, slugs, value) {
-					out = append(out, provenanceFinding(n, field.name, value, field.sourceRule))
+					out = append(out, provenanceFinding(n, field.name, value))
 				}
 			}
 		}
@@ -385,8 +377,8 @@ func provenanceUnresolved(
 // resolution and YAML-shape diagnostics.
 func noteReferenceFields(n *note) []referenceField {
 	return []referenceField{
-		{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
-		{name: "related", values: n.related, sourceRule: sourceYomihon},
+		{name: "based_on", values: n.basedOn},
+		{name: "related", values: n.related},
 	}
 }
 
@@ -410,7 +402,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	return listed
 }
 
-func provenanceFinding(n *note, field, value, sourceRule string) Finding {
+func provenanceFinding(n *note, field, value string) Finding {
 	return Finding{
 		RuleID:          RuleProvenanceUnresolved,
 		Severity:        SeverityWarn,
@@ -419,7 +411,7 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 		Message:         field + " -> " + value + " resolves to nothing",
 		Evidence:        "no note, alias, or unit slug matches the reference",
 		SuggestedAction: "fix the reference, or create the target note",
-		SourceRule:      sourceRule,
+		SourceRule:      sourceYomihon,
 		Target:          new(value),
 		Fingerprint:     fingerprint(RuleProvenanceUnresolved, n.path, value),
 	}

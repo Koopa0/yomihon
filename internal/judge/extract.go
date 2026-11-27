@@ -298,15 +298,6 @@ func (l *definitionLedger) unused() []linkDefinition {
 	return out
 }
 
-// extractPlannedNames returns the concept names listed as planned under a gap
-// heading anywhere in body, plus the targets of [[X]] links beside an inline
-// planned marker. These are tracked forward-references: a broken link to one of
-// them is planned, not missing.
-func extractPlannedNames(body string) []string {
-	marks := defaultPlannedMarks()
-	return extractPlannedNamesWith(body, marks)
-}
-
 // extractPlannedNamesWith harvests only where the author is speaking: a marker
 // or a target inside code is quoted syntax and one inside an Obsidian comment
 // is content the author took back, exactly as the link extraction reads them,

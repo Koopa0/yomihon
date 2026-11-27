@@ -103,27 +103,20 @@ func (v fmValue) present() bool {
 	return v.scalar != ""
 }
 
-// parseNote splits a file's leading frontmatter and reads it into the note
-// model. A file with no frontmatter block is legal. A block that is present but
-// does not parse — or that a stricter reading rejects, such as a mapping with a
-// repeated key — yields a note flagged bad, reported as one fault rather than a
-// cascade of "field missing" for fields sitting above it.
-func parseNote(rel string, data []byte) note {
-	return parseNoteWithMarks(rel, data, defaultPlannedMarks())
-}
-
-// parseNoteWithMarks is parseNote using the heading and inline marks the
-// contract declared, so a vault that names English marks is extracted
-// against those marks rather than the loader default.
+// parseNoteWithMarks splits a file's leading frontmatter and reads it and the
+// body into the note model, the body against the heading and inline marks the
+// rules file declared. A file with no frontmatter block is legal. A block that
+// is present but does not parse — or that a stricter reading rejects, such as a
+// mapping with a repeated key — yields a note flagged bad, reported as one
+// fault rather than a cascade of "field missing" for fields sitting above it.
 func parseNoteWithMarks(rel string, data []byte, marks plannedMarks) note {
 	return readNote(rel, data, &marks)
 }
 
-// parseFrontmatter is parseNote for a reader that judges the frontmatter and
-// never looks at the body. It leaves every body field empty: no wikilink, path
-// reference, planned name, callout title, sequence or anchor is extracted,
+// parseFrontmatter is parseNoteWithMarks for a reader that judges the
+// frontmatter and never looks at the body. It leaves every body field empty,
 // because that extraction is most of the cost of a parse and none of a
-// frontmatter verdict. Whatever it does fill, it fills with the code parseNote
+// frontmatter verdict, and fills the rest with the code parseNoteWithMarks
 // runs, so the frontmatter, its flags and its typed fields cannot differ.
 func parseFrontmatter(rel string, data []byte) note {
 	return readNote(rel, data, nil)

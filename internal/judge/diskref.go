@@ -24,7 +24,7 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Fin
 			noteDir = n.path[:idx]
 		}
 		for _, pref := range n.pathRefs {
-			if f, ok := classifyCapturedPathRef(n, noteDir, pref, diskRefContext{authority: authority, contains: scan.Contains}); ok {
+			if f, ok := classifyCapturedPathRef(n, noteDir, pref, authority, scan); ok {
 				out = append(out, f)
 			}
 		}
@@ -32,19 +32,17 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Fin
 	return out
 }
 
-type diskRefContext struct {
-	authority scanAuthority
-	contains  func(string) bool
-}
-
-func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation diskRefContext) (Finding, bool) {
+// classifyCapturedPathRef judges one path reference against the captured
+// membership, after the privacy gate: a reference from a withheld note, or to
+// withheld ground, is never looked up.
+func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, authority scanAuthority, scan vault.Scan) (Finding, bool) {
 	if pref.code {
-		return classifyCodeRef(n, noteDir, pref, observation.authority, observation.contains)
+		return classifyCodeRef(n, noteDir, pref, authority, scan)
 	}
-	if !observation.authority.gate.Allows(n.path) {
+	if !authority.gate.Allows(n.path) {
 		return Finding{}, false
 	}
-	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.readable, observation.contains)
+	result := graph.ResolveMarkdown(n.path, pref.target, authority.readable, scan.Contains)
 	if !result.Checkable || result.Withheld {
 		return Finding{}, false
 	}
@@ -54,7 +52,6 @@ func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation 
 	if result.Kind == graph.KindUnique {
 		return Finding{}, false
 	}
-
 	return deadInRoot(n, pref, result.Relative), true
 }
 
@@ -66,7 +63,7 @@ func classifyCodeRef(
 	noteDir string,
 	pref pathRef,
 	authority scanAuthority,
-	contains func(string) bool,
+	scan vault.Scan,
 ) (Finding, bool) {
 	rootRel, rootOK := resolveWithinRoot("", pref.target)
 	noteRel, noteOK := resolveWithinRoot(noteDir, pref.target)
@@ -76,7 +73,7 @@ func classifyCodeRef(
 		(noteOK && !authority.gate.Allows(noteRel)) {
 		return Finding{}, false
 	}
-	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
+	if (rootOK && scan.Contains(rootRel)) || (noteOK && scan.Contains(noteRel)) {
 		return Finding{}, false
 	}
 	if !rootOK || authority.outsideScan(rootRel) {

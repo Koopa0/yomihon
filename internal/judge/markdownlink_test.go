@@ -174,23 +174,6 @@ func TestMarkdownOutsideFindingKeepsItsWireIdentity(t *testing.T) {
 	}
 }
 
-func TestMarkdownPrivateSourceNeverInspectsTheTarget(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeTestContract(t, root, []string{"Restricted"})
-	authority := loadTestAuthority(t, root)
-	source := note{path: "Restricted/source.md"}
-	finding, found := classifyCapturedPathRef(&source, "Restricted", pathRef{target: "../Public/Other.md"}, diskRefContext{
-		authority: authority, contains: func(p string) bool {
-			t.Errorf("private source inspected target %q", p)
-			return true
-		},
-	})
-	if found {
-		t.Errorf("private source published finding: %+v", finding)
-	}
-}
-
 func TestMarkdownUnreadableCapturedFileStillOwnsItsPath(t *testing.T) {
 	t.Parallel()
 	got := graph.ResolveMarkdown("Notes/source.md", "unreadable.md", func(string) bool { return true }, func(p string) bool {
