@@ -286,8 +286,9 @@ func hasDuplicateKey(n *yaml.Node) bool {
 }
 
 // buildFrontmatter reads a parsed frontmatter document into the flat key/value
-// map the checks consume. Only keys that read as strings are kept; a bare
-// scalar or list at the top contributes no keys.
+// map the checks consume. A key is a name, so every scalar key is kept as the
+// author wrote it, whatever its value would read as; a bare scalar or list at
+// the top contributes no keys.
 func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 	m := make(map[string]fmValue)
 	root := doc
@@ -301,8 +302,8 @@ func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 		return m
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if key, ok := asString(root.Content[i]); ok {
-			m[key] = nodeValue(root.Content[i+1])
+		if key := resolveAlias(root.Content[i]); key.Kind == yaml.ScalarNode {
+			m[key.Value] = nodeValue(root.Content[i+1])
 		}
 	}
 	return m

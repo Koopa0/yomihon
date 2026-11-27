@@ -98,6 +98,12 @@ func TestTheFieldListIsClosed(t *testing.T) {
 			fields: "type: note\nsource_locator: p. 1\n",
 			want:   []string{unknown("source_locator")},
 		},
+		{
+			name:   "keys a value would read as a null, a time or a number",
+			path:   "Writing/Probe.md",
+			fields: "type: note\nNull: x\nNULL: x\n2024-01-01: x\n1_000: x\n~: x\n",
+			want:   []string{unknown("1_000"), unknown("2024-01-01"), unknown("NULL"), unknown("Null"), unknown("~")},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
