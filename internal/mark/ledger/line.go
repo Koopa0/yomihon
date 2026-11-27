@@ -18,10 +18,9 @@ type wire struct {
 	T       int64  `json:"t"`
 	Kind    string `json:"kind"`
 	ID      string `json:"id,omitempty"`
-	Path    string `json:"path,omitempty"`
-	Sum     string `json:"sum,omitempty"`
-	Writer  string `json:"writer,omitempty"`
-	Session string `json:"s,omitempty"`
+	Machine string `json:"writer,omitempty"`
+	Process string `json:"s,omitempty"`
+	Mark    string `json:"mark,omitempty"`
 	Bytes   string `json:"bytes,omitempty"`
 	B64     string `json:"b64,omitempty"`
 }
@@ -34,8 +33,8 @@ type wire struct {
 // of a line.
 func encode(e *Event) []byte {
 	w := wire{
-		Seq: e.Seq, T: e.Time.UnixMilli(), Kind: e.Kind, ID: e.ID, Path: e.Path,
-		Sum: e.Sum, Writer: e.Writer, Session: e.Session,
+		Seq: e.Seq, T: e.Time.UnixMilli(), Kind: e.Kind, ID: e.ID,
+		Machine: e.Machine, Process: e.Process, Mark: e.Mark,
 	}
 	if utf8.Valid(e.Content) && quotedLength(e.Content) <= base64.StdEncoding.EncodedLen(len(e.Content)) {
 		w.Bytes = string(e.Content)
@@ -87,8 +86,8 @@ func decode(raw []byte) (Event, verdict) {
 		return Event{}, changed
 	}
 	e := Event{
-		Seq: w.Seq, Time: time.UnixMilli(w.T), Kind: w.Kind, ID: w.ID, Path: w.Path,
-		Sum: w.Sum, Writer: w.Writer, Session: w.Session, raw: raw,
+		Seq: w.Seq, Time: time.UnixMilli(w.T), Kind: w.Kind, ID: w.ID,
+		Machine: w.Machine, Process: w.Process, Mark: w.Mark, raw: raw,
 	}
 	switch {
 	case w.B64 != "" && w.Bytes != "":
@@ -101,9 +100,6 @@ func decode(raw []byte) (Event, verdict) {
 		e.Content = content
 	case w.Bytes != "":
 		e.Content = []byte(w.Bytes)
-	}
-	if e.Kind == KindMark {
-		e.mark = markOf(e.Content)
 	}
 	return e, whole
 }
@@ -139,18 +135,4 @@ func seqOf(raw []byte) uint64 {
 // seq. A seq at the top of the range wraps to 0 and so raises nothing.
 func after(next, seq uint64) uint64 {
 	return max(next, seq+1)
-}
-
-// markOf is the id of the mark a line of a machine file is about, or empty when
-// content is not one. It is the only thing the ledger reads in a mark's line.
-func markOf(content []byte) string {
-	var line struct {
-		Mark struct {
-			ID string `json:"id"`
-		} `json:"mark"`
-	}
-	if json.Unmarshal(content, &line) != nil {
-		return ""
-	}
-	return line.Mark.ID
 }

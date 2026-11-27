@@ -3,6 +3,7 @@ package machinemarks
 import (
 	"bytes"
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -221,7 +222,7 @@ func ledgerLines(events []ledger.Event, st *machine) []*kept {
 		}
 	}
 	for _, id := range st.ids() {
-		latest := ledger.LatestMarks(events, id)
+		latest := latestLines(events, id)
 		for _, mark := range slices.Sorted(maps.Keys(latest)) {
 			add(latest[mark].Content)
 		}
@@ -234,6 +235,42 @@ func ledgerLines(events []ledger.Event, st *machine) []*kept {
 		}
 	}
 	return out
+}
+
+// latestLines is the newest mark line of each mark that machine wrote among
+// events, by the id of the mark: what this machine last wrote of each under that
+// machine id. A line the ledger recorded before it carried the mark's id is
+// read for it.
+func latestLines(events []ledger.Event, machine string) map[string]*ledger.Event {
+	latest := map[string]*ledger.Event{}
+	for i := range events {
+		e := &events[i]
+		if e.Kind != ledger.KindMark || e.Machine != machine {
+			continue
+		}
+		id := e.Mark
+		if id == "" {
+			id = markIDOf(e.Content)
+		}
+		if held, ok := latest[id]; id != "" && (!ok || held.Seq < e.Seq) {
+			latest[id] = e
+		}
+	}
+	return latest
+}
+
+// markIDOf is the id of the mark a line is about, or empty when it is not a
+// line of marks.
+func markIDOf(raw []byte) string {
+	var line struct {
+		Mark struct {
+			ID string `json:"id"`
+		} `json:"mark"`
+	}
+	if json.Unmarshal(raw, &line) != nil {
+		return ""
+	}
+	return line.Mark.ID
 }
 
 // canonical is the bytes of this machine's file for the lines it holds: its own

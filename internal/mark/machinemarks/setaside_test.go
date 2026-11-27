@@ -4,8 +4,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/mark/ledger"
 )
 
 // aSetAsideValue leaves A with a value of its own that a change of A's replaced
@@ -76,7 +74,7 @@ func TestACompactionKeepsWhatWasSetAside(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	latest := ledger.LatestMarks(events, a.id())
+	latest := latestLines(events, a.id())
 	if got := string(latest[mid(1)].Content); strings.Contains(got, "A's words") && !strings.Contains(got, "after a compaction") {
 		t.Errorf("the newest line of the mark is the set-aside one: %s", got)
 	}

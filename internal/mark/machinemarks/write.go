@@ -134,7 +134,7 @@ func Open(folder *machinefile.Folder, dir confdir.Dir, log *slog.Logger, opts Op
 	if wait <= 0 {
 		wait = confdir.LockWait
 	}
-	return &Marks{folder: folder, dir: dir, ledger: ledger.OpenWaiting(dir, log, wait), opts: opts, lockWait: wait, maxLive: MaxLive, maxLines: MaxLines}
+	return &Marks{folder: folder, dir: dir, ledger: ledger.Open(dir, log), opts: opts, lockWait: wait, maxLive: MaxLive, maxLines: MaxLines}
 }
 
 func (m *Marks) now() time.Time {
@@ -495,7 +495,7 @@ func (m *Marks) convert(v *view, takeIn bool, record func(*ledger.Event) error) 
 	if takeIn && len(batch) == 0 {
 		return nil
 	}
-	return record(&ledger.Event{Kind: kindConverted, Writer: v.st.id, Session: m.currentSession(), Content: batch})
+	return record(&ledger.Event{Kind: kindConverted, Machine: v.st.id, Process: m.currentSession(), Content: batch})
 }
 
 // legacyLine is the line a mark of the earlier file becomes, or why it cannot.
@@ -646,7 +646,7 @@ func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Eve
 		// What is in the vault is not what this machine last wrote. It is about
 		// to be replaced, so it is kept first, whole.
 		err := record(&ledger.Event{
-			Kind: kindReplaced, ID: v.st.id, Session: m.currentSession(), Content: v.ownDisk,
+			Kind: kindReplaced, ID: v.st.id, Process: m.currentSession(), Content: v.ownDisk,
 		})
 		if err != nil {
 			return fmt.Errorf("keep the file about to be replaced: %w", err)
@@ -656,13 +656,13 @@ func (m *Marks) keep(v *view, line *kept, aside []*kept, record func(*ledger.Eve
 	// whole before the line that replaces it, which is the commit point: a kill
 	// between the two leaves the value kept twice at worst, never not at all.
 	for _, ol := range aside {
-		err := record(&ledger.Event{Kind: kindSetAside, Writer: ol.Writer(), Session: m.currentSession(), Content: ol.raw})
+		err := record(&ledger.Event{Kind: kindSetAside, Machine: ol.Writer(), Process: m.currentSession(), Content: ol.raw})
 		if err != nil {
 			return fmt.Errorf("set a value aside: %w", err)
 		}
 	}
 	if line != nil {
-		err := record(&ledger.Event{Kind: ledger.KindMark, Writer: v.st.id, Session: m.currentSession(), Content: line.raw})
+		err := record(&ledger.Event{Kind: ledger.KindMark, Machine: v.st.id, Process: m.currentSession(), Mark: line.Mark.ID, Content: line.raw})
 		if err != nil {
 			return fmt.Errorf("record the line: %w", err)
 		}

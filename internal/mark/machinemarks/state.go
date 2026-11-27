@@ -89,11 +89,11 @@ func stateOf(events []ledger.Event) machine {
 			}
 		case kindConverted:
 			st.converted = true
-			note(e.Writer, e.Session)
+			note(e.Machine, e.Process)
 		case ledger.KindMark:
-			note(e.Writer, e.Session)
-		case ledger.KindSession:
-			note(e.ID, e.Session)
+			note(e.Machine, e.Process)
+		case ledger.KindProcess:
+			note(e.ID, e.Process)
 		}
 	}
 	return st

@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -60,8 +61,21 @@ func markLine(id, body string) []byte {
 	return fmt.Appendf(nil, `{"fmt":1,"m":"1f3a9c07","rev":1,"mark":{"id":%q,"kind":"thought","body":%q}}`, id, body)
 }
 
-func markEvent(writer, session, id, body string) *Event {
-	return &Event{Kind: KindMark, Writer: writer, Session: session, Content: markLine(id, body)}
+func markEvent(machine, process, id, body string) *Event {
+	return &Event{Kind: KindMark, Machine: machine, Process: process, Mark: id, Content: markLine(id, body)}
+}
+
+// recordCrowded records e, asking again while another holds the lock: the
+// tests that crowd the lock ask whether a line is lost, not how fast the lock
+// comes free, and a slow runner can keep it from a writer for longer than
+// confdir.LockWait without anything being wrong. ErrLocked writes nothing.
+func recordCrowded(ctx context.Context, l *Ledger, e *Event) (uint64, error) {
+	for {
+		seq, err := l.Record(ctx, e)
+		if !errors.Is(err, confdir.ErrLocked) {
+			return seq, err
+		}
+	}
 }
 
 func record(t *testing.T, l *Ledger, e *Event) uint64 {
@@ -82,13 +96,20 @@ func events(t *testing.T, l *Ledger) (held []Event, changed int) {
 	return evs, changed
 }
 
-// latestIn is LatestMarks of writer over what l reads now.
-func latestIn(l *Ledger, writer string) (map[string]Event, error) {
+// latestIn is the newest line of each mark machine wrote, by the mark, over
+// what l reads now.
+func latestIn(l *Ledger, machine string) (map[string]Event, error) {
 	events, _, err := l.Events()
 	if err != nil {
 		return nil, err
 	}
-	return LatestMarks(events, writer), nil
+	latest := map[string]Event{}
+	for _, e := range events {
+		if e.Kind == KindMark && e.Machine == machine && e.Mark != "" && e.Seq > latest[e.Mark].Seq {
+			latest[e.Mark] = e
+		}
+	}
+	return latest, nil
 }
 
 func fileOf(t *testing.T, dir confdir.Dir, name string) []byte {
@@ -127,8 +148,8 @@ func appendRaw(t *testing.T, dir confdir.Dir, data []byte) {
 }
 
 func sameEvent(a, b *Event) bool {
-	return a.Seq == b.Seq && a.Time.Equal(b.Time) && a.Kind == b.Kind && a.ID == b.ID && a.Path == b.Path &&
-		a.Sum == b.Sum && a.Writer == b.Writer && a.Session == b.Session && bytes.Equal(a.Content, b.Content)
+	return a.Seq == b.Seq && a.Time.Equal(b.Time) && a.Kind == b.Kind && a.ID == b.ID &&
+		a.Machine == b.Machine && a.Process == b.Process && a.Mark == b.Mark && bytes.Equal(a.Content, b.Content)
 }
 
 // What is recorded is read back as it was given, by this ledger and by another
@@ -140,9 +161,9 @@ func TestARecordIsReadBackAsItWasGiven(t *testing.T) {
 	dir := vaultDir(t)
 	l, _ := open(t, dir)
 	given := []Event{
-		{Kind: "header", ID: "1f3a9c07", Session: "7a1f03d2"},
+		{Kind: "header", ID: "1f3a9c07", Process: "7a1f03d2"},
 		*markEvent("1f3a9c07", "7a1f03d2", "m1", "為什麼 VACUUM 不立刻還空間？ <b>&amp;</b>\u2028"),
-		{Kind: "marks-replaced", Path: "reader-notes/.yomihon/marks/1f3a9c07.jsonl", Sum: "abc", Content: []byte{0xff, 0xfe, '\n', 0, 'x'}},
+		{Kind: "marks-replaced", Content: []byte{0xff, 0xfe, '\n', 0, 'x'}},
 		{Kind: "marks-replaced", Content: []byte("a line\nand \"another\"\r\n\t")},
 		{Kind: "said", ID: "new-id"},
 	}
@@ -237,7 +258,7 @@ func TestALineCutShortIsReadPastAndTheNextBeginsOnItsOwn(t *testing.T) {
 	l, _ := open(t, dir)
 	record(t, l, markEvent("a", "s", "m1", "one"))
 	record(t, l, markEvent("a", "s", "m2", "two"))
-	cutLine := encode(&Event{Seq: 3, Kind: KindMark, Writer: "a", Content: markLine("m3", "three")})
+	cutLine := encode(&Event{Seq: 3, Kind: KindMark, Machine: "a", Content: markLine("m3", "three")})
 	// `{"seq":3,` is the first 9 bytes: a line cut inside them says no seq.
 	for _, tt := range []struct {
 		at   int
@@ -258,7 +279,7 @@ func TestALineCutShortIsReadPastAndTheNextBeginsOnItsOwn(t *testing.T) {
 			}
 			again, _ := open(t, sub)
 			got, changed := events(t, again)
-			if len(got) != 3 || changed != 0 || got[2].mark != "m4" {
+			if len(got) != 3 || changed != 0 || got[2].Mark != "m4" {
 				t.Fatalf("after the next line: %d events, %d changed; want the next line read whole beside the two", len(got), changed)
 			}
 			if !bytes.Contains(fileOf(t, sub, fileName), append(append(slices.Clone(cutLine[:at]), '\n'), got[2].raw...)) {
@@ -311,7 +332,7 @@ func TestAChangedLineIsCountedNeverReadAndSetAside(t *testing.T) {
 	changedLine := sealedline.Lines(changedData)[1]
 
 	got, changed := events(t, l)
-	if changed != 1 || len(got) != 2 || got[0].mark != "m1" || got[1].mark != "m3" {
+	if changed != 1 || len(got) != 2 || got[0].Mark != "m1" || got[1].Mark != "m3" {
 		t.Fatalf("after one line was changed: %d events, %d changed; want m1 and m3 read and one changed", len(got), changed)
 	}
 	if latest, err := latestIn(l, "a"); err != nil || len(latest) != 2 {
@@ -410,15 +431,15 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 	t.Parallel()
 	dir := vaultDir(t)
 	l, _ := open(t, dir)
-	record(t, l, &Event{Kind: "header", ID: "aaaaaaaa", Session: "s1"})
+	record(t, l, &Event{Kind: "header", ID: "aaaaaaaa", Process: "s1"})
 	record(t, l, markEvent("aaaaaaaa", "s1", "m1", "a1"))
 	record(t, l, markEvent("aaaaaaaa", "s1", "m2", "a1"))
 	record(t, l, markEvent("aaaaaaaa", "s2", "m1", "a2")) // s2 writes only lines a later one supersedes
-	record(t, l, &Event{Kind: "marks-replaced", Path: "reader-notes/.yomihon/marks/aaaaaaaa.jsonl", Sum: "f00d", Content: []byte{0xc3, 0x28, 'x'}})
+	record(t, l, &Event{Kind: "marks-replaced", Content: []byte{0xc3, 0x28, 'x'}})
 	record(t, l, markEvent("bbbbbbbb", "s9", "m1", "b1")) // another id of this machine writes the same mark
 	record(t, l, &Event{Kind: "retire", ID: "aaaaaaaa"})
 	record(t, l, markEvent("aaaaaaaa", "s3", "m1", "a3"))
-	record(t, l, &Event{Kind: KindMark, Writer: "aaaaaaaa", Session: "s1", Content: []byte("not a line of marks")})
+	record(t, l, &Event{Kind: KindMark, Machine: "aaaaaaaa", Process: "s1", Content: []byte("not a line of marks")})
 	record(t, l, markEvent("bbbbbbbb", "s9", "m1", "b2"))
 	record(t, l, markEvent("aaaaaaaa", "s3", "m2", "a3"))
 	// A line of a later version: a field this one does not know, under a
@@ -450,13 +471,13 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 	after, changed := events(t, l)
 	var wantSeqs []uint64
 	for i := range before {
-		if e := &before[i]; e.Kind != KindMark || e.mark == "" || e.Seq == latestOf(before, e).Seq {
+		if e := &before[i]; e.Kind != KindMark || e.Mark == "" || e.Seq == latestOf(before, e).Seq {
 			wantSeqs = append(wantSeqs, e.Seq)
 		}
 	}
 	var keptSeqs []uint64
 	for _, e := range after {
-		if e.Kind != KindSession {
+		if e.Kind != KindProcess {
 			keptSeqs = append(keptSeqs, e.Seq)
 		}
 	}
@@ -464,7 +485,7 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 		t.Fatalf("the compaction kept the lines at %v (changed %d), want %v", keptSeqs, changed, wantSeqs)
 	}
 	for _, e := range after {
-		if e.Kind == KindSession {
+		if e.Kind == KindProcess {
 			continue
 		}
 		i := slices.IndexFunc(before, func(b Event) bool { return b.Seq == e.Seq })
@@ -477,8 +498,8 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 	}
 	var sessions []string
 	for _, e := range after {
-		if e.Kind == KindSession {
-			sessions = append(sessions, fmt.Sprintf("%d %s/%s", e.Seq, e.ID, e.Session))
+		if e.Kind == KindProcess {
+			sessions = append(sessions, fmt.Sprintf("%d %s/%s", e.Seq, e.ID, e.Process))
 		}
 	}
 	if !slices.Equal(sessions, []string{"4 aaaaaaaa/s2"}) {
@@ -500,7 +521,7 @@ func TestCompactionKeepsEveryLiveLine(t *testing.T) {
 func latestOf(events []Event, of *Event) *Event {
 	latest := &Event{}
 	for i := range events {
-		if e := &events[i]; e.Kind == KindMark && e.Writer == of.Writer && e.mark == of.mark && e.Seq > latest.Seq {
+		if e := &events[i]; e.Kind == KindMark && e.Machine == of.Machine && e.Mark == of.Mark && e.Seq > latest.Seq {
 			latest = e
 		}
 	}
@@ -675,7 +696,7 @@ func TestALedgerSeesWhatAnotherWriterDid(t *testing.T) {
 	events(t, mine)
 
 	record(t, theirs, markEvent("a", "t", "m2", "theirs"))
-	if got, _ := events(t, mine); len(got) != 3 || got[2].Session != "t" {
+	if got, _ := events(t, mine); len(got) != 3 || got[2].Process != "t" {
 		t.Fatalf("after another process's line this one reads %d events, want 3 with theirs last", len(got))
 	}
 	if err := theirs.Compact(t.Context()); err != nil {
@@ -711,7 +732,6 @@ func TestAReaderDoesNotWaitBehindARecordThatWaitsForTheLock(t *testing.T) {
 	t.Parallel()
 	dir := vaultDir(t)
 	l, _ := open(t, dir)
-	l.lockWait = time.Minute
 	record(t, l, markEvent("a", "s", "m1", "first"))
 	other, err := confdir.Acquire(t.Context(), dir, lockName, 0)
 	if err != nil {
@@ -934,14 +954,8 @@ func TestRecordsAtOnceLoseNothing(t *testing.T) {
 	t.Parallel()
 	const writers, each = 4, 25
 	dir := vaultDir(t)
-	// Eight writers poll one lock while compactions run under it; on a slow
-	// runner one of them can wait past confdir.LockWait without anything being
-	// wrong. This test asks whether a line is lost, so it waits as long as that
-	// takes.
-	const crowded = time.Minute
 	shared, _ := open(t, dir)
 	shared.compactAt = 4 << 10
-	shared.lockWait = crowded
 	var wg sync.WaitGroup
 	errs := make(chan error, 2*writers*each)
 	var names []string
@@ -950,12 +964,11 @@ func TestRecordsAtOnceLoseNothing(t *testing.T) {
 		if w >= writers {
 			l, _ = open(t, dir)
 			l.compactAt = 4 << 10
-			l.lockWait = crowded
 		}
 		names = append(names, name)
 		wg.Go(func() {
 			for i := range each {
-				if _, err := l.Record(t.Context(), togetherEvent(name, i)); err != nil {
+				if _, err := recordCrowded(t.Context(), l, togetherEvent(name, i)); err != nil {
 					errs <- err
 				}
 			}
@@ -996,7 +1009,7 @@ func readWhole(l *Ledger) error {
 		return err
 	}
 	for i := range got {
-		if markOf(got[i].Content) == "" {
+		if got[i].Mark == "" {
 			return fmt.Errorf("a reader read a mark line that names no mark: %q", got[i].Content)
 		}
 		if i > 0 && got[i].Seq <= got[i-1].Seq {
@@ -1042,7 +1055,7 @@ func checkNewestThere(t *testing.T, dir confdir.Dir, writers []string, each int)
 	for _, w := range writers {
 		for i := each - togetherMarks; i < each; i++ {
 			want := togetherEvent(w, i)
-			if e, ok := latest[markOf(want.Content)]; !ok || !bytes.Equal(e.Content, want.Content) {
+			if e, ok := latest[want.Mark]; !ok || !bytes.Equal(e.Content, want.Content) {
 				t.Errorf("the newest line of %s's mark %d is %q, want %q", w, i%togetherMarks, e.Content, want.Content)
 			}
 		}
@@ -1181,13 +1194,13 @@ func TestALineLongerThanItsLimitIsRefused(t *testing.T) {
 	t.Parallel()
 	dir := vaultDir(t)
 	l, _ := open(t, dir)
-	if _, err := l.Record(t.Context(), &Event{Kind: "marks-replaced", Content: bytes.Repeat([]byte("x"), MaxLineBytes)}); !errors.Is(err, ErrTooLarge) {
-		t.Fatalf("Record of a line past its limit = %v, want ErrTooLarge", err)
+	if _, err := l.Record(t.Context(), &Event{Kind: "marks-replaced", Content: bytes.Repeat([]byte("x"), maxLineBytes)}); !errors.Is(err, errTooLarge) {
+		t.Fatalf("Record of a line past its limit = %v, want errTooLarge", err)
 	}
 	if _, err := l.Record(t.Context(), &Event{}); err == nil {
 		t.Error("Record of a line with no kind = nil, want an error")
 	}
-	if _, err := l.Record(t.Context(), &Event{Kind: KindMark, Writer: "a\xff"}); err == nil {
+	if _, err := l.Record(t.Context(), &Event{Kind: KindMark, Machine: "a\xff"}); err == nil {
 		t.Error("Record of a writer that is not UTF-8 = nil, want an error: it would be read back as another")
 	}
 	if _, err := os.Stat(filepath.Join(dir.Path(), fileName)); !errors.Is(err, os.ErrNotExist) {

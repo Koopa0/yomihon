@@ -14,7 +14,7 @@ import (
 // line says, so no seq is given twice.
 func FuzzDecode(f *testing.F) {
 	f.Add(encode(&Event{Seq: 1, Kind: "header", ID: "1f3a9c07"}))
-	f.Add(encode(&Event{Seq: 7, Kind: KindMark, Writer: "a", Session: "s", Content: markLine("m1", "字")}))
+	f.Add(encode(&Event{Seq: 7, Kind: KindMark, Machine: "a", Process: "s", Content: markLine("m1", "字")}))
 	f.Add(encode(&Event{Seq: 9, Kind: "marks-replaced", Content: []byte{0xff, 0}}))
 	f.Add([]byte(`{"seq":3,"kind":"x","h":"0000000000000000"}`))
 	f.Add([]byte("{\"seq\":1\n\r\n{}\n"))
@@ -47,7 +47,7 @@ func FuzzLineRoundTrip(f *testing.F) {
 	f.Add(uint64(1<<63), "k", "", "", "", []byte{0xc3, 0x28, '\n', '"', '\\'})
 	f.Add(uint64(42), "marks-replaced", "<&>", "\u2028", ",\"h\":\"", []byte(`,"h":"0123456789abcdef"}`))
 	f.Fuzz(func(t *testing.T, seq uint64, kind, id, writer, session string, content []byte) {
-		given := Event{Seq: seq, Time: time.UnixMilli(1795164060000), Kind: kind, ID: id, Writer: writer, Session: session, Content: content}
+		given := Event{Seq: seq, Time: time.UnixMilli(1795164060000), Kind: kind, ID: id, Machine: writer, Process: session, Content: content}
 		if seq == 0 || given.check() != nil {
 			return // Record gives every line a seq, and refuses what check refuses
 		}

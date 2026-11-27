@@ -29,19 +29,6 @@ const (
 	childWriterVar = "YOMIHON_TEST_LEDGER_WRITER"
 )
 
-// processLockWait is how long a process of these tests waits for the ledger's
-// lock. The tests ask whether a line is lost, not how fast the lock comes free,
-// and a slow runner can keep it from a writer for longer than confdir.LockWait
-// without anything being wrong.
-const processLockWait = time.Minute
-
-// openForProcesses is open with the wait the tests that run more than one
-// process give the lock.
-func openForProcesses(t *testing.T, dir confdir.Dir) *Ledger {
-	t.Helper()
-	return OpenWaiting(dir, slog.New(slog.DiscardHandler), processLockWait)
-}
-
 func TestMain(m *testing.M) {
 	if mode := os.Getenv(childModeVar); mode != "" {
 		if err := runChild(mode, os.Getenv(childConfigVar), os.Getenv(childWriterVar)); err != nil {
@@ -81,7 +68,7 @@ func childLine(mode string, i int) *Event {
 	// Digits need no escaping, so the line is put together as it is rather
 	// than through markLine, which would take longer than the write.
 	content := `{"mark":{"id":"` + mark + `","body":"` + strings.Repeat(fmt.Sprintf("%08d", i), n/8) + `"}}`
-	return &Event{Kind: KindMark, Writer: "aaaaaaaa", Session: "kill", Content: []byte(content)}
+	return &Event{Kind: KindMark, Machine: "aaaaaaaa", Process: "kill", Mark: mark, Content: []byte(content)}
 }
 
 // runChild is the second process: it records lines until it has recorded the
@@ -93,7 +80,7 @@ func runChild(mode, config, writer string) error {
 	if err != nil {
 		return err
 	}
-	l := OpenWaiting(dir, slog.New(slog.DiscardHandler), processLockWait)
+	l := Open(dir, slog.New(slog.DiscardHandler))
 	out := bufio.NewWriter(os.Stdout)
 	say := func(format string, args ...any) error {
 		if _, writeErr := fmt.Fprintf(out, format+"\n", args...); writeErr != nil {
@@ -105,7 +92,7 @@ func runChild(mode, config, writer string) error {
 	case "together":
 		l.compactAt = 4 << 10
 		for i := range togetherLines {
-			if _, err = l.Record(context.Background(), togetherEvent(writer, i)); err != nil {
+			if _, err = recordCrowded(context.Background(), l, togetherEvent(writer, i)); err != nil {
 				return err
 			}
 		}
@@ -122,7 +109,7 @@ func runChild(mode, config, writer string) error {
 		if sayErr := say("begin %d", i); sayErr != nil {
 			return sayErr
 		}
-		seq, recordErr := l.Record(context.Background(), line)
+		seq, recordErr := recordCrowded(context.Background(), l, line)
 		if recordErr != nil {
 			return recordErr
 		}
@@ -228,7 +215,7 @@ func (c *child) killAfter(t *testing.T, begins int, until func() bool, wait time
 // seqs in order. It answers the ledger's events.
 func checkAnswered(t *testing.T, dir confdir.Dir, mode string, answered []done) []Event {
 	t.Helper()
-	l := openForProcesses(t, dir)
+	l, _ := open(t, dir)
 	evs, changed := events(t, l)
 	if changed != 0 {
 		t.Fatalf("after a kill the ledger says %d lines were changed, want 0", changed)
@@ -248,7 +235,7 @@ func checkAnswered(t *testing.T, dir confdir.Dir, mode string, answered []done) 
 			}
 			t.Fatalf("after a kill the line Record answered seq %d for is not in the ledger", d.seq)
 		}
-		if want := childLine(mode, d.i); !bytes.Equal(e.Content, want.Content) || e.mark != markOf(want.Content) {
+		if want := childLine(mode, d.i); !bytes.Equal(e.Content, want.Content) || e.Mark != want.Mark {
 			t.Fatalf("after a kill seq %d does not hold line %d whole", d.seq, d.i)
 		}
 	}
@@ -258,9 +245,9 @@ func checkAnswered(t *testing.T, dir confdir.Dir, mode string, answered []done) 
 // supersededIn says whether the ledger holds a newer line of the mark d is
 // about, which a compaction keeps in its place.
 func supersededIn(evs []Event, d done) bool {
-	mark := markOf(childLine("compact", d.i).Content)
+	mark := childLine("compact", d.i).Mark
 	for i := range evs {
-		if evs[i].mark == mark && evs[i].Seq > d.seq {
+		if evs[i].Mark == mark && evs[i].Seq > d.seq {
 			return true
 		}
 	}
@@ -324,7 +311,7 @@ func TestAWriterKilledWhileItAppendsLosesNoCommittedLine(t *testing.T) {
 			midRecord++
 		}
 
-		l := openForProcesses(t, dir)
+		l, _ := open(t, dir)
 		next := record(t, l, markEvent("aaaaaaaa", "test", "after", strconv.Itoa(kills)))
 		if latest, latestErr := latestIn(l, "aaaaaaaa"); latestErr != nil || latest["after"].Seq != next {
 			t.Fatalf("after kill %d the test's own line is not read whole: %v, %v", kills, latest["after"], latestErr)
@@ -380,7 +367,7 @@ func TestAWriterKilledWhileItCompactsLosesNoLiveLine(t *testing.T) {
 		}
 		evs := checkAnswered(t, dir, "compact", answered)
 
-		l := openForProcesses(t, dir)
+		l, _ := open(t, dir)
 		seq := record(t, l, markEvent("aaaaaaaa", "test", "after", strconv.Itoa(kills)))
 		if len(evs) > 0 && seq <= evs[len(evs)-1].Seq {
 			t.Fatalf("after kill %d the next line took seq %d, not above the %d the ledger holds", kills, seq, evs[len(evs)-1].Seq)
