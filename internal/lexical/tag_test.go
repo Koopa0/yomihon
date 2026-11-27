@@ -52,8 +52,8 @@ func TestFrontmatterTagEvidence(t *testing.T) {
 		{name: "empty query", frontmatter: "tags: [haiku]", query: "", want: nil},
 		{name: "tag and body never combine", frontmatter: "tags: [haiku]", body: "poetry", query: "haiku poetry", want: []Result{}},
 		{name: "tag and alias never combine", frontmatter: "tags: [haiku]\naliases: [poetry]", query: "haiku poetry", want: []Result{}},
-		{name: "body wins", frontmatter: "tags: [haiku]", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
-		{name: "malformed frontmatter keeps body", frontmatter: "tags: [haiku", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
+		{name: "body wins", frontmatter: "tags: [haiku]", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
+		{name: "malformed frontmatter keeps body", frontmatter: "tags: [haiku", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
 		{name: "a topics key is no evidence", frontmatter: "topics: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Tag: "haiku"}}},
 		{name: "alias wins", frontmatter: "aliases: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Alias: "haiku"}}},
 		{name: "title wins", frontmatter: "tags: [quiet]", query: "quiet", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet"}}},
@@ -87,12 +87,13 @@ func TestTagShorthandLeavesOtherEvidenceLiteral(t *testing.T) {
 func TestTagCapabilityAndFileExclusion(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name   string
-		policy schema.ArtifactPolicy
+		name     string
+		policy   schema.ArtifactPolicy
+		withheld bool
 	}{
 		{name: "no contract"},
 		{name: "valid", policy: validArtifactPolicy(t)},
-		{name: "unavailable", policy: invalidArtifactPolicy(t)},
+		{name: "unavailable", policy: invalidArtifactPolicy(t), withheld: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -102,7 +103,7 @@ func TestTagCapabilityAndFileExclusion(t *testing.T) {
 			if diff := cmp.Diff(want, searchResults(t, idx, Parse("haiku"))); diff != "" {
 				t.Errorf("caught: tag capability mismatch (-want +got):\n%s", diff)
 			}
-			if tt.name == "unavailable" {
+			if tt.withheld {
 				if _, err := idx.Search(Parse("haiku type:concept"), -1); !errors.Is(err, ErrMetadataUnavailable) {
 					t.Errorf("Search(haiku type:concept) error = %v, want ErrMetadataUnavailable", err)
 				}
@@ -124,16 +125,5 @@ func TestMarkTagHitsSharesMatchingAndSpelling(t *testing.T) {
 	}
 	if got := MarkTagHits("haiku", Parse("#").Tokens()); got != nil {
 		t.Errorf("MarkTagHits(#) = %+v, want nil", got)
-	}
-}
-
-func TestTagIndexOwnsItsCapturedValues(t *testing.T) {
-	t.Parallel()
-	tags := []string{"Haiku"}
-	idx := NewIndex([]Document{{RelPath: "Quiet.md", Title: "Quiet", Tags: tags}}, schema.ArtifactPolicy{})
-	tags[0] = "Changed"
-	want := []Result{{RelPath: "Quiet.md", Title: "Quiet", Tag: "Haiku"}}
-	if diff := cmp.Diff(want, searchResults(t, idx, Parse("haiku"))); diff != "" {
-		t.Errorf("captured tag values changed with source slice (-want +got):\n%s", diff)
 	}
 }

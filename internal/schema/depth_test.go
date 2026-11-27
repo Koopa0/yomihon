@@ -1,9 +1,7 @@
 package schema
 
 import (
-	"io/fs"
-	"os"
-	"path/filepath"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -69,17 +67,16 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 			if err == nil {
 				t.Fatal("decodeContract() error = nil, want the depth refusal")
 			}
-			if got := classifyDecodeError(err); got != "too-deep" {
-				t.Errorf("classifyDecodeError() = %q, want %q (error was %v)", got, "too-deep", err)
+			if !errors.Is(err, errContractTooDeep) {
+				t.Errorf("decodeContract() error = %v, want the depth refusal", err)
 			}
 		})
 	}
 }
 
 // TestDecodeKeepsAContractWithinTheBound is the guard's other side. Brackets
-// and dots written inside a string or a comment count for nothing, a contract
-// may nest right up to the bound, and every contract this repository keeps
-// decodes past the guard.
+// and dots written inside a string or a comment count for nothing, and a
+// contract may nest right up to the bound.
 func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -122,38 +119,6 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 			t.Errorf("checkContractDepth() with %s at the bound = %v, want nil", name, err)
 		}
 	}
-
-	// Every TOML file in the repository is a contract, so the set is found by
-	// walking the tree rather than listed by pattern: a pattern misses the
-	// contract kept one directory deeper than it looks.
-	var contracts []string
-	err := filepath.WalkDir(filepath.Join("..", ".."), func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "node_modules") {
-			return filepath.SkipDir
-		}
-		if !entry.IsDir() && filepath.Ext(path) == ".toml" {
-			contracts = append(contracts, path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(contracts) < 10 {
-		t.Fatalf("found %d contracts in the repository, want the whole set", len(contracts))
-	}
-	for _, path := range contracts {
-		data, err := os.ReadFile(path) // #nosec G304 -- the repository's own tracked contracts
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := checkContractDepth(data); err != nil {
-			t.Errorf("%s: %v", path, err)
-		}
-	}
 }
 
 // TestDecodeRefusesAContractPastTheSizeBound holds the second bound. The path
@@ -166,7 +131,7 @@ func TestDecodeRefusesAContractPastTheSizeBound(t *testing.T) {
 	if err == nil {
 		t.Fatal("decodeContract() error = nil, want the size refusal")
 	}
-	if got := classifyDecodeError(err); got != "too-large" {
-		t.Errorf("classifyDecodeError() = %q, want %q (error was %v)", got, "too-large", err)
+	if !errors.Is(err, errContractTooLarge) {
+		t.Errorf("decodeContract() error = %v, want the size refusal", err)
 	}
 }

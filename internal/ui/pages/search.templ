@@ -48,7 +48,8 @@ type SearchView struct {
 	More  SearchMore
 
 	// UnknownFilterKeys are the words this query wrote before a colon that the
-	// grammar does not accept. Their terms were searched for as text, and
+	// grammar does not accept, and the whole of a term whose key it accepts and
+	// whose value it does not. Their terms were searched for as text, and
 	// without saying so the reader is left believing a constraint ran.
 	UnknownFilterKeys []string
 	// FilterKeys are the keys the grammar does accept, so the reader can see

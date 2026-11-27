@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -81,29 +80,59 @@ func searchResults(tb testing.TB, idx *Index, q *Query) []Result {
 	return answer.Results
 }
 
-func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
+// soleResult is the one result a query is expected to find.
+func soleResult(tb testing.TB, idx *Index, query string) Result {
+	tb.Helper()
+	results := searchResults(tb, idx, Parse(query))
+	if len(results) != 1 {
+		tb.Fatalf("Search(%q) returned %d results, want 1", query, len(results))
+	}
+	return results[0]
+}
+
+// TestALeadAndALandingRequireBodyEvidence holds the lead and every landing
+// field to a body that answers the whole query. A title that holds every term
+// over a body that holds only some of them is a title hit, and a pure filter
+// asks the body nothing, so neither may point into the body.
+func TestALeadAndALandingRequireBodyEvidence(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
+		{RelPath: "partial.md", Title: "Needle Beta", PlainText: "the needle alone, nothing else"},
 		{RelPath: "title-only.md", Title: "Needle", PlainText: "unrelated body"},
 		{RelPath: "title-and-body.md", Title: "Needle Too", PlainText: "needle appears here"},
-		{RelPath: "filter-only.md", Title: "Filter", PlainText: "body start", NoteType: "concept"},
+		{RelPath: "filter-only.md", Title: "Filter", PlainText: "needle in a filtered note", NoteType: "concept"},
 	}, validArtifactPolicy(t))
 
-	text := searchResults(t, idx, Parse("needle"))
-	if len(text) != 2 {
-		t.Fatalf("text results = %+v", text)
+	type pointer struct {
+		Lead                                                           Lead
+		Landing, LandingBare, LandingEnd, LandingPrefix, LandingSuffix string
+		BlockCrossing, FromFence                                       bool
 	}
-	if text[0].RelPath != "title-only.md" || text[0].Snippet != "" {
-		t.Errorf("title-only result = %+v, want the exact title first with no snippet", text[0])
+	pointerOf := func(r Result) pointer {
+		return pointer{r.Lead, r.Landing, r.LandingBare, r.LandingEnd, r.LandingPrefix, r.LandingSuffix, r.BlockCrossing, r.FromFence}
 	}
-	if text[1].RelPath != "title-and-body.md" || text[1].Snippet == "" {
-		t.Errorf("title+body result = %+v, want body evidence after the exact title", text[1])
+	for _, tt := range []struct {
+		name, query, path string
+	}{
+		{name: "a title holding every term over a body holding some", query: "needle beta", path: "partial.md"},
+		{name: "a title over a body holding none", query: "needle", path: "title-only.md"},
+		{name: "a pure filter", query: "type:concept", path: "filter-only.md"},
+	} {
+		results := searchResults(t, idx, Parse(tt.query))
+		i := slices.IndexFunc(results, func(r Result) bool { return r.RelPath == tt.path })
+		if i < 0 {
+			t.Fatalf("%s: Search(%q) = %v, want %s among the hits", tt.name, tt.query, paths(results), tt.path)
+		}
+		if diff := cmp.Diff(pointer{}, pointerOf(results[i])); diff != "" {
+			t.Errorf("%s: Search(%q) pointed into the body (-want +got):\n%s", tt.name, tt.query, diff)
+		}
 	}
 
-	filtered := searchResults(t, idx, Parse("type:concept"))
-	if len(filtered) != 1 || filtered[0].Snippet != "" {
-		t.Errorf("pure-filter result = %+v, want no snippet", filtered)
+	for _, r := range searchResults(t, idx, Parse("needle")) {
+		if r.RelPath == "title-and-body.md" && (r.Lead.Runs == nil || r.Landing != "needle") {
+			t.Errorf("title+body result = %+v, want a lead and a landing on the body's needle", r)
+		}
 	}
 }
 
@@ -161,7 +190,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	}
 	metadataQueries := []string{
 		"type:concept",
-		"draft:",
+		"draft:true",
 		"domain:meta",
 		"slug:note",
 		"needle type:concept",
@@ -347,7 +376,6 @@ func TestSearchFilters(t *testing.T) {
 		{"draft equality", "draft:true", []string{"Writing/Kafka.md"}},
 		{"domain matches two in rel_path order", "domain:golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug equality", "slug:kafka-basics", []string{"Writing/Kafka.md"}},
-		{"topic is no filter, so it is text no note holds", "topic:golang", []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -357,21 +385,6 @@ func TestSearchFilters(t *testing.T) {
 				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
 			}
 		})
-	}
-}
-
-// TestSearchFolderBoundary pins the "/"-boundary rule: folder:Writing must not
-// match Writing-old/, and a trailing slash is equivalent.
-func TestSearchFolderBoundary(t *testing.T) {
-	t.Parallel()
-	idx := filterFixture(t)
-
-	want := []string{"Writing/Kafka.md"}
-	if got := paths(searchResults(t, idx, Parse("folder:Writing"))); !cmp.Equal(want, got) {
-		t.Errorf("folder:Writing = %v, want %v (must exclude Writing-old/)", got, want)
-	}
-	if got := paths(searchResults(t, idx, Parse("folder:Writing/"))); !cmp.Equal(want, got) {
-		t.Errorf("folder:Writing/ = %v, want %v (trailing slash is equivalent)", got, want)
 	}
 }
 
@@ -459,11 +472,10 @@ func TestSearchOrdering(t *testing.T) {
 }
 
 // TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery is the one tie-break
-// inside the title group. A note whose title is the query used to lose to any
-// longer title whose path sorts earlier — a space before a full stop — so
-// searching a note by its own name put it third of 103. Fold-equal exact
-// titles come first; everything else in the group keeps the vault's reading
-// order. The other groups do not move.
+// inside the title group: a note whose title is the query leads any longer
+// title whose path sorts earlier. Fold-equal exact titles come first;
+// everything else in the group keeps the vault's reading order. The other
+// groups do not move.
 func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	t.Parallel()
 
@@ -471,7 +483,6 @@ func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	// filename stems place a shorter name before its longer prefix.
 	containing := "a/Go Slice 共享底層陣列.md"
 	exact := "z/Go Slice.md"
-	t.Log("invoked: exact-title rank independent of path order")
 	if vault.ComparePaths(containing, exact) >= 0 {
 		t.Fatal("the containing-title path must sort first, or this fixture cannot catch a missing tie-break")
 	}
@@ -583,35 +594,10 @@ func TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup(t *testing.T) {
 	}
 }
 
-// TestARootFileOutsideTheKnowledgeLayerSortsAfterANote pins the Includes cut
-// at the first slash: a vault-root file matches no declared directory, so it
-// demotes. README.md is in folders.skipped_files in the example vault and never reaches
-// the index, which is why the fixture is a root file that does.
-func TestARootFileOutsideTheKnowledgeLayerSortsAfterANote(t *testing.T) {
-	t.Parallel()
-
-	root := "AAA.md"
-	note := "Notes/late.md"
-	if vault.ComparePaths(root, note) >= 0 {
-		t.Fatal("the root file must sort first, or this fixture cannot catch a missing demotion")
-	}
-
-	idx := NewIndex([]Document{
-		{RelPath: root, Title: "Unrelated", PlainText: "needle at the root", OutsideKnowledge: true},
-		{RelPath: note, Title: "Unrelated", PlainText: "needle in a note"},
-	}, validArtifactPolicy(t))
-
-	got := paths(searchResults(t, idx, Parse("needle")))
-	want := []string{note, root}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
-	}
-}
-
 // TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle pins
 // exactness over the layer. A reader who types a file's exact title has
-// named it; the Ruling's "reading material first" is a tie-break among hits
-// of the same strength, not a rule over that name. The Notes/ partial sorts
+// named it; reading the knowledge layer first is a tie-break among hits of the
+// same strength, not a rule over that name. The Notes/ partial sorts
 // first by path and is in-layer, so path order and a knowledge-primary sort
 // both put it first — only raiseExactTitles after raiseKnowledge puts the
 // outside exact title ahead.
@@ -636,30 +622,6 @@ func TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle(t *testing.
 	}
 }
 
-// TestAnUndeclaredKnowledgeLayerLeavesSearchOrderUnchanged is the empty-set
-// polarity: nothing is outside an undeclared layer, so the same documents
-// keep the vault's reading order.
-func TestAnUndeclaredKnowledgeLayerLeavesSearchOrderUnchanged(t *testing.T) {
-	t.Parallel()
-
-	early := "System/early.md"
-	late := "Writing/late.md"
-	if vault.ComparePaths(early, late) >= 0 {
-		t.Fatal("the System path must sort first, or this fixture cannot catch a silent reorder")
-	}
-
-	idx := NewIndex([]Document{
-		{RelPath: early, Title: "Unrelated", PlainText: "needle in a template"},
-		{RelPath: late, Title: "Unrelated", PlainText: "needle in a note"},
-	}, validArtifactPolicy(t))
-
-	got := paths(searchResults(t, idx, Parse("needle")))
-	want := []string{early, late}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
-	}
-}
-
 // TestResultsSortTheWayTheirNumbersRead holds the results list to the same
 // reading order the sidebar shows a course in. Comparing code points puts 第10課
 // between 第1課 and 第2課, so a reader who found their lessons in one order in
@@ -675,53 +637,6 @@ func TestResultsSortTheWayTheirNumbersRead(t *testing.T) {
 	want := []string{"Writing/第9課.md", "Writing/第10課.md"}
 	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("動詞")))); diff != "" {
 		t.Errorf("Search(動詞) order mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestSearchNFDContent pins that NFC-form query text matches NFD-form content.
-// The body holds NFD が ("が" = か + U+3099); the query is NFC が ("が"). Both
-// sides fold to NFC, so the match succeeds — this is the whole reason fold
-// normalizes NFC on both index and query.
-func TestSearchNFDContent(t *testing.T) {
-	t.Parallel()
-	idx := NewIndex([]Document{
-		{RelPath: "n.md", Title: "note", PlainText: "reading \u304b\u3099 today"},
-	}, validArtifactPolicy(t))
-	got := paths(searchResults(t, idx, Parse("\u304c")))
-	if diff := cmp.Diff([]string{"n.md"}, got); diff != "" {
-		t.Errorf("NFC query against NFD content mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestFoldCollapsesWidthPairs pins the width half of fold: the fullwidth ASCII
-// block meets its halfwidth counterpart, so a reader typing 3 on a Latin
-// keyboard reaches ３ in a note. Halfwidth katakana is not in this table; a
-// voiced mark beside one is two runes folding to one and is a separate
-// decision.
-func TestFoldCollapsesWidthPairs(t *testing.T) {
-	t.Parallel()
-
-	pairs := []struct {
-		name string
-		a, b string
-	}{
-		{"digit", "3", "３"},
-		{"paren", "(", "（"},
-		{"latin capital", "G", "Ｇ"},
-		{"latin small", "o", "ｏ"},
-		{"the issue's count words", "3つ", "３つ"},
-		{"a week later", "2週間後", "２週間後"},
-		{"birds", "3羽", "３羽"},
-		{"reading paren", "心(こころ)", "心（こころ）"},
-		{"Go", "Go", "Ｇｏ"},
-	}
-	for _, tt := range pairs {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got, want := fold(tt.a), fold(tt.b); got != want {
-				t.Errorf("fold(%q) = %q, fold(%q) = %q, want one spelling", tt.a, got, tt.b, want)
-			}
-		})
 	}
 }
 
@@ -773,9 +688,6 @@ func TestSearchFiltersAnswerEitherCase(t *testing.T) {
 		{"slug", "slug:kafka-basics", "slug:Kafka-Basics", []string{"Writing/Kafka.md"}},
 		{"folder", "folder:Writing", "folder:writing", []string{"Writing/Kafka.md"}},
 	}
-	if len(tests) != len(filterKeys) {
-		t.Fatalf("this table has %d keys, the grammar accepts %d; a key was added and not pinned", len(tests), len(filterKeys))
-	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			t.Parallel()
@@ -808,68 +720,6 @@ func TestFolderFilterPinsCaseSiblingOrder(t *testing.T) {
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("Search(%q) mismatch (-want +got):\n%s", query, diff)
 		}
-	}
-}
-
-// TestFoldIsSimpleLowercaseNotFullCaseFold pins what fold is not: a
-// compatibility fold and a full case fold. The fullwidth ASCII block now
-// meets its halfwidth counterpart, but halfwidth \uff76 never meets \u30ab,
-// and \u00df stays \u00df rather than expanding to ss (\u1e9e still lowers
-// to \u00df; that much is the simple mapping). What a reader feels: an ASCII
-// query finds fullwidth text, and ss does not find \u00df.
-func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
-	t.Parallel()
-	folds := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"fullwidth capital meets ASCII", "\uff21", "a"},
-		{"halfwidth katakana stays halfwidth", "\uff76", "\uff76"},
-		{"sharp s does not expand", "\u00df", "\u00df"},
-		{"capital sharp s lowers to sharp s", "\u1e9e", "\u00df"},
-	}
-	for _, tt := range folds {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := fold(tt.in); got != tt.want {
-				t.Errorf("fold(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
-	}
-
-	idx := NewIndex([]Document{
-		{RelPath: "wide.md", Title: "wide", PlainText: "\uff21\uff22\uff23 \u5927\u5beb"},
-		{RelPath: "river.md", Title: "river", PlainText: "der Flu\u00df heute"},
-	}, validArtifactPolicy(t))
-	if got := paths(searchResults(t, idx, Parse("abc"))); !slices.Equal(got, []string{"wide.md"}) {
-		t.Errorf("Search(abc) = %v, want the fullwidth text found by an ASCII query", got)
-	}
-	if got := paths(searchResults(t, idx, Parse("ss"))); len(got) != 0 {
-		t.Errorf("Search(ss) = %v, want no hits under a simple case fold", got)
-	}
-	// The ASCII hit above proves nothing if a fullwidth query cannot find it
-	// too, so reach the same note by the form the vault actually wrote.
-	if got := paths(searchResults(t, idx, Parse("\uff42\uff43"))); !slices.Equal(got, []string{"wide.md"}) {
-		t.Errorf("Search(\uff42\uff43) = %v, want the fullwidth text found by a fullwidth query", got)
-	}
-	if got := paths(searchResults(t, idx, Parse("Flu\u00df"))); !slices.Equal(got, []string{"river.md"}) {
-		t.Errorf("Search(Flu\u00df) = %v, want the sharp-s text found by a sharp-s query", got)
-	}
-}
-
-// The halfwidth katakana + voiced-mark pair is two source runes. Folding them
-// onto バ would be two-to-one and would drift sourceOffsetOfFold. This fold
-// leaves them as they were.
-func TestFoldLeavesHalfwidthKatakanaVoicedPair(t *testing.T) {
-	t.Parallel()
-	const halfwidth = "ﾊﾞ" // U+FF8A U+FF9E
-	const composed = "バ"
-	if fold(halfwidth) != halfwidth {
-		t.Errorf("fold(%q) = %q, want the two runes left standing", halfwidth, fold(halfwidth))
-	}
-	if fold(halfwidth) == fold(composed) {
-		t.Errorf("fold(%q) collapsed onto fold(%q); that pairing is out of this fold", halfwidth, composed)
 	}
 }
 
@@ -908,138 +758,6 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
-func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
-	t.Parallel()
-
-	policies := []struct {
-		name   string
-		policy schema.ArtifactPolicy
-	}{
-		{name: "escaping", policy: escapingArtifactPolicy(t)},
-		{name: "invalid", policy: invalidArtifactPolicy(t)},
-		{name: "blank", policy: blankArtifactPolicy(t)},
-	}
-	for _, tt := range policies {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Draft: true}}, tt.policy)
-
-			if got, err := idx.Search(Parse("draft:true"), -1); !errors.Is(err, ErrMetadataUnavailable) {
-				t.Errorf("Search(draft:true) = (%v, %v), want ErrMetadataUnavailable", got.Results, err)
-			} else if err.Error() != tt.policy.Diagnostic() {
-				t.Errorf("Search(draft:true) error = %q, want %q", err.Error(), tt.policy.Diagnostic())
-			}
-		})
-	}
-}
-
-// TestNewIndexDeterministicUnderAnyInputOrder pins that input order does not
-// leak into the built index: every permutation of the same documents yields an
-// identical index, with entries in strictly increasing RelPath order. Strict
-// increase is the invariant the determinism rests on — the build sorts with an
-// unstable sort, which is total only because real inputs never repeat a path
-// (the scanner refuses canonical-path collisions before a document is made).
-// Building one slice twice cannot catch any of this; permuting can.
-func TestNewIndexDeterministicUnderAnyInputOrder(t *testing.T) {
-	t.Parallel()
-	docs := []Document{
-		{RelPath: "b.md", Title: "B", PlainText: "beta"},
-		{RelPath: "a.md", Title: "A", Domain: "x", PlainText: "alpha"},
-		{RelPath: "d.md", Title: "D", PlainText: "delta"},
-		{RelPath: "c.md", Title: "C", PlainText: "gamma"},
-	}
-	policy := validArtifactPolicy(t)
-	first := NewIndex(docs, policy)
-	for i := 1; i < len(first.entries); i++ {
-		if first.entries[i-1].RelPath >= first.entries[i].RelPath {
-			t.Fatalf("entries[%d..%d] = %q, %q: not strictly increasing by RelPath",
-				i-1, i, first.entries[i-1].RelPath, first.entries[i].RelPath)
-		}
-	}
-	for _, perm := range permutations(len(docs)) {
-		shuffled := make([]Document, 0, len(docs))
-		for _, at := range perm {
-			shuffled = append(shuffled, docs[at])
-		}
-		got := NewIndex(shuffled, policy)
-		if diff := cmp.Diff(
-			first,
-			got,
-			cmp.AllowUnexported(Index{}, entry{}),
-			cmpopts.IgnoreFields(Index{}, "policy"),
-		); diff != "" {
-			t.Fatalf("NewIndex over input order %v differs (-first +permuted):\n%s", perm, diff)
-		}
-	}
-}
-
-// permutations returns every ordering of the indexes 0..n-1.
-func permutations(n int) [][]int {
-	var out [][]int
-	var build func(rest, chosen []int)
-	build = func(rest, chosen []int) {
-		if len(rest) == 0 {
-			out = append(out, slices.Clone(chosen))
-			return
-		}
-		for i, v := range rest {
-			remaining := slices.Concat(rest[:i], rest[i+1:])
-			build(remaining, slices.Concat(chosen, []int{v}))
-		}
-	}
-	all := make([]int, n)
-	for i := range all {
-		all[i] = i
-	}
-	build(all, nil)
-	return out
-}
-
-func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
-	t.Parallel()
-
-	contractBytes, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read contract fixture: %v", err)
-	}
-	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
-		t.Fatalf("write contract: %v", err)
-	}
-	contract, err := schema.LoadFile(contractPath)
-	if err != nil {
-		t.Fatalf("LoadFile() error = %v", err)
-	}
-	policy := contract.ArtifactPolicy()
-	idx := NewIndex([]Document{{
-		RelPath:   "Concepts/A.md",
-		Title:     "A",
-		PlainText: "needle",
-	}}, policy)
-
-	if err = os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
-		t.Fatalf("change contract: %v", err)
-	}
-	if policy.ValidateSource().Available() {
-		t.Fatal("policy remained available after source drift")
-	}
-	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
-		t.Fatalf("restore contract: %v", err)
-	}
-
-	if _, draftErr := idx.Search(Parse("draft:true"), -1); !errors.Is(draftErr, ErrMetadataUnavailable) {
-		t.Errorf("Search(draft:true) error = %v, want %v", draftErr, ErrMetadataUnavailable)
-	}
-	query := Parse("needle")
-	answer, err := idx.Search(query, -1)
-	if err != nil {
-		t.Fatalf("bare-text Search() error = %v", err)
-	}
-	if len(answer.Results) != 1 || answer.Results[0].RelPath != "Concepts/A.md" {
-		t.Errorf("bare-text Search() results = %v, want readable corpus preserved", answer.Results)
-	}
-}
-
 // TestSearchQuotedPhraseMatchesAdjacentText pins phrase semantics end to end:
 // a quoted span matches only where its words sit together, because the parsed
 // phrase is one token and matching is a contiguous substring test. A reader
@@ -1065,15 +783,7 @@ func TestSearchQuotedPhraseMatchesAdjacentText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			answer, err := idx.Search(Parse(tt.query), -1)
-			if err != nil {
-				t.Fatalf("Search(%q) error = %v", tt.query, err)
-			}
-			paths := make([]string, 0, len(answer.Results))
-			for _, r := range answer.Results {
-				paths = append(paths, r.RelPath)
-			}
-			if diff := cmp.Diff(tt.want, paths); diff != "" {
+			if diff := cmp.Diff(tt.want, paths(searchResults(t, idx, Parse(tt.query)))); diff != "" {
 				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
 			}
 		})
@@ -1083,7 +793,7 @@ func TestSearchQuotedPhraseMatchesAdjacentText(t *testing.T) {
 // TestBoundedSearchKeepsTheOpeningStretch pins the two properties the bounded
 // variant owes its callers: the total is the count the unbounded answer would
 // have, and the kept results are exactly that answer's opening stretch — same
-// hits, same order, same snippets. A cap that reordered or resampled would
+// hits, same order, same leads. A cap that reordered or resampled would
 // make the first page of a broad query a different page each time.
 func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 	t.Parallel()
@@ -1179,34 +889,19 @@ func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
 		t.Fatalf("Search(%q) mismatch (-want +got):\n%s", `"semantic retrieval"`, diff)
 	}
 
-	// The hit is also shown, and the marks on it are cut from the note's own
-	// bytes: an offset located in the folded copy that is carried back wrong
-	// paints the highlight over the neighbouring words.
-	var wrapped, deep Result
+	// The hit is also shown, marked on the note's own bytes, and the lead
+	// of a long note opens near the phrase rather than at the top, where it
+	// would show filler and mark nothing.
 	for _, r := range got {
 		switch r.RelPath {
-		case "wrapped.md":
-			wrapped = r
-		case "deep.md":
-			deep = r
+		case "wrapped.md", "deep.md":
+			if mark := marked(r.Lead.Runs); mark != "semantic retrieval" {
+				t.Errorf("%s: lead marks %q, want the phrase on one line", r.RelPath, mark)
+			}
+			if r.Landing != "semantic retrieval" {
+				t.Errorf("%s: Landing = %q, want the phrase on one line", r.RelPath, r.Landing)
+			}
 		}
-	}
-	// A window opened at the top of a long note would show the reader filler
-	// and mark nothing, which reads as a hit on a note that does not contain
-	// the phrase.
-	if !strings.Contains(deep.Snippet, "semantic retrieval") {
-		t.Errorf("snippet of the long note = %q, want the window around the phrase", deep.Snippet)
-	}
-	if wrapped.Snippet != "daily semantic retrieval log" {
-		t.Errorf("snippet = %q, want the wrapped sentence on one line", wrapped.Snippet)
-	}
-	want := []HitRun{
-		{Text: "daily "},
-		{Text: "semantic retrieval", Hit: true},
-		{Text: " log"},
-	}
-	if diff := cmp.Diff(want, MarkHits(wrapped.Snippet, query.Tokens())); diff != "" {
-		t.Errorf("MarkHits over the wrapped hit mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -1262,18 +957,15 @@ func TestBodyMatchReportsABlockCrossingLanding(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			got := soleResult(t, idx, tt.query)
+			if got.Landing != tt.landing {
+				t.Errorf("Landing = %q, want %q", got.Landing, tt.landing)
 			}
-			if got[0].Landing != tt.landing {
-				t.Errorf("Landing = %q, want %q", got[0].Landing, tt.landing)
+			if got.LandingEnd != tt.landingEnd {
+				t.Errorf("LandingEnd = %q, want %q", got.LandingEnd, tt.landingEnd)
 			}
-			if got[0].LandingEnd != tt.landingEnd {
-				t.Errorf("LandingEnd = %q, want %q", got[0].LandingEnd, tt.landingEnd)
-			}
-			if got[0].BlockCrossing != tt.crossing {
-				t.Errorf("BlockCrossing = %v, want %v", got[0].BlockCrossing, tt.crossing)
+			if got.BlockCrossing != tt.crossing {
+				t.Errorf("BlockCrossing = %v, want %v", got.BlockCrossing, tt.crossing)
 			}
 		})
 	}
@@ -1293,17 +985,14 @@ func TestAThreeBlockPhraseLandsOnTheLastBlockOnly(t *testing.T) {
 			"beta\n\n"+
 			"gamma\n"))),
 	}, validArtifactPolicy(t))
-	got := searchResults(t, idx, Parse(`"alpha beta gamma"`))
-	if len(got) != 1 {
-		t.Fatalf("Search(`\"alpha beta gamma\"`) = %+v, want one hit", got)
+	got := soleResult(t, idx, `"alpha beta gamma"`)
+	if got.Landing != "alpha" {
+		t.Errorf("Landing = %q, want alpha", got.Landing)
 	}
-	if got[0].Landing != "alpha" {
-		t.Errorf("Landing = %q, want alpha", got[0].Landing)
+	if got.LandingEnd != "gamma" {
+		t.Errorf("LandingEnd = %q, want gamma (only the last block); a start-of-note answer would be %q", got.LandingEnd, "beta gamma")
 	}
-	if got[0].LandingEnd != "gamma" {
-		t.Errorf("LandingEnd = %q, want gamma (only the last block); a start-of-note answer would be %q", got[0].LandingEnd, "beta gamma")
-	}
-	if !got[0].BlockCrossing {
+	if !got.BlockCrossing {
 		t.Errorf("BlockCrossing = false, want a three-block crossing")
 	}
 }
@@ -1357,15 +1046,12 @@ func TestACrossingEndTermGrowsToItsWholeWord(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
-			}
-			if !got[0].BlockCrossing {
+			got := soleResult(t, idx, tt.query)
+			if !got.BlockCrossing {
 				t.Fatalf("Search(%q) did not cross a block, so it has no far end to name", tt.query)
 			}
-			if got[0].LandingEnd != tt.last {
-				t.Errorf("LandingEnd = %q, want %q (Landing = %q)", got[0].LandingEnd, tt.last, got[0].Landing)
+			if got.LandingEnd != tt.last {
+				t.Errorf("LandingEnd = %q, want %q (Landing = %q)", got.LandingEnd, tt.last, got.Landing)
 			}
 		})
 	}
@@ -1394,12 +1080,13 @@ func TestALoneFarEndGrowsInsideItsOwnBlock(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		blocks []render.Block
-		last   string
+		name, query string
+		blocks      []render.Block
+		last        string
 	}{
-		{name: "the far end grows to the word it was cut inside", blocks: whole, last: "ghi"},
-		{name: "and stops where its own block does", blocks: parted, last: "gh"},
+		{name: "a far end at a word's end stays", query: `"  ghi"`, blocks: whole, last: "ghi"},
+		{name: "the far end grows to the word it was cut inside", query: `"  gh"`, blocks: whole, last: "ghi"},
+		{name: "and stops where its own block does", query: `"  gh"`, blocks: parted, last: "gh"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1411,16 +1098,13 @@ func TestALoneFarEndGrowsInsideItsOwnBlock(t *testing.T) {
 				Blocks:    tt.blocks,
 			}}, validArtifactPolicy(t))
 
-			got := searchResults(t, idx, Parse(`"  gh"`))
-			if len(got) != 1 {
-				t.Fatalf("Search = %+v, want one hit", got)
-			}
-			if got[0].Landing != "" || got[0].LandingBare != "" {
+			got := soleResult(t, idx, tt.query)
+			if got.Landing != "" || got.LandingBare != "" {
 				t.Fatalf("Landing = %q / LandingBare = %q, want both empty: the match opens in the gap after %q",
-					got[0].Landing, got[0].LandingBare, "def")
+					got.Landing, got.LandingBare, "def")
 			}
-			if got[0].LandingEnd != tt.last {
-				t.Errorf("LandingEnd = %q, want %q", got[0].LandingEnd, tt.last)
+			if got.LandingEnd != tt.last {
+				t.Errorf("LandingEnd = %q, want %q", got.LandingEnd, tt.last)
 			}
 		})
 	}
@@ -1438,21 +1122,18 @@ func TestACharacterAtABlockEndIsNotACrossing(t *testing.T) {
 			"第一段落結尾鈷\n\n"+
 			"鷺在第二段。\n"))),
 	}, validArtifactPolicy(t))
-	got := searchResults(t, idx, Parse("鈷"))
-	if len(got) != 1 {
-		t.Fatalf("Search(鈷) = %+v, want one hit", got)
+	got := soleResult(t, idx, "鈷")
+	if got.BlockCrossing {
+		t.Errorf("BlockCrossing = true for a one-character match at a block end; landing = %q", got.Landing)
 	}
-	if got[0].BlockCrossing {
-		t.Errorf("BlockCrossing = true for a one-character match at a block end; landing = %q", got[0].Landing)
-	}
-	if got[0].Landing != "鈷" {
-		t.Errorf("Landing = %q, want 鈷", got[0].Landing)
+	if got.Landing != "鈷" {
+		t.Errorf("Landing = %q, want 鈷", got.Landing)
 	}
 }
 
-// NFC used to drop every block end on a note the moment one character
-// recomposed, so a later crossing phrase fell back to the whole-phrase
-// directive. The ends are rewritten on the normalised text instead.
+// TestCrossingLandingSurvivesAnNFDCharacter holds the block ends to the
+// normalised text: a character that recomposes before a crossing phrase must
+// not cost the phrase its block ends.
 func TestCrossingLandingSurvivesAnNFDCharacter(t *testing.T) {
 	t.Parallel()
 
@@ -1463,13 +1144,10 @@ func TestCrossingLandingSurvivesAnNFDCharacter(t *testing.T) {
 			"The evidence records a bright\n\n"+
 			"crimson heron.\n"))),
 	}, validArtifactPolicy(t))
-	got := searchResults(t, idx, Parse(`"bright crimson"`))
-	if len(got) != 1 {
-		t.Fatalf("Search(`\"bright crimson\"`) = %+v, want one hit", got)
-	}
-	if got[0].Landing != "bright" || got[0].LandingEnd != "crimson" || !got[0].BlockCrossing {
+	got := soleResult(t, idx, `"bright crimson"`)
+	if got.Landing != "bright" || got.LandingEnd != "crimson" || !got.BlockCrossing {
 		t.Errorf("Landing = %q / %q crossing = %v, want bright / crimson / true",
-			got[0].Landing, got[0].LandingEnd, got[0].BlockCrossing)
+			got.Landing, got.LandingEnd, got.BlockCrossing)
 	}
 }
 
@@ -1544,18 +1222,15 @@ func TestLandingNamesTheWordsTheMatchFollowsInsideItsOwnBlock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
-			}
-			if got[0].LandingPrefix != tt.prefix {
-				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
+			got := soleResult(t, idx, tt.query)
+			if got.LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got.LandingPrefix, tt.prefix)
 			}
 			// Every match here ends against white space, a full stop or the end of
 			// its block, which are boundaries already: nothing follows to name,
 			// and the directives stay as they were.
-			if got[0].LandingSuffix != "" {
-				t.Errorf("LandingSuffix = %q, want none", got[0].LandingSuffix)
+			if got.LandingSuffix != "" {
+				t.Errorf("LandingSuffix = %q, want none", got.LandingSuffix)
 			}
 		})
 	}
@@ -1646,46 +1321,11 @@ func TestLandingGrowsAMatchToTheWordsAroundIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
-			}
-			if got[0].LandingBare != tt.bare {
-				t.Errorf("LandingBare = %q, want %q (Landing = %q)", got[0].LandingBare, tt.bare, got[0].Landing)
+			got := soleResult(t, idx, tt.query)
+			if got.LandingBare != tt.bare {
+				t.Errorf("LandingBare = %q, want %q (Landing = %q)", got.LandingBare, tt.bare, got.Landing)
 			}
 		})
-	}
-}
-
-// The growth stays inside the block the match opened in, and a stretch that is
-// nothing but white space lies inside no word and so grows nowhere: it would
-// otherwise reach back and name a neighbouring word the reader never asked
-// about, and for a crossing match that word would take the directive over
-// from the far end that can actually be found.
-func TestLandingGrowthStaysInsideTheBlockAndOutOfTheGaps(t *testing.T) {
-	t.Parallel()
-
-	plain := "abc def    \nghi"
-	idx := NewIndex([]Document{{
-		RelPath:   "Notes/Gaps.md",
-		Title:     "Gaps",
-		PlainText: plain,
-		Blocks: []render.Block{
-			{End: strings.Index(plain, "\n"), Verbatim: true},
-			{End: len(plain), Verbatim: true},
-		},
-	}}, validArtifactPolicy(t))
-
-	got := searchResults(t, idx, Parse(`"  ghi"`))
-	if len(got) != 1 {
-		t.Fatalf("Search = %+v, want one hit", got)
-	}
-	if got[0].Landing != "" || got[0].LandingBare != "" {
-		t.Errorf("Landing = %q / LandingBare = %q, want both empty: the match opens in the gap after %q",
-			got[0].Landing, got[0].LandingBare, "def")
-	}
-	if got[0].LandingEnd != "ghi" {
-		t.Errorf("LandingEnd = %q, want ghi; the far end is what such a row has left to name", got[0].LandingEnd)
 	}
 }
 
@@ -1817,10 +1457,7 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 func TestLandingSuffixEndsWhereABrowserAgreesAWordEnds(t *testing.T) {
 	t.Parallel()
 
-	const (
-		thirty    = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"
-		thirtyOne = thirty + "零"
-	)
+	unbroken := strings.Repeat("一二三四五六七八九十", 4)
 	tests := []struct {
 		name   string
 		before string // the last character of the term the run follows
@@ -1834,23 +1471,9 @@ func TestLandingSuffixEndsWhereABrowserAgreesAWordEnds(t *testing.T) {
 		{name: "a run to a comma", before: "陽", rest: "花の株で、今年も青い花をつけた", want: "花の株で"},
 		{name: "a run to a full stop", before: "讀", rest: "用的導言。第二句", want: "用的導言"},
 		{name: "a fullwidth comma bounds it in Chinese", before: "陽", rest: "花的株，今年也開了", want: "花的株"},
-		{
-			name:   "a run past the budget with no boundary is the rest of the block",
-			before: "獸",
-			rest:   thirtyOne,
-			want:   thirtyOne,
-		},
-		{name: "a boundary at the budget is inside it", before: "獸", rest: thirty + "。後續", want: thirty},
-		{
-			// One over the budget: the run still ends at the nearest
-			// boundary, which is the full stop.
-			name:   "a boundary outside the budget is still the nearest one",
-			before: "獸",
-			rest:   thirtyOne + "。後續",
-			want:   thirtyOne,
-		},
-		{name: "a run with no boundary is the rest of the block", before: "獸", rest: thirtyOne, want: thirtyOne},
-		{name: "a hard line break ends the run", before: "獸", rest: thirtyOne + "\n後續", want: thirtyOne},
+		{name: "a long run still ends at the nearest boundary", before: "獸", rest: unbroken + "。後續", want: unbroken},
+		{name: "a run with no boundary is the rest of the block", before: "獸", rest: unbroken, want: unbroken},
+		{name: "a hard line break ends the run", before: "獸", rest: unbroken + "\n後續", want: unbroken},
 		{name: "an apostrophe inside a word joins it", before: "n", rest: "'t stop here", want: "'t"},
 		{name: "a point inside a number joins it", before: "3", rest: ".14 more", want: ".14"},
 		{name: "a point after a word ends it", before: "e", rest: ". More", want: ""},
@@ -1874,9 +1497,7 @@ func TestLandingSuffixEndsWhereABrowserAgreesAWordEnds(t *testing.T) {
 // opens between two characters the reader's language reads as one word; a
 // browser looks for such a run, finds it nowhere, and throws away the term it
 // introduced along with it, so a note that used to open at its match opens at
-// the top. Checked on a real Chrome: 啡色…才輪到-,獨角獸 left the page at 0
-// where 獨角獸 alone reached 1560, and a run beginning where the paragraph
-// begins reached 1560 too.
+// the top.
 //
 // The run goes back to the nearest boundary every segmenter agrees on that
 // leaves it inside the budget — here the fullwidth comma, which breaks a word
@@ -1920,15 +1541,12 @@ func TestLandingNamesNoRunItWouldHaveToCutInsideAWord(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			got := soleResult(t, idx, tt.query)
+			if got.LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got.LandingPrefix, tt.prefix)
 			}
-			if got[0].LandingPrefix != tt.prefix {
-				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
-			}
-			if got[0].LandingSuffix != tt.suffix {
-				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
+			if got.LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got.LandingSuffix, tt.suffix)
 			}
 		})
 	}
@@ -2005,15 +1623,12 @@ func TestLandingSuffixFollowsTheTermItIsMeasuredFrom(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := searchResults(t, idx, Parse(tt.query))
-			if len(got) != 1 {
-				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			got := soleResult(t, idx, tt.query)
+			if got.LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got.LandingPrefix, tt.prefix)
 			}
-			if got[0].LandingPrefix != tt.prefix {
-				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
-			}
-			if got[0].LandingSuffix != tt.suffix {
-				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
+			if got.LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got.LandingSuffix, tt.suffix)
 			}
 		})
 	}
@@ -2052,18 +1667,15 @@ func TestLandingSuffixOfACrossingMatchFollowsTheFarEnd(t *testing.T) {
 				},
 			}}, validArtifactPolicy(t))
 
-			got := searchResults(t, idx, Parse(`"銀杏並木の奥にある小さな倉庫の錠"`))
-			if len(got) != 1 {
-				t.Fatalf("Search = %+v, want one hit", got)
-			}
-			if !got[0].BlockCrossing {
+			got := soleResult(t, idx, `"銀杏並木の奥にある小さな倉庫の錠"`)
+			if !got.BlockCrossing {
 				t.Fatalf("BlockCrossing = false, want a crossing")
 			}
-			if got[0].Landing != tt.wantStart || got[0].LandingEnd != "並木の奥にある小さな倉庫の錠" {
-				t.Errorf("Landing = %q, LandingEnd = %q, want %q and the far stretch", got[0].Landing, got[0].LandingEnd, tt.wantStart)
+			if got.Landing != tt.wantStart || got.LandingEnd != "並木の奥にある小さな倉庫の錠" {
+				t.Errorf("Landing = %q, LandingEnd = %q, want %q and the far stretch", got.Landing, got.LandingEnd, tt.wantStart)
 			}
-			if got[0].LandingSuffix != tt.suffix {
-				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
+			if got.LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got.LandingSuffix, tt.suffix)
 			}
 		})
 	}

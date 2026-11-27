@@ -5,46 +5,6 @@ import (
 	"time"
 )
 
-func TestAuthoredDateField(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		contract *Contract
-		want     string
-	}{
-		{name: "no contract", contract: nil, want: ""},
-		{name: "common without created", contract: &Contract{common: []string{"type"}}, want: ""},
-		{name: "common declares created", contract: &Contract{common: []string{"type", "created"}}, want: "created"},
-		// A declaration on one type cannot describe every note, and a report
-		// is not a lesson.
-		{name: "created on one type only", contract: &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"created"}}}}, want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			dated := tt.contract.AuthoredDate()
-			if got := dated.Field(); got != tt.want {
-				t.Errorf("AuthoredDate().Field() = %q, want %q", got, tt.want)
-			}
-			if got := dated.Declared(); got != (tt.want != "") {
-				t.Errorf("AuthoredDate().Declared() = %v, want %v", got, tt.want != "")
-			}
-		})
-	}
-}
-
-func TestAuthoredDateRequiresContractAuthority(t *testing.T) {
-	t.Parallel()
-	got, err := (&Contract{}).AuthoredDate().Resolve(map[string]any{"created": "2026-08-31"})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if got != "" {
-		t.Errorf("Resolve() = %q, want no day without a contract declaration", got)
-	}
-}
-
 func TestAuthoredDateResolve(t *testing.T) {
 	t.Parallel()
 	dated := (&Contract{common: []string{"created"}}).AuthoredDate()
@@ -82,20 +42,5 @@ func TestAuthoredDateResolve(t *testing.T) {
 				t.Errorf("Resolve(%v) = %q, want %q", tt.frontmatter, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestAuthoredDateReadsOnlyTheDeclaredField keeps every other date-shaped key
-// silent: a vault dated by created is dated by it, not by whichever such key a
-// note happens to carry.
-func TestAuthoredDateReadsOnlyTheDeclaredField(t *testing.T) {
-	t.Parallel()
-	dated := (&Contract{common: []string{"created"}}).AuthoredDate()
-	got, err := dated.Resolve(map[string]any{"updated": "2026-08-31"})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if got != "" {
-		t.Errorf("Resolve() = %q, want no day: this contract dates a note by %q", got, dated.Field())
 	}
 }

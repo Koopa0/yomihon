@@ -60,7 +60,7 @@ func (e *entry) lead(tokens []string) Lead {
 	blocks := e.blocks
 	if len(blocks) == 0 {
 		// A document built without block boundaries is one block.
-		blocks = []render.Block{{End: len(e.PlainText)}}
+		blocks = []render.Block{{End: len(e.plainText)}}
 	}
 	for _, b := range blocks {
 		start, end := prev, b.End
@@ -68,8 +68,8 @@ func (e *entry) lead(tokens []string) Lead {
 		if b.Heading || start >= end {
 			continue
 		}
-		text := e.PlainText[start:end]
-		if strings.EqualFold(collapseFields(text), collapseFields(e.Title)) {
+		text := e.plainText[start:end]
+		if strings.EqualFold(collapseFields(text), collapseFields(e.title)) {
 			// The heading the page shows as the title stays in the plain text,
 			// and is the title's, not the excerpt's.
 			continue
@@ -78,7 +78,7 @@ func (e *entry) lead(tokens []string) Lead {
 		if hitStart < 0 {
 			continue
 		}
-		if fenced, _ := fenceAt(start+hitStart, e.fenceRanges); fenced {
+		if inFenceRange(start+hitStart, e.fenceRanges) {
 			if !foundCode {
 				code, foundCode = [2]int{start, end}, true
 			}
@@ -88,8 +88,8 @@ func (e *entry) lead(tokens []string) Lead {
 	}
 	if foundCode {
 		// A block opens at the break that parted it from the one before.
-		from := code[0] + len(e.PlainText[code[0]:code[1]]) - len(strings.TrimLeft(e.PlainText[code[0]:code[1]], "\n "))
-		line := e.PlainText[from:code[1]]
+		from := code[0] + len(e.plainText[code[0]:code[1]]) - len(strings.TrimLeft(e.plainText[code[0]:code[1]], "\n "))
+		line := e.plainText[from:code[1]]
 		if nl := strings.IndexByte(line, '\n'); nl >= 0 {
 			line = line[:nl]
 		}
@@ -124,7 +124,7 @@ func (e *entry) firstShownHit(blockStart int, text string, tokens []string) (sta
 // firstHitIn is the earliest place any token occurs in text, as source
 // offsets, or -1 when none does.
 func firstHitIn(text string, tokens []string) (start, end int) {
-	folded := fold(text)
+	folded := Fold(text)
 	foldStart, foldEnd := -1, 0
 	for _, t := range tokens {
 		if t == "" {

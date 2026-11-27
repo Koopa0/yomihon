@@ -11,12 +11,7 @@ import (
 func leadOf(t *testing.T, body, query string) Lead {
 	t.Helper()
 	doc := DocumentFromNote(&vault.Note{RelPath: "Notes/q.md", Body: body})
-	idx := NewIndex([]Document{doc}, schema.ArtifactPolicy{})
-	got, err := idx.Search(Parse(query), 10)
-	if err != nil || len(got.Results) != 1 {
-		t.Fatalf("search %q: %d results, err %v", query, len(got.Results), err)
-	}
-	return got.Results[0].Lead
+	return soleResult(t, NewIndex([]Document{doc}, schema.ArtifactPolicy{}), query).Lead
 }
 
 func plain(runs []ExcerptRun) string {

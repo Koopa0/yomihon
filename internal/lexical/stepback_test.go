@@ -8,9 +8,8 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// A zero here reads as "I never wrote that down" — a clinician searched 20mg,
-// the note said 20-40mg, and the page's only advice was to try different
-// words. The empty page now offers loosened searches, and only ones the index
+// A zero reads as "I never wrote that down", so the empty page offers
+// loosened searches, 20mg reaching 20-40mg among them, and only ones the index
 // has already answered with something: advice that leads to a second zero
 // teaches the reader to distrust the page that gave it.
 func TestStepBacksOfferOnlySearchesThatFindSomething(t *testing.T) {
@@ -71,8 +70,8 @@ func TestStepBacksOfferOnlySearchesThatFindSomething(t *testing.T) {
 
 // A quoted phrase that sits nowhere contiguously still deserves the loosened
 // offers: the words without their adjacency, together and one at a time. The
-// quote characters must not ride along into the candidates — they once did,
-// every candidate matched nothing, and the empty page stayed adviceless.
+// quote characters must not ride along into the candidates, where every one
+// would match nothing.
 func TestStepBacksRecoverAQuotedPhrase(t *testing.T) {
 	t.Parallel()
 
@@ -114,10 +113,9 @@ func TestStepBacksKeepAQuotedFilterValueSpelled(t *testing.T) {
 	}
 }
 
-// A wrong-case filter used to silence the whole ladder: the key was recognised
-// so the unknown-filter notice said nothing, and every candidate carried the
-// same raw value into a case-exact match, so each found nothing. Parse now
-// folds the value, so the candidate still answers; the suggestion keeps the
+// A wrong-case filter must not silence the whole ladder: the key is
+// recognised, so no unknown-filter notice speaks for it, and Parse folds the
+// value, so a candidate carrying it still answers. The suggestion keeps the
 // spelling the reader wrote.
 func TestStepBacksRecoverAWrongCaseFilter(t *testing.T) {
 	t.Parallel()

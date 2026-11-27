@@ -44,10 +44,10 @@ const (
 	ReasonContractChanged
 )
 
-// String names a rejection reason for a diagnostic, a log line or a panic.
-// These words are for an operator reading a machine's output; a reader's own
-// sentence comes from the dictionary at the surface. A reason outside the
-// constants is a programming error and panics.
+// String names a rejection reason for a diagnostic or a log line, and a value
+// outside the constants by its number. These words are for an operator
+// reading a machine's output; a reader's own sentence comes from the
+// dictionary at the surface.
 func (r Reason) String() string {
 	switch r {
 	case ReasonUnstated:
@@ -57,7 +57,7 @@ func (r Reason) String() string {
 	case ReasonContractChanged:
 		return "contract-changed"
 	default:
-		panic("schema: unknown Reason: " + strconv.Itoa(int(r)))
+		return "Reason(" + strconv.Itoa(int(r)) + ")"
 	}
 }
 
@@ -74,9 +74,9 @@ type Claim struct {
 }
 
 // Rejected returns the claim for a declaration that was made and could not be
-// honoured. The closure is a fact about the declaration, not about whether
-// anyone wrote a sentence for it: a capability answered from the presence of a
-// message is the failure this type exists to remove.
+// honoured: the one way a caller outside this package closes a capability,
+// which nothing outside it can open. The closure is a fact about the
+// declaration, not about whether anyone wrote a sentence for it.
 func Rejected(diagnostic string) Claim {
 	return Claim{outcome: grantUnresolved, diagnostic: diagnostic}
 }
@@ -165,10 +165,6 @@ func unreadableDiagnostic(err error) string {
 	}
 	return sentence + ": " + err.Error()
 }
-
-// Reason names why the contract could not be honoured, empty of meaning unless
-// this vault claimed governance and failed to deliver it.
-func (g Governance) Reason() Reason { return g.claim.reason }
 
 // Governance reports what this contract asserts. A nil contract governs nothing.
 func (c *Contract) Governance() Governance {

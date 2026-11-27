@@ -33,6 +33,13 @@ const (
 // contract for this schema is a few kilobytes.
 const maxContractBytes = 256 << 10
 
+// The two refusals a contract past a cost bound gets.
+var (
+	errContractTooLarge = fmt.Errorf("rules file is larger than %d bytes", maxContractBytes)
+	errContractTooDeep  = fmt.Errorf("rules file nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes",
+		maxContractDepth, maxContractPath, maxContractPathBytes)
+)
+
 // checkContractDepth walks data once and refuses it when it is larger than
 // maxContractBytes, nests arrays and inline tables deeper than
 // maxContractDepth, or builds a key path longer than maxContractPath parts or
@@ -41,7 +48,7 @@ const maxContractBytes = 256 << 10
 // one counts for nothing, and a string cannot hide the structure around it.
 func checkContractDepth(data []byte) error {
 	if len(data) > maxContractBytes {
-		return fmt.Errorf("rules file is larger than %d bytes", maxContractBytes)
+		return errContractTooLarge
 	}
 	var walk depthWalk
 	for i := 0; i < len(data); {
@@ -51,8 +58,7 @@ func checkContractDepth(data []byte) error {
 		}
 		if !walk.step(data[i]) {
 			line := 1 + bytes.Count(data[:i], []byte("\n"))
-			return fmt.Errorf("rules file nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes, at line %d",
-				maxContractDepth, maxContractPath, maxContractPathBytes, line)
+			return fmt.Errorf("%w, at line %d", errContractTooDeep, line)
 		}
 		i++
 	}

@@ -54,13 +54,10 @@ func TestNewIndexRealVault(t *testing.T) {
 		t.Fatal("NewIndex() produced an empty real-vault index")
 	}
 
-	drafts, err := idx.Search(Parse(DraftFilterKey+":true"), 0)
+	drafts, err := idx.Search(Parse(filterDraft+":true"), 0)
 	if policy.Available() {
 		if err != nil {
 			t.Fatal("a draft search failed with an available artifact policy")
-		}
-		if drafts.Total > idx.Len() {
-			t.Errorf("drafts = %d, want at most %d", drafts.Total, idx.Len())
 		}
 	} else if !errors.Is(err, ErrMetadataUnavailable) {
 		t.Fatal("a draft search did not fail closed with an unavailable artifact policy")

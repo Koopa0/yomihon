@@ -14,9 +14,9 @@ import (
 // reason keeps the old, closed answer, because that vault may well have
 // withheld ground this process never learned.
 
-func openAbsentReader(t *testing.T, files map[string]string) (reader *vault.Reader, root string) {
+// writeFiles writes each body at its slash-separated path below root.
+func writeFiles(t *testing.T, root string, files map[string]string) {
 	t.Helper()
-	root = t.TempDir()
 	for rel, body := range files {
 		path := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -26,6 +26,12 @@ func openAbsentReader(t *testing.T, files map[string]string) (reader *vault.Read
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 	}
+}
+
+func openAbsentReader(t *testing.T, files map[string]string) (reader *vault.Reader, root string) {
+	t.Helper()
+	root = t.TempDir()
+	writeFiles(t, root, files)
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open(%q) error = %v", root, err)
@@ -211,20 +217,6 @@ func TestAnAbsentPolicyIsWithdrawnWhenTheRulesPathCannotBeTold(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAbsentFoldersPrivacyIsPermissive(t *testing.T) {
-	t.Parallel()
-	for name, policy := range map[string]PrivacyPolicy{
-		"the zero value":              {},
-		"a nil contract":              (*Contract)(nil).PrivacyPolicy(),
-		"a contract nothing declared": (&Contract{}).PrivacyPolicy(),
-	} {
-		if policy.Available() || policy.EgressAllowed("Notes/a.md") || policy.WithoutRules() {
-			t.Errorf("%s: Available() = %t, EgressAllowed() = %t, WithoutRules() = %t, want a policy that says nothing may go out",
-				name, policy.Available(), policy.EgressAllowed("Notes/a.md"), policy.WithoutRules())
-		}
-	}
-}
-
 func TestAFolderWithNoRulesFileHoldsItsNotesOpenAndAnUnreadableOneClosesThem(t *testing.T) {
 	t.Parallel()
 	absent := CaptureAuthority(nil, Ungoverned())
@@ -276,11 +268,13 @@ func TestLoadForAgentsGivesNothingBackForAFileItCannotUse(t *testing.T) {
 		// wantErr is whether the rules file was refused.
 		wantErr     bool
 		withoutRule bool
+		// undeclared is a rules file read cleanly that declares no privacy.
+		undeclared bool
 	}{
 		{name: "no rules file", files: map[string]string{"Notes/a.md": "# a\n"}, withoutRule: true},
 		{name: "a key nothing reads", files: map[string]string{ContractRelPath: "unknown = true\n"}, wantErr: true},
 		{name: "not TOML", files: map[string]string{ContractRelPath: "this is = = not toml"}, wantErr: true},
-		{name: "a rules file that declares no privacy", files: map[string]string{ContractRelPath: "# rules\n"}},
+		{name: "a rules file that declares no privacy", files: map[string]string{ContractRelPath: "# rules\n"}, undeclared: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -296,7 +290,7 @@ func TestLoadForAgentsGivesNothingBackForAFileItCannotUse(t *testing.T) {
 			if tt.wantErr && (contract != nil || policy.Available() || policy.EgressAllowed("Notes/a.md")) {
 				t.Errorf("a refused rules file left a contract %v or a policy that says a path may go out", contract)
 			}
-			if tt.name == "a rules file that declares no privacy" && (policy.Available() || policy.WithoutRules()) {
+			if tt.undeclared && (policy.Available() || policy.WithoutRules()) {
 				t.Errorf("a rules file with no [privacy] section was given a permissive policy: Available() = %t", policy.Available())
 			}
 		})
@@ -326,15 +320,7 @@ func TestLoadForAgentsRefusesAFolderThatIsInsideOrAboveAVault(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			for rel, body := range tt.files {
-				path := filepath.Join(root, filepath.FromSlash(rel))
-				if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-					t.Fatalf("MkdirAll() error = %v", err)
-				}
-				if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-					t.Fatalf("WriteFile() error = %v", err)
-				}
-			}
+			writeFiles(t, root, tt.files)
 			dir := filepath.Join(root, filepath.FromSlash(tt.open))
 			if err := os.MkdirAll(dir, 0o750); err != nil {
 				t.Fatalf("MkdirAll() error = %v", err)

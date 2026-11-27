@@ -9,21 +9,17 @@ import (
 )
 
 // Result is one search hit: the note's path, display title, whether it is a
-// draft, and a snippet centered on the earliest matched-token offset. Draft is
-// false when the hit is not metadata-capable.
+// draft, the passage shown under it, and where its link lands. Draft is false
+// when the hit is not metadata-capable.
 type Result struct {
 	RelPath string
 	Title   string
 	Draft   bool
-	Snippet string
 	// NoteType is the type the note declares, as written, for a page that
 	// names a result's kind. Empty for a note that declares none.
 	NoteType string
 	// Lead is the passage a result page shows under the title; see Lead.
 	Lead Lead
-	// SnippetRuns carries display effects and original query evidence when
-	// the corpus includes syntax the destination consumes.
-	SnippetRuns []ExcerptRun
 
 	// Alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, and empty otherwise. The row shows a title, so
@@ -34,67 +30,43 @@ type Result struct {
 	// in the author's spelling. Tag-only hits have no body excerpt or landing.
 	Tag string
 
-	// Landing is the selected first-block stretch, with its tail grown to
-	// a word boundary and whitespace collapsed the way a snippet is. Empty when
+	// Landing is the earliest body match in its first block, with whitespace
+	// collapsed and its tail grown to a word boundary. Empty when
 	// the row has no body match to point at, or when a crossing match has
 	// nothing locatable in its first block.
 	Landing string
 
-	// LandingBare is the stretch to name where the directive carries no words
-	// ahead of it: Landing grown out to the edges of the words it lies
-	// inside. A browser looks for a run introduced by nothing only where a
-	// word begins and where one ends, so a match opening or closing inside a
-	// word is asked for at a place the page has nowhere, and the note stays
-	// at the top. It equals Landing wherever the match already lies on those
-	// edges, which is most matches. Each edge is decided on its own, and one
-	// resting inside a script that parts no words with spaces stays where the
-	// match left it: the edges there are a segmentation nothing here can
-	// find, and the sentence around the match is not them.
+	// LandingBare is Landing grown out to the edges of the words it lies
+	// inside, for a directive that names nothing ahead of it: a browser finds
+	// such a term only where a word begins and ends. An edge in a script that
+	// parts no words with spaces stays where the match left it.
 	LandingBare string
 
-	// LandingEnd is the last-block stretch of a crossing match, grown to the
-	// edges of the words it lies inside the way LandingBare is. A directive
-	// that names both ends can span blocks; a bare first-block term would
-	// land on an earlier copy of the same word.
-	//
-	// A browser holds this stretch to both edges whichever of its two places
-	// it takes — closing a range, or travelling alone because the first block
-	// had nothing locatable — so a match stopping inside a word is asked for
-	// at a place the page has nowhere, and the whole directive is abandoned.
-	// The stretch opens where its block does, which is already such an edge,
-	// so only the far end can move. An end resting inside a script that parts
-	// no words with spaces stays where the match left it, as in LandingBare.
+	// LandingEnd is the last-block stretch of a crossing match, grown the way
+	// LandingBare is, since a browser holds it to both edges whether it
+	// closes a range or travels alone. A bare first-block term would land on
+	// an earlier copy of the same word.
 	LandingEnd string
 
-	// LandingPrefix is the run of words the match follows inside the block
-	// its first stretch opens, collapsed the way a snippet is and cut to a
-	// few words. A browser looks for the term it is given by walking the
-	// whole page in order, so a start stretch of one common word is answered
-	// by the first copy anywhere on it — the reader's own navigation is drawn
-	// before the article and spells some of those words too. Naming what the
-	// match follows tells the two apart. Empty where the match opens its
-	// block, which is where there is nothing to say.
+	// LandingPrefix is a few words the match follows inside its first block,
+	// whitespace collapsed, so a browser that walks the whole page in order
+	// does not answer a common word with an earlier copy, such as one in the
+	// navigation. Empty where the match opens its block.
 	LandingPrefix string
 
-	// LandingSuffix is the run of characters after the last term a directive
-	// names, up to the nearest certain boundary: white space, a line break,
-	// punctuation, or the end of the block. A browser holds a term with nothing
-	// behind it to end where a word does, and in a script that parts no words with spaces
-	// that is a dictionary boundary this index has no model of. A term the
-	// directive follows with a run that itself ends at a certain boundary is
-	// released from the requirement, so the match can end anywhere. Empty where
-	// the term already stands against such a boundary, and where neither the
-	// whole block nor a local context range vouches for the term, the run and
-	// its ending boundary staying adjacent on the page.
+	// LandingSuffix is the run after the last term a directive names, up to
+	// the nearest certain boundary, which releases that term from ending
+	// where a word does: in a script that parts no words with spaces that
+	// boundary is a dictionary's. Empty where the term already stands against
+	// one, or where nothing vouches that the page keeps the run beside it.
 	LandingSuffix string
 
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
 
-	// FromFence reports that the deciding excerpt is a fenced block: the
-	// words live only there. The row names that the way it names an alias
-	// or a topic; the excerpt itself stays the fence's own lines.
+	// FromFence reports that the landing is in a fenced block: the words
+	// live only there. The row names that the way it names an alias.
 	FromFence bool
 
 	// Language is the note's own declared BCP 47 tag when the contract gave
@@ -102,22 +74,6 @@ type Result struct {
 	// otherwise, so a listing inherits the page language rather than guessing.
 	Language string
 }
-
-const (
-	// snippetBefore/snippetAfter bound the snippet window around the earliest
-	// matched-token offset, counted in characters the reader sees. A byte budget
-	// paid out by script, buying a reader of Chinese a third of the context.
-	snippetBefore = 40
-	snippetAfter  = 160
-
-	// landingPrefixWords and landingPrefixRunes bound the run of words named
-	// ahead of a match, in words and in characters the reader sees. The
-	// budget is small deliberately: the run is written for a browser to find
-	// again in rendered text, and every further word is another chance for
-	// the two spellings of the same sentence to part.
-	landingPrefixWords = 3
-	landingPrefixRunes = 30
-)
 
 // Answer is what one pass over the index found for a query: the results the
 // caller asked to have built, and how many hits there truly were.
@@ -143,7 +99,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 		return Answer{}, nil
 	}
 	metadataAvailable := idx.policy.Trustworthy()
-	requiresMetadata := q.RequiresMetadata()
+	requiresMetadata := q.requiresMetadata()
 	if requiresMetadata && !metadataAvailable {
 		return Answer{}, idx.metadataUnavailableError()
 	}
@@ -173,7 +129,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 
 // hit is one matched entry before its Result is built. Buckets hold hits
 // rather than Results so a bounded search can count every match while
-// building — snippet included — only the results it will return.
+// building — lead and landing included — only the results it will return.
 type hit struct {
 	entry        *entry
 	bodyEvidence bool
@@ -207,20 +163,27 @@ type resultBuckets struct {
 // entry that passed every filter and whose words answer none of the terms is not
 // a hit, and is filed nowhere.
 func (b *resultBuckets) place(e *entry, tokens []string) {
-	switch {
-	case allContain(e.TitleFold, tokens):
-		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
+	if allContain(e.titleFold, tokens) {
+		bodyEvidence := len(tokens) != 0 && allContain(e.plainFold, tokens)
 		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence})
-	case aliasAnswering(e, tokens) != "":
+		return
+	}
+	if alias := aliasAnswering(e, tokens); alias != "" {
 		// An alias stands with the title: a link written to one resolves and a
 		// link written to a title does not.
-		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
-	case allContain(e.PlainFold, tokens):
+		bodyEvidence := len(tokens) != 0 && allContain(e.plainFold, tokens)
+		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence, alias: alias})
+		return
+	}
+	if allContain(e.plainFold, tokens) {
 		b.groups[bucketBody] = append(b.groups[bucketBody], hit{entry: e, bodyEvidence: true})
-	case tagAnswering(e, tokens) != "":
-		b.groups[bucketTag] = append(b.groups[bucketTag], hit{entry: e, tag: tagAnswering(e, tokens)})
-	case allContain(e.PathFold, tokens):
+		return
+	}
+	if tag := tagAnswering(e, tokens); tag != "" {
+		b.groups[bucketTag] = append(b.groups[bucketTag], hit{entry: e, tag: tag})
+		return
+	}
+	if allContain(e.pathFold, tokens) {
 		b.groups[bucketPath] = append(b.groups[bucketPath], hit{entry: e})
 	}
 }
@@ -236,7 +199,7 @@ func (b *resultBuckets) raiseExactTitles(tokens []string) {
 	}
 	needle := strings.Join(tokens, " ")
 	slices.SortStableFunc(b.groups[bucketTitle], func(left, right hit) int {
-		return cmp.Compare(exactTitleRank(right.entry.TitleFold, needle), exactTitleRank(left.entry.TitleFold, needle))
+		return cmp.Compare(exactTitleRank(right.entry.titleFold, needle), exactTitleRank(left.entry.titleFold, needle))
 	})
 }
 
@@ -288,16 +251,16 @@ func tagTokens(tokens []string) []string {
 }
 
 func tagAnswering(e *entry, tokens []string) string {
-	if len(e.TagFolds) == 0 {
+	if len(e.tagFolds) == 0 {
 		return ""
 	}
 	terms := tagTokens(tokens)
 	if len(terms) == 0 {
 		return ""
 	}
-	for i, folded := range e.TagFolds {
+	for i, folded := range e.tagFolds {
 		if allContain(folded, terms) {
-			return e.Tags[i]
+			return e.tags[i]
 		}
 	}
 	return ""
@@ -319,9 +282,9 @@ func aliasAnswering(e *entry, tokens []string) string {
 	if len(tokens) == 0 {
 		return ""
 	}
-	for i, folded := range e.AliasFolds {
+	for i, folded := range e.aliasFolds {
 		if allContain(folded, tokens) {
-			return e.Aliases[i]
+			return e.aliases[i]
 		}
 	}
 	return ""
@@ -436,22 +399,23 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/domain/slug
-// compare the folded copies; draft asks the flag, true or false; folder is
+// compare the folded copies; draft asks the flag, which Parse reads only as
+// true or false; folder is
 // a rel_path prefix taken one directory name at a time, so "folder:Writing"
 // matches "Writing" and "Writing/x.md" and "writing/x.md", but never
 // "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
 	switch f.Key {
-	case "type":
-		return e.NoteTypeFold == f.Value
-	case DraftFilterKey:
-		return (f.Value == "true" && e.Draft) || (f.Value == "false" && !e.Draft)
-	case "domain":
-		return e.DomainFold == f.Value
-	case "slug":
-		return e.SlugFold == f.Value
-	case "folder":
-		return withinFolder(e.RelPath, f.Value)
+	case filterType:
+		return e.noteTypeFold == f.Value
+	case filterDraft:
+		return e.draft == (f.Value == "true")
+	case filterDomain:
+		return e.domainFold == f.Value
+	case filterSlug:
+		return e.slugFold == f.Value
+	case filterFolder:
+		return withinFolder(e.relPath, f.Value)
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps
@@ -477,38 +441,34 @@ func withinFolder(relPath, folder string) bool {
 		return false
 	}
 	for i, name := range want {
-		if fold(name) != fold(names[i]) {
+		if Fold(name) != Fold(names[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-// result builds a Result for e, with a snippet centered on the earliest
-// matched-token offset.
+// result builds a Result for e. Only a hit with body evidence has a lead and
+// a landing.
 func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, tag string) Result {
-	draft := e.Draft && metadataAvailable && e.metadataCapable
-	var bodySnippet string
-	var bodyRuns []ExcerptRun
+	draft := e.draft && metadataAvailable && e.metadataCapable
 	var terms landingTerms
 	var fromFence bool
 	var lead Lead
 	if bodyEvidence {
-		bodySnippet, bodyRuns, terms, fromFence = e.bodyExcerpt(tokens)
+		terms, fromFence = e.landing(tokens)
 		lead = e.lead(tokens)
 	}
 	noteType := ""
 	if metadataAvailable && e.metadataCapable {
-		noteType = e.NoteType
+		noteType = e.noteType
 	}
 	return Result{
-		RelPath:       e.RelPath,
-		Title:         e.Title,
+		RelPath:       e.relPath,
+		Title:         e.title,
 		NoteType:      noteType,
 		Lead:          lead,
 		Draft:         draft,
-		Snippet:       bodySnippet,
-		SnippetRuns:   bodyRuns,
 		Alias:         alias,
 		Tag:           tag,
 		Landing:       terms.first,
@@ -520,530 +480,6 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		FromFence:     fromFence,
 		Language:      e.language,
 	}
-}
-
-func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []ExcerptRun, terms landingTerms, fromFence bool) {
-	if len(e.displaySpans) > 0 {
-		centre := e.shownExcerptCentre(tokens)
-		start, end := snippetSourceBounds(e.PlainText, centre.start, centre.end, e.fenceRanges)
-		displayTokens := tokens
-		if !centre.found {
-			displayTokens = nil
-		}
-		var first, last int
-		bodyRuns, first, last = e.displayedExcerpt(start, end, displayTokens)
-		var display strings.Builder
-		for _, run := range bodyRuns {
-			display.WriteString(run.Text)
-		}
-		if centre.found && first < last {
-			terms = e.landingAtSource(centre.start, centre.end)
-		}
-		return display.String(), bodyRuns, terms, centre.fromFence
-	}
-	var foldStart, foldEnd int
-	foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
-	bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-	terms = e.landingAt(foldStart, foldEnd)
-	if !terms.crossing {
-		start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		if first, last, ok := firstSnippetMatch(e.PlainText[start:end], tokens); ok {
-			terms = e.landingAtSource(start+first, start+last)
-		}
-	}
-
-	return bodySnippet, bodyRuns, terms, fromFence
-}
-
-// landingTerms is everything one body match gives a browser text directive:
-// the stretch to arrive at, that same stretch grown to whole words for a
-// directive that names nothing ahead of it, the run of words the match
-// follows, the stretch its far end sits in grown the same way, the run after
-// the last of those stretches, and whether it left its block to reach that
-// end. They travel together because a directive is assembled from all of them
-// at once, and five loose strings are five a caller can pair up the wrong way
-// round.
-type landingTerms struct {
-	prefix   string
-	suffix   string
-	first    string
-	bare     string
-	last     string
-	crossing bool
-}
-
-// landingAt is the terms one folded body match offers. The exclusive end is
-// the last matched rune plus its length: the next kept rune can sit in a later
-// block after a fold-dropped break, which is not itself a crossing. Without
-// recorded block ends there is nothing to tell a wrap from a paragraph, so the
-// row keeps the snippet's own words and does not claim a crossing.
-//
-// The preceding run is cut at the start of the match's own block, because a
-// directive may only name one where it sits beside the term it introduces. A
-// match that opens its block is preceded by nothing and says so.
-//
-// So is a match in a block the page does not reproduce as written. Naming what
-// a match follows asks a browser to find the two side by side in what it is
-// showing, and on those blocks they are not: a ruby reading is written here
-// after the sentence it is spoken inside, and a footnote's mark is on the page
-// and not in this text at all. Such a run would match nothing and the note
-// would open at the top, which is worse than the bare term it replaced.
-//
-// Those are the blocks whose stretch has to stand on its own, which is why the
-// grown form is measured for every match rather than only for some: a block
-// that offers no run of words ahead of the match has nothing else to offer.
-// The growth stays inside the block, so a word cannot be assembled out of two
-// paragraphs the page draws apart.
-//
-// A match that crossed has a second stretch in its last block, and that one is
-// grown whatever the first block offered: a run of words is read as one only
-// beside a term from its own block, and the run belongs to the block the match
-// opened in, so this stretch has only ever stood on its own. Its own edges are
-// still asked the same question, and one in a script that parts no words with
-// spaces is left where the match put it.
-func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
-	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
-		return landingTerms{}
-	}
-	start := sourceOffsetOfFold(e.PlainText, foldStart)
-	end := sourceEndOfFold(e.PlainText, foldEnd)
-	if start >= end || end > len(e.PlainText) {
-		return landingTerms{}
-	}
-	return e.landingAtSource(start, end)
-}
-
-// landingAtSource places a selected source span on the directive's word edges.
-//
-// The run after the match is measured from the end of the last stretch a
-// directive can name, wherever growth left that end, and asked of the block
-// that stretch sits in: for a crossing match that is the last block, whose own
-// reproduction decides whether a run beside the term can be read as one.
-func (e *entry) landingAtSource(start, end int) landingTerms {
-	var terms landingTerms
-	if e.landingBlocked(start, end) {
-		return terms
-	}
-	blockStart, verbatim := e.blockAt(start)
-	blockStart, firstLimit := e.insertionBounds(start, blockStart, e.blockEndAfter(start))
-	if verbatim {
-		terms.prefix = landingPrefix(e.PlainText[blockStart:start])
-	}
-	firstEnd := e.blockEndAfter(start)
-	terms.crossing = end > firstEnd
-	firstStop := end
-	if terms.crossing {
-		firstStop = firstEnd
-	}
-	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstLimit)
-	terms.first = collapseFields(e.PlainText[start:bareEnd])
-	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
-	if !terms.crossing {
-		if headingStart, before, after := e.sectionContext(firstEnd); firstLimit == firstEnd && terms.first != "" && after != "" {
-			// The stretch runs on to the heading's end so the run after it
-			// is the section's own opening, which the contents list's copy
-			// of the heading is not followed by.
-			terms.first = collapseFields(e.PlainText[start:firstEnd])
-			terms.bare = collapseFields(e.PlainText[bareStart:firstEnd])
-			terms.suffix = after
-			return terms
-		} else if terms.first != "" && before != "" && blockStart <= headingStart {
-			// A run named ahead of a term is read only where it ends right
-			// at the term, so the stretch is the whole heading, from the
-			// edge the previous block's words stand against to its end.
-			terms.prefix = before
-			terms.first = collapseFields(e.PlainText[headingStart:firstEnd])
-			terms.bare = terms.first
-			return terms
-		}
-		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstLimit)) {
-			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstLimit)
-		}
-		return terms
-	}
-	return e.finishCrossingLanding(end, firstEnd, &terms)
-}
-
-// finishCrossingLanding measures the last stretch and its following run inside
-// the block that holds the match's far end.
-func (e *entry) finishCrossingLanding(end, firstEnd int, terms *landingTerms) landingTerms {
-	lastStart, lastVerbatim := e.blockAt(end - 1)
-	from := max(lastStart, firstEnd)
-	lastEnd := e.blockEndAfter(end - 1)
-	from, lastEnd = e.insertionBounds(end-1, from, lastEnd)
-	// The far end is grown for the reason the first stretch's standalone form
-	// is, and inside its own block for the reason that one is: a word cannot
-	// be assembled out of two blocks the page draws apart. This stretch opens
-	// where that block opens, which is a word's edge already, so that same
-	// offset serves as the floor and the only growth is outward.
-	_, lastStop := wordEdges(e.PlainText, from, end, from, lastEnd)
-	terms.last = collapseFields(e.PlainText[from:lastStop])
-	if lastVerbatim && terms.last != "" {
-		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
-	}
-	return *terms
-}
-
-// sectionContext is the run a directive names beside a match inside a
-// heading the page shows as written, so that the body's copy of the heading
-// answers it and the contents list's copy does not. The list repeats the
-// heading's own words, and on a narrow page it stands above the prose, so any
-// run taken from inside the heading is answered by the list's copy first.
-//
-// The first words of the next block are preferred: the list's copy is
-// followed by the next entry's name, or its last entry is followed by reading
-// aids and then the body's first block. The last words of the previous block
-// provide context when a known preceding contents entry cannot answer them.
-// Each run comes from adjacent page text, and only where the list cannot
-// answer it too. Both empty means the hit keeps the terms any other block
-// gives it. headingStart is where the heading's text begins.
-func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after string) {
-	for i, b := range e.blocks {
-		if b.End != headingEnd {
-			headingStart = b.End
-			continue
-		}
-		if !b.Heading || e.hasInsertion(headingStart, headingEnd) {
-			return headingStart, "", ""
-		}
-		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
-			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
-			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
-			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
-				return headingStart, "", opening
-			}
-		}
-		if i > 0 && e.shownAsWritten(i-1) {
-			closingStart, _ := e.insertionBounds(headingStart, e.blockStart(i-1), headingStart)
-			closing := landingPrefix(e.PlainText[closingStart:headingStart])
-			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
-				return headingStart, closing, ""
-			}
-		}
-		return headingStart, "", ""
-	}
-	return 0, "", ""
-}
-
-// shownAsWritten reports that block i's corpus words reach the page in this
-// order. Insertions are clipped separately before the words name context.
-func (e *entry) shownAsWritten(i int) bool {
-	return e.blocks[i].Verbatim
-}
-
-// blockStart is where block i's text begins.
-func (e *entry) blockStart(i int) int {
-	if i == 0 {
-		return 0
-	}
-	return e.blocks[i-1].End
-}
-
-// opensAnotherBlock reports that the text from the start of some block other
-// than block own reads, the way a browser compares (white space as one space,
-// letters in either case), as opening. The next entry's name starts a block,
-// and so does the body's first block, which the last entry's copy is
-// followed by once the page's other reading aids have been passed; an
-// opening that also starts a block could be answered beside the list's copy.
-// What those aids say is the page's, not the note's, so it is not asked.
-func (e *entry) opensAnotherBlock(opening string, own int) bool {
-	words := strings.Fields(opening)
-	for i := range e.blocks {
-		if i != own && readsAs(e.PlainText[e.blockStart(i):], words) {
-			return true
-		}
-	}
-	return false
-}
-
-// readsAs reports that text opens with words, white space between them read
-// as one space and case ignored. The last word need only open a word of
-// text, which only ever counts more texts as a match.
-func readsAs(text string, words []string) bool {
-	for i, w := range words {
-		text = strings.TrimLeftFunc(text, unicode.IsSpace)
-		if len(text) < len(w) || !strings.EqualFold(text[:len(w)], w) {
-			return false
-		}
-		text = text[len(w):]
-		if i < len(words)-1 {
-			if r, _ := utf8.DecodeRuneInString(text); text == "" || !unicode.IsSpace(r) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// closingFollowsAnEntry reports that a contents entry the closing words of
-// block prev cannot end is known to stand before the heading's own entry.
-// The walk back from prev passes only over blocks the page shows as written,
-// none of which adds an entry, to the heading that names the section prev
-// sits in; that heading's words are the ones the list writes ahead of the
-// heading's copy. Reaching the note's start, or a block that could hide an
-// entry — a heading the page changes, an embed — leaves the entry before it
-// unknown, as is the first entry's, which follows the list's own label.
-func (e *entry) closingFollowsAnEntry(closing string, prev int) bool {
-	for i := prev - 1; i >= 0; i-- {
-		b := e.blocks[i]
-		if b.Heading {
-			name := strings.ToLower(collapseFields(e.PlainText[e.blockStart(i):b.End]))
-			lower := strings.ToLower(closing)
-			return !strings.HasSuffix(lower, name) && !strings.HasSuffix(name, lower)
-		}
-		if !b.Verbatim {
-			return false
-		}
-	}
-	return false
-}
-
-// landingOpening is the first few words of a block, stopping where a run
-// ends at a certain boundary: before a hard line break, and within the word
-// and character budget a preceding run keeps. A first word over that budget
-// is cut at its first certain boundary instead, the way a following run is.
-func landingOpening(block string) string {
-	block = strings.TrimLeftFunc(block, unicode.IsSpace)
-	if i := strings.IndexByte(block, '\n'); i >= 0 {
-		block = block[:i]
-	}
-	words := strings.Fields(block)
-	if len(words) > landingPrefixWords {
-		words = words[:landingPrefixWords]
-	}
-	for len(words) > 0 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
-		words = words[:len(words)-1]
-	}
-	if len(words) > 0 {
-		return strings.Join(words, " ")
-	}
-	return landingSuffix(block, 0, len(block))
-}
-
-// contextSuffixAt vouches for the match and its following run in one local
-// range. A removed delimiter is not a word boundary, so the boundary after
-// the run must also be reproduced, unless it is the actual block end.
-func (e *entry) contextSuffixAt(start, from, blockEnd int) bool {
-	suffix := landingSuffix(e.PlainText, from, blockEnd)
-	if suffix == "" {
-		return false
-	}
-	stop := from + len(suffix)
-	if stop < blockEnd {
-		_, size := utf8.DecodeRuneInString(e.PlainText[stop:blockEnd])
-		stop += size
-	}
-	for _, b := range e.blocks {
-		if b.End < blockEnd {
-			continue
-		}
-		for _, span := range b.ContextRanges {
-			if span[0] <= start && stop <= span[1] {
-				return true
-			}
-		}
-		return false
-	}
-	return false
-}
-
-// wordEdges grows [start, end) out to the edges of the words it lies inside,
-// never leaving [low, high). Only an end whose own character is one a word
-// joins can be inside a word at all; every other end already stands on a
-// boundary and is left alone. Each end is asked separately. That one condition
-// is what keeps a stretch of white space from drawing in the word beside it,
-// and what leaves an end resting inside a script that parts no words with
-// spaces exactly where it was — the edges there are a segmentation this vault
-// has no way to find, and the sentence around the match is not them.
-func wordEdges(s string, start, end, low, high int) (grownStart, grownEnd int) {
-	grownStart, grownEnd = start, end
-	if opening, _ := utf8.DecodeRuneInString(s[start:end]); joinsAWord(opening) {
-		for grownStart > low {
-			r, size := utf8.DecodeLastRuneInString(s[low:grownStart])
-			if !joinsAWord(r) {
-				break
-			}
-			grownStart -= size
-		}
-	}
-	if closing, _ := utf8.DecodeLastRuneInString(s[:end]); joinsAWord(closing) {
-		for grownEnd < high {
-			r, size := utf8.DecodeRuneInString(s[grownEnd:high])
-			if !joinsAWord(r) {
-				break
-			}
-			grownEnd += size
-		}
-	}
-	return grownStart, grownEnd
-}
-
-// joinsAWord reports whether r is joined to the character beside it into one
-// word, the way Unicode text segmentation (UAX #29) joins them: a letter or a
-// digit, in a script that parts its words with spaces. Every other character
-// carries a boundary on both sides, so a stretch that begins or ends against
-// one begins or ends where a word does.
-//
-// It is neither of the two runs already measured in this file. wordRun is
-// bounded by white space alone, so in "今日は晴れ、cobaltine" it answers the
-// whole sentence, and a browser handed that sentence as one term finds nothing
-// — twice over, because the page draws a ruby reading in among the characters
-// it is spoken over, so a stretch reaching across one is not text the page
-// carries in one piece at all. isWordByte keeps a date or an identifier whole
-// for a reader and so holds on to the hyphen, which a browser breaks at.
-func joinsAWord(r rune) bool {
-	return (unicode.IsLetter(r) || unicode.IsDigit(r)) && !writesWithoutSpaces(r)
-}
-
-// landingPrefix cuts a block's run of words before a match down to what one
-// term of a directive can carry. Only whole words come off the front, and a
-// last word still over the budget comes off with them.
-//
-// A browser finds a leading run only where it begins at a word boundary, and
-// the boundaries this index can be certain of are the ones every segmenter
-// agrees on: white space, punctuation, and the start of the block. A cut made
-// anywhere else in a script that parts no words with spaces divides them by
-// dictionary, which nothing here has a model of, so it falls inside a word
-// almost every time — and a run that begins inside a word is not merely
-// weaker: it is found nowhere, and the browser abandons the whole directive.
-//
-// Where the last word is over the budget and is written in such a script, the
-// run therefore begins after the earliest certain boundary that leaves it
-// inside the budget, and where there is none, after the nearest one before
-// it. A last word in any other script is dropped instead: the term that
-// follows it is grown to the edges of its own word, so it stands alone
-// without one.
-func landingPrefix(run string) string {
-	words := strings.Fields(run)
-	if len(words) > landingPrefixWords {
-		words = words[len(words)-landingPrefixWords:]
-	}
-	for len(words) > 0 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
-		words = words[1:]
-	}
-	if len(words) > 0 {
-		return strings.Join(words, " ")
-	}
-	return unspacedPrefix(run)
-}
-
-// unspacedPrefix is the run a directive names ahead of a match whose last word
-// is over the budget, or empty where that word is not written without spaces.
-// It never reaches back over a hard line break: the page draws a break as a
-// break, not as the white space it becomes once the run is collapsed, so a
-// run spanning one is text the page does not carry in one piece.
-func unspacedPrefix(run string) string {
-	if i := strings.LastIndex(run, "\n"); i >= 0 {
-		run = run[i+1:]
-	}
-	runes := []rune(collapseFields(run))
-	if len(runes) == 0 {
-		return ""
-	}
-	lastWord := runes
-	for i, r := range slices.Backward(runes) {
-		if r == ' ' {
-			lastWord = runes[i+1:]
-			break
-		}
-	}
-	if !slices.ContainsFunc(lastWord, writesWithoutSpaces) {
-		return ""
-	}
-	last := len(runes) - 1
-	if isCertainBoundary(runes, last) {
-		return ""
-	}
-	for i := max(1, len(runes)-landingPrefixRunes); i <= last; i++ {
-		if isCertainBoundary(runes, i-1) {
-			return string(runes[i:])
-		}
-	}
-	for i := last - 1; i >= 0; i-- {
-		if isCertainBoundary(runes, i) {
-			return string(runes[i+1:])
-		}
-	}
-	return string(runes)
-}
-
-// landingSuffix cuts the block after a term, text[from:to], down to the
-// nearest certain boundary, which is the run itself ending where the browser
-// agrees a word ends. A hard line break is one, so the run never reaches over
-// it, and with no other the rest of the block is the run, whose end is one.
-// Empty where the term already stands against a boundary. The character
-// before from is read too, because whether a mark joins a word depends on
-// what stands on both sides of it.
-func landingSuffix(text string, from, to int) string {
-	runes := []rune(text[from:to])
-	offset := 0
-	if from > 0 {
-		before, _ := utf8.DecodeLastRuneInString(text[:from])
-		runes = append([]rune{before}, runes...)
-		offset = 1
-	}
-	for i := offset; i < len(runes); i++ {
-		if isCertainBoundary(runes, i) {
-			return collapseFields(string(runes[offset:i]))
-		}
-	}
-	return collapseFields(string(runes[offset:]))
-}
-
-// isCertainBoundary reports whether the character at i, being white space or
-// punctuation, is one every text segmenter breaks a word at. A few marks only
-// join: an apostrophe or a full stop inside a word, a comma inside a number.
-// They are skipped where a letter or digit stands on both sides, and are
-// boundaries otherwise, since beside characters of a script without spaces
-// they join nothing. Two more join whatever stands beside them, katakana
-// included, and are never a boundary.
-func isCertainBoundary(runes []rune, i int) bool {
-	r := runes[i]
-	switch {
-	case unicode.IsSpace(r):
-		return true
-	case !unicode.IsPunct(r), strings.ContainsRune(alwaysJoiningMarks, r):
-		return false
-	case !strings.ContainsRune(joiningMarks, r):
-		return true
-	}
-	return i == 0 || i == len(runes)-1 || !joinsAWord(runes[i-1]) || !joinsAWord(runes[i+1])
-}
-
-// joiningMarks are the punctuation characters that, between two letters or two
-// digits, are part of the word around them rather than a break in it.
-const joiningMarks = "'\u2018\u2019.\u2024:,;\u00b7\u2027\uff07\uff0e\uff1a\uff0c\uff1b"
-
-// alwaysJoiningMarks are the punctuation characters a word continues through
-// on both sides: the katakana middle dot, which katakana words are written
-// with, and the low line, which identifiers are.
-const alwaysJoiningMarks = "\u30fb_\uff3f"
-
-func collapseFields(s string) string {
-	return strings.Join(strings.Fields(s), " ")
-}
-
-func (e *entry) blockEndAfter(off int) int {
-	for _, b := range e.blocks {
-		if b.End > off {
-			return b.End
-		}
-	}
-	return len(e.PlainText)
-}
-
-// blockAt is where the block holding off begins, and whether the reading page
-// reproduces that block as written. An offset past every block this entry
-// knows about is reproduced by nothing anyone here has looked at.
-func (e *entry) blockAt(off int) (start int, verbatim bool) {
-	prev := 0
-	for _, b := range e.blocks {
-		if b.End > off {
-			return prev, b.Verbatim
-		}
-		prev = b.End
-	}
-	return prev, false
 }
 
 // runesBefore returns the byte offset n characters back from off, and the start
@@ -1079,110 +515,9 @@ func runesAfter(s string, off, n int) int {
 	return off
 }
 
-// snippetAt returns a one-line window of plain around a folded match.
-// Lowercasing does not preserve length, so the offsets come back through the
-// fold's own mapping: used directly they drift until the window slides clear
-// of the term it was placed around.
-func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
-	start, end := snippetBounds(plain, foldStart, foldEnd, fences)
-	s := collapseFields(plain[start:end])
-	if start > 0 {
-		s = "…" + s
-	}
-	if end < len(plain) {
-		s += "…"
-	}
-	return s
-}
-
-// snippetBounds keeps the excerpt's source span available for landing selection.
-func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (start, end int) {
-	if foldStart < 0 {
-		foldStart, foldEnd = 0, 0
-	}
-	off := sourceOffsetOfFold(plain, foldStart)
-	matchEnd := sourceEndOfFold(plain, foldEnd)
-	return snippetSourceBounds(plain, off, matchEnd, fences)
-}
-
-func snippetSourceBounds(plain string, off, matchEnd int, fences [][2]int) (start, end int) {
-	matchEnd = max(matchEnd, off)
-	matchEnd = min(matchEnd, len(plain))
-	// Neither boundary may move past the match it was placed around: a match buried
-	// deep in one unbroken run can be stepped over by both at once, reversing the
-	// slice. The close is held at the match's exclusive end, not its first byte —
-	// clamping to off made the half-open window exclude the hit (plain "0Z"+184×"0",
-	// token "Z" → "0…"). The sentence-start reach runs first and the whole-word
-	// adjustment last, because the second has to hold whatever the first leaves.
-	// A fence hit skips the sentence reach: source is not a sentence, and walking
-	// back through a preceding paragraph would present it as one.
-	// A fence span is block-aligned, as render.PlainBlocks emits it.
-	opening := runesBefore(plain, off, snippetBefore)
-	inFence, fence := fenceAt(off, fences)
-	if !inFence {
-		opening = sentenceStart(plain, opening, off)
-	}
-	start = min(wholeWordStart(plain, opening), off)
-	end = max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
-	if inFence {
-		start = max(start, fence[0])
-		end = min(end, fence[1])
-		start = min(start, off)
-		end = max(end, matchEnd)
-	} else {
-		start, end = clipFencesFromProse(plain, start, end, off, matchEnd, fences)
-	}
-	start = clipLeadingRun(plain, start, end, off)
-
-	return start, end
-}
-
-// firstSnippetMatch maps the first merged excerpt mark back to source bytes.
-// The mapping keeps collapsed whitespace separate from authored text and never
-// treats the excerpt's added ellipses as part of a note.
-func firstSnippetMatch(plain string, tokens []string) (start, end int, found bool) {
-	var collapsed strings.Builder
-	var offsets []int
-	for at := 0; at < len(plain); {
-		at += whitespaceRun(plain, at)
-		if at == len(plain) {
-			break
-		}
-		if collapsed.Len() > 0 {
-			collapsed.WriteByte(' ')
-			offsets = append(offsets, at-1)
-		}
-		n := wordRun(plain, at)
-		collapsed.WriteString(plain[at : at+n])
-		for i := range n {
-			offsets = append(offsets, at+i)
-		}
-		at += n
-	}
-	at := 0
-	for _, run := range MarkHits(collapsed.String(), tokens) {
-		stop := at + len(run.Text)
-		if text := strings.TrimSpace(run.Text); run.Hit && text != "" {
-			at += strings.Index(run.Text, text)
-			return offsets[at], offsets[at+len(text)-1] + 1, true
-		}
-		at = stop
-	}
-	return 0, 0, false
-}
-
-func snippet(plain, plainFold string, tokens []string) string {
-	return snippetWithFences(plain, plainFold, tokens, nil)
-}
-
-func snippetWithFences(plain, plainFold string, tokens []string, fences [][2]int) string {
-	foldStart, foldEnd, _ := earliestOffset(plainFold, tokens, foldRanges(plain, fences))
-	return snippetAt(plain, foldStart, foldEnd, fences)
-}
-
-// earliestOffset returns the folded byte range of the token that should
-// centre the excerpt: the earliest prose hit when the note has one, otherwise
-// the earliest fence hit. start is < 0 when no token occurs. inFence is
+// earliestOffset returns the folded byte range of the token a result lands on:
+// the earliest prose hit when the note has one, otherwise the earliest fence
+// hit. start is < 0 when no token occurs. inFence is
 // true only when the words live only in a fence.
 func earliestOffset(fold string, tokens []string, foldFences [][2]int) (start, end int, inFence bool) {
 	proseStart, proseEnd := -1, 0
@@ -1226,66 +561,9 @@ func tokenWindows(fold, token string, foldFences [][2]int) (proseStart, proseEnd
 	return proseStart, proseEnd, fenceStart, fenceEnd
 }
 
+// inFenceRange reports whether off lies inside one of the half-open fences.
 func inFenceRange(off int, fences [][2]int) bool {
-	found, _ := fenceAt(off, fences)
-	return found
-}
-
-func fenceAt(off int, fences [][2]int) (found bool, span [2]int) {
-	for _, f := range fences {
-		if off >= f[0] && off < f[1] {
-			return true, f
-		}
-	}
-	return false, [2]int{}
-}
-
-// clipLeadingRun pulls the opening boundary forward when the collapsed
-// window — ellipses included — would exceed the character budget. The usual
-// cause is a sentence-start that opened onto a long unbroken run; the after
-// side is already bounded, so only the lead can overflow. The match stays
-// inside. A token longer than the after-window still occupies the snippet.
-func clipLeadingRun(plain string, start, end, off int) int {
-	budget := snippetBefore + snippetAfter + 2*wordEdgeBudget + 2
-	for start < off {
-		n := utf8.RuneCountInString(collapseFields(plain[start:end]))
-		if start > 0 {
-			n++
-		}
-		if end < len(plain) {
-			n++
-		}
-		if n <= budget {
-			return start
-		}
-		start = runesAfter(plain, start, n-budget)
-	}
-	return min(start, off)
-}
-
-// clipFencesFromProse keeps a prose window from swallowing a fence: a fence
-// that overlaps the opening side pushes start forward, and one that overlaps
-// the close pulls end back. The match itself stays inside.
-func clipFencesFromProse(plain string, start, end, off, matchEnd int, fences [][2]int) (clippedStart, clippedEnd int) {
-	for _, f := range fences {
-		if f[1] <= start || f[0] >= end {
-			continue
-		}
-		if f[1] <= off {
-			after := f[1]
-			if after < len(plain) && plain[after] == '\n' {
-				after++
-			}
-			if after > start {
-				start = after
-			}
-			continue
-		}
-		if f[0] >= matchEnd && f[0] < end {
-			end = f[0]
-		}
-	}
-	return min(start, off), max(end, matchEnd)
+	return slices.ContainsFunc(fences, func(f [2]int) bool { return off >= f[0] && off < f[1] })
 }
 
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A
@@ -1293,8 +571,8 @@ func clipFencesFromProse(plain string, start, end, off, matchEnd int, fences [][
 // anyone is reading as one, and the window matters more than it does.
 const wordEdgeBudget = 24
 
-// wholeWordStart moves a snippet's opening boundary back to the start of a word
-// the window cut into, so a date arrives as 2026-07-30 rather than 026-07-30. Only
+// wholeWordStart moves a passage's opening boundary back to the start of a word
+// the cut fell into, so a date arrives as 2026-07-30 rather than 026-07-30. Only
 // runs of ASCII letters and digits are treated this way, since CJK prose has no
 // word boundary to respect. It moves outward, since forward leaves a fragment.
 func wholeWordStart(s string, i int) int {
@@ -1344,142 +622,7 @@ func wholeWordEnd(s string, i int) int {
 // Hyphen and underscore are in it because the runs that arrive mangled are dates
 // and identifiers, which splitting at the punctuation would cut to their tail.
 func isWordByte(b byte) bool {
-	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
-}
-
-// sentenceTerminators end a sentence in the scripts this corpus is written in; a
-// comma of either width is not among them. The unambiguous ones are a subset:
-// a full-width stop appears inside no token and ends a sentence wherever it
-// stands, while an ASCII stop is the character inside vault-schema.toml and
-// 3.14159, so it ends one only with white space or the end of the text after
-// it. The two sets are all that is needed — every terminator outside the
-// unambiguous set is by definition one of the ASCII ones, and lastSentenceEnd
-// asks for the white space there.
-const (
-	sentenceTerminators    = "。！？；.!?;\n"
-	unambiguousTerminators = "。！？；\n"
-)
-
-// snippetBeforeMax bounds the whole opening side of the window: the boundary may
-// travel back this far to reach the start of its sentence and no further, so a
-// note written without terminators cannot turn one result row into the note.
-const snippetBeforeMax = 120
-
-// sentenceStart moves a snippet's opening boundary back to the beginning of the
-// sentence it landed inside, when that beginning is within reach. The words a
-// sentence opens with decide what it means — 不得, 本段僅限, "this is not
-// recommended" — and cutting them leaves the predicate reading as the instruction.
-// Where no terminator is in reach the window is left where it was.
-func sentenceStart(plain string, start, off int) int {
-	if start <= 0 {
-		return start
-	}
-	limit := runesBefore(plain, off, snippetBeforeMax)
-	if limit >= start {
-		return start
-	}
-	i, ok := lastSentenceEnd(plain, limit, start)
-	if !ok {
-		return start
-	}
-	for i < start {
-		r, width := utf8.DecodeRuneInString(plain[i:])
-		if !unicode.IsSpace(r) {
-			break
-		}
-		i += width
-	}
-	return i
-}
-
-// lastSentenceEnd reports the byte just past the last sentence-ending punctuation
-// in plain[limit:start], and whether there was one. An ASCII stop counts only when
-// white space or the end of the text follows, which excludes a filename's dot.
-func lastSentenceEnd(plain string, limit, start int) (int, bool) {
-	for at := start; at > limit; {
-		j := strings.LastIndexAny(plain[limit:at], sentenceTerminators)
-		if j < 0 {
-			return 0, false
-		}
-		i := limit + j
-		r, size := utf8.DecodeRuneInString(plain[i:])
-		after := i + size
-		if strings.ContainsRune(unambiguousTerminators, r) {
-			return after, true
-		}
-		if after >= len(plain) {
-			return after, true
-		}
-		if next, _ := utf8.DecodeRuneInString(plain[after:]); unicode.IsSpace(next) {
-			return after, true
-		}
-		at = i
-	}
-	return 0, false
-}
-
-// foldWithSourceOffsets folds s and maps every byte position of the folded
-// copy, one past its end included, back to the byte offset in s of the character
-// it came from. It applies the walk half of the index's fold alone, which
-// reproduces that fold provided s is already NFC, as every snippet is.
-func foldWithSourceOffsets(s string) (fold string, src []int) {
-	var folded strings.Builder
-	folded.Grow(len(s))
-	src = make([]int, 0, len(s)+1)
-	foldRunes(s, func(r rune, at int) {
-		n := folded.Len()
-		folded.WriteRune(r)
-		for ; n < folded.Len(); n++ {
-			src = append(src, at)
-		}
-	})
-	return folded.String(), append(src, len(s))
-}
-
-// sourceOffsetOfFold maps one byte offset in the folded copy of s back to the
-// byte offset in s of the character that produced it. It answers exactly what
-// foldWithSourceOffsets tabulates, walked to one position rather than materialized
-// because its caller measures a whole note. A test holds the two to one answer.
-func sourceOffsetOfFold(s string, foldOff int) int {
-	folded, at := 0, len(s)
-	found := false
-	foldRunes(s, func(r rune, i int) {
-		if found {
-			return
-		}
-		next := folded + utf8.RuneLen(r)
-		if next > foldOff {
-			at, found = i, true
-			return
-		}
-		folded = next
-	})
-	return at
-}
-
-// sourceEndOfFold maps the exclusive end of a folded match back to the exclusive
-// source offset of its last rune. sourceOffsetOfFold at that same fold end would
-// name the next kept rune, which can sit past a dropped break and is not the
-// match.
-func sourceEndOfFold(s string, foldEnd int) int {
-	if foldEnd <= 0 {
-		return 0
-	}
-	folded, end := 0, len(s)
-	found := false
-	foldRunes(s, func(r rune, i int) {
-		if found {
-			return
-		}
-		next := folded + utf8.RuneLen(r)
-		if next >= foldEnd {
-			_, size := utf8.DecodeRuneInString(s[i:])
-			end, found = i+size, true
-			return
-		}
-		folded = next
-	})
-	return end
+	return isASCIIAlnum(b) || b == '-' || b == '_'
 }
 
 // HitRun is one stretch of a piece of text and whether the query matched it.
@@ -1491,16 +634,16 @@ type HitRun struct {
 }
 
 // MarkHits cuts a piece of text into the stretches that matched and those that did
-// not, so a page can show why a result is here. Nothing in it is particular to a
-// snippet: the same cut serves the body excerpt, the path, and any other name a
-// note can match by. Matching is done on the folded form while the runs carry
-// slices of the original text, and overlapping matches merge into one mark.
-func MarkHits(snippet string, tokens []string) []HitRun {
-	if snippet == "" || len(tokens) == 0 {
+// not, so a page can show why a result is here. The same cut serves the lead,
+// the title, the path, and any other name a note can match by. Matching is
+// done on the folded form while the runs carry slices of the original text,
+// and overlapping matches merge into one mark.
+func MarkHits(text string, tokens []string) []HitRun {
+	if text == "" || len(tokens) == 0 {
 		return nil
 	}
-	fold, src := foldWithSourceOffsets(snippet)
-	covered := make([]bool, len(snippet))
+	fold, src := foldWithSourceOffsets(text)
+	covered := make([]bool, len(text))
 	found := false
 	for _, t := range tokens {
 		if t == "" {
@@ -1523,50 +666,12 @@ func MarkHits(snippet string, tokens []string) []HitRun {
 	}
 	var runs []HitRun
 	start := 0
-	for i := 1; i <= len(snippet); i++ {
-		if i < len(snippet) && covered[i] == covered[start] {
+	for i := 1; i <= len(text); i++ {
+		if i < len(text) && covered[i] == covered[start] {
 			continue
 		}
-		runs = append(runs, HitRun{Text: snippet[start:i], Hit: covered[start]})
+		runs = append(runs, HitRun{Text: text[start:i], Hit: covered[start]})
 		start = i
 	}
 	return runs
-}
-
-// landingBlocked reports that inserted page text interrupts a source span.
-// Normalization barriers also withhold any overlapping span.
-func (e *entry) landingBlocked(start, end int) bool {
-	for _, at := range e.insertions {
-		if start < at && at < end {
-			return true
-		}
-	}
-	for _, span := range e.insertionBarriers {
-		if start < span[1] && end > span[0] {
-			return true
-		}
-	}
-	return false
-}
-
-// insertionBounds clips a run to the adjacent text the page keeps on the
-// same side of every inserted label. An edge at the match belongs to its side.
-func (e *entry) insertionBounds(at, low, high int) (floor, ceiling int) {
-	for _, edge := range e.insertions {
-		if edge <= at {
-			low = max(low, edge)
-		} else {
-			high = min(high, edge)
-		}
-	}
-	return low, high
-}
-
-func (e *entry) hasInsertion(start, end int) bool {
-	for _, edge := range e.insertions {
-		if start < edge && edge <= end {
-			return true
-		}
-	}
-	return false
 }

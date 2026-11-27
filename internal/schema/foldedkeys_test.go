@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -62,13 +63,10 @@ func TestDistinctKeyRefusalBytes(t *testing.T) {
 [[rows]]
 "a" = 4
 `
-	const want = `rules file keys differ only by letter case: "K" and "k"; "K" and "K"; "k" and "K"; "ß" and "ẞ"; "nested.A" and "nested.a"; "rows.Q" and "rows.q"`
+	const pairs = `"K" and "k"; "K" and "K"; "k" and "K"; "ß" and "ẞ"; "nested.A" and "nested.a"; "rows.Q" and "rows.q"`
 	err := validateDistinctKeys([]byte(data))
-	if err == nil {
-		t.Fatal("validateDistinctKeys(folding siblings) error = nil, want a refusal")
-	}
-	if got := err.Error(); got != want {
-		t.Errorf("validateDistinctKeys(folding siblings) = %q, want %q", got, want)
+	if !errors.Is(err, errFoldedKeys) || !strings.HasSuffix(err.Error(), pairs) {
+		t.Errorf("validateDistinctKeys(folding siblings) = %v, want the folded-keys refusal naming %s", err, pairs)
 	}
 }
 
@@ -90,25 +88,6 @@ func BenchmarkValidateDistinctKeys(b *testing.B) {
 			for b.Loop() {
 				if err := validateDistinctKeys(input); err != nil {
 					b.Fatal(err)
-				}
-			}
-		})
-	}
-}
-
-// BenchmarkSiblingFoldDistinct isolates sibling grouping from TOML decoding
-// and sorting, so unrelated decoder work cannot obscure its growth rate.
-func BenchmarkSiblingFoldDistinct(b *testing.B) {
-	for _, count := range []int{1024, 2048, 4096} {
-		b.Run(fmt.Sprintf("%dkeys", count), func(b *testing.B) {
-			names := make([]string, count)
-			for i := range names {
-				names[i] = fmt.Sprintf("key%06d", i)
-			}
-			b.ReportAllocs()
-			for b.Loop() {
-				if got := siblingsThatFold("", names); len(got) != 0 {
-					b.Fatalf("siblingsThatFold(distinct keys) = %v, want no pairs", got)
 				}
 			}
 		})

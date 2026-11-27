@@ -1,7 +1,6 @@
 package lexical
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -31,8 +30,8 @@ func TestInlineFootnoteSearchUsesTheDefinitionWithoutItsDelimiters(t *testing.T)
 			if len(got.Results) != tt.count {
 				t.Fatalf("Search(%q) returned %d results, want %d", tt.query, len(got.Results), tt.count)
 			}
-			if tt.count > 0 && (!strings.Contains(got.Results[0].Snippet, "行內註腳詞") || strings.Contains(got.Results[0].Snippet, "^[")) {
-				t.Errorf("Search(%q).Snippet = %q, want actual definition words without delimiters", tt.query, got.Results[0].Snippet)
+			if tt.count > 0 && got.Results[0].Landing != "行內註腳詞" {
+				t.Errorf("Search(%q).Landing = %q, want the definition words without delimiters", tt.query, got.Results[0].Landing)
 			}
 		})
 	}

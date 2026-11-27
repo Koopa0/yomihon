@@ -7,9 +7,7 @@ import "slices"
 // any other field. A field with no vocabulary, or an ungoverned contract,
 // returns nil; a declared empty list keeps its empty shape.
 func (c *Contract) EnumValues(field string) []string {
-	// A decoded contract always has its table of types, even an empty one; the
-	// zero value was never decoded and declares nothing.
-	if c == nil || c.typeByName == nil {
+	if c == nil {
 		return nil
 	}
 	if field == FieldType {

@@ -26,8 +26,10 @@ type Query struct {
 	tokens  []string
 	filters []Filter
 	// unknownKeys are the words written before a colon that this grammar does not
-	// accept, in input order and without repeats. The term is still searched for
-	// as text; this is what lets a page say the constraint was not one it knows.
+	// accept, and the whole of a term whose key it accepts and whose value it
+	// does not, in input order and without repeats. The term is still searched
+	// for as text; this is what lets a page say the constraint was not one it
+	// knows.
 	unknownKeys      []string
 	literalOperators []string
 }
@@ -43,8 +45,9 @@ func (q *Query) Filters() []Filter {
 }
 
 // UnknownFilterKeys returns the keys of terms shaped like filters that this
-// grammar does not accept, in input order. An empty result is the ordinary
-// case: nothing in the query looked like a constraint that was not one.
+// grammar does not accept, and the whole term where only the value is not
+// accepted, in input order. An empty result is the ordinary case: nothing in
+// the query looked like a constraint that was not one.
 func (q *Query) UnknownFilterKeys() []string {
 	return slices.Clone(q.unknownKeys)
 }
@@ -55,8 +58,8 @@ func (q *Query) LiteralOperatorTerms() []string {
 	return slices.Clone(q.literalOperators)
 }
 
-// RequiresMetadata reports whether evaluating the query needs frontmatter.
-func (q *Query) RequiresMetadata() bool {
+// requiresMetadata reports whether evaluating the query needs frontmatter.
+func (q *Query) requiresMetadata() bool {
 	for _, f := range q.filters {
 		kind, ok := classifyFilterKey(f.Key)
 		if ok && kind == filterMetadata {
@@ -74,23 +77,27 @@ const (
 	filterPath
 )
 
-// DraftFilterKey is the key the draft filter is written with: draft:true
-// keeps the notes that declare draft: true, draft:false the rest. It is
-// exported because a page writes that query out for a reader, and a page
-// spelling it itself would keep working until this table renamed the key, at
-// which point the reader would follow it into the search's own "I do not
-// recognise that filter" answer.
-const DraftFilterKey = schema.DraftField
+// The keys a filter may be written with. Four ask the fields the rules file
+// names, so they are spelled where those fields are; folder asks the path, and
+// is this grammar's own. draft:true keeps the notes that declare draft: true,
+// draft:false the rest.
+const (
+	filterType   = schema.FieldType
+	filterDraft  = schema.DraftField
+	filterDomain = schema.FieldDomain
+	filterSlug   = schema.FieldSlug
+	filterFolder = "folder"
+)
 
 // filterKeys is the grammar: every key a filter may be written with, and the
 // capability each asks of an entry. It is a table rather than a switch because
 // the page that repairs a mistyped filter has to offer this exact set.
 var filterKeys = map[string]filterKind{
-	"type":         filterMetadata,
-	DraftFilterKey: filterMetadata,
-	"domain":       filterMetadata,
-	"slug":         filterMetadata,
-	"folder":       filterPath,
+	filterType:   filterMetadata,
+	filterDraft:  filterMetadata,
+	filterDomain: filterMetadata,
+	filterSlug:   filterMetadata,
+	filterFolder: filterPath,
 }
 
 // classifyFilterKey is the shared grammar and capability classification for
@@ -108,16 +115,16 @@ func FilterKeys() []string {
 	return keys
 }
 
-// isFilterKey reports whether key is exactly one of the six lowercase filter
-// keys. The check is on the raw, pre-fold text: "Type:" or "TOPIC:" have
-// a key outside this set, so the whole token is a bare token instead.
+// isFilterKey reports whether key is exactly one of the lowercase filter keys.
+// The check is on the raw, pre-fold text: "Type:" has a key outside this set,
+// so the whole token is a bare token instead.
 func isFilterKey(key string) bool {
 	_, ok := classifyFilterKey(key)
 	return ok
 }
 
 // Parse turns a raw query string into a Query. A token is a filter only if its
-// pre-fold key is exactly one of the six lowercase keys, split on the first
+// pre-fold key is exactly one of the lowercase filter keys, split on the first
 // colon; every other token is a folded bare token. A filter value is folded
 // here, once, the way a token is; a "folder:" value instead drops a trailing
 // slash and stays as written, because matching folds it a directory name at a
@@ -131,8 +138,8 @@ func Parse(q string) *Query {
 	for _, field := range quoteFields(q) {
 		key, value, reading := splitFilter(field.text, field.quotedFrom)
 		if reading == readAsFilter {
-			if key != "folder" {
-				value = fold(value)
+			if key != filterFolder {
+				value = Fold(value)
 			}
 			out.filters = append(out.filters, Filter{Key: key, Value: value})
 			continue
@@ -144,7 +151,7 @@ func Parse(q string) *Query {
 			!slices.Contains(out.literalOperators, field.text) {
 			out.literalOperators = append(out.literalOperators, field.text)
 		}
-		out.tokens = append(out.tokens, fold(field.text))
+		out.tokens = append(out.tokens, Fold(field.text))
 	}
 	return &out
 }
@@ -275,9 +282,11 @@ func groupCloser(rest string, closer rune) int {
 }
 
 // splitFilter classifies one raw token: it splits key/value on the first colon
-// and returns a filter only when the key is one of the six and was written outside
-// quotes, quotedFrom being where quoting began or -1. The value is NFC-normalized;
-// a non-filter token returns ok=false so the caller folds it as a bare token.
+// and reads a filter only when the key is one the grammar accepts, was written
+// outside quotes, quotedFrom being where quoting began or -1, and carries a
+// value that key can take. The value is NFC-normalized. A term shaped like a
+// filter and not one reports what to say about it in key: the key where the
+// grammar does not accept it, and the whole term where only the value is wrong.
 func splitFilter(raw string, quotedFrom int) (key, value string, reading filterReading) {
 	key, rest, found := strings.Cut(raw, ":")
 	if !found {
@@ -294,8 +303,15 @@ func splitFilter(raw string, quotedFrom int) (key, value string, reading filterR
 		return key, "", readAsUnknownFilter
 	}
 	value = vault.NormalizeNFC(rest)
-	if key == "folder" {
+	switch key {
+	case filterFolder:
 		value = strings.TrimSuffix(value, "/")
+	case filterDraft:
+		if folded := Fold(value); folded != "true" && folded != "false" {
+			// A draft is declared true or false and nothing else, so any other
+			// value is a constraint that would quietly match nothing.
+			return raw, "", readAsUnknownFilter
+		}
 	}
 	return key, value, readAsFilter
 }
@@ -311,7 +327,7 @@ const (
 	readAsFilter
 )
 
-// WithFilter returns raw with f written on the end of it, and reports whether
+// withFilter returns raw with f written on the end of it, and reports whether
 // the result reads back as the same query plus exactly that one constraint.
 //
 // Every byte the reader typed stays where it stood, because the constraint is
@@ -321,7 +337,7 @@ const (
 // an answer that is not the one the offer counted. The check runs the candidate
 // back through the parser instead of reasoning about which characters are safe,
 // so it cannot disagree with the grammar it is protecting.
-func WithFilter(raw string, f Filter) (string, bool) {
+func withFilter(raw string, f Filter) (string, bool) {
 	written := spellFilter(f)
 	out := written
 	if raw != "" {
@@ -341,14 +357,14 @@ func WithFilter(raw string, f Filter) (string, bool) {
 	return out, true
 }
 
-// WithoutFilter returns raw with every field that reads as f cut out of it. The
+// withoutFilter returns raw with every field that reads as f cut out of it. The
 // bytes on either side are the reader's own: their spacing, their quoting and
 // their capitalisation all stand, because the cut is made at the offsets the
 // splitter recorded rather than by taking the query apart and writing it out
 // again. Whitespace goes with the field it separated — the run in front of it,
 // or the run behind it where the field opened the query — so removing a
 // constraint from the middle of a query does not weld its neighbours together.
-func WithoutFilter(raw string, f Filter) string {
+func withoutFilter(raw string, f Filter) string {
 	var out strings.Builder
 	kept := 0
 	for _, field := range quoteFields(raw) {
@@ -385,10 +401,10 @@ func WithoutFilter(raw string, f Filter) string {
 // matcher already carries — it is compared a directory name at a time, so the
 // as-written spellings are what stand here.
 func filterValuesEqual(key, left, right string) bool {
-	if key == "folder" {
+	if key == filterFolder {
 		return vault.NormalizeNFC(left) == vault.NormalizeNFC(right)
 	}
-	return fold(left) == fold(right)
+	return Fold(left) == Fold(right)
 }
 
 // spellFilter writes one constraint the way a reader would have to type it for

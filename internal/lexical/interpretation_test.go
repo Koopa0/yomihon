@@ -27,13 +27,6 @@ func TestOperatorShapedTermsKeepTheirLiteralMeaning(t *testing.T) {
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("Parse(%q) interpretation (-want +got):\n%s", tt.raw, diff)
 			}
-			clone := q.LiteralOperatorTerms()
-			if len(clone) > 0 {
-				clone[0] = "changed"
-				if diff := cmp.Diff(tt.operators, q.LiteralOperatorTerms()); diff != "" {
-					t.Errorf("Parse(%q) exposes mutable interpretation (-want +got):\n%s", tt.raw, diff)
-				}
-			}
 		})
 	}
 }

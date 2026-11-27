@@ -65,8 +65,8 @@ func TestRunCheckDomainHeadings(t *testing.T) {
 		{"nested direct child", `["Writing/lessons"]`, "Writing", "Writing/lessons/Overview.md", "(other)"},
 		{"top level direct child", `["Writing"]`, "Writing", "Writing/Overview.md", "(other)"},
 		{"sibling prefix", `["Writing/lessons"]`, "Writing", "Writing/lessons-extra/golang/L1.md", "(other)"},
-		{"case distinct", `["Writing/Lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
-		{"normalization distinct", `["Writing/Cafe\u0301"]`, "Writing", "Writing/Caf\u00e9/golang/L1.md", "(other)"},
+		{"case folded", `["Writing/Lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
+		{"decomposed root", `["Writing/Cafe\u0301"]`, "Writing", "Writing/Caf\u00e9/golang/L1.md", "golang"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

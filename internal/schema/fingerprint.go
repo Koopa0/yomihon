@@ -48,6 +48,7 @@ func (s policySource) reread() (bool, error) {
 			data, err = s.rereadCurrent()
 		}
 	} else {
+		// Only Load and LoadFile leave a source unpinned.
 		data, err = os.ReadFile(s.path) // #nosec G304 -- LoadFile recorded the operator-selected contract path
 	}
 	if err != nil {

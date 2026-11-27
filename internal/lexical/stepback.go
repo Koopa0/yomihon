@@ -71,12 +71,9 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		}
 		seen[candidate] = true
 		full := strings.Join(append(slices.Clip(filters), candidate), " ")
-		// A candidate is only offered for its count, so no result — and no
-		// snippet — is ever materialized for it, and the count is the true
-		// tally rather than the bounded page's opening stretch. The divisions
-		// the same walk tallies are read by nobody here: they cost a handful of
-		// map writes per hit, against the substring scans a second walk would
-		// have to pay all over again.
+		// A candidate is only offered for its count, so no result is ever
+		// materialized for it, and the count is the true tally rather than the
+		// bounded page's opening stretch.
 		answer, err := idx.Search(Parse(full), 0)
 		if err != nil || answer.Total == 0 {
 			continue
@@ -93,17 +90,14 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 // path. Each offer preserves the other terms and constraints and has already
 // found results; matching itself still uses the original path-prefix rule.
 func (idx *Index) FolderSuggestions(raw string) []StepBack {
-	if idx == nil {
-		return nil
-	}
 	var out []StepBack
 	seen := map[string]bool{}
 	for _, f := range Parse(raw).Filters() {
-		if f.Key != "folder" || f.Value == "" || strings.Contains(f.Value, "/") {
+		if f.Key != filterFolder || f.Value == "" || strings.Contains(f.Value, "/") {
 			continue
 		}
 		for _, folder := range idx.foldersNamed(f.Value) {
-			candidate, ok := WithFilter(WithoutFilter(raw, f), Filter{Key: "folder", Value: folder})
+			candidate, ok := withFilter(withoutFilter(raw, f), Filter{Key: filterFolder, Value: folder})
 			if !ok || seen[candidate] {
 				continue
 			}
@@ -121,8 +115,8 @@ func (idx *Index) foldersNamed(name string) []string {
 	seen := map[string]bool{}
 	var folders []string
 	for _, e := range idx.entries {
-		for folder := path.Dir(e.RelPath); folder != "." && folder != "/"; folder = path.Dir(folder) {
-			if fold(path.Base(folder)) != fold(name) || seen[folder] {
+		for folder := path.Dir(e.relPath); folder != "." && folder != "/"; folder = path.Dir(folder) {
+			if Fold(path.Base(folder)) != Fold(name) || seen[folder] {
 				continue
 			}
 			seen[folder] = true
@@ -166,7 +160,7 @@ func splitTermRuns(term string) string {
 	var runs []string
 	start := 0
 	for i := 1; i < len(term); i++ {
-		if isASCIIDigit(term[i-1]) != isASCIIDigit(term[i]) && isBoundaryByte(term[i-1]) && isBoundaryByte(term[i]) {
+		if isASCIIDigit(term[i-1]) != isASCIIDigit(term[i]) && isASCIIAlnum(term[i-1]) && isASCIIAlnum(term[i]) {
 			runs = append(runs, term[start:i])
 			start = i
 		}
@@ -185,6 +179,6 @@ func splitTermRuns(term string) string {
 
 func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
 
-func isBoundaryByte(b byte) bool {
+func isASCIIAlnum(b byte) bool {
 	return isASCIIDigit(b) || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

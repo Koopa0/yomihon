@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,17 +20,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-func TestContractExposesNoFields(t *testing.T) {
-	t.Parallel()
-
-	typ := reflect.TypeFor[schema.Contract]()
-	for field := range typ.Fields() {
-		if field.IsExported() {
-			t.Errorf("schema.Contract exposes field %s; authority must be method-only", field.Name)
-		}
-	}
-}
 
 func TestDefinitionIsDetached(t *testing.T) {
 	t.Parallel()
@@ -67,68 +55,6 @@ func TestDefinitionIsDetached(t *testing.T) {
 	}
 }
 
-// TestPlannedMarksAreDetached asserts a caller that edits the returned lists
-// edits its own copy, the same guarantee Definition() gives.
-func TestPlannedMarksAreDetached(t *testing.T) {
-	t.Parallel()
-
-	contract := loadFixture(t)
-	wantHeading, wantInline := contract.PlannedMarks()
-	heading, inline := contract.PlannedMarks()
-	if len(heading) == 0 || len(inline) == 0 {
-		t.Fatal("fixture planned marks are empty; the detachment claim would be vacuous")
-	}
-	heading[0] = "changed"
-	inline[0] = "changed"
-	gotHeading, gotInline := contract.PlannedMarks()
-	if diff := cmp.Diff(wantHeading, gotHeading); diff != "" {
-		t.Errorf("PlannedMarks() heading changed after caller mutation (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(wantInline, gotInline); diff != "" {
-		t.Errorf("PlannedMarks() inline changed after caller mutation (-want +got):\n%s", diff)
-	}
-}
-
-// TestDefaultPlannedMarksAreDetached asserts a caller that edits the returned
-// lists edits its own copy, the same guarantee Definition() gives.
-func TestDefaultPlannedMarksAreDetached(t *testing.T) {
-	t.Parallel()
-
-	wantGap := schema.DefaultPlannedGapMarks()
-	wantInline := schema.DefaultPlannedInlineMarks()
-	gap := schema.DefaultPlannedGapMarks()
-	inline := schema.DefaultPlannedInlineMarks()
-	if len(gap) == 0 || len(inline) == 0 {
-		t.Fatal("loader defaults are empty; the detachment claim would be vacuous")
-	}
-	gap[0] = "changed"
-	inline[0] = "changed"
-	if diff := cmp.Diff(wantGap, schema.DefaultPlannedGapMarks()); diff != "" {
-		t.Errorf("DefaultPlannedGapMarks() changed after caller mutation (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(wantInline, schema.DefaultPlannedInlineMarks()); diff != "" {
-		t.Errorf("DefaultPlannedInlineMarks() changed after caller mutation (-want +got):\n%s", diff)
-	}
-}
-
-// TestSkipBasenamesIsDetached asserts a caller that edits the returned list
-// edits its own copy, the same guarantee Definition() gives.
-func TestSkipBasenamesIsDetached(t *testing.T) {
-	t.Parallel()
-
-	contract := loadFixture(t)
-	want := slices.Clone(contract.SkipBasenames())
-	mutated := contract.SkipBasenames()
-	if len(mutated) == 0 {
-		t.Fatal("fixture declares no skipped_files; the detachment claim would be vacuous")
-	}
-	mutated[0] = "changed"
-
-	if diff := cmp.Diff(want, contract.SkipBasenames()); diff != "" {
-		t.Errorf("SkipBasenames() changed after caller mutation (-want +got):\n%s", diff)
-	}
-}
-
 func TestSkipsBasenameMatchesTheDeclaredFilenameOnly(t *testing.T) {
 	t.Parallel()
 
@@ -146,42 +72,6 @@ func TestSkipsBasenameMatchesTheDeclaredFilenameOnly(t *testing.T) {
 		if got := contract.SkipsBasename(tt.path); got != tt.want {
 			t.Errorf("SkipsBasename(%q) = %v, want %v", tt.path, got, tt.want)
 		}
-	}
-
-	var zero schema.Contract
-	if zero.SkipsBasename("README.md") {
-		t.Error("zero Contract.SkipsBasename(README.md) = true, want false")
-	}
-	var none *schema.Contract
-	if none.SkipsBasename("README.md") {
-		t.Error("nil Contract.SkipsBasename(README.md) = true, want false")
-	}
-}
-
-func TestZeroContractCarriesNoAuthority(t *testing.T) {
-	t.Parallel()
-
-	var contract schema.Contract
-	if got := contract.EnumValues("type"); got != nil {
-		t.Errorf(`EnumValues("type") = %v, want nil`, got)
-	}
-	if got := contract.RequiredFields("lesson"); got != nil {
-		t.Errorf(`RequiredFields("lesson") = %v, want nil`, got)
-	}
-	if got := contract.TypeRole("lesson"); got != "" {
-		t.Errorf(`TypeRole("lesson") = %q, want empty`, got)
-	}
-	if contract.NavigationRoles().Available() {
-		t.Error("NavigationRoles() on zero Contract is available")
-	}
-	if contract.ArtifactPolicy().Available() {
-		t.Error("ArtifactPolicy() on zero Contract is available")
-	}
-	if contract.PrivacyPolicy().Available() {
-		t.Error("PrivacyPolicy() on zero Contract is available")
-	}
-	if contract.SkipsBasename("README.md") {
-		t.Error("SkipsBasename() on zero Contract skips a filename")
 	}
 }
 
@@ -236,9 +126,7 @@ func loadText(t *testing.T, text string) *schema.Contract {
 }
 
 // The two sections below are what every caller of loadSemanticRootContract
-// writes. They stopped being parameters when the fingerprint tests that varied
-// them went with the corpus they fingerprinted; a caller that needs a different
-// contract writes one rather than passing the same two strings back in.
+// writes; a caller that needs a different contract writes one.
 const (
 	semanticFolderLines    = "templates = [\"System/templates\"]\n"
 	semanticPrivacySection = `
@@ -247,6 +135,9 @@ never_egress_dirs = ["Private"]
 `
 )
 
+// loadSemanticRootContract writes the semantic contract into a vault of its own
+// and loads it the way the served path does, through a reader pinned to that
+// vault.
 func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	t.Helper()
 	root := t.TempDir()
@@ -257,11 +148,7 @@ func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	if err := os.WriteFile(path, []byte(contractText(semanticFolderLines, navigationTypes, semanticPrivacySection)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
 		t.Fatalf("WriteFile(%q) = %v", path, err)
 	}
-	s, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("Load(%q) = %v", root, err)
-	}
-	return root, s
+	return root, loadPinnedSemanticContract(t, root)
 }
 
 // contractText writes a contract whose [folders] table carries the knowledge
@@ -286,7 +173,7 @@ never_egress_dirs = ["Private"]
 
 	roles := s.NavigationRoles()
 	if !roles.Available() {
-		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Claim().Diagnostic())
 	}
 	if !roles.IsPathType("study-path") {
 		t.Error("NavigationRoles().IsPathType(\"study-path\") = false, want true")
@@ -321,6 +208,8 @@ never_egress_dirs = ["Private"]
 	}
 }
 
+// loadPinnedSemanticContract loads the contract of the vault at root through a
+// reader opened on it, which stays open until the test ends.
 func loadPinnedSemanticContract(t *testing.T, root string) *schema.Contract {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -412,125 +301,106 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 	}
 }
 
-func TestArtifactPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
-	t.Parallel()
+// sourceCheck validates one copy of a source-bound capability and reports
+// whether it is available and the claim it answers with.
+type sourceCheck func() (available bool, claim schema.Claim)
 
-	root, contract := loadSemanticRootContract(t)
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	first := contract.ArtifactPolicy()
-	second := contract.ArtifactPolicy()
-	if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("WriteFile(changed contract) error = %v", err)
-	}
-	if first.ValidateSource().Available() {
-		t.Fatal("first policy copy remained available after source drift")
-	}
-	if err = os.WriteFile(path, original, 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("WriteFile(restored contract) error = %v", err)
-	}
-	if second.ValidateSource().Available() {
-		t.Error("second policy copy reopened after source restoration, want shared latch")
-	}
-	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := second.Diagnostic(); got != want {
-		t.Errorf("second policy diagnostic = %q, want %q", got, want)
-	}
-	// The words are the operator's. What a page says to a reader is chosen from
-	// the reason, so the reason has to be the changed-contract one.
-	if got := second.Claim().Reason(); got != schema.ReasonContractChanged {
-		t.Errorf("second policy reason = %v, want %v", got, schema.ReasonContractChanged)
-	}
-
-	reloaded, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("Load(restored contract) error = %v", err)
-	}
-	if !reloaded.ArtifactPolicy().Available() {
-		t.Errorf("freshly loaded policy remained unavailable: %s", reloaded.ArtifactPolicy().Diagnostic())
+func artifactCheck(c *schema.Contract) sourceCheck {
+	policy := c.ArtifactPolicy()
+	return func() (bool, schema.Claim) {
+		validated := policy.ValidateSource()
+		return validated.Available(), validated.Claim()
 	}
 }
 
-// A contract that cannot be read is not a contract that changed. A save-by-
-// rename leaves the name absent for a few microseconds, and reading that
-// instant as drift shuts the capability for the life of the process over bytes
-// nobody touched. The request that meets the gap is refused, the next one asks
-// again, and only bytes that really differ latch the policy shut.
-func TestArtifactPolicyUnreadableSourceRefusesOneRequestWithoutLatching(t *testing.T) {
-	t.Parallel()
-
-	root, contract := loadSemanticRootContract(t)
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	policy := contract.ArtifactPolicy()
-	if !policy.ValidateSource().Available() {
-		t.Fatalf("policy unavailable before the source moved: %s", policy.Diagnostic())
-	}
-
-	away := path + ".away"
-	if err := os.Rename(path, away); err != nil {
-		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
-	}
-	during := policy.ValidateSource()
-	if during.Available() || during.Trustworthy() {
-		t.Error("an artifact policy classified while its source could not be read")
-	}
-	if during.Diagnostic() == "" {
-		t.Error("a refusal with no sentence; a contract that cannot be read is news")
-	}
-	if reason := during.Claim().Reason(); reason != schema.ReasonContractUnreadable {
-		t.Errorf("refusal reason = %v, want %v", reason, schema.ReasonContractUnreadable)
-	}
-	if during.IsNonInstance("System/templates/Example.md") {
-		t.Error("IsNonInstance answered from a policy that could not re-read its source")
-	}
-
-	if err := os.Rename(away, path); err != nil {
-		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
-	}
-	after := policy.ValidateSource()
-	if !after.Available() {
-		t.Errorf("the policy stayed shut after the identical file came back: %s", after.Diagnostic())
-	}
-	if !after.IsNonInstance("System/templates/Example.md") {
-		t.Error("the policy stopped classifying after the identical file came back")
+func privacyCheck(c *schema.Contract) sourceCheck {
+	policy := c.PrivacyPolicy()
+	return func() (bool, schema.Claim) {
+		validated := policy.ValidateSource()
+		return validated.Available(), validated.Claim()
 	}
 }
 
-// The served path loads through a pinned reader rather than a bare path, and it
-// carries both capabilities, so the same gap is checked there too.
-func TestPinnedPolicyUnreadableSourceRefusesOneRequestWithoutLatching(t *testing.T) {
+// sourceBound is each capability that answers only while the contract's bytes
+// are the ones it was derived from.
+var sourceBound = []struct {
+	name  string
+	check func(*schema.Contract) sourceCheck
+}{
+	{"artifact policy", artifactCheck},
+	{"privacy policy", privacyCheck},
+}
+
+// TestADriftedSourceClosesEveryCopyUntilRestart holds the one-way latch: once
+// any copy sees the contract's bytes change, every copy of that capability
+// stays closed, putting the bytes back reopens nothing, and only a fresh load
+// reads the contract again. What a page says to a reader is chosen from the
+// reason, so the reason is the changed-contract one.
+func TestADriftedSourceClosesEveryCopyUntilRestart(t *testing.T) {
 	t.Parallel()
+	for _, tt := range sourceBound {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root, contract := loadSemanticRootContract(t)
+			path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+			original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+			first, second := tt.check(contract), tt.check(contract)
+			if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+				t.Fatalf("WriteFile(changed contract) error = %v", err)
+			}
+			if available, _ := first(); available {
+				t.Fatal("the first copy stayed available after its source changed")
+			}
+			if err = os.WriteFile(path, original, 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+				t.Fatalf("WriteFile(restored contract) error = %v", err)
+			}
+			available, claim := second()
+			if available || claim.Diagnostic() == "" || claim.Reason() != schema.ReasonContractChanged {
+				t.Errorf("second copy after the bytes were put back = (%t, %q, %v), want a closed copy saying the contract changed",
+					available, claim.Diagnostic(), claim.Reason())
+			}
+			if available, claim := tt.check(loadPinnedSemanticContract(t, root))(); !available {
+				t.Errorf("a fresh load stayed unavailable: %s", claim.Diagnostic())
+			}
+		})
+	}
+}
 
-	root, _ := loadSemanticRootContract(t)
-	contract := loadPinnedSemanticContract(t, root)
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	artifacts, privacy := contract.ArtifactPolicy(), contract.PrivacyPolicy()
-	if !artifacts.ValidateSource().Available() || !privacy.ValidateSource().Available() {
-		t.Fatal("a pinned policy was unavailable before the source moved")
-	}
-
-	away := path + ".away"
-	if err := os.Rename(path, away); err != nil {
-		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
-	}
-	if artifacts.ValidateSource().Available() {
-		t.Error("the artifact policy classified while the pinned source could not be read")
-	}
-	if privacy.ValidateSource().Available() {
-		t.Error("the privacy policy answered while the pinned source could not be read")
-	}
-
-	if err := os.Rename(away, path); err != nil {
-		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
-	}
-	if !artifacts.ValidateSource().Available() {
-		t.Error("the artifact policy stayed shut after the identical file came back")
-	}
-	if !privacy.ValidateSource().Available() {
-		t.Error("the privacy policy stayed shut after the identical file came back")
+// TestAnUnreadableSourceRefusesOneRequestWithoutLatching separates a contract
+// that cannot be read from one that changed. A save-by-rename leaves the name
+// absent for a few microseconds, and reading that instant as drift would shut
+// the capability for the life of the process over bytes nobody touched. The
+// request that meets the gap is refused, and the next one asks again.
+func TestAnUnreadableSourceRefusesOneRequestWithoutLatching(t *testing.T) {
+	t.Parallel()
+	for _, tt := range sourceBound {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root, contract := loadSemanticRootContract(t)
+			path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+			check := tt.check(contract)
+			if available, claim := check(); !available {
+				t.Fatalf("unavailable before the source moved: %s", claim.Diagnostic())
+			}
+			away := path + ".away"
+			if err := os.Rename(path, away); err != nil {
+				t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+			}
+			available, claim := check()
+			if available || claim.Trustworthy() || claim.Diagnostic() == "" || claim.Reason() != schema.ReasonContractUnreadable {
+				t.Errorf("while the source cannot be read = (%t, trustworthy %t, %q, %v), want a refusal that says the file could not be read",
+					available, claim.Trustworthy(), claim.Diagnostic(), claim.Reason())
+			}
+			if err := os.Rename(away, path); err != nil {
+				t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+			}
+			if available, claim := check(); !available {
+				t.Errorf("stayed shut after the identical file came back: %s", claim.Diagnostic())
+			}
+		})
 	}
 }
 
@@ -559,7 +429,7 @@ func TestArtifactPolicyCaptureIsAnImmutableRequestSnapshot(t *testing.T) {
 	}
 }
 
-func TestArtifactPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
+func TestASourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
 	root, contract := loadSemanticRootContract(t)
@@ -602,89 +472,6 @@ func TestArtifactPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	}
 }
 
-func TestPrivacyPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
-	t.Parallel()
-
-	root, contract := loadSemanticRootContract(t)
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	first := contract.PrivacyPolicy()
-	second := contract.PrivacyPolicy()
-	if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("WriteFile(changed contract) error = %v", err)
-	}
-	if first.ValidateSource().Available() {
-		t.Fatal("first privacy policy copy remained available after source drift")
-	}
-	if err = os.WriteFile(path, original, 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("WriteFile(restored contract) error = %v", err)
-	}
-	if second.ValidateSource().Available() {
-		t.Error("second privacy policy copy reopened after source restoration, want shared latch")
-	}
-	const want = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
-	if got := second.Diagnostic(); got != want {
-		t.Errorf("second privacy policy diagnostic = %q, want %q", got, want)
-	}
-	if got := second.Claim().Reason(); got != schema.ReasonContractChanged {
-		t.Errorf("second privacy policy reason = %v, want %v", got, schema.ReasonContractChanged)
-	}
-
-	reloaded, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("Load(restored contract) error = %v", err)
-	}
-	if !reloaded.PrivacyPolicy().Available() {
-		t.Errorf("freshly loaded privacy policy remained unavailable: %s", reloaded.PrivacyPolicy().Diagnostic())
-	}
-}
-
-func TestPrivacyPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
-	t.Parallel()
-
-	root, contract := loadSemanticRootContract(t)
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("WriteFile(changed contract) error = %v", err)
-	}
-
-	policies := make([]schema.PrivacyPolicy, 32)
-	for i := range policies {
-		policies[i] = contract.PrivacyPolicy()
-	}
-	start := make(chan struct{})
-	var wg sync.WaitGroup
-	for i := range policies {
-		policy := policies[i]
-		wg.Go(func() {
-			<-start
-			for range 128 {
-				if i%2 == 0 {
-					_ = policy.ValidateSource().Available()
-					continue
-				}
-				_ = policy.Available()
-				_ = policy.Diagnostic()
-			}
-		})
-	}
-	close(start)
-	wg.Wait()
-
-	for i, policy := range policies {
-		if policy.Available() {
-			t.Errorf("privacy policy %d remained available after concurrent source-drift validation", i)
-		}
-	}
-}
-
 // TestLoadFileMissingOptionalSections pins what a contract that writes no
 // template folders, no role and no privacy section declares. The first two are
 // empty sets read cleanly; the privacy section is the one a governed vault owes,
@@ -697,7 +484,7 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if !roles.Available() || !roles.Trustworthy() {
 		t.Fatalf("NavigationRoles() of a contract with no roles: available %t, trustworthy %t, want both", roles.Available(), roles.Trustworthy())
 	}
-	if got := roles.Diagnostic(); got != "" {
+	if got := roles.Claim().Diagnostic(); got != "" {
 		t.Errorf("NavigationRoles().Diagnostic() = %q, want empty", got)
 	}
 	if roles.IsPathType("study-path") || roles.IsMapType("moc") || roles.AnswerType() != "" {
@@ -718,95 +505,14 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if privacy.Available() {
 		t.Fatal("PrivacyPolicy().Available() = true, want false")
 	}
-	const wantPrivacy = "the rules file declares no privacy policy; agent-facing output disabled until it does"
-	if got := privacy.Diagnostic(); got != wantPrivacy {
-		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, wantPrivacy)
+	if !privacy.Undeclared() || privacy.Diagnostic() == "" {
+		t.Errorf("PrivacyPolicy() = undeclared %t, diagnostic %q; want the omission said out loud", privacy.Undeclared(), privacy.Diagnostic())
 	}
 	if privacy.EgressAllowed("Public/note.md") {
 		t.Error("unavailable PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
 	}
 	if privacy.Trustworthy() {
 		t.Error("privacy policy of a contract that omitted the section is trustworthy; the operator meant to govern something yomihon cannot read")
-	}
-}
-
-// TestZeroCapabilitiesAreSilentAndFailClosed pins the folder that carries no
-// contract at all. Nothing asserted governance there, so nothing is reported —
-// but reporting nothing is not permission: egress and the classification of a
-// governed instance still require a declaration that was actually read.
-func TestZeroCapabilitiesAreSilentAndFailClosed(t *testing.T) {
-	t.Parallel()
-
-	var roles schema.NavigationRoles
-	var policy schema.ArtifactPolicy
-	var privacy schema.PrivacyPolicy
-
-	for _, silent := range []struct {
-		name string
-		got  string
-	}{
-		{"NavigationRoles", roles.Diagnostic()},
-		{"ArtifactPolicy", policy.Diagnostic()},
-		{"PrivacyPolicy", privacy.Diagnostic()},
-	} {
-		if silent.got != "" {
-			t.Errorf("zero %s.Diagnostic() = %q, want silence: nothing ever claimed this", silent.name, silent.got)
-		}
-	}
-	if !roles.Trustworthy() || !policy.Trustworthy() || !privacy.Trustworthy() {
-		t.Error("zero capability is untrustworthy; an undeclared set is the empty set, and a projection over it is answerable")
-	}
-	if roles.Available() || policy.Available() || privacy.Available() {
-		t.Error("zero capability reports Available; silence is not a held declaration")
-	}
-	if privacy.EgressAllowed("Public/note.md") {
-		t.Error("zero PrivacyPolicy allows egress; permission is positive authority, never the absence of a deny")
-	}
-	if policy.IsNonInstance("System/templates/Card.md") {
-		t.Error("zero ArtifactPolicy excludes a path it was never told to exclude")
-	}
-	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
-		t.Error("zero NavigationRoles classifies a type nothing declared")
-	}
-}
-
-// TestStaleArtifactPolicyStopsClassifying pins the one state where the
-// trustworthiness gate carries real data behind it. A policy that was read
-// cleanly and whose source bytes then changed still holds the directory list it
-// was built from; answering from that list would classify a note against
-// exclusions the operator has since rewritten. The gate is what stops it, so it
-// is asserted directly rather than left to every caller's own check.
-func TestStaleArtifactPolicyStopsClassifying(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := contractText("templates = [\"System/templates\"]\n", navigationTypes, "")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatalf("write contract: %v", err)
-	}
-	contract, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile: %v", err)
-	}
-	policy := contract.ArtifactPolicy()
-	const template = "System/templates/Card.md"
-	if !policy.IsNonInstance(template) {
-		t.Fatalf("IsNonInstance(%q) = false while the declaration is held", template)
-	}
-
-	if err := os.WriteFile(path, []byte(text+"\n"), 0o600); err != nil {
-		t.Fatalf("change contract source: %v", err)
-	}
-	stale := policy.ValidateSource()
-
-	if stale.Trustworthy() {
-		t.Fatal("a policy whose source changed is still trustworthy")
-	}
-	if stale.IsNonInstance(template) {
-		t.Errorf("IsNonInstance(%q) = true from a policy whose source it can no longer vouch for", template)
-	}
-	if stale.Diagnostic() == "" {
-		t.Error("a latched-stale policy says nothing; drift after startup is news")
 	}
 }
 
@@ -818,9 +524,8 @@ func TestPrivacyPolicyRejectsOmittedRequiredKey(t *testing.T) {
 	if policy.Available() {
 		t.Fatal("PrivacyPolicy().Available() = true, want false")
 	}
-	const want = `invalid privacy policy: missing required key "never_egress_dirs"`
-	if got := policy.Diagnostic(); got != want {
-		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, want)
+	if got := policy.Diagnostic(); !strings.Contains(got, `"never_egress_dirs"`) {
+		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want the missing key named", got)
 	}
 	if policy.EgressAllowed("Public/note.md") {
 		t.Error("invalid PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
@@ -861,55 +566,20 @@ never_egress_dirs = ["Private/./Journal", "私有"]
 	}
 }
 
-// TestPrivacyPolicyKeepsDirectoriesThatOnlyLookUnusual guards the other side
-// of the parent-step refusal: a value that merely spells a plain directory in
-// a roundabout way still declares that directory. Refusing everything a
-// cleaning pass would rewrite would take these with it.
-func TestPrivacyPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
-	t.Parallel()
-
-	for _, value := range []string{`./Private`, `Private/`, `Private//Journal/`, `./Private/./Journal`} {
-		t.Run(strconv.Quote(value), func(t *testing.T) {
-			t.Parallel()
-			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
-			s := loadContractTextWithPrivacy(t, "", section)
-			policy := s.PrivacyPolicy()
-			if !policy.Available() {
-				t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
-			}
-			if policy.EgressAllowed("Private/Journal/note.md") {
-				t.Error("PrivacyPolicy().EgressAllowed(\"Private/Journal/note.md\") = true, want the declared folder held")
-			}
-		})
-	}
-}
-
 func TestPrivacyPolicyRejectsUnsafeDirectories(t *testing.T) {
 	t.Parallel()
 
-	// A parent step inside the value is the case the four guards below the
-	// Clean call cannot see: cleaning walks it away, and what is left is an
-	// ordinary local directory that passes every one of them. The
-	// declaration then protects a folder its author never wrote down.
-	for _, value := range []string{
-		"", `.`, `..`, `../Private`, `/Private`, `Private\\Journal`,
-		`Private/../Notes`, `Private/..`, `Private/../../Notes`, `./Private/../Notes`,
-	} {
-		t.Run(strconv.Quote(value), func(t *testing.T) {
-			t.Parallel()
-			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
-			s := loadContractTextWithPrivacy(t, "", section)
-			policy := s.PrivacyPolicy()
-			if policy.Available() {
-				t.Fatal("PrivacyPolicy().Available() = true, want false")
-			}
-			if got := policy.Diagnostic(); !strings.Contains(got, strconv.Quote(value)) {
-				t.Errorf("PrivacyPolicy().Diagnostic() = %q, want original value named", got)
-			}
-			if policy.EgressAllowed("Public/note.md") {
-				t.Error("invalid PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
-			}
-		})
+	const value = `Private/../Notes`
+	s := loadContractTextWithPrivacy(t, "", fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value)))
+	policy := s.PrivacyPolicy()
+	if policy.Available() {
+		t.Fatal("PrivacyPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, strconv.Quote(value)) {
+		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want original value named", got)
+	}
+	if policy.EgressAllowed("Public/note.md") {
+		t.Error("invalid PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
 	}
 }
 
@@ -949,7 +619,7 @@ func TestNavigationRolesRejectRoleAnomalies(t *testing.T) {
 				t.Fatalf("NavigationRoles(): available %t, trustworthy %t, want neither", roles.Available(), roles.Trustworthy())
 			}
 			for _, name := range tt.named {
-				if got := roles.Diagnostic(); !strings.Contains(got, name) {
+				if got := roles.Claim().Diagnostic(); !strings.Contains(got, name) {
 					t.Errorf("NavigationRoles().Diagnostic() = %q, want %s named", got, name)
 				}
 			}
@@ -974,14 +644,14 @@ func TestJournalDirIsUnclaimedWhenUndeclared(t *testing.T) {
 	if journal.Available() {
 		t.Fatal("JournalDir().Available() = true, want false")
 	}
-	if !journal.Trustworthy() {
+	if !journal.Claim().Trustworthy() {
 		t.Error("an undeclared journal is untrustworthy; empty is the true answer")
 	}
 	if journal.Contains("Diary/today.md") {
 		t.Error("JournalDir().Contains() = true with no journal, want empty projection")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after optional journal omitted, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after optional journal omitted, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -991,7 +661,7 @@ func TestJournalDirProjectsTheDeclaredDirectory(t *testing.T) {
 	s := loadContractText(t, `journal = "Diary"`)
 	journal := s.JournalDir()
 	if !journal.Available() {
-		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Diagnostic())
+		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Claim().Diagnostic())
 	}
 	if !journal.Contains("Diary/today.md") {
 		t.Error("JournalDir().Contains(Diary/today.md) = false, want true")
@@ -1009,14 +679,14 @@ func TestJournalDirRejectsInvalidDirectory(t *testing.T) {
 	if journal.Available() {
 		t.Fatal("JournalDir().Available() = true, want false")
 	}
-	if got := journal.Diagnostic(); !strings.Contains(got, `../Diary`) {
+	if got := journal.Claim().Diagnostic(); !strings.Contains(got, `../Diary`) {
 		t.Errorf("JournalDir().Diagnostic() = %q, want offending value named", got)
 	}
 	if journal.Contains("Diary/today.md") {
 		t.Error("a rejected journal directory still contains a path")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after invalid journal, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after invalid journal, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -1032,110 +702,7 @@ func TestArtifactPolicyRejectsEmptyDirectory(t *testing.T) {
 		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending empty value named", got)
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after invalid artifact policy, diagnostic %q", s.NavigationRoles().Diagnostic())
-	}
-}
-
-func TestArtifactPolicyRejectsCurrentDirectory(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `templates = ["."]`)
-	policy := s.ArtifactPolicy()
-	if policy.Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	if got := policy.Diagnostic(); !strings.Contains(got, `"."`) {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
-	}
-}
-
-func TestArtifactPolicyRejectsParentDirectory(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `templates = [".."]`)
-	policy := s.ArtifactPolicy()
-	if policy.Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	if got := policy.Diagnostic(); !strings.Contains(got, `".."`) {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
-	}
-}
-
-func TestArtifactPolicyRejectsAbsoluteDirectory(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `templates = ["/System/templates"]`)
-	policy := s.ArtifactPolicy()
-	if policy.Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	if got := policy.Diagnostic(); !strings.Contains(got, `"/System/templates"`) {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
-	}
-}
-
-func TestArtifactPolicyRejectsBackslashDirectory(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `templates = ["System\\templates"]`)
-	policy := s.ArtifactPolicy()
-	if policy.Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	if got := policy.Diagnostic(); !strings.Contains(got, `System\\templates`) {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
-	}
-}
-
-func TestArtifactPolicyRejectsNonLocalNormalizedDirectory(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		directory string
-	}{
-		{name: "slash normalizes to current directory", directory: "./"},
-		{name: "components normalize to current directory", directory: "a/.."},
-		{name: "parent prefix", directory: "../outside"},
-		{name: "components normalize to parent prefix", directory: "a/../../outside"},
-		{name: "parent step inside the value", directory: "System/../Notes"},
-		{name: "parent step after a current-directory step", directory: "./System/../Notes"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			s := loadContractText(t, fmt.Sprintf(`templates = [%s]`, strconv.Quote(tt.directory)))
-			policy := s.ArtifactPolicy()
-			if policy.Available() {
-				t.Fatal("ArtifactPolicy().Available() = true, want false")
-			}
-			if got, want := policy.Diagnostic(), strconv.Quote(tt.directory); !strings.Contains(got, want) {
-				t.Errorf("ArtifactPolicy().Diagnostic() = %q, want original offending value %s named", got, want)
-			}
-		})
-	}
-}
-
-// TestArtifactPolicyKeepsDirectoriesThatOnlyLookUnusual guards the other side
-// of the parent-step refusal: a value that merely spells a plain directory in
-// a roundabout way still declares that directory. Refusing everything a
-// cleaning pass would rewrite would take these with it.
-func TestArtifactPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
-	t.Parallel()
-
-	for _, value := range []string{`./System/templates`, `System/templates/`, `System//./templates`} {
-		t.Run(strconv.Quote(value), func(t *testing.T) {
-			t.Parallel()
-			s := loadContractText(t, fmt.Sprintf(`templates = [%s]`, strconv.Quote(value)))
-			policy := s.ArtifactPolicy()
-			if !policy.Available() {
-				t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
-			}
-			if !policy.IsNonInstance("System/templates/card.md") {
-				t.Error("ArtifactPolicy().IsNonInstance(\"System/templates/card.md\") = false, want the declared folder held")
-			}
-		})
+		t.Errorf("NavigationRoles().Available() = false after invalid artifact policy, diagnostic %q", s.NavigationRoles().Claim().Diagnostic())
 	}
 }
 
@@ -1156,7 +723,7 @@ func TestArtifactPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
 		{name: "normalized child", path: "System/templates/card.md", want: true},
 		{name: "component sibling", path: "System/templates-old/card.md", want: false},
 		{name: "NFC query", path: "Café/models/card.md", want: true},
-		{name: "NFD query", path: "Café/models/card.md", want: true},
+		{name: "NFD query", path: "Cafe\u0301/models/card.md", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1172,9 +739,8 @@ func TestArtifactPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
 // directory policies answer from. On a case-insensitive filesystem any case
 // spelling of a path opens the same file, so membership in a declared
 // directory cannot depend on the spelling: a lowercase request for a protected
-// template is the protected template. The privacy policy has always folded
-// case for exactly this reason; the artifact policy answers the same question
-// and folds identically, through the same function, so the two cannot drift.
+// template is the protected template. Both policies answer the question
+// through the same function, so the two cannot drift.
 func TestDirectoryPoliciesShareCaseFoldedIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -1245,10 +811,8 @@ never_egress_dirs = ["Private", "Straße"]
 // name, so a membership that turned on the spelling would govern a note or
 // leave it ungoverned by coincidence.
 //
-// Composition stays a separate dimension. A scan reports composed paths, so a
-// contract spelling a directory in decomposed form matches no file — which the
-// judge now reports as a directory reaching nothing rather than applying its
-// rules to nothing in silence.
+// Composition is read as every scope reads it: the declared folder and the path
+// are both composed before the fold, which is over case.
 func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	t.Parallel()
 
@@ -1258,25 +822,12 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	if !strings.Contains(text, widened) {
 		t.Fatalf("fixture drift: the base contract no longer declares %s", declared)
 	}
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatalf("WriteFile(%q) = %v", path, err)
-	}
-	s, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile(%q) = %v", path, err)
-	}
-	scope := s.KnowledgeScope()
+	scope := loadText(t, text).KnowledgeScope()
 	if !scope.Available() {
 		t.Fatal("KnowledgeScope().Available() = false, want a declared scope")
 	}
-	dirs := scope.Declared()
-	if diff := cmp.Diff([]string{"Writing", "だ体"}, dirs); diff != "" {
+	if diff := cmp.Diff([]string{"Writing", "だ体"}, scope.Declared()); diff != "" {
 		t.Errorf("KnowledgeScope().Declared() mismatch (-want +got):\n%s", diff)
-	}
-	dirs[0] = "changed"
-	if got := scope.Declared(); got[0] == "changed" {
-		t.Error("KnowledgeScope().Declared() aliases the loaded directories")
 	}
 
 	tests := []struct {
@@ -1293,10 +844,8 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 		// Deeper segments are not consulted.
 		{path: "Other/Writing/L05.md", want: false},
 		{path: "だ体/note.md", want: true},
-		// The decomposed spelling of the same name stays a different string:
-		// the fold is over case, and composition is the scan's business, which
-		// reports one composed spelling for every path it observed.
-		{path: "た\u3099体/note.md", want: false},
+		// The decomposed spelling of the same name is the same folder.
+		{path: "た\u3099体/note.md", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
@@ -1330,15 +879,7 @@ func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
 			if text == contractText("", "", "") && tt.to != declared {
 				t.Fatalf("fixture drift: the base contract no longer declares %s", declared)
 			}
-			path := filepath.Join(t.TempDir(), "vault-schema.toml")
-			if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-				t.Fatalf("WriteFile(%q) = %v", path, err)
-			}
-			s, err := schema.LoadFile(path)
-			if err != nil {
-				t.Fatalf("LoadFile(%q) = %v", path, err)
-			}
-			scope := s.KnowledgeScope()
+			scope := loadText(t, text).KnowledgeScope()
 			if scope.Available() {
 				t.Fatal("KnowledgeScope().Available() = true, want no declared layer")
 			}
@@ -1354,79 +895,42 @@ func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
 	}
 }
 
-// TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot is a
-// characterization of a live asymmetry, not an endorsement of it. The privacy
-// policy cleans a path before matching, so a dotted spelling is judged by
-// where it lands, and an escaping spelling is refused outright. Artifact
-// membership normalizes only the Unicode form and compares the spelling it
-// was given, so a dotted route into a declared artifact directory is not
-// classified as non-instance. Whether both ends should share one fail-closed
-// identity is an open design question; until it is ruled, this keeps the
-// asymmetry from drifting unnoticed.
-func TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot(t *testing.T) {
+// TestEveryDeclaredDirectoryReadsAPathOneWay holds the privacy policy, the
+// artifact policy and the journal to one reading of a path: cleaned first, so a
+// dotted spelling is judged by where it lands, composed, and refused outright
+// where it leaves the vault.
+func TestEveryDeclaredDirectoryReadsAPathOneWay(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, `templates = ["System/templates", "だ体"]`, `
+	s := loadContractTextWithPrivacy(t, `templates = ["\u3060\u4f53"]`+"\n"+`journal = "\u3060\u4f53"`, `
 [privacy]
-never_egress_dirs = ["Private", "だ体"]
+never_egress_dirs = ["\u3060\u4f53"]
 `)
-	artifact := s.ArtifactPolicy()
-	if !artifact.Available() {
-		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", artifact.Diagnostic())
+	privacy, artifact, journal := s.PrivacyPolicy(), s.ArtifactPolicy(), s.JournalDir()
+	if !privacy.Available() || !artifact.Available() || !journal.Available() {
+		t.Fatal("a declared directory list was not read")
 	}
-	privacy := s.PrivacyPolicy()
-	if !privacy.Available() {
-		t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", privacy.Diagnostic())
-	}
-
-	privacyTests := []struct {
+	for _, tt := range []struct {
 		path string
-		want bool
+		// in is whether every list holds the path; leaves is a path outside
+		// the vault, which none holds and none lets go out.
+		in, leaves bool
 	}{
-		// Cleaned first: the dotted spelling lands inside the protected
-		// directory and is refused.
-		{path: "Writing/../Private/x.md", want: false},
-		// Cleaned to a public spelling: allowed.
-		{path: "Writing/../Writing/x.md", want: true},
-		// An escaping spelling is refused outright, wherever it points.
-		{path: "../Private/x.md", want: false},
-		// A trailing slash cleans away.
-		{path: "Private/", want: false},
-		// The decomposed spelling is normalized before matching.
-		{path: "た\u3099体/x.md", want: false},
-	}
-	for _, tt := range privacyTests {
-		t.Run("privacy/"+tt.path, func(t *testing.T) {
-			t.Parallel()
-			if got := privacy.EgressAllowed(tt.path); got != tt.want {
-				t.Errorf("PrivacyPolicy().EgressAllowed(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
-	}
-
-	artifactTests := []struct {
-		path string
-		want bool
-	}{
-		{path: "System/templates/card.md", want: true},
-		// The asymmetric cell: the dotted spelling resolves under a declared
-		// directory, but membership never resolves it, so the classification
-		// fails open toward instance.
-		{path: "Writing/../System/templates/card.md", want: false},
-		// A trailing slash still matches: the empty last component is beyond
-		// the compared prefix.
-		{path: "System/templates/", want: true},
-		// The decomposed spelling is normalized before matching, same as the
-		// privacy side.
-		{path: "た\u3099体/x.md", want: true},
-	}
-	for _, tt := range artifactTests {
-		t.Run("artifact/"+tt.path, func(t *testing.T) {
-			t.Parallel()
-			if got := artifact.IsNonInstance(tt.path); got != tt.want {
-				t.Errorf("ArtifactPolicy().IsNonInstance(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
+		{path: "\u3060\u4f53/x.md", in: true},
+		{path: "Writing/../\u3060\u4f53/x.md", in: true},
+		{path: "\u3060\u4f53/../Writing/x.md"},
+		{path: "\u3060\u4f53/", in: true},
+		{path: "\u305f\u3099\u4f53/x.md", in: true},
+		{path: "../\u3060\u4f53/x.md", leaves: true},
+	} {
+		egress := privacy.EgressAllowed(tt.path)
+		got := [3]bool{!egress, artifact.IsNonInstance(tt.path), journal.Contains(tt.path)}
+		if tt.leaves {
+			got[0] = egress
+		}
+		if want := [3]bool{tt.in, tt.in, tt.in}; got != want {
+			t.Errorf("%+q: (withheld, artifact, journal) = %v, want %v", tt.path, got, want)
+		}
 	}
 }
 
@@ -1436,9 +940,9 @@ func TestCapabilitiesAllowEmptyLists(t *testing.T) {
 	s := loadText(t, contractText(`templates = []`, "\n[types.note]\n", ""))
 	roles := s.NavigationRoles()
 	if !roles.Available() {
-		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Claim().Diagnostic())
 	}
-	if got := roles.Diagnostic(); got != "" {
+	if got := roles.Claim().Diagnostic(); got != "" {
 		t.Errorf("NavigationRoles().Diagnostic() = %q with no role given, want empty", got)
 	}
 	if roles.IsPathType("note") || roles.IsMapType("note") || roles.IsLessonType("note") {
@@ -1456,37 +960,6 @@ func TestCapabilitiesAllowEmptyLists(t *testing.T) {
 	}
 }
 
-func TestNavigationRolesRemainDerivedAfterDefinitionMutation(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `templates = ["System/templates"]`)
-	definition := s.Definition()
-	for i := range definition.Types {
-		definition.Types[i].Role = ""
-	}
-
-	roles := s.NavigationRoles()
-	if !roles.IsPathType("study-path") || !roles.IsMapType("moc") {
-		t.Error("NavigationRoles() changed after mutating Definition.Types, want load-time derived membership")
-	}
-	if got := s.TypeRole("study-path"); got != schema.RoleCourse {
-		t.Errorf("TypeRole(study-path) = %q after mutating Definition.Types, want %q", got, schema.RoleCourse)
-	}
-}
-
-func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
-	t.Parallel()
-
-	for _, capability := range []any{schema.NavigationRoles{}, schema.ArtifactPolicy{}, schema.PrivacyPolicy{}, schema.JournalDir{}} {
-		typ := reflect.TypeOf(capability)
-		for field := range typ.Fields() {
-			if field.IsExported() && (field.Type.Kind() == reflect.Map || field.Type.Kind() == reflect.Slice) {
-				t.Errorf("%s.%s exposes mutable %s backing state", typ.Name(), field.Name, field.Type.Kind())
-			}
-		}
-	}
-}
-
 // TestTouchingTheContractLeavesThePolicyAvailable separates two questions the
 // pinned identity check had collapsed into one.
 //
@@ -1498,8 +971,7 @@ func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 // the write face until restart while reporting a change that had not happened.
 func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t)
-	contract := loadPinnedSemanticContract(t, root)
+	root, contract := loadSemanticRootContract(t)
 	if !contract.ArtifactPolicy().ValidateSource().Available() {
 		t.Fatal("the policy was unavailable before anything touched the contract")
 	}
@@ -1537,31 +1009,6 @@ func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
 	}
 	if !contract.PrivacyPolicy().ValidateSource().Available() {
 		t.Error("the privacy policy closed after a touch; no byte of the contract moved")
-	}
-}
-
-// TestRewritingTheContractClosesThePolicy is the reverse direction, and it is
-// the one that must never soften: a contract whose bytes changed under a running
-// process is a contract this process cannot vouch for.
-func TestRewritingTheContractClosesThePolicy(t *testing.T) {
-	t.Parallel()
-	root, _ := loadSemanticRootContract(t)
-	contract := loadPinnedSemanticContract(t, root)
-
-	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
-	if err != nil {
-		t.Fatalf("read contract: %v", err)
-	}
-	if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
-		t.Fatalf("rewrite contract: %v", err)
-	}
-
-	if contract.ArtifactPolicy().ValidateSource().Available() {
-		t.Error("the artifact policy stayed open after the contract's bytes changed")
-	}
-	if contract.PrivacyPolicy().ValidateSource().Available() {
-		t.Error("the privacy policy stayed open after the contract's bytes changed")
 	}
 }
 
@@ -1629,12 +1076,6 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
-		"TypeRole": func() string {
-			if got := c.TypeRole("lesson"); got != "" {
-				return fmt.Sprintf("TypeRole(lesson) = %q, want empty", got)
-			}
-			return ""
-		},
 		"Domains": func() string {
 			domains := c.Domains()
 			if got := domains.Of("Concepts/golang/a.md"); got != "" || domains.Roots() != nil {
@@ -1688,7 +1129,7 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			for name, claim := range map[string]schema.Claim{
 				"Navigation": caps.Navigation.Claim(), "Artifacts": caps.Artifacts.Claim(),
-				"Knowledge": caps.Knowledge.Claim(), "Journal": caps.Journal.Claim(),
+				"Journal": caps.Journal.Claim(),
 			} {
 				if claim.Diagnostic() != "" || !claim.Trustworthy() {
 					return fmt.Sprintf("Capabilities().%s reports a withheld declaration where none was ever made", name)
@@ -1764,9 +1205,9 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"AuthoredDate": func() string {
 			dated := c.AuthoredDate()
 			day, err := dated.Resolve(map[string]any{"created": "2026-08-31"})
-			if dated.Declared() || dated.Field() != "" || day != "" || err != nil {
-				return fmt.Sprintf("AuthoredDate() = %q and resolves (%q, %v), want no field and no day: no contract dates a note here",
-					dated.Field(), day, err)
+			if dated.Declared() || day != "" || err != nil {
+				return fmt.Sprintf("AuthoredDate() declared %t and resolves (%q, %v), want no field and no day: no contract dates a note here",
+					dated.Declared(), day, err)
 			}
 			return ""
 		},

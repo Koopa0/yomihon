@@ -1,121 +1,22 @@
 // Package lexical is the vault's in-memory search index and query engine. It
 // holds one entry per note and answers a deterministic, folded substring
-// query plus six structured filters. There is no database: the truth is the
+// query plus structured filters. There is no database: the truth is the
 // vault files and the index only accelerates. It stays reachable without the
 // reading interface, so the search page depends on it and never the reverse.
 package lexical
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"strings"
-	"unicode"
 	"unicode/utf8"
-
-	"golang.org/x/text/width"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-// Fold is the single definer of "what counts as a match": NFC, then the walk
-// below, applied identically to stored text and to a query token. Case and
-// width folding live only here; vault.NormalizeNFC supplies the shared NFC step.
-func Fold(s string) string {
-	return fold(s)
-}
-
-func fold(s string) string {
-	var out strings.Builder
-	out.Grow(len(s))
-	foldRunes(vault.NormalizeNFC(s), func(r rune, _ int) {
-		out.WriteRune(r)
-	})
-	return out.String()
-}
-
-// foldRunes walks already-NFC text and hands the caller each rune the fold keeps,
-// with the byte offset in s it came from. It is the whole of what folding does, so
-// the folded string and the folded string mapped back to its source cannot
-// disagree about what a match is. A line break is dropped only when the characters
-// on both sides belong to scripts that do not divide their words with spaces.
-func foldRunes(s string, emit func(r rune, at int)) {
-	var prev rune
-	for i, r := range s {
-		if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
-			continue
-		}
-		emit(foldRune(r), i)
-		prev = r
-	}
-}
-
-// fullwidthASCIIMin and fullwidthASCIIMax bound the block foldRune narrows.
-// Each of those runes has a one-rune halfwidth counterpart, so the fold's
-// source-offset walk stays a walk of one emitted rune per source rune.
-// Halfwidth katakana is outside it: a voiced mark beside one folds two runes
-// to one and is a separate decision.
-const (
-	fullwidthASCIIMin = 0xFF01
-	fullwidthASCIIMax = 0xFF5E
-)
-
-// foldRune is the per-character half of fold: the fullwidth ASCII block
-// narrows to its halfwidth counterpart, then a fixed simple-case representative.
-// Width first so a fullwidth letter and its ASCII counterpart meet before
-// either is case-folded.
-func foldRune(r rune) rune {
-	if r >= fullwidthASCIIMin && r <= fullwidthASCIIMax {
-		if n := width.LookupRune(r).Narrow(); n != 0 {
-			r = n
-		}
-	}
-	if r <= unicode.MaxASCII {
-		return unicode.ToLower(r)
-	}
-	return simpleCaseRune(r)
-}
-
-// simpleCaseRune prefers the smallest letter in the orbit, lowered only if
-// that lowercase remains a member. Greek iota's smallest member is a combining
-// mark: emitting it after a vowel could create a new NFC contraction. Dotted
-// capital I instead has no simple lowercase peer and stays in its own orbit.
-func simpleCaseRune(r rune) rune {
-	smallest := r
-	for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
-		letter, chosenLetter := unicode.IsLetter(next), unicode.IsLetter(smallest)
-		if (letter && !chosenLetter) || (letter == chosenLetter && next < smallest) {
-			smallest = next
-		}
-	}
-	lower := unicode.ToLower(smallest)
-	if strings.EqualFold(string(smallest), string(lower)) {
-		return lower
-	}
-	return smallest
-}
-
-// nextRune returns the first rune at or after i, or zero at the end of s.
-func nextRune(s string, i int) rune {
-	for _, r := range s[i:] {
-		return r
-	}
-	return 0
-}
-
-// writesWithoutSpaces reports whether a character belongs to a script that does
-// not part its words with spaces, the distinction Unicode text segmentation
-// (UAX #29) draws. Han, hiragana and katakana carry it. Hangul does not, and
-// its exclusion is that script property rather than a case left for later:
-// modern Korean divides its words with spaces, so closing a wrapped seam
-// would fuse two words.
-func writesWithoutSpaces(r rune) bool {
-	return unicode.Is(unicode.Han, r) ||
-		unicode.Is(unicode.Hiragana, r) ||
-		unicode.Is(unicode.Katakana, r)
-}
 
 // Document is the disk-free input to NewIndex: everything the index needs about
 // one note, with PlainText already extracted by render.PlainText.
@@ -129,9 +30,8 @@ type Document struct {
 	Slug  string
 	// Tags are frontmatter retrieval words, not a schema vocabulary.
 	Tags []string
-	// Aliases are the other names the note declared. They are the names a
-	// wikilink resolves by, so leaving them out made this program findable by
-	// fewer names than it follows.
+	// Aliases are the other names the note declared: the names a wikilink
+	// resolves by, so a note is found by every name it is followed by.
 	Aliases   []string
 	PlainText string
 
@@ -171,28 +71,28 @@ type Document struct {
 // *Fold copies are what a filter compares, so a reader who types a value the
 // way they type a word still reaches it.
 type entry struct {
-	RelPath string
-	// PathFold is the note's own location, folded the way the text is: a reader
+	relPath string
+	// pathFold is the note's own location, folded the way the text is: a reader
 	// wrote their folder names and expects to find notes by them.
-	PathFold  string
-	Title     string
-	TitleFold string
-	// Aliases are the note's other declared names, held as written and folded for
+	pathFold  string
+	title     string
+	titleFold string
+	// aliases are the note's other declared names, held as written and folded for
 	// matching. A link resolves by these and not by the title, so a hit on one
 	// ranks with a title hit rather than below a mention in prose.
-	Aliases           []string
-	AliasFolds        []string
-	NoteType          string
-	NoteTypeFold      string
-	Domain            string
-	DomainFold        string
-	Draft             bool
-	Slug              string
-	SlugFold          string
-	Tags              []string
-	TagFolds          []string
-	PlainText         string
-	PlainFold         string
+	aliases           []string
+	aliasFolds        []string
+	noteType          string
+	noteTypeFold      string
+	domain            string
+	domainFold        string
+	draft             bool
+	slug              string
+	slugFold          string
+	tags              []string
+	tagFolds          []string
+	plainText         string
+	plainFold         string
 	blocks            []render.Block
 	fenceRanges       [][2]int
 	fenceFoldRanges   [][2]int
@@ -261,14 +161,16 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 		entries = append(entries, &e)
 	}
 	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return vault.ComparePaths(a.RelPath, b.RelPath)
+		return vault.ComparePaths(a.relPath, b.relPath)
 	})
 	return &Index{entries: entries, policy: policy}
 }
 
 // WithArtifactPolicy returns a read-only copy bound to policy, which has to be a
 // point-in-time capture of the same artifact authority idx was built from, so one
-// request's metadata queries answer to the capture its projections used.
+// request's metadata queries answer to the capture its projections used. A nil
+// index, as an empty generation carries, stays nil; the query methods ask for
+// an index.
 func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 	if idx == nil {
 		return nil
@@ -279,16 +181,15 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 }
 
 // entryFromDocument derives one entry from a Document, applying the storage rules:
-// Title/PlainText stored NFC (display), the *Fold copies fold()ed, the
+// Title/PlainText stored NFC (display), the *Fold copies Fold()ed, the
 // structured field values stored NFC (case-preserving) with a folded copy
 // beside each so a filter compares the way text does.
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
-	// Block ends and fence bounds share one NFC walk: the two remaps used
-	// to normalise the same slices twice, and a save rebuilds the index.
-	// Fold-space spans are recorded on the same foldRunes walk that
-	// builds PlainFold, so a query can classify a hit without walking
+	// Block ends and fence bounds share one NFC walk, since a save rebuilds
+	// the index. Fold-space spans are recorded on the same foldRunes walk
+	// that builds PlainFold, so a query can classify a hit without walking
 	// the note once per fence occurrence.
 	blocks, fenceRanges := remapPlainOffsets(d.PlainText, d.Blocks, d.FenceRanges)
 	insertions, barriers := remapInsertions(d.PlainText, d.Insertions)
@@ -300,32 +201,32 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	tagFolds := make([]string, len(d.Tags))
 	for i, tag := range d.Tags {
 		tags[i] = vault.NormalizeNFC(tag)
-		tagFolds[i] = fold(tags[i])
+		tagFolds[i] = Fold(tags[i])
 	}
 	aliases := make([]string, len(d.Aliases))
 	aliasFolds := make([]string, len(d.Aliases))
 	for i, a := range d.Aliases {
 		aliases[i] = vault.NormalizeNFC(a)
-		aliasFolds[i] = fold(aliases[i])
+		aliasFolds[i] = Fold(aliases[i])
 	}
 	return entry{
-		RelPath:           d.RelPath,
-		PathFold:          fold(vault.NormalizeNFC(d.RelPath)),
-		Title:             title,
-		TitleFold:         fold(title),
-		Aliases:           aliases,
-		AliasFolds:        aliasFolds,
-		NoteType:          noteType,
-		NoteTypeFold:      fold(noteType),
-		Domain:            domain,
-		DomainFold:        fold(domain),
-		Draft:             d.Draft,
-		Slug:              slug,
-		SlugFold:          fold(slug),
-		Tags:              tags,
-		TagFolds:          tagFolds,
-		PlainText:         plain,
-		PlainFold:         plainFold,
+		relPath:           d.RelPath,
+		pathFold:          Fold(vault.NormalizeNFC(d.RelPath)),
+		title:             title,
+		titleFold:         Fold(title),
+		aliases:           aliases,
+		aliasFolds:        aliasFolds,
+		noteType:          noteType,
+		noteTypeFold:      Fold(noteType),
+		domain:            domain,
+		domainFold:        Fold(domain),
+		draft:             d.Draft,
+		slug:              slug,
+		slugFold:          Fold(slug),
+		tags:              tags,
+		tagFolds:          tagFolds,
+		plainText:         plain,
+		plainFold:         plainFold,
 		blocks:            blocks,
 		insertions:        insertions,
 		insertionBarriers: barriers,
@@ -419,15 +320,7 @@ func sortedFenceBounds(raw string, fences [][2]int) []rawBound {
 			rawBound{off: clampOff(r[1], len(raw)), i: len(bounds) + 1},
 		)
 	}
-	slices.SortStableFunc(bounds, func(a, b rawBound) int {
-		if a.off < b.off {
-			return -1
-		}
-		if a.off > b.off {
-			return 1
-		}
-		return 0
-	})
+	slices.SortStableFunc(bounds, func(a, b rawBound) int { return cmp.Compare(a.off, b.off) })
 	return bounds
 }
 
@@ -506,23 +399,15 @@ func clampOff(off, n int) int {
 	return off
 }
 
-// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
-// through the one remap production uses.
-func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
-	_, fences := remapPlainOffsets(raw, nil, ranges)
-	return fences
-}
-
-// foldPlain folds already-NFC plain and maps fence spans onto that
-// folded copy in the same walk. A second foldRunes pass used to walk
-// the note again just for the bounds, and kept walking past the last one.
+// foldPlain folds already-NFC plain and maps fence spans onto that folded
+// copy in the same walk.
 func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]int) {
 	var out strings.Builder
 	out.Grow(len(plain))
 	if len(ranges) == 0 {
-		foldRunes(plain, func(r rune, _ int) {
+		for _, r := range foldRunes(plain) {
 			out.WriteRune(r)
-		})
+		}
 		return out.String(), nil
 	}
 	type bound struct {
@@ -536,38 +421,22 @@ func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]in
 			bound{src: r[1], i: len(bounds) + 1},
 		)
 	}
-	slices.SortStableFunc(bounds, func(a, b bound) int {
-		if a.src < b.src {
-			return -1
-		}
-		if a.src > b.src {
-			return 1
-		}
-		return 0
-	})
+	slices.SortStableFunc(bounds, func(a, b bound) int { return cmp.Compare(a.src, b.src) })
 	mapped := make([]int, len(bounds))
 	next, foldPos := 0, 0
-	foldRunes(plain, func(r rune, at int) {
+	for at, r := range foldRunes(plain) {
 		for next < len(bounds) && bounds[next].src <= at {
 			mapped[bounds[next].i] = foldPos
 			next++
 		}
 		out.WriteRune(r)
 		foldPos += utf8.RuneLen(r)
-	})
+	}
 	for next < len(bounds) {
 		mapped[bounds[next].i] = foldPos
 		next++
 	}
 	return out.String(), pairedSpans(mapped)
-}
-
-// foldRanges maps source-space half-open spans onto the folded copy of
-// plain. Production records those spans on the foldPlain walk; this
-// keeps the same mapping for a snippet that was not built through NewIndex.
-func foldRanges(plain string, ranges [][2]int) [][2]int {
-	_, foldFences := foldPlain(plain, ranges)
-	return foldFences
 }
 
 func pairedSpans(offs []int) [][2]int {

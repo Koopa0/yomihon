@@ -44,14 +44,13 @@ const (
 type Role string
 
 const (
-	// RoleLesson marks the notes a course is made of: each carries a slug.
+	// RoleLesson marks the units a course is made of: each carries a slug.
 	RoleLesson Role = "lesson"
-	// RoleCourse marks an ordered study path over lessons.
+	// RoleCourse marks a course: an ordered list of units.
 	RoleCourse Role = "course"
-	// RoleMap marks a general map of notes.
+	// RoleMap marks an index of notes.
 	RoleMap Role = "map"
-	// RoleThought marks a reader's own source-linked thoughts, the notes the
-	// shelf of what is left open is made of.
+	// RoleThought marks a reader's own source-linked thoughts.
 	RoleThought Role = "thought"
 )
 
@@ -77,11 +76,10 @@ func DefaultPlannedInlineMarks() []string {
 	return slices.Clone(defaultPlannedInlineMarks)
 }
 
-// Contract is the validated, immutable vault authority. Its zero value carries
-// no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
-// *Contract answers as an ungoverned vault: every method is safe to call and
-// returns what a folder that declared nothing declares — no vocabulary, no
-// capability.
+// Contract is the validated, immutable vault authority, loaded with
+// [LoadReader]. A nil *Contract answers as an ungoverned vault: every method is
+// safe to call and returns what a folder that declared nothing declares — no
+// vocabulary, no capability.
 type Contract struct {
 	types      []typeDefinition
 	typeByName map[string]int
@@ -236,14 +234,16 @@ func ContractAbsent(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-// Load reads the contract from the vault rooted at root, and LoadFile from an
-// explicit path. Neither is on the served path, which loads through LoadReader
-// so a capability binds to the exact file it came from; these two serve a
-// caller that holds only a path.
+// Load reads the contract of the vault rooted at root. It serves a caller that
+// holds only a path, which today is only a test: the binary loads through
+// LoadReader, so a capability binds to the exact file it came from.
 func Load(root string) (*Contract, error) {
 	return LoadFile(filepath.Join(root, filepath.FromSlash(ContractRelPath)))
 }
 
+// LoadFile reads the contract at path, for the same callers as Load. Its
+// capabilities re-read the file by that path rather than through a pinned
+// reader.
 func LoadFile(path string) (*Contract, error) {
 	sourcePath, err := filepath.Abs(path)
 	if err != nil {
@@ -296,6 +296,13 @@ func LoadForAgents(ctx context.Context, reader *vault.Reader) (*Contract, Privac
 		return nil, PrivacyPolicy{}, err
 	}
 }
+
+// The refusals of a contract whose keys cannot be read one way: a key nothing
+// reads, and two spellings of one key the decoder would bind to one field.
+var (
+	errUnknownKeys = errors.New("unknown keys")
+	errFoldedKeys  = errors.New("rules file keys differ only by letter case")
+)
 
 // ErrRulesFileUnknown is a folder whose surroundings could not be looked at, so
 // it is not known to have no rules file. It carries no path: the one that could
@@ -370,41 +377,39 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	unknown := classifyUnknownKeys(tomlMeta.Undecoded())
 	if len(unknown.core) > 0 {
 		slices.Sort(unknown.core)
-		return nil, fmt.Errorf("unknown keys: %s", formatContractKeys(unknown.core))
+		return nil, fmt.Errorf("%w: %s", errUnknownKeys, formatContractKeys(unknown.core))
 	}
 
 	contract := &Contract{
-		common: slices.Clone(decoded.Fields.Common),
+		common: decoded.Fields.Common,
 		written: writtenKeys{
 			frontmatterOptional: tomlMeta.IsDefined("folders", "frontmatter_optional"),
 			plannedGapMarks:     tomlMeta.IsDefined("rules", "planned_gap_marks"),
 			plannedInlineMarks:  tomlMeta.IsDefined("rules", "planned_inline_marks"),
 		},
-		required: slices.Clone(decoded.Fields.Required),
+		required: decoded.Fields.Required,
 		rules: Rules{
-			ConceptRequiresProvenance: slices.Clone(decoded.Rules.ConceptRequiresProvenance),
-			PlannedGapMarks:           slices.Clone(decoded.Rules.PlannedGapMarks),
-			PlannedInlineMarks:        slices.Clone(decoded.Rules.PlannedInlineMarks),
+			ConceptRequiresProvenance: decoded.Rules.ConceptRequiresProvenance,
+			PlannedGapMarks:           decoded.Rules.PlannedGapMarks,
+			PlannedInlineMarks:        decoded.Rules.PlannedInlineMarks,
 		},
-		folders: Folders{
-			Checked:             slices.Clone(decoded.Folders.Checked),
-			Ignored:             slices.Clone(decoded.Folders.Ignored),
-			Templates:           slices.Clone(decoded.Folders.Templates),
-			Journal:             decoded.Folders.Journal,
-			DomainFrom:          slices.Clone(decoded.Folders.DomainFrom),
-			SkippedFiles:        slices.Clone(decoded.Folders.SkippedFiles),
-			FrontmatterOptional: decoded.Folders.FrontmatterOptional,
-		},
+		folders: Folders(decoded.Folders),
 	}
 	applyPlannedMarkDefaults(&contract.rules, contract.written)
-	if duplicate, found := firstRepeated(decoded.Enums["type"]); found {
+	foldWords(decoded.Enums[FieldType])
+	if duplicate, found := firstRepeated(decoded.Enums[FieldType]); found {
 		return nil, fmt.Errorf("enums.type: duplicate value %q", duplicate)
 	}
-	contract.declareTypes(decoded.Types, decoded.Enums, tomlMeta.Keys())
+	if err := contract.declareTypes(decoded.Types, decoded.Enums[FieldType], tomlMeta.Keys()); err != nil {
+		return nil, err
+	}
 	contract.declareEnums(decoded.Enums)
 	foldDeclaredWords(contract)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
+	}
+	if _, hasConcept := contract.typeByName[conceptType]; hasConcept {
+		contract.provenanceFields = contract.rules.ConceptRequiresProvenance
 	}
 
 	contract.navigationRoles = deriveNavigationRoles(contract.types)
@@ -421,38 +426,43 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	return contract, nil
 }
 
-// declareTypes lists the contract's note types in the order they were written.
-// A type is declared by its own [types.<name>] table or by a place in
-// enums.type, so a plain type with nothing to say needs no table of its own.
-func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]string, keys []toml.Key) {
-	var names []string
-	add := func(name string) {
-		if !slices.Contains(names, name) {
-			names = append(names, name)
+// declareTypes lists the contract's note types in the order they were written,
+// each under its one spelling. A type is declared by its own [types.<name>]
+// table or by a place in enums.type, so a plain type with nothing to say needs
+// no table of its own, and the two places name one type however each composes
+// the word. Two tables composing one word are refused.
+func (c *Contract) declareTypes(tables map[string]typeFile, enumTypes []string, keys []toml.Key) error {
+	byName := make(map[string]typeFile, len(tables))
+	for raw, table := range tables {
+		name := NormalizeWord(raw)
+		if _, duplicate := byName[name]; duplicate {
+			return fmt.Errorf("types: duplicate type %q", name)
 		}
+		byName[name] = table
 	}
-	for _, name := range enums["type"] {
-		add(name)
-	}
+	names := slices.Clone(enumTypes)
 	for _, key := range keys {
-		if len(key) >= 2 && key[0] == "types" {
-			add(key[1])
+		if len(key) < 2 || key[0] != "types" {
+			continue
+		}
+		if name := NormalizeWord(key[1]); !slices.Contains(names, name) {
+			names = append(names, name)
 		}
 	}
 	c.types = make([]typeDefinition, 0, len(names))
 	c.typeByName = make(map[string]int, len(names))
 	for _, name := range names {
-		table := tables[name]
-		def := typeDefinition{
+		table := byName[name]
+		c.typeByName[name] = len(c.types)
+		c.types = append(c.types, typeDefinition{
 			name:     name,
 			role:     Role(table.Role),
 			required: slices.Clone(table.Required),
 			fields:   slices.Clone(table.Fields),
 			slugText: table.SlugPattern,
-		}
-		c.typeByName[name] = len(c.types)
-		c.types = append(c.types, def)
+		})
 	}
+	return nil
 }
 
 // declareEnums keeps every vocabulary, sorted by field name so the order a
@@ -461,7 +471,7 @@ func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]s
 func (c *Contract) declareEnums(enums map[string][]string) {
 	fields := make([]string, 0, len(enums))
 	for field := range enums {
-		if field != "type" {
+		if field != FieldType {
 			fields = append(fields, field)
 		}
 	}
@@ -472,27 +482,21 @@ func (c *Contract) declareEnums(enums map[string][]string) {
 	}
 }
 
-// foldDeclaredWords folds every word this contract declares to one spelling, so
-// a note's own value is the only side left to fold when something compares the
-// two. A contract is written in an editor and a note's frontmatter is read back
-// off a filesystem, and the two hand over different byte strings for the same
-// word; a lookup keyed on the bytes then loses that note's whole type. This
-// runs before the contract is validated, so a contract declaring one word
+// foldDeclaredWords folds every enum value, knowledge-layer folder and domain
+// root this contract declares to one spelling, as declareTypes folds the type
+// names, so a note's own value is the only side left to fold when something
+// compares the two. A contract is written in an editor and a note's
+// frontmatter is read back off a filesystem, and the two hand over different
+// byte strings for the same word; a lookup keyed on the bytes then loses it.
+// This runs before the contract is validated, so a contract declaring one word
 // twice is refused as the duplicate it is. Case is left alone: two words
 // differing only in case are two declarations the contract meant.
 func foldDeclaredWords(contract *Contract) {
-	for i := range contract.types {
-		contract.types[i].name = NormalizeWord(contract.types[i].name)
-	}
 	for i := range contract.enums {
 		foldWords(contract.enums[i].values)
 	}
-	contract.typeByName = make(map[string]int, len(contract.types))
-	for i := range contract.types {
-		if _, duplicate := contract.typeByName[contract.types[i].name]; !duplicate {
-			contract.typeByName[contract.types[i].name] = i
-		}
-	}
+	foldWords(contract.folders.Checked)
+	foldWords(contract.folders.DomainFrom)
 }
 
 func foldWords(words []string) {
@@ -575,7 +579,7 @@ func validateDistinctKeys(data []byte) error {
 	if len(pairs) == 0 {
 		return nil
 	}
-	return fmt.Errorf("rules file keys differ only by letter case: %s", strings.Join(pairs, "; "))
+	return fmt.Errorf("%w: %s", errFoldedKeys, strings.Join(pairs, "; "))
 }
 
 // foldedKeyPairs names every pair of sibling keys that fold together, in each
@@ -681,15 +685,8 @@ func validateContractSemantics(contract *Contract) error {
 }
 
 func validateTypes(contract *Contract) error {
-	seen := make(map[string]struct{}, len(contract.types))
-	for _, def := range contract.types {
-		if def.name == "" {
-			return errors.New("types: empty type name")
-		}
-		if _, duplicate := seen[def.name]; duplicate {
-			return fmt.Errorf("types: duplicate type %q", def.name)
-		}
-		seen[def.name] = struct{}{}
+	if _, empty := contract.typeByName[""]; empty {
+		return errors.New("types: empty type name")
 	}
 	return nil
 }
@@ -697,7 +694,7 @@ func validateTypes(contract *Contract) error {
 func validateEnums(contract *Contract) error {
 	for _, enum := range contract.enums {
 		name := "enums." + enum.field
-		if enum.field != domainField && !slices.Contains(Fields(), enum.field) {
+		if enum.field != FieldDomain && !slices.Contains(Fields(), enum.field) {
 			return fmt.Errorf("%s: %q is not a field yomihon defines or derives", name, enum.field)
 		}
 		if err := validateUniqueStrings(name, enum.values); err != nil {
@@ -761,9 +758,6 @@ func validateRules(contract *Contract) error {
 	if _, hasConcept := contract.typeByName[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
 		return errors.New(`rules.concept_requires_provenance must not be empty when the types include "concept"`)
 	}
-	if _, hasConcept := contract.typeByName[conceptType]; hasConcept {
-		contract.provenanceFields = slices.Clone(rules.ConceptRequiresProvenance)
-	}
 	return nil
 }
 
@@ -775,7 +769,7 @@ func validateFolders(folders *Folders) error {
 		return err
 	}
 	for _, dir := range folders.Checked {
-		if !validTopLevelComponent(dir) {
+		if !validName(dir) {
 			return fmt.Errorf("folders.checked: unsafe top-level component %q", dir)
 		}
 	}
@@ -784,7 +778,7 @@ func validateFolders(folders *Folders) error {
 		return err
 	}
 	for _, basename := range folders.SkippedFiles {
-		if !validBasename(basename) {
+		if !validName(basename) {
 			return fmt.Errorf("folders.skipped_files: invalid basename %q", basename)
 		}
 	}
@@ -822,7 +816,7 @@ func validDomainRoot(value string) bool {
 		return false
 	}
 	for component := range strings.SplitSeq(value, "/") {
-		if !validTopLevelComponent(component) {
+		if !validName(component) {
 			return false
 		}
 	}
@@ -831,32 +825,26 @@ func validDomainRoot(value string) bool {
 
 // DomainFolder returns the first directory after a matching declared root.
 // Roots must be validated vault-relative directory paths with no overlap under
-// [SameDirName]. relPath must be a canonical vault-relative file path; matching
-// is byte-exact.
-// A file directly under a root, or outside every root, has no domain folder.
+// [SameDirName], as a loaded contract's are. relPath is a vault-relative file
+// path, composed and compared one whole component at a time the way every
+// other directory scope reads one, and the folder comes back composed. A file
+// directly under a root, or outside every root, has no domain folder.
 func DomainFolder(roots []string, relPath string) (string, bool) {
+	parts := strings.Split(vault.NormalizeNFC(relPath), "/")
 	for _, root := range roots {
-		if rest, ok := strings.CutPrefix(relPath, root+"/"); ok {
-			folder, _, found := strings.Cut(rest, "/")
-			if found {
-				return folder, true
-			}
-			return "", false
+		dirs := strings.Split(root, "/")
+		if len(parts) >= len(dirs)+2 && sameDirs(parts[:len(dirs)], dirs) {
+			return parts[len(dirs)], true
 		}
 	}
 	return "", false
 }
 
-func validTopLevelComponent(value string) bool {
-	return value != "" &&
-		value != "." &&
-		value != ".." &&
-		!filepath.IsAbs(value) &&
-		!strings.ContainsRune(value, 0) &&
-		!strings.ContainsAny(value, `/\`)
-}
-
-func validBasename(value string) bool {
+// validName reports whether value names one entry of a directory: a folder
+// the contract declares by its top-level name, one component of a domain root,
+// or a file name the scan skips. Without a separator it can be absolute on no
+// platform.
+func validName(value string) bool {
 	return value != "" &&
 		value != "." &&
 		value != ".." &&

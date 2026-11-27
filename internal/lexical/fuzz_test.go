@@ -6,8 +6,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // FuzzParse keeps the lexical grammar deterministic and ownership-safe across
@@ -17,7 +15,7 @@ func FuzzParse(f *testing.F) {
 	f.Add("")
 	f.Add("深度 type:lesson 工作 folder:Writing/")
 	f.Add("Type:lesson slug:a:b")
-	f.Add("domain:が topic:日本語")
+	f.Add("domain:\u304b\u3099 topic:\u65e5\u672c\u8a9e")
 	f.Add("status: foo:bar")
 	f.Add(`"semantic retrieval" type:lesson`)
 	f.Add("「深度 工作」 『読本』")
@@ -49,28 +47,11 @@ func FuzzParse(f *testing.F) {
 			}
 			metadata = metadata || kind == filterMetadata
 		}
-		if first.RequiresMetadata() != metadata {
-			t.Errorf("Parse(%q).RequiresMetadata() = %v, want %v", raw, first.RequiresMetadata(), metadata)
+		if first.requiresMetadata() != metadata {
+			t.Errorf("Parse(%q).requiresMetadata() = %v, want %v", raw, first.requiresMetadata(), metadata)
 		}
 		if utf8.ValidString(raw) && (!allValidStrings(first.tokens) || !validFilters(first.filters)) {
 			t.Errorf("Parse(valid UTF-8 %q) emitted invalid UTF-8: %#v", raw, first)
-		}
-
-		// The public accessors must return detached slices: an agent that sorts
-		// or edits its copy cannot change later matching decisions.
-		tokens := first.Tokens()
-		if len(tokens) > 0 {
-			tokens[0] = "mutated"
-			if first.Tokens()[0] == "mutated" {
-				t.Errorf("Parse(%q).Tokens() exposes query-owned storage", raw)
-			}
-		}
-		filters := first.Filters()
-		if len(filters) > 0 {
-			filters[0].Key = "mutated"
-			if first.Filters()[0].Key == "mutated" {
-				t.Errorf("Parse(%q).Filters() exposes query-owned storage", raw)
-			}
 		}
 	})
 }
@@ -91,134 +72,4 @@ func validFilters(filters []Filter) bool {
 		}
 	}
 	return true
-}
-
-// FuzzSnippet drives the real folded-text relationship used by the index. A
-// snippet must stay one line, preserve valid UTF-8 boundaries, and remain
-// within its fixed window of characters plus at most two ellipses.
-func FuzzSnippet(f *testing.F) {
-	f.Add("prefix 日本語 suffix", "日本語", 0, 0)
-	f.Add(strings.Repeat("a", 40)+"界"+strings.Repeat("b", 160), "界", 0, 0)
-	f.Add("界"+strings.Repeat("a", 39)+"needle", "needle", 0, 0)
-	f.Add("line one\n\tline two\r\nline three", "two", 0, 0)
-	f.Add("", "", 0, 0)
-	// A full window of Japanese: 200 characters of it is 600 bytes, so this is
-	// the shape a byte-counted bound reports as too long while the window is
-	// exactly the size it is meant to be.
-	f.Add(strings.Repeat("あ", 200)+"鍵"+strings.Repeat("い", 200), "鍵", 0, 0)
-	// A match walled in by letters on both sides, far enough from either end of
-	// the run that both boundaries have to give up on keeping the word whole.
-	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z", 0, 0)
-	// wholeWordEnd retreats through a long digit run to the match's first byte;
-	// the close must still reach past that byte or the window is "0…" and the
-	// token-contains assertion fails.
-	f.Add("0Z"+strings.Repeat("0", 184), "Z", 0, 0)
-	// The same length in ordinary spaced words, where nothing shortens the
-	// window and it fills to its limit.
-	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle", 0, 0)
-	// Fullwidth ASCII folding to a shorter encoding: the source-offset walk
-	// must still land the snippet on the match, not drift into its neighbour.
-	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽", 0, 0)
-	f.Add("心（こころ）", "心(こころ)", 0, 0)
-	f.Add("Ｇｏ の並行処理", "Go", 0, 0)
-	f.Add("here ΟΔΟΣ there", "οδος", 0, 0)
-	f.Add(strings.Repeat("ſ", 120)+" ſtop tail", "stop", 0, 0)
-	f.Add("before ϐ after", "β", 0, 0)
-	f.Add("ΑΙ then ι", "αι", 0, 0)
-	// A fence-only window: the oracle covers the excerpt as rendered, so an
-	// injected prefix would push a full window over the 250-rune budget.
-	f.Add("```d2\ndirection: right\n```\n\nThe source owns jobs.", "owns jobs", 0, 32)
-	f.Add(strings.Repeat("x", 40)+" UNIQUE_FENCE_HEAD. "+strings.Repeat("y", 10)+" needle "+strings.Repeat("z", 160), "needle", 0, 400)
-	// Mid-rune fenceHi inside 語: production never emits this, and the
-	// oracle must not see it or it deposits a corpus file that fails
-	// go test for everyone.
-	f.Add("000000日本語", "0", 14, 15)
-	// A match after a long unbroken run: sentenceStart opens onto the run
-	// and the after-window fills, which used to yield 252 characters
-	// against the 250-rune cap.
-	f.Add("\n"+strings.Repeat("0", 104)+"G"+strings.Repeat("0", 146), "g", 0, 0)
-
-	f.Fuzz(func(t *testing.T, plain, token string, fenceLo, fenceHi int) {
-		if len(plain) > 256<<10 || len(token) > 16<<10 {
-			t.Skip()
-		}
-		// The index stores NFC and the offset walk assumes it. Raw fuzz
-		// bytes can leave foldEnd off that walk; the close would then sit
-		// at the end of the body and the length oracle would fire.
-		plain = vault.NormalizeNFC(plain)
-		if fenceLo < 0 {
-			fenceLo = 0
-		}
-		if fenceHi < 0 {
-			fenceHi = 0
-		}
-		if fenceLo > len(plain) {
-			fenceLo = len(plain)
-		}
-		if fenceHi > len(plain) {
-			fenceHi = len(plain)
-		}
-		for fenceLo < len(plain) && !utf8.RuneStart(plain[fenceLo]) {
-			fenceLo++
-		}
-		for fenceHi < len(plain) && !utf8.RuneStart(plain[fenceHi]) {
-			fenceHi++
-		}
-		var fences [][2]int
-		if fenceHi > fenceLo {
-			fences = [][2]int{{fenceLo, fenceHi}}
-		}
-		plainFold := fold(plain)
-		tokens := []string{fold(token)}
-		got := snippetWithFences(plain, plainFold, tokens, fences)
-		if got != snippetWithFences(plain, plainFold, tokens, fences) {
-			t.Errorf("snippet(%q, %q) is not deterministic", plain, token)
-		}
-		if utf8.ValidString(plain) && !utf8.ValidString(got) {
-			t.Errorf("snippet(valid UTF-8 %q, %q) returned invalid UTF-8 %x", plain, token, got)
-		}
-		if strings.ContainsAny(got, "\r\n\t") {
-			t.Errorf("snippet(%q, %q) = %q, want one line", plain, token, got)
-		}
-		if got != strings.TrimSpace(got) {
-			t.Errorf("snippet(%q, %q) = %q, want no surrounding whitespace", plain, token, got)
-		}
-		// The window is counted in characters, not bytes. Its bounds walk
-		// characters outward from the match, so a full window of Japanese is
-		// three times as many bytes as a full window of English while being the
-		// same window — measuring it in bytes reports the wider script as a
-		// defect. Each bound may then move a further 24 outward to keep a word
-		// whole, and that movement only ever crosses the ASCII letters, digits,
-		// hyphens and underscores that count as word bytes, so its allowance
-		// carries over to characters one for one. Two ellipses are all that is
-		// added afterwards.
-		//
-		// The numbers are written out rather than read back from the package on
-		// purpose: a limit derived from the same constants that size the window
-		// would widen along with them, and could never report a window that
-		// grew.
-		const maxSnippetRunes = 40 + 160 + 2*24 + 2
-		maxRunes := maxSnippetRunes
-		// The close is held at the match's exclusive end, so a token longer
-		// than the after-window still occupies the snippet.
-		if extra := utf8.RuneCountInString(tokens[0]) - 160; extra > 0 {
-			maxRunes += extra
-		}
-		if n := utf8.RuneCountInString(got); n > maxRunes {
-			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxRunes)
-		}
-		// A window that drifted off the match can still be one valid, short
-		// line. The folded snippet has to keep the token that placed it, or
-		// the highlight and the text directive land on the neighbour. A
-		// match buried in one unbroken run still occupies the window: the
-		// close is held at the match's exclusive end, not its first byte.
-		// Fields-joining covers a CJK wrap the fold dropped and the snippet
-		// respelled as a space.
-		if foldedTok := tokens[0]; foldedTok != "" && strings.Trim(got, "…") != "" && strings.Contains(plainFold, foldedTok) {
-			foldedGot := fold(got)
-			if !strings.Contains(foldedGot, foldedTok) && !strings.Contains(strings.Join(strings.Fields(foldedGot), ""), strings.Join(strings.Fields(foldedTok), "")) {
-				t.Errorf("folded snippet %q does not contain %q; the window drifted off the match", got, foldedTok)
-			}
-		}
-	})
 }

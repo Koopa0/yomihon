@@ -13,10 +13,9 @@ import (
 )
 
 // TestGovernanceSeparatesSilenceFromFault is the whole point of the grant
-// split: before it, a folder carrying no contract and a folder whose contract
-// could not be parsed produced the same nil contract and therefore the same
-// page, so the operator's real mistake was reported exactly as loudly as their
-// having made none — which is to say, both were shouted about.
+// split: a folder carrying no contract and a folder whose contract could not be
+// parsed both leave a nil contract, and only the governance tells the
+// operator's real mistake apart from their having made none.
 func TestGovernanceSeparatesSilenceFromFault(t *testing.T) {
 	t.Parallel()
 
@@ -93,13 +92,17 @@ func TestContractLeftAnInputOutStaysGoverned(t *testing.T) {
 
 // TestRejectedClaimCanCloseButNeverOpen pins the asymmetry that makes the whole
 // scheme fail-closed by construction: a caller outside this package can always
-// refuse a capability and can never grant one.
+// refuse a capability and can never grant one, and the refusal is a fact about
+// the declaration, not about whether anyone wrote a sentence for it.
 func TestRejectedClaimCanCloseButNeverOpen(t *testing.T) {
 	t.Parallel()
 
-	claim := schema.Rejected("declared and rejected")
-	if claim.Trustworthy() {
-		t.Error("Rejected() produced a claim a projection may be answered over")
+	for _, sentence := range []string{"declared and rejected", ""} {
+		claim := schema.Rejected(sentence)
+		if claim.Trustworthy() || !claim.Claimed() || claim.Diagnostic() != sentence {
+			t.Errorf("Rejected(%q) = trustworthy %t, claimed %t, %q; want an untrustworthy claim carrying its sentence",
+				sentence, claim.Trustworthy(), claim.Claimed(), claim.Diagnostic())
+		}
 	}
 	// The narrower question — is there a declaration here to read — is asked
 	// through a capability, in the words of what that capability governs. A
@@ -107,33 +110,6 @@ func TestRejectedClaimCanCloseButNeverOpen(t *testing.T) {
 	withheld := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("unparsable")))
 	if withheld.Navigation.Available() || withheld.Knowledge.Available() || withheld.Artifacts.Available() || withheld.Journal.Available() {
 		t.Error("a rejected declaration left a capability reporting itself available")
-	}
-	if !claim.Claimed() {
-		t.Error("Rejected() is unclaimed; something was asserted here")
-	}
-	if claim.Diagnostic() == "" {
-		t.Error("Rejected() dropped the sentence it was given")
-	}
-}
-
-// TestClosureDoesNotDependOnHavingASentence keeps the predicate and the message
-// apart at the one place the difference is a type guarantee rather than an
-// accident. Every production caller supplies a sentence today, so a predicate
-// that secretly read the string would behave identically everywhere and no
-// page-level test could tell — which is how a capability came to be answered
-// from an empty string in the first place.
-func TestClosureDoesNotDependOnHavingASentence(t *testing.T) {
-	t.Parallel()
-
-	silent := schema.Rejected("")
-	if silent.Trustworthy() {
-		t.Error("a rejected declaration with no sentence reports itself trustworthy")
-	}
-	if !silent.Claimed() {
-		t.Error("a rejected declaration reports that nothing was ever claimed")
-	}
-	if got := silent.Diagnostic(); got != "" {
-		t.Errorf("Diagnostic() = %q, want empty", got)
 	}
 }
 
@@ -179,19 +155,19 @@ func TestTheContractSpeaksNoInterfaceLanguage(t *testing.T) {
 	}
 }
 
-// TestTheFourCapabilitiesAgreeAboutSilence states, in one place, what each
+// TestEveryCapabilityAgreesAboutSilence states, in one place, what each
 // capability answers for a folder that never declared it. Two questions sit
 // under every capability — "was this read" and "may a projection over it be
 // answered" — and they give opposite answers to silence, so which one a
 // capability gates on decides what it says about a folder with nothing wrong
-// with it. Nothing in the type system says which; four separate doc paragraphs
-// did, and a fifth capability copied from a sibling would inherit whichever
-// polarity was copied without a call site looking any different.
+// with it. Nothing in the type system says which, and a capability copied from
+// a sibling would inherit whichever polarity was copied without a call site
+// looking any different.
 //
 // The membership answers below are therefore the design, not an observation.
 // Each is the true answer to silence for the thing that capability governs,
 // and a change to one of them is a change to what an ungoverned folder is.
-func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
+func TestEveryCapabilityAgreesAboutSilence(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -208,7 +184,6 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 		claim schema.Claim
 	}{
 		{"NavigationRoles", roles.Claim()},
-		{"KnowledgeScope", scope.Claim()},
 		{"ArtifactPolicy", artifact.Claim()},
 		{"PrivacyPolicy", privacy.Claim()},
 		{"JournalDir", journal.Claim()},

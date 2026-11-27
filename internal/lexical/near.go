@@ -1,6 +1,7 @@
 package lexical
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -17,7 +18,7 @@ func (idx *Index) NearWord(query string) string {
 	}
 	uses := map[string]int{}
 	for _, e := range idx.entries {
-		for _, w := range titleWords(e.Title) {
+		for _, w := range titleWords(e.title) {
 			uses[w]++
 		}
 	}
@@ -37,20 +38,17 @@ func (idx *Index) NearWord(query string) string {
 }
 
 func allLetters(r []rune) bool {
-	for _, c := range r {
-		if c > unicode.MaxASCII || !unicode.IsLetter(c) {
-			return false
-		}
-	}
-	return true
+	return !slices.ContainsFunc(r, notASCIILetter)
 }
 
 // titleWords are the runs of ASCII letters in a title, lower-cased. Other
 // scripts are not cut into words here, so they are never offered.
 func titleWords(title string) []string {
-	return strings.FieldsFunc(strings.ToLower(title), func(c rune) bool {
-		return c > unicode.MaxASCII || !unicode.IsLetter(c)
-	})
+	return strings.FieldsFunc(strings.ToLower(title), notASCIILetter)
+}
+
+func notASCIILetter(c rune) bool {
+	return c > unicode.MaxASCII || !unicode.IsLetter(c)
 }
 
 // oneEditApart reports whether a and b differ by exactly one insertion,
@@ -71,23 +69,11 @@ func oneEditApart(a, b []rune) bool {
 	}
 	switch {
 	case len(a) == len(b):
-		if slicesEqual(a[i+1:], b[i+1:]) {
+		if slices.Equal(a[i+1:], b[i+1:]) {
 			return true
 		}
-		return i+1 < len(a) && a[i] == b[i+1] && a[i+1] == b[i] && slicesEqual(a[i+2:], b[i+2:])
+		return i+1 < len(a) && a[i] == b[i+1] && a[i+1] == b[i] && slices.Equal(a[i+2:], b[i+2:])
 	default:
-		return slicesEqual(a[i:], b[i+1:])
+		return slices.Equal(a[i:], b[i+1:])
 	}
-}
-
-func slicesEqual(a, b []rune) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

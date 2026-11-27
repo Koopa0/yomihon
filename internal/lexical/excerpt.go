@@ -109,31 +109,15 @@ func excerptSourceHits(plain string, tokens []string) []bool {
 	return covered
 }
 
-func (e *entry) displayedExcerpt(start, end int, tokens []string) (runs []ExcerptRun, first, last int) {
-	atoms := collapseExcerptAtoms(e.excerptAtoms(start, end, tokens))
-	first, last = firstExcerptHit(atoms)
-	// Run assembly is independent of selecting the first landing occurrence.
-	if start > 0 {
-		appendExcerptRun(&runs, "…", false, false)
-	}
-	for _, atom := range atoms {
-		appendExcerptRun(&runs, atom.text, atom.hit, atom.deleted)
-	}
-	if end < len(e.PlainText) {
-		appendExcerptRun(&runs, "…", false, false)
-	}
-	return runs, first, last
-}
-
 func (e *entry) excerptAtoms(start, end int, tokens []string) []excerptAtom {
-	covered := excerptSourceHits(e.PlainText[start:end], tokens)
+	covered := excerptSourceHits(e.plainText[start:end], tokens)
 	var atoms []excerptAtom
 	for at := start; at < end; {
-		_, size := utf8.DecodeRuneInString(e.PlainText[at:end])
+		_, size := utf8.DecodeRuneInString(e.plainText[at:end])
 		stop := at + size
 		hidden, deleted := e.excerptEffects(at, stop)
 		if !hidden {
-			atoms = append(atoms, excerptAtom{text: e.PlainText[at:stop], start: at, end: stop, hit: anyExcerptHit(covered, at-start, stop-start), deleted: deleted})
+			atoms = append(atoms, excerptAtom{text: e.plainText[at:stop], start: at, end: stop, hit: anyExcerptHit(covered, at-start, stop-start), deleted: deleted})
 		}
 		at = stop
 	}
@@ -150,31 +134,6 @@ func (e *entry) excerptEffects(at, stop int) (hidden, deleted bool) {
 		deleted = deleted || span.Deleted
 	}
 	return hidden, deleted
-}
-
-func firstExcerptHit(atoms []excerptAtom) (first, last int) {
-	first, last = -1, -1
-	for _, atom := range atoms {
-		if !atom.hit {
-			if first >= 0 {
-				// Unmarked text ends the first shown occurrence.
-				break
-			}
-			continue
-		}
-		if first < 0 && strings.TrimSpace(atom.text) == "" {
-			continue
-		}
-		switch {
-		case first < 0:
-			first, last = atom.start, atom.end
-		case atom.start == last:
-			last = atom.end
-		default:
-			return first, last
-		}
-	}
-	return first, last
 }
 
 func anyExcerptHit(covered []bool, start, end int) bool {
@@ -235,56 +194,55 @@ type shownOccurrence struct {
 	fromFence  bool
 }
 
-type excerptDisplayIndex struct {
-	hidden [][2]int
-}
+// hiddenSpans are the merged, ordered source spans a page hides, so a scan can
+// jump each one whole.
+type hiddenSpans [][2]int
 
-// displayIndex merges the hidden intervals, so a scan can jump each one whole.
-func (e *entry) displayIndex() excerptDisplayIndex {
-	var index excerptDisplayIndex
+func (e *entry) hiddenSpans() hiddenSpans {
+	var spans hiddenSpans
 	for _, span := range e.displaySpans {
 		if span.Hidden {
-			index.hidden = append(index.hidden, [2]int{span.Start, span.End})
+			spans = append(spans, [2]int{span.Start, span.End})
 		}
 	}
-	slices.SortFunc(index.hidden, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
-	merged := index.hidden[:0]
-	for _, span := range index.hidden {
+	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	merged := spans[:0]
+	for _, span := range spans {
 		if len(merged) > 0 && span[0] <= merged[len(merged)-1][1] {
 			merged[len(merged)-1][1] = max(merged[len(merged)-1][1], span[1])
 		} else {
 			merged = append(merged, span)
 		}
 	}
-	index.hidden = merged
-	return index
+	return merged
 }
 
-func (index *excerptDisplayIndex) hiddenAt(start, end int) (stop int, hidden bool) {
-	i := sort.Search(len(index.hidden), func(i int) bool { return index.hidden[i][1] > start })
-	if i < len(index.hidden) && index.hidden[i][0] < end {
-		return index.hidden[i][1], true
+// next is the first span that ends after at, or false when none does.
+func (h hiddenSpans) next(at int) ([2]int, bool) {
+	i := sort.Search(len(h), func(i int) bool { return h[i][1] > at })
+	if i == len(h) {
+		return [2]int{}, false
 	}
-	return 0, false
+	return h[i], true
 }
 
 // firstShown inspects original evidence, jumping hidden ranges instead of
 // projecting every byte. Only the bounded excerpt later allocates text atoms.
-func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIndex) shownOccurrence {
+func (e *entry) firstShown(start, end int, token string, hidden hiddenSpans) shownOccurrence {
 	for at := start; at < end; {
-		_, size := utf8.DecodeRuneInString(e.PlainText[at:end])
-		if stop, hidden := index.hiddenAt(at, at+size); hidden {
-			at = min(end, stop)
+		_, size := utf8.DecodeRuneInString(e.plainText[at:end])
+		next, found := hidden.next(at)
+		if found && next[0] < at+size {
+			at = min(end, next[1])
 			continue
 		}
-		if strings.TrimSpace(e.PlainText[at:at+size]) == "" {
+		if strings.TrimSpace(e.plainText[at:at+size]) == "" {
 			at += size
 			continue
 		}
 		stop := end
-		i := sort.Search(len(index.hidden), func(i int) bool { return index.hidden[i][1] > at })
-		if i < len(index.hidden) {
-			stop = min(stop, index.hidden[i][0])
+		if found {
+			stop = min(stop, next[0])
 		}
 		if token == "" {
 			stop = at + size
@@ -294,16 +252,20 @@ func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIn
 	return shownOccurrence{}
 }
 
-func (e *entry) shownToken(token string, source []int, index *excerptDisplayIndex) (prose, fence shownOccurrence) {
-	for at := 0; at <= len(e.PlainFold); {
-		start, end := phraseIndex(e.PlainFold, token, at)
+// shownToken is token's earliest match the page shows in prose, and its
+// earliest in a fence.
+func (e *entry) shownToken(token string, hidden hiddenSpans) (prose, fence shownOccurrence) {
+	cursor := foldCursor{s: e.plainText}
+	for at := 0; at <= len(e.plainFold); {
+		start, end := phraseIndex(e.plainFold, token, at)
 		if start < 0 {
 			return prose, fence
 		}
 		at = max(end, start+1)
-		last := source[end-1]
-		_, size := utf8.DecodeRuneInString(e.PlainText[last:])
-		shown := e.firstShown(source[start], last+size, token, index)
+		from := cursor.source(start)
+		last := cursor.source(end - 1)
+		_, size := utf8.DecodeRuneInString(e.plainText[last:])
+		shown := e.firstShown(from, last+size, token, hidden)
 		if !shown.found {
 			continue
 		}
@@ -318,12 +280,17 @@ func (e *entry) shownToken(token string, source []int, index *excerptDisplayInde
 	return prose, fence
 }
 
+// shownExcerptCentre is the earliest match of any token the page shows, in
+// prose when there is one and otherwise in a fence; found is false when the
+// page shows none.
 func (e *entry) shownExcerptCentre(tokens []string) shownOccurrence {
-	index := e.displayIndex()
-	_, source := foldWithSourceOffsets(e.PlainText)
+	hidden := e.hiddenSpans()
 	var prose, fence shownOccurrence
 	for _, token := range tokens {
-		shownProse, shownFence := e.shownToken(token, source, &index)
+		if token == "" {
+			continue
+		}
+		shownProse, shownFence := e.shownToken(token, hidden)
 		if shownProse.found && (!prose.found || shownProse.start < prose.start) {
 			prose = shownProse
 		}
@@ -331,19 +298,8 @@ func (e *entry) shownExcerptCentre(tokens []string) shownOccurrence {
 			fence = shownFence
 		}
 	}
-
 	if prose.found {
 		return prose
 	}
-	if fence.found {
-		return fence
-	}
-	opening := e.firstShown(0, len(e.PlainText), "", &index)
-	// Preserve the whole opening when it already fits the initial window;
-	// a long hidden prefix alone must not leave that window empty.
-	if opening.start < runesAfter(e.PlainText, 0, snippetAfter) {
-		opening.start = 0
-	}
-	opening.found = false
-	return opening
+	return fence
 }

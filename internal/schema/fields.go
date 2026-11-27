@@ -25,14 +25,14 @@ const (
 	FieldVerifiedWith  = "verified_with"
 )
 
-// domainField names the enum a contract may state for the derived domain. It is
-// not a frontmatter field: a note that writes it is reported like any other
-// unknown key.
-const domainField = "domain"
+// FieldDomain names the derived domain: a contract may state an enum for it
+// and a search may filter on it. It is not a frontmatter field: a note that
+// writes it is reported like any other unknown key.
+const FieldDomain = "domain"
 
-// titleField names the other derived value. A contract may state no enum for
+// fieldTitle names the other derived value. A contract may state no enum for
 // it and list it nowhere; it is read from the note's first heading.
-const titleField = "title"
+const fieldTitle = "title"
 
 // definedFields is the vocabulary a contract chooses from: DraftField, which
 // is built in, and the fields above.
@@ -61,7 +61,7 @@ var removedFields = []string{
 // field: it is built in, derived or removed, so a concept would be let write it
 // with no finding.
 func shutProvenanceNames(field string) bool {
-	return slices.Contains(builtInFields, field) || field == domainField || field == titleField ||
+	return slices.Contains(builtInFields, field) || field == FieldDomain || field == fieldTitle ||
 		slices.Contains(removedFields, field)
 }
 
@@ -85,8 +85,8 @@ const (
 	FieldTypeDependent
 )
 
-// String names a standing for a diagnostic. A value outside the three
-// constants is a programming error and panics.
+// String names a standing for a diagnostic, and a value outside the three
+// constants by its number.
 func (s FieldStanding) String() string {
 	switch s {
 	case FieldUnknown:
@@ -96,7 +96,7 @@ func (s FieldStanding) String() string {
 	case FieldTypeDependent:
 		return "type-dependent"
 	default:
-		panic("schema: unknown FieldStanding: " + strconv.Itoa(int(s)))
+		return "FieldStanding(" + strconv.Itoa(int(s)) + ")"
 	}
 }
 
@@ -163,18 +163,6 @@ func (c *Contract) SlugPattern(noteType string) (*regexp.Regexp, bool) {
 		return nil, false
 	}
 	return c.types[index].slugPattern, true
-}
-
-// TypeRole returns the role the contract gives noteType, empty for a plain
-// type and for one the contract does not declare.
-func (c *Contract) TypeRole(noteType string) Role {
-	if c == nil {
-		return ""
-	}
-	if index, ok := c.typeByName[NormalizeWord(noteType)]; ok {
-		return c.types[index].role
-	}
-	return ""
 }
 
 func validateFieldLists(contract *Contract) error {

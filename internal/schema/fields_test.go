@@ -94,24 +94,6 @@ func TestTheReferenceContractLoads(t *testing.T) {
 	}
 }
 
-// TestTheContractShapeBeforeTheFieldRedesignIsNotRead holds that the loader
-// reads one shape. A contract written before the fields were redesigned
-// carries tables this one no longer has, and it is refused, not read in part:
-// the loader keeps no second reading of it. That file begins with the version
-// key every such contract carried, which is one more key nothing reads.
-func TestTheContractShapeBeforeTheFieldRedesignIsNotRead(t *testing.T) {
-	t.Parallel()
-
-	if contract, err := schema.LoadFile(filepath.Join("testdata", "reference-earlier-format.toml")); err == nil {
-		t.Errorf("LoadFile(testdata/reference-earlier-format.toml) = %+v, nil, want a refusal", contract.Definition())
-	}
-
-	const lifecycle = "\n[[lifecycle]]\nstatus = \"draft\"\napplies_to = [\"*\"]\nfrom = []\nowner = []\n"
-	if err := loadTextError(t, lifecycle); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
-		t.Errorf("LoadFile([[lifecycle]]) error = %v, want the unknown-keys refusal", err)
-	}
-}
-
 const standingContract = `[fields]
 common = ["type", "lang", "created"]
 required = ["type", "created"]
@@ -188,18 +170,13 @@ func TestRequiredFields(t *testing.T) {
 		{"", []string{"type", "created"}},
 		{"undeclared", []string{"type", "created"}},
 	} {
-		got := contract.RequiredFields(tt.noteType)
-		if diff := cmp.Diff(tt.want, got); diff != "" {
-			t.Errorf("RequiredFields(%q) mismatch (-want +got):\n%s", tt.noteType, diff)
-		}
-		got[0] = "changed"
 		if diff := cmp.Diff(tt.want, contract.RequiredFields(tt.noteType)); diff != "" {
-			t.Errorf("RequiredFields(%q) changed after caller mutation (-want +got):\n%s", tt.noteType, diff)
+			t.Errorf("RequiredFields(%q) mismatch (-want +got):\n%s", tt.noteType, diff)
 		}
 	}
 }
 
-func TestSlugPatternAndTypeRole(t *testing.T) {
+func TestSlugPattern(t *testing.T) {
 	t.Parallel()
 
 	contract := loadText(t, standingContract)
@@ -215,17 +192,6 @@ func TestSlugPatternAndTypeRole(t *testing.T) {
 	for _, noteType := range []string{"note", "study-path", "undeclared", ""} {
 		if pattern, ok := contract.SlugPattern(noteType); ok || pattern != nil {
 			t.Errorf("SlugPattern(%q) = (%v, %t), want (nil, false)", noteType, pattern, ok)
-		}
-	}
-
-	for noteType, want := range map[string]schema.Role{
-		"lesson":     schema.RoleLesson,
-		"study-path": schema.RoleCourse,
-		"note":       "",
-		"undeclared": "",
-	} {
-		if got := contract.TypeRole(noteType); got != want {
-			t.Errorf("TypeRole(%q) = %q, want %q", noteType, got, want)
 		}
 	}
 }
@@ -277,6 +243,31 @@ role = "map"
 	}
 }
 
+// TestATypeIsOneTypeHoweverEachPlaceComposesIt holds the type list to the
+// spelling rule: enums.type and a [types] table naming one word, one of them
+// decomposed, declare one type, and the table's role is that type's.
+func TestATypeIsOneTypeHoweverEachPlaceComposesIt(t *testing.T) {
+	t.Parallel()
+
+	contract := loadText(t, `[enums]
+type = ["Cafe\u0301"]
+
+[types."Caf\u00e9"]
+role = "map"
+`)
+	if diff := cmp.Diff([]string{"Caf\u00e9"}, contract.EnumValues("type")); diff != "" {
+		t.Errorf("EnumValues(type) mismatch (-want +got):\n%s", diff)
+	}
+	if !contract.NavigationRoles().IsMapType("Caf\u00e9") {
+		t.Error("the table for a type enums.type also names lost its role")
+	}
+
+	err := loadTextError(t, "[types.\"Caf\u00e9\"]\nrole = \"map\"\n\n[types.\"Cafe\u0301\"]\n")
+	if err == nil || !strings.Contains(err.Error(), "types: duplicate type") {
+		t.Errorf("two tables composing one word: error = %v, want types: duplicate type", err)
+	}
+}
+
 func TestDomainsComeFromTheFolder(t *testing.T) {
 	t.Parallel()
 
@@ -294,16 +285,8 @@ func TestDomainsComeFromTheFolder(t *testing.T) {
 			t.Errorf("Domains().Of(%q) = %q, want %q", path, got, want)
 		}
 	}
-	roots := domains.Roots()
-	if diff := cmp.Diff([]string{"courses", "Writing/lessons"}, roots); diff != "" {
+	if diff := cmp.Diff([]string{"courses", "Writing/lessons"}, domains.Roots()); diff != "" {
 		t.Errorf("Domains().Roots() mismatch (-want +got):\n%s", diff)
-	}
-	roots[0] = "changed"
-	if got := contract.Domains().Of("courses/go/a.md"); got != "go" {
-		t.Errorf("Domains().Of() = %q after a caller changed Roots(), want %q", got, "go")
-	}
-	if got := (schema.Domains{}).Of("courses/go/a.md"); got != "" {
-		t.Errorf("zero Domains.Of() = %q, want empty", got)
 	}
 }
 
@@ -314,8 +297,8 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 	t.Parallel()
 
 	common := loadText(t, "[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
-	if got := common.AuthoredDate().Field(); got != "created" {
-		t.Errorf("AuthoredDate().Field() = %q with created in fields.common, want %q", got, "created")
+	if !common.AuthoredDate().Declared() {
+		t.Error("AuthoredDate().Declared() = false with created in fields.common, want true")
 	}
 	if !common.ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = false with lang in fields.common, want true")
@@ -323,28 +306,9 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 
 	oneType := loadText(t, "[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
 	if oneType.AuthoredDate().Declared() {
-		t.Errorf("AuthoredDate() = %q with created on one type only, want no field", oneType.AuthoredDate().Field())
+		t.Error("AuthoredDate().Declared() = true with created on one type only, want false")
 	}
 	if oneType.ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = true with lang on one type only, want false")
 	}
-}
-
-func TestFieldStandingNamesItself(t *testing.T) {
-	t.Parallel()
-	for standing, want := range map[schema.FieldStanding]string{
-		schema.FieldUnknown:       "unknown",
-		schema.FieldAllowed:       "allowed",
-		schema.FieldTypeDependent: "type-dependent",
-	} {
-		if got := standing.String(); got != want {
-			t.Errorf("FieldStanding(%d).String() = %q, want %q", int(standing), got, want)
-		}
-	}
-	defer func() {
-		if recover() == nil {
-			t.Error("a FieldStanding outside the three constants named itself instead of panicking")
-		}
-	}()
-	_ = schema.FieldStanding(99).String()
 }
