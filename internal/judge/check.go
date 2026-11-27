@@ -3,6 +3,7 @@ package judge
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -157,8 +158,8 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
-		if prefixes[i] == "" {
-			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
+		if !fs.ValidPath(prefixes[i]) {
+			return nil, fmt.Errorf("path filter %q is not a vault-relative path; give one such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 		if prefixes[i] != vaultRoot && !authority.gate.Allows(prefixes[i]) {
 			return nil, fmt.Errorf("path filter %q lies under a directory this vault's rules file withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)

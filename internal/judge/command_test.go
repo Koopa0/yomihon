@@ -413,7 +413,7 @@ func TestCronPayloads(t *testing.T) {
 			t.Fatalf("RunCheck: %v", err)
 		}
 		first, _, _ := bytes.Cut(out, []byte("\n"))
-		want := "7 findings: 1 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)"
+		want := "7 findings: 1 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths, 0 other)"
 		if string(first) != want {
 			t.Errorf("human first line = %q, want %q", first, want)
 		}
@@ -844,6 +844,21 @@ func TestCheckPathFilterRefusesUnobservedScope(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), p) {
 			t.Errorf("check with path filter %q: error %q does not name the path back", p, err)
+		}
+	}
+}
+
+// TestCheckPathFilterRefusesAPathThatIsNotVaultRelative asserts a filter that
+// climbs out of the vault or has an empty segment is refused for its shape, in
+// a folder with no rules file, rather than as ground a rules file withholds.
+func TestCheckPathFilterRefusesAPathThatIsNotVaultRelative(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, "Notes/a.md", "# A\n")
+	for _, p := range []string{"../Notes", "Notes//a.md", "Notes/../Notes"} {
+		_, err := runCheckAction(t.Context(), root, []string{p}, false)
+		if err == nil || !strings.Contains(err.Error(), vaultRelativeExample) {
+			t.Errorf("check with path filter %q = %v, want the refusal that asks for a vault-relative path", p, err)
 		}
 	}
 }
